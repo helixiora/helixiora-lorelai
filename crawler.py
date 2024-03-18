@@ -1,32 +1,49 @@
 #!/usr/bin/env python3
 
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-import os.path
+import sqlite3
+import json
 
 # The scopes needed to read documents in Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+DATABASE = './userdb.sqlite'
 
+# sqlite> PRAGMA table_info(user_tokens)
+#    ...> ;
+# 0|user_id|TEXT|0||1
+# 1|access_token|TEXT|0||0
+# 2|refresh_token|TEXT|0||0
+# 3|expires_in|INTEGER|0||0
+# 4|token_type|TEXT|0||0
+# 5|scope|TEXT|0||0
+# load tokens from sqlite
+def load_tokens_from_sqlite():
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM user_tokens where user_id = '115957235300401571807'")
+    rows = cur.fetchall()
+    conn.close()
+    return rows 
+
+def load_client_secrets():
+    with open('client_secret.json') as f:
+        return json.load(f)
+    
 def main():
     creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+    secrets = load_client_secrets()
+    
+    tokens = load_tokens_from_sqlite()
+    if tokens:
+        token = tokens[0]
+        creds = Credentials(
+            token[1],
+            refresh_token=token[2],
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=secrets['web']['client_id'],
+            client_secret=secrets['web']['client_secret']
+        )
 
     service = build('drive', 'v3', credentials=creds)
 
