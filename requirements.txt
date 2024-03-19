@@ -3,4 +3,8 @@ google-auth
 google-auth-oauthlib 
 google-auth-httplib2
 google-api-python-client
-sqlite3
+pinecone-client
+langchain
+langchain-community
+langchain-pinecone
+langchain-openai
