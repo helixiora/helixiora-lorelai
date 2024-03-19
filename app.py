@@ -1,9 +1,11 @@
+"""the main application file for the OAuth2 flow flask app
+"""
+import os
+import sqlite3
 from flask import Flask, redirect, url_for, session, request
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 import google.auth.transport.requests
-import sqlite3
-import os
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
@@ -14,7 +16,10 @@ client_secrets_file = os.path.join(os.path.dirname(__file__), "client_secret.jso
 
 flow = Flow.from_client_secrets_file(
     client_secrets_file=client_secrets_file,
-    scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/drive.readonly", "openid"],
+    scopes=["https://www.googleapis.com/auth/userinfo.profile",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "openid"],
     redirect_uri="http://127.0.0.1:5000/oauth2callback"
     # redirect_uri="https://lorelai.helixiora.com"
 )
@@ -23,6 +28,11 @@ flow = Flow.from_client_secrets_file(
 DATABASE = './userdb.sqlite'
 
 def get_db_connection():
+    """returns a connection to the database
+
+    Returns:
+        conn: the connection to the database
+    """
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
@@ -30,16 +40,28 @@ def get_db_connection():
 # shows a link to lorelai if the user is logged in, otherwise shows a link to login
 @app.route('/')
 def index():
+    """the index page
+
+    Returns:
+        string: the index page
+    """
     if 'google_id' in session:
         name = session['name']
         return f"Hello, {name}. <a href=""lorelai.helixiora.com"">Go to Lorelai</a>"
     else:
-        authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+        authorization_url, state = flow.authorization_url(access_type='offline',
+                                                          include_granted_scopes='true')
         session['state'] = state
-        return '<a href="{}">Login with Google</a>'.format(authorization_url)
+        return f'<a href="{authorization_url}">Login with Google</a>'
 
 @app.route('/oauth2callback')
 def callback():
+    """the callback function for the OAuth2 flow
+
+    Returns:
+        redirect: redirects to the profile page
+    """
+
     flow.fetch_token(authorization_response=request.url)
 
     if not session['state'] == request.args['state']:
@@ -48,19 +70,20 @@ def callback():
     credentials = flow.credentials
     request_session = google.auth.transport.requests.Request()
     id_info = id_token.verify_oauth2_token(
-        id_token=credentials._id_token,
+        id_token=credentials.id_token,
         request=request_session,
         audience=flow.client_config['client_id']
     )
 
-    print(f"CREDS: {credentials}")    
+    print(f"CREDS: {credentials}")
     print(f"ID: {id_info}")
-    
-    # Here, 'sub' is used as the user ID. Depending on your application, you might use a different identifier
+
+    # Here, 'sub' is used as the user ID. Depending on your application, you might use a different
+    # identifier
     user_id = id_info.get('sub')
     username = id_info.get('name')
     user_email = id_info.get('email')
-   
+
     # Database insert/update
     conn = get_db_connection()
     cur = conn.cursor()
@@ -77,7 +100,7 @@ def callback():
         token_type TEXT,
         scope TEXT
     )''')
-    
+
     cur.execute(("""
         INSERT INTO users (id, name, email)
         VALUES (?, ?, ?)
@@ -86,7 +109,7 @@ def callback():
     """), (user_id, username, user_email))
 
     cur.execute('''
-        INSERT INTO user_tokens (user_id, access_token, refresh_token, expires_in, token_type, scope) 
+        INSERT INTO user_tokens (user_id, access_token, refresh_token, expires_in, token_type, scope)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
         access_token=excluded.access_token,
@@ -112,9 +135,14 @@ def callback():
 
 @app.route('/profile')
 def profile():
+    """the profile page
+
+    Returns:
+        string: the profile page
+    """
     if 'google_id' in session:
         name = session['name']
-        return f'Hello, {session}. <a href="lorelai.helixiora.com">Go to Lorelai</a>'
+        return f'Hello, {name}. <a href="lorelai.helixiora.com">Go to Lorelai</a>'
     else:
         return 'You are not logged in!'
 

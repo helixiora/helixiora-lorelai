@@ -1,23 +1,30 @@
 #!/usr/bin/env python3
+"""this script is used to query the indexed documents in pinecone using langchain and OpenAI
+"""
+
 import json
 import os
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
-from langchain_pinecone import PineconeVectorStore
+from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
 
 # a simple test script to ask a question langchain that has been indexed in pinecone
 
 # load openai creds from file and set env variable
 def load_openai_creds():
-    with open('settings.json') as f:
+    """loads the openai creds from the settings.json file
+    """
+    with open('settings.json', encoding='utf-8') as f:
         creds = json.load(f)['openai']
     os.environ["OPENAI_API_KEY"] = creds['api-key']
 
 def load_pinecone_creds():
-    with open('settings.json') as f:
+    """loads the pinecone creds from the settings.json file
+    """
+    with open('settings.json', encoding='utf-8') as f:
         creds = json.load(f)['pinecone']
     os.environ["PINECONE_API_KEY"] = creds['api-key']
     print(f"Pinecone Creds: {creds}")
@@ -25,12 +32,12 @@ def load_pinecone_creds():
 load_openai_creds()
 load_pinecone_creds()
 
-template = """Beantwoord de volgende vraag alleen gebaseerd op de context hieronder:
+TEMPLATE = """Beantwoord de volgende vraag alleen gebaseerd op de context hieronder:
 {context}
 
 Vraag: {question}
 """
-prompt = ChatPromptTemplate.from_template(template)
+prompt = ChatPromptTemplate.from_template(TEMPLATE)
 
 model = ChatOpenAI(model="gpt-3.5-turbo")
 output_parser = StrOutputParser()
