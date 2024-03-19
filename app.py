@@ -14,6 +14,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 client_secrets_file = os.path.join(os.path.dirname(__file__), "client_secret.json")
 
+#TODO: config file no longer exists
 flow = Flow.from_client_secrets_file(
     client_secrets_file=client_secrets_file,
     scopes=["https://www.googleapis.com/auth/userinfo.profile",

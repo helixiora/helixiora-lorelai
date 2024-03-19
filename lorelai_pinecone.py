@@ -6,7 +6,7 @@ import os
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import GoogleDriveLoader
+from langchain_community.document_loaders.googledrive import GoogleDriveLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 DATABASE = './userdb.sqlite'
@@ -34,7 +34,9 @@ class GoogleDriveProcessor:
         """process the Google Drive documents and index them in Pinecone
         """
 
-        drive_loader = GoogleDriveLoader(document_ids=['1GxEfHnCeHHF94FPWWV3C94MizzVPtnJtOebxiMJUJvE'])
+        #TODO: update to crawl drive
+        drive_loader = GoogleDriveLoader(
+            document_ids=['1GxEfHnCeHHF94FPWWV3C94MizzVPtnJtOebxiMJUJvE'])
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
 
         docs = drive_loader.load()
@@ -44,6 +46,7 @@ class GoogleDriveProcessor:
         #     print(f"Processing document: {doc_id}")
         documents = splitter.split_documents(docs)
 
+        #TODO: subsequent runs should update, not add/duplicate
         db = self.pinecone.from_documents(documents,
                                           self.embeddings,
                                           index_name=self.pinecone_index_name)
