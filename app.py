@@ -27,11 +27,16 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+# shows a link to lorelai if the user is logged in, otherwise shows a link to login
 @app.route('/')
 def index():
-    authorization_url, state = flow.authorization_url()
-    session['state'] = state
-    return '<a href="{}">Login with Google</a>'.format(authorization_url)
+    if 'google_id' in session:
+        name = session['name']
+        return f"Hello, {name}. <a href=""lorelai.helixiora.com"">Go to Lorelai</a>"
+    else:
+        authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+        session['state'] = state
+        return '<a href="{}">Login with Google</a>'.format(authorization_url)
 
 @app.route('/oauth2callback')
 def callback():
@@ -107,9 +112,11 @@ def callback():
 
 @app.route('/profile')
 def profile():
-    if 'google_id' not in session:
+    if 'google_id' in session:
+        name = session['name']
+        return f'Hello, {session}. <a href="lorelai.helixiora.com">Go to Lorelai</a>'
+    else:
         return 'You are not logged in!'
-    return 'Hello, {}'.format(session['name'])
 
 if __name__ == '__main__':
     app.run('localhost', 5000)
