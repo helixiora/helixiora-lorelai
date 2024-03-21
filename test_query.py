@@ -4,8 +4,9 @@
 
 import json
 import os
+import sys
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
@@ -27,17 +28,20 @@ def load_pinecone_creds():
     with open('settings.json', encoding='utf-8') as f:
         creds = json.load(f)['pinecone']
     os.environ["PINECONE_API_KEY"] = creds['api-key']
-    print(f"Pinecone Creds: {creds}")
 
 load_openai_creds()
 load_pinecone_creds()
+
+# the question to ask is supplied as commenad line argument
+args = sys.argv
+question = args[1]
 
 TEMPLATE = """Beantwoord de volgende vraag alleen gebaseerd op de context hieronder:
 {context}
 
 Vraag: {question}
 """
-prompt = ChatPromptTemplate.from_template(TEMPLATE)
+prompt = PromptTemplate.from_template(TEMPLATE)
 
 model = ChatOpenAI(model="gpt-3.5-turbo")
 output_parser = StrOutputParser()
@@ -46,12 +50,13 @@ vector_store = PineconeVectorStore(index_name="lorelai-index", embedding=OpenAIE
 
 retriever = vector_store.as_retriever()
 
-setup_and_retrieval = RunnableParallel(
-    {"context": retriever, "question": RunnablePassthrough()}
-)
+docs = retriever.get_relevant_documents(question, k=1)
 
-chain = setup_and_retrieval | prompt | model | output_parser
+# chain = RunnableParallel([prompt, model, output_parser])
 
-result = chain.invoke({"question": "Waarop is het onderhoudsplan ingeschat?"})
+# chain = setup_and_retrieval | prompt | model | output_parser
+chain = prompt | model | output_parser
+
+result = chain.invoke({"context": docs, "question": question})
 
 print(result)
