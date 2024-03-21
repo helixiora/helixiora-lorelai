@@ -7,7 +7,6 @@ import os
 import sys
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -52,9 +51,6 @@ retriever = vector_store.as_retriever()
 
 docs = retriever.get_relevant_documents(question, k=1)
 
-# chain = RunnableParallel([prompt, model, output_parser])
-
-# chain = setup_and_retrieval | prompt | model | output_parser
 chain = prompt | model | output_parser
 
 result = chain.invoke({"context": docs, "question": question})
