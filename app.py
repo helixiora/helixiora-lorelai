@@ -1,5 +1,6 @@
 """the main application file for the OAuth2 flow flask app
 """
+import json
 import os
 import sqlite3
 from flask import Flask, redirect, url_for, session, request
@@ -12,11 +13,23 @@ app.secret_key = 'your_very_secret_and_long_random_string_here'
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-client_secrets_file = os.path.join(os.path.dirname(__file__), "client_secret.json")
+with open('settings.json', encoding='utf-8') as f:
+    secrets = json.load(f)['google']
 
-#TODO: config file no longer exists
-flow = Flow.from_client_secrets_file(
-    client_secrets_file=client_secrets_file,
+client_config = {
+    "web": {
+        "client_id": secrets['client_id'],
+        "project_id": secrets['project_id'],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": secrets['client_secret'],
+        "redirect_uris": secrets['redirect_uris'],
+    }
+}
+
+flow = Flow.from_client_config(
+    client_config=client_config,
     scopes=["https://www.googleapis.com/auth/userinfo.profile",
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/drive.readonly",

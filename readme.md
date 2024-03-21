@@ -7,7 +7,7 @@ Walter: This repo is a work in progress. It's not meant to be beautiful, done or
 ### Todo:
 1. the flask app is very basic but works
 1. the crawler currently picks a specific file defined in [lorelai_pinecone.py#L30-L31]() instead of crawling the whole drive
-1. the `test-query` script is not working yet
+1. the `test_query` script is not working yet
 
 ## Overview
 
@@ -23,7 +23,7 @@ This repository is dedicated to showcasing a Proof of Concept (POC) for Lorelai,
 
 - `app.py`: A Flask application to facilitate Google OAuth permission setup.
 - `crawler.py`: A script for nightly crawling of Google Drive documents to index them into Pinecone.
-- `test-query.py`: Executes a test query using context from Pinecone before querying OpenAI.
+- `test_query.py`: Executes a test query using context from Pinecone before querying OpenAI.
 
 ## Getting Started
 
@@ -37,12 +37,13 @@ Follow these steps to set up the project and run the components.
 2. Acquire an OpenAI API key through [OpenAI's platform](https://platform.openai.com/api-keys).
 3. Generate Google OAuth credentials via [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
 4. Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
+    1. The project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager) 
 
 #### Prepare Your Environment
 
 1. Create a Python virtual environment: `python -m venv .venv` and activate it with `source .venv/bin/activate`.
 2. Install required dependencies: `pip install -r requirements.txt`.
-3. Ensure all `.py` scripts are executable: `chmod +x crawler.py test-query.py`.
+3. Ensure all `.py` scripts are executable: `chmod +x crawler.py test_query.py`.
 
 ### Google OAuth Configuration
 
@@ -63,6 +64,6 @@ Follow these steps to set up the project and run the components.
 
 ### Running Test Queries
 
-1. Execute the test query script: `./test-query.py` to simulate querying with context from Pinecone and processing through OpenAI.
+1. Execute the test query script: `./test_query.py` to simulate querying with context from Pinecone and processing through OpenAI.
 
 This documentation provides a comprehensive guide to getting started with the Lorelai RAG POC. Follow the outlined steps to set up your environment, configure access, and execute the components to explore the capabilities of this integration.
