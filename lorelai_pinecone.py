@@ -111,7 +111,7 @@ class GoogleDriveProcessor:
         document_ids = []
 
         # Call the Drive v3 API to get the list of files
-        results = service.files().list(
+        results = service.files().list( # pylint: disable=no-member
             q="mimeType='application/vnd.google-apps.document'",
             pageSize=100, fields="nextPageToken, files(id, name)").execute()
 
@@ -149,7 +149,7 @@ class GoogleDriveProcessor:
                                             index_name=self.pinecone_index_name,
                                             embedding=embeddings)
 
-        #TODO: subsequent runs should update, not add/duplicate
+        #TODO: subsequent runs should update, not add/duplicate # pylint: disable=fixme
         db = pinecone.from_documents(documents,
                                           embeddings,
                                           index_name=self.pinecone_index_name)
