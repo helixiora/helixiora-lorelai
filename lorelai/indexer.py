@@ -2,35 +2,29 @@
 them using langchain and then index them in pinecone"""
 
 import json
-import os
 import sqlite3
-from pathlib import Path
 
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
-from langchain_pinecone import PineconeVectorStore
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders.googledrive import GoogleDriveLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
+from lorelai.processor import Processor
 
 # The scopes needed to read documents in Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
 DATABASE = './userdb.sqlite'
 
-class GoogleDriveProcessor:
+class Indexer:
     """This class is used to process the Google Drive documents and index them in Pinecone
     """
-    def __init__(self, google_creds, pinecone_creds, openai_creds):
-        self.pinecone_api_key = pinecone_creds['api-key']
-        self.openai_api_key = openai_creds['api-key']
-        # set env variable with openai api key
-        os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
+    def __init__(self):
+        self.google_creds = self.load_google_creds()
 
-        self.pinecone_environment = pinecone_creds['environment']
-        self.pinecone_index_name = pinecone_creds['index-name']
-        self.google_creds = google_creds
+    @staticmethod
+    def load_google_creds():
+        """loads the google creds from the settings.json file
+        """
+        with open('settings.json', encoding='utf-8') as f:
+            return json.load(f)['google']
 
     # load tokens from sqlite
     def load_tokens_from_sqlite(self):
@@ -42,25 +36,6 @@ class GoogleDriveProcessor:
         rows = cur.fetchall()
         conn.close()
         return rows
-
-    def save_google_creds_to_tempfile(self, refresh_token, token_uri, client_id, client_secret):
-        """loads the google creds to a tempfile. This is needed because the GoogleDriveLoader uses
-        the Credentials.from_authorized_user_file method to load the credentials
-        """
-        # create a file: Path.home() / ".credentials" / "token.json" to store the credentials so
-        # they can be loaded by GoogleDriveLoader's auth process (this uses
-        # Credentials.from_authorized_user_file)
-        if not os.path.exists(Path.home() / ".credentials"):
-            os.makedirs(Path.home() / ".credentials")
-
-        with open(Path.home() / ".credentials" / "token.json", 'w', encoding='utf-8') as f:
-            f.write(json.dumps({
-                "refresh_token": refresh_token,
-                "token_uri": token_uri,
-                "client_id": client_id,
-                "client_secret": client_secret
-            }))
-            f.close()
 
     def process_drive(self):
         """process the Google Drive documents and index them in Pinecone
@@ -85,17 +60,14 @@ class GoogleDriveProcessor:
 
             })
 
-        # save the google creds to a tempfile as they are needed by the langchain google drive
-        # loader until this issue is fixed: https://github.com/langchain-ai/langchain/issues/15058
-        self.save_google_creds_to_tempfile(refresh_token, "https://oauth2.googleapis.com/token",
-                                           self.google_creds['client_id'],
-                                           self.google_creds['client_secret'])
-
         # 2. Get the Google Drive document IDs
         document_ids = self.get_google_docs_ids(credentials)
         for document_id in document_ids:
+
             print(f"Processing document: {document_id}")
-            # self.process_document(document_id)
+
+            processor = Processor()
+            processor.process_google_doc(document_id, credentials)
 
     def get_google_docs_ids(self, credentials):
         """
@@ -137,31 +109,4 @@ class GoogleDriveProcessor:
                 break
 
         return document_ids
-
-
-
-    def process_document(self, document_id):
-        """process the Google Drive documents and index them in Pinecone
-        """
-        drive_loader = GoogleDriveLoader(
-            document_ids=[document_id])
-        splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
-
-        docs = drive_loader.load()
-
-        # Iterate over documents and split each document's text into chunks
-        # for doc_id, document_content in documents.items():
-        #     print(f"Processing document: {doc_id}")
-        documents = splitter.split_documents(docs)
-
-        embeddings = OpenAIEmbeddings()
-        pinecone = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key,
-                                            index_name=self.pinecone_index_name,
-                                            embedding=embeddings)
-
-        #TODO: subsequent runs should update, not add/duplicate # pylint: disable=fixme
-        db = pinecone.from_documents(documents,
-                                          embeddings,
-                                          index_name=self.pinecone_index_name)
-
-        return db
+    
