@@ -2,7 +2,7 @@
 them using langchain and then index them in pinecone"""
 
 import json
-import sqlite3
+import os
 
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
 from googleapiclient.discovery import build
@@ -26,31 +26,26 @@ class Indexer:
         with open('settings.json', encoding='utf-8') as f:
             return json.load(f)['google']
 
-    # load tokens from sqlite
-    def load_tokens_from_sqlite(self):
-        """loads the tokens from the sqlite database
-        """
-        conn = sqlite3.connect(DATABASE)
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM user_tokens where user_id = '115957235300401571807'")
-        rows = cur.fetchall()
-        conn.close()
-        return rows
-
-    def process_drive(self):
-        """process the Google Drive documents and index them in Pinecone
+    def index_org_drive(self, org, users):
+        """process the Google Drive documents for an organisation
         """
         # self.save_google_creds_to_tempfile()
         # tokens = self.load_tokens_from_sqlite()
 
         # 1. Load the Google Drive credentials
         # build a credentials object from the google creds
+        for user in users:
+            self.index_user_drive(user, org)
 
-        tokens = self.load_tokens_from_sqlite()
 
-        if tokens:
-            token = tokens[0]
-            refresh_token = token[2]
+    def index_user_drive(self, user, org):
+        """process the Google Drive documents for a user and index them in Pinecone
+        """
+
+        if user:
+            print(f"Processing user: {user} from org: {org}")
+            token = user[4]
+            refresh_token = user[5]
 
             credentials = Credentials.from_authorized_user_info({
                 "refresh_token": refresh_token,
@@ -66,8 +61,9 @@ class Indexer:
 
             print(f"Processing document: {document_id}")
 
-            processor = Processor()
-            processor.process_google_doc(document_id, credentials)
+            if not os.environ.get('DRY_RUN'):
+                processor = Processor()
+                processor.process_google_doc(document_id, credentials)
 
     def get_google_docs_ids(self, credentials):
         """
@@ -82,7 +78,8 @@ class Indexer:
         # List to store all document IDs
         document_ids = []
 
-        # Call the Drive v3 API to get the list of files
+        # Call the Drive v3 API to get the list of files. We don't use GoogleDriveLoader because
+        # we only need the document IDs here.
         page_token = None
         while True:
             results = service.files().list( # pylint: disable=no-member
@@ -109,4 +106,3 @@ class Indexer:
                 break
 
         return document_ids
-    
