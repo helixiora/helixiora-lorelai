@@ -62,11 +62,11 @@ def index():
     if 'google_id' in session:
         name = session['name']
         return f"Hello, {name}. <a href=""lorelai.helixiora.com"">Go to Lorelai</a>"
-    else:
-        authorization_url, state = flow.authorization_url(access_type='offline',
-                                                          include_granted_scopes='true')
-        session['state'] = state
-        return f'<a href="{authorization_url}">Login with Google</a>'
+
+    authorization_url, state = flow.authorization_url(access_type='offline',
+                                                        include_granted_scopes='true')
+    session['state'] = state
+    return f'<a href="{authorization_url}">Login with Google</a>'
 
 @app.route('/oauth2callback')
 def callback():
