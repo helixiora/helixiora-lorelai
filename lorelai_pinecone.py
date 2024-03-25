@@ -95,7 +95,7 @@ class GoogleDriveProcessor:
         document_ids = self.get_google_docs_ids(credentials)
         for document_id in document_ids:
             print(f"Processing document: {document_id}")
-            self.process_document(document_id)
+            # self.process_document(document_id)
 
     def get_google_docs_ids(self, credentials):
         """
@@ -111,20 +111,30 @@ class GoogleDriveProcessor:
         document_ids = []
 
         # Call the Drive v3 API to get the list of files
-        results = service.files().list( # pylint: disable=no-member
-            q="mimeType='application/vnd.google-apps.document'",
-            pageSize=100, fields="nextPageToken, files(id, name)").execute()
+        page_token = None
+        while True:
+            results = service.files().list( # pylint: disable=no-member
+                q="mimeType='application/vnd.google-apps.document'",
+                pageSize=100, fields="nextPageToken, files(id, name, parents, spaces)",
+                pageToken=page_token).execute()
 
-        # Extract the files from the results
-        items = results.get('files', [])
+            # Extract the files from the results
+            items = results.get('files', [])
 
-        # Iterate through the files and add their IDs to the document_ids list
-        if not items:
-            print('No files found.')
-        else:
-            for item in items:
-                print(f"Found file: {item['name']} with ID: {item['id']}")
-                document_ids.append(item['id'])
+            # Iterate through the files and add their IDs to the document_ids list
+            if not items:
+                print('No files found.')
+                break
+            else:
+                print(f"Found {len(items)} files")
+                for item in items:
+                    print(f"Found file: {item['name']} with ID: {item['id']} ")
+                    document_ids.append(item['id'])
+
+            # Check if there are more pages
+            page_token = results.get('nextPageToken')
+            if not page_token:
+                break
 
         return document_ids
 
