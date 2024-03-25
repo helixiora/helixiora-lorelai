@@ -2,27 +2,76 @@
 """
 import json
 import os
+from pprint import pprint
 import sqlite3
-from flask import Flask, redirect, url_for, session, request
+from flask import Flask, redirect, url_for, session, request, render_template, flash
+
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 import google.auth.transport.requests
 
-def get_db_connection():
-    """returns a connection to the database
-
-    Returns:
-        conn: the connection to the database
-    """
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
 
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+# Allow OAuthlib to use HTTP for local testing only
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+# Helper function for database connections
+def get_db_connection() -> sqlite3.Connection | None:
+    """Get a database connection
+
+    Returns:
+        conn: a connection to the database
+    """
+    try:
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.Error as e:
+        print(f"Database connection failed: {e}")
+        return None
+
+def get_user_details():
+    """Fetches details of the currently logged-in user from the database.
+
+    Returns:
+        A dictionary with user details or None if not found.
+    """
+    if 'google_id' not in session:
+        return None
+
+    google_id = session['google_id']
+
+    try:
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+        else:
+            raise Exception("Failed to connect to the database.")
+
+        user_details = cursor.execute("""
+            SELECT u.name, u.email, o.name AS org_name
+            FROM users u
+            INNER JOIN organisations o ON u.org_id = o.id
+            WHERE u.google_id = ?
+        """, (google_id,)).fetchone()
+
+        if user_details:
+            # Convert the row to a dictionary
+            details = {
+                'name': user_details['name'],
+                'email': user_details['email'],
+                'org_name': user_details['org_name']
+            }
+            return details
+    except Exception as e:
+        print(f"Failed to fetch user details: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+# Load the Google OAuth2 secrets
 with open('settings.json', encoding='utf-8') as f:
     secrets = json.load(f)['google']
 
@@ -53,7 +102,10 @@ DATABASE = './userdb.sqlite'
 
 # Database schema
 connection = get_db_connection()
-cur = connection.cursor()
+if connection:
+    cur = connection.cursor()
+else:
+    raise Exception("Failed to connect to the database.")
 
 # make sure the organisation table exists
 cur.execute('''CREATE TABLE IF NOT EXISTS organisations (
@@ -78,7 +130,7 @@ connection.commit()
 cur.close()
 connection.close()
 
-# shows a link to lorelai if the user is logged in, otherwise shows a link to login
+# Improved index route using render_template
 @app.route('/')
 def index():
     """the index page
@@ -88,12 +140,25 @@ def index():
     """
     if 'google_id' in session:
         name = session['name']
-        return f"Hello, {name}. <a href=""lorelai.helixiora.com"">Go to Lorelai</a>"
+        return render_template('index_logged_in.html', name=name)
+    else:
+        try:
+            authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+            session['state'] = state
+            return render_template('index.html', auth_url=authorization_url)
+        except Exception as e:
+            print(f"Error generating authorization URL: {e}")
+            return render_template('error.html', error_message="Failed to generate login URL.")
 
-    authorization_url, state = flow.authorization_url(access_type='offline',
-                                                        include_granted_scopes='true')
-    session['state'] = state
-    return f'<a href="{authorization_url}">Login with Google</a>'
+@app.route('/profile')
+def profile():
+    if 'google_id' in session:
+        # Example: Fetch user details from the database
+        user = get_user_details()
+        # Assume `get_user_details` returns a dict with user info and credentials
+        return render_template('profile.html', user=user)
+    else:
+        return 'You are not logged in!'
 
 @app.route('/oauth2callback')
 def callback():
@@ -111,12 +176,12 @@ def callback():
     credentials = flow.credentials
     request_session = google.auth.transport.requests.Request()
     id_info = id_token.verify_oauth2_token(
-        id_token=credentials.id_token,
+        id_token=credentials.id_token, #pylint: disable=no-member
         request=request_session,
         audience=flow.client_config['client_id']
     )
 
-    print(f"CREDS: {credentials}")
+    pprint(f"CREDS: {credentials}")
     print(f"ID: {id_info}")
 
     # Here, 'sub' is used as the user ID. Depending on your application, you might use a different
@@ -140,14 +205,13 @@ def callback():
         ON CONFLICT (name)
         DO NOTHING;
     """), (organisation,))
-    conn.commit()
 
-    org_id = cursor.execute("SELECT id FROM organisations WHERE name = ?;", (organisation,)).fetchone()[0]
-    conn.commit()
+    sql = "SELECT id FROM organisations WHERE name = ?;"
+    org_id = cursor.execute(sql, (organisation,)).fetchone()[0]
 
     cursor.execute(("""
         INSERT INTO users (
-            org_id, 
+            org_id,
             name,
             email,
             access_token,
@@ -173,20 +237,24 @@ def callback():
 
     session['google_id'] = id_info.get('sub')
     session['name'] = id_info.get('name')
-    return redirect(url_for('profile'))
+    return redirect(url_for('index'))
 
-@app.route('/profile')
-def profile():
-    """the profile page
+# Logout route
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash("You have been logged out.")
+    return redirect(url_for('index'))
 
-    Returns:
-        string: the profile page
-    """
-    if 'google_id' in session:
-        name = session['name']
-        return f'Hello, {name}. <a href="lorelai.helixiora.com">Go to Lorelai</a>'
-    else:
-        return 'You are not logged in!'
+# Error handler for 404
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+# Error handler for 500
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template('500.html'), 500
 
 if __name__ == '__main__':
     app.run('localhost', 5000)
