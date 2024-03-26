@@ -19,13 +19,13 @@ def main():
     conn = sqlite3.connect(DATABASE)
 
     cur = conn.cursor()
-    cur.execute("SELECT * FROM organisations")
+    cur.execute("SELECT id, name FROM organisations")
     rows = cur.fetchall()
 
     # get the user creds for this org from sqlite
     cur = conn.cursor()
     for org in rows:
-        cur.execute("SELECT * FROM users where org_id = ?", (org[0],))
+        cur.execute("SELECT user_id, name, email, access_token, refresh_token FROM users where org_id = ?", (org[0],))
 
         users = cur.fetchall()
 
