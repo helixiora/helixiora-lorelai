@@ -13,6 +13,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 import pinecone
 from pinecone import ServerlessSpec
+from lorelai.utils import pinecone_index_name
 
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone
@@ -32,9 +33,9 @@ class Processor:
         """
         with open('settings.json', encoding='utf-8') as f:
             return json.load(f)['pinecone']
-    
-    @staticmethod    
-    def get_embedding_dimension(model_name):
+
+    @staticmethod
+    def get_embedding_dimension(model_name) -> int:
         """
         Returns the dimension of embeddings for a given model name.
         This function currently uses a hardcoded mapping based on documentation,
@@ -48,8 +49,8 @@ class Processor:
             'text-embedding-ada-002':	1536
             # Add new models and their dimensions here as they become available
         }
-        
-        return model_dimensions.get(model_name, None)  # Return None if model is not found
+
+        return model_dimensions.get(model_name, -1)  # Return None if model is not found
 
 
 
@@ -80,16 +81,16 @@ class Processor:
         embedding_model = 'text-embedding-ada-002'
         embeddings = OpenAIEmbeddings(model=embedding_model)
         embedding_dimension = self.get_embedding_dimension(embedding_model)
+        if embedding_dimension == -1:
+            raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
-        index_name = f"{organisation[1]}-{datasource}"
         #indexname must consist of lower case alphanumeric characters or '-'"
-        index_name = index_name.lower().replace(".", "-")
-        print(f"Index name: {index_name}")
+        index_name = pinecone_index_name(organisation[1], datasource)
 
         pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
 
-        # somehow the PineconeVectorStore doesn't support creating a new index, so we use pinecone package directly
-        # Check if the index already exists
+        # somehow the PineconeVectorStore doesn't support creating a new index, so we use pinecone
+        # package directly. Check if the index already exists
         if index_name not in pc.list_indexes().names():
             # Create a new index
             pc.create_index(name=index_name,
@@ -103,7 +104,8 @@ class Processor:
         else:
             print(f"Index '{index_name}' already exists.")
 
-        vector_store = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key, index_name=index_name, embedding=embeddings)
+        vector_store = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key,
+                                           index_name=index_name, embedding=embeddings)
 
         #TODO: subsequent runs should update, not add/duplicate # pylint: disable=fixme
         db = vector_store.from_documents(documents,
