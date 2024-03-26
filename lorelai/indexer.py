@@ -63,7 +63,7 @@ class Indexer:
 
             if not os.environ.get('DRY_RUN'):
                 processor = Processor()
-                processor.process_google_doc(document_id, credentials)
+                processor.process_google_doc(document_id, credentials, org)
 
     def get_google_docs_ids(self, credentials):
         """

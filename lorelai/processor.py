@@ -11,6 +11,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 
 from langchain_pinecone import PineconeVectorStore
+import pinecone
+from pinecone import ServerlessSpec
 
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone
@@ -30,6 +32,25 @@ class Processor:
         """
         with open('settings.json', encoding='utf-8') as f:
             return json.load(f)['pinecone']
+    
+    @staticmethod    
+    def get_embedding_dimension(model_name):
+        """
+        Returns the dimension of embeddings for a given model name.
+        This function currently uses a hardcoded mapping based on documentation,
+        as there's no API endpoint to retrieve this programmatically.
+        See: https://platform.openai.com/docs/models/embeddings
+        """
+        # Mapping of model names to their embedding dimensions
+        model_dimensions = {
+            'text-embedding-3-large':	3072,
+            'text-embedding-3-small':	1536,
+            'text-embedding-ada-002':	1536
+            # Add new models and their dimensions here as they become available
+        }
+        
+        return model_dimensions.get(model_name, None)  # Return None if model is not found
+
 
 
     def __init__(self):
@@ -46,7 +67,7 @@ class Processor:
         self.pinecone_index_name = self.pinecone_creds['index-name']
 
 
-    def process(self, docs):
+    def process(self, docs, organisation, datasource):
         """process the documents and index them in Pinecone
         """
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
@@ -55,15 +76,39 @@ class Processor:
         #     print(f"Processing document: {doc_id}")
         documents = splitter.split_documents(docs)
 
-        embeddings = OpenAIEmbeddings()
-        pinecone = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key,
-                                            index_name=self.pinecone_index_name,
-                                            embedding=embeddings)
+        # use text-embedding-ada-002
+        embedding_model = 'text-embedding-ada-002'
+        embeddings = OpenAIEmbeddings(model=embedding_model)
+        embedding_dimension = self.get_embedding_dimension(embedding_model)
+
+        index_name = f"{organisation[1]}-{datasource}"
+        #indexname must consist of lower case alphanumeric characters or '-'"
+        index_name = index_name.lower().replace(".", "-")
+        print(f"Index name: {index_name}")
+
+        pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
+
+        # somehow the PineconeVectorStore doesn't support creating a new index, so we use pinecone package directly
+        # Check if the index already exists
+        if index_name not in pc.list_indexes().names():
+            # Create a new index
+            pc.create_index(name=index_name,
+                            dimension=embedding_dimension,
+                            metric='cosine',
+                            spec=ServerlessSpec(
+                                cloud='aws',
+                                region='us-west-2'
+                            ))
+            print(f"Index '{index_name}' created.")
+        else:
+            print(f"Index '{index_name}' already exists.")
+
+        vector_store = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key, index_name=index_name, embedding=embeddings)
 
         #TODO: subsequent runs should update, not add/duplicate # pylint: disable=fixme
-        db = pinecone.from_documents(documents,
+        db = vector_store.from_documents(documents,
                                             embeddings,
-                                            index_name=self.pinecone_index_name)
+                                            index_name=index_name,)
 
         return db
 
@@ -86,7 +131,7 @@ class Processor:
             }))
             f.close()
 
-    def process_google_doc(self, document_id: str, credentials: Credentials):
+    def process_google_doc(self, document_id: str, credentials: Credentials, org: str):
         """process the Google Drive documents and index them in Pinecone
         """
         # save the google creds to a tempfile as they are needed by the langchain google drive
@@ -101,5 +146,4 @@ class Processor:
 
         docs = drive_loader.load()
 
-        self.process(docs)
-        
+        self.process(docs, org, "googledrive")

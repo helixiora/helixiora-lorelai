@@ -2,6 +2,7 @@
 """
 import json
 import os
+import sys
 from pprint import pprint
 import sqlite3
 from flask import Flask, redirect, url_for, session, request, render_template, flash
@@ -17,7 +18,7 @@ app.secret_key = 'your_very_secret_and_long_random_string_here'
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # Helper function for database connections
-def get_db_connection() -> sqlite3.Connection | None:
+def get_db_connection() -> sqlite3.Connection:
     """Get a database connection
 
     Returns:
@@ -29,7 +30,7 @@ def get_db_connection() -> sqlite3.Connection | None:
         return conn
     except sqlite3.Error as e:
         print(f"Database connection failed: {e}")
-        return None
+        raise e
 
 def get_user_details():
     """Fetches details of the currently logged-in user from the database.
@@ -40,7 +41,9 @@ def get_user_details():
     if 'google_id' not in session:
         return None
 
-    google_id = session['google_id']
+    print(f"SESSION: {session}")
+
+    email = session['email']
 
     try:
         conn = get_db_connection()
@@ -53,8 +56,8 @@ def get_user_details():
             SELECT u.name, u.email, o.name AS org_name
             FROM users u
             INNER JOIN organisations o ON u.org_id = o.id
-            WHERE u.google_id = ?
-        """, (google_id,)).fetchone()
+            WHERE u.email = ?
+        """, (email,)).fetchone()
 
         if user_details:
             # Convert the row to a dictionary
@@ -66,7 +69,7 @@ def get_user_details():
             return details
     except Exception as e:
         print(f"Failed to fetch user details: {e}")
-        return None
+        raise e
     finally:
         if conn:
             conn.close()
@@ -143,7 +146,8 @@ def index():
         return render_template('index_logged_in.html', name=name)
     else:
         try:
-            authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+            authorization_url, state = flow.authorization_url(access_type='offline',
+                                                              include_granted_scopes='true')
             session['state'] = state
             return render_template('index.html', auth_url=authorization_url)
         except Exception as e:
@@ -152,6 +156,8 @@ def index():
 
 @app.route('/profile')
 def profile():
+    """the profile page
+    """
     if 'google_id' in session:
         # Example: Fetch user details from the database
         user = get_user_details()
@@ -195,53 +201,61 @@ def callback():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    print(f"ORG: {organisation}")
+    # check if a user with the same email exists
+    sql = "SELECT user_id FROM users WHERE email = ?;"
+    user_id = cursor.execute(sql, (user_email,)).fetchone()
 
-    # create a new organisation if it doesn't exist
-    # if it does exist, return it's id
-    cursor.execute(("""
-        INSERT INTO organisations (name)
-        VALUES (?)
-        ON CONFLICT (name)
-        DO NOTHING;
-    """), (organisation,))
+    if user_id is None:
+        print(f"ORG: {organisation}")
 
-    sql = "SELECT id FROM organisations WHERE name = ?;"
-    org_id = cursor.execute(sql, (organisation,)).fetchone()[0]
+        # create a new organisation if it doesn't exist
+        # if it does exist, return it's id
+        cursor.execute(("""
+            INSERT INTO organisations (name)
+            VALUES (?)
+            ON CONFLICT (name)
+            DO NOTHING;
+        """), (organisation,))
 
-    cursor.execute(("""
-        INSERT INTO users (
+        sql = "SELECT id FROM organisations WHERE name = ?;"
+        org_id = cursor.execute(sql, (organisation,)).fetchone()[0]
+
+        cursor.execute(("""
+            INSERT INTO users (
+                org_id,
+                name,
+                email,
+                access_token,
+                refresh_token,
+                expires_in,
+                token_type,
+                scope)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        """), (
             org_id,
-            name,
-            email,
-            access_token,
-            refresh_token,
-            expires_in,
-            token_type,
-            scope)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-    """), (
-        org_id,
-        username,
-        user_email,
-        credentials.token,
-        credentials.refresh_token,
-        credentials.expiry,
-        "Bearer",
-        ' '.join(str(credentials.scopes))
-    ))
+            username,
+            user_email,
+            credentials.token,
+            credentials.refresh_token,
+            credentials.expiry,
+            "Bearer",
+            ' '.join(str(credentials.scopes))
+        ))
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+        conn.commit()
+        cursor.close()
+        conn.close()
 
     session['google_id'] = id_info.get('sub')
     session['name'] = id_info.get('name')
+    session['email'] = id_info.get('email')
     return redirect(url_for('index'))
 
 # Logout route
 @app.route('/logout')
 def logout():
+    """the logout route
+    """
     session.clear()
     flash("You have been logged out.")
     return redirect(url_for('index'))
@@ -249,12 +263,23 @@ def logout():
 # Error handler for 404
 @app.errorhandler(404)
 def page_not_found(e):
-    return render_template('404.html'), 404
+    """the error handler for 404 errors
+    """
+    return render_template('404.html', e=e), 404
 
 # Error handler for 500
 @app.errorhandler(500)
 def internal_server_error(e):
-    return render_template('500.html'), 500
+    """the error handler for 500 errors
+    """
+    error_info = sys.exc_info()
+    if error_info:
+        error_message = str(error_info[1])  # Get the exception message
+    else:
+        error_message = "An unknown error occurred."
+
+    # Pass the error message to the template
+    return render_template('500.html', error_message=error_message), 500
 
 if __name__ == '__main__':
-    app.run('localhost', 5000)
+    app.run(host='localhost', port=5000, use_reloader=True)
