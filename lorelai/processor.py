@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+from typing import Any
 from google.oauth2.credentials import Credentials
 
 from langchain_community.document_loaders.googledrive import GoogleDriveLoader
@@ -68,7 +69,7 @@ class Processor:
         self.pinecone_index_name = self.pinecone_creds['index-name']
 
 
-    def process(self, docs, organisation, datasource):
+    def process(self, docs, organisation: str, datasource: str, user: str):
         """process the documents and index them in Pinecone
         """
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
@@ -100,9 +101,6 @@ class Processor:
                                 cloud='aws',
                                 region='us-west-2'
                             ))
-            print(f"Index '{index_name}' created.")
-        else:
-            print(f"Index '{index_name}' already exists.")
 
         vector_store = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key,
                                            index_name=index_name, embedding=embeddings)
@@ -133,7 +131,7 @@ class Processor:
             }))
             f.close()
 
-    def process_google_doc(self, document_id: str, credentials: Credentials, org: str):
+    def process_google_doc(self, document_id: str, credentials: Credentials, org: str, user: list[Any]):
         """process the Google Drive documents and index them in Pinecone
         """
         # save the google creds to a tempfile as they are needed by the langchain google drive
@@ -146,6 +144,11 @@ class Processor:
         drive_loader = GoogleDriveLoader(
             document_ids=[document_id])
 
+        print(f"Processing document: {document_id} for user: {user[2]}")
         docs = drive_loader.load()
 
-        self.process(docs, org, "googledrive")
+        # go through all docs and add the user as metadata
+        for doc in docs:
+            doc.metadata['user'] += user[2]
+
+        self.process(docs, org, "googledrive", user)

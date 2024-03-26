@@ -4,9 +4,12 @@ them using langchain and then index them in pinecone"""
 import json
 import os
 
+from typing import Any
+
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from lorelai.processor import Processor
 
 # The scopes needed to read documents in Google Drive
@@ -20,32 +23,31 @@ class Indexer:
         self.google_creds = self.load_google_creds()
 
     @staticmethod
-    def load_google_creds():
+    def load_google_creds() -> dict[str, str]:
         """loads the google creds from the settings.json file
         """
         with open('settings.json', encoding='utf-8') as f:
             return json.load(f)['google']
 
-    def index_org_drive(self, org, users):
+    def index_org_drive(self, org: list[Any], users: list[list[Any]]) -> None:
         """process the Google Drive documents for an organisation
         """
-        # self.save_google_creds_to_tempfile()
-        # tokens = self.load_tokens_from_sqlite()
-
         # 1. Load the Google Drive credentials
         # build a credentials object from the google creds
         for user in users:
             self.index_user_drive(user, org)
 
 
-    def index_user_drive(self, user, org):
+    def index_user_drive(self, user: list[Any], org: list[Any]) -> None:
         """process the Google Drive documents for a user and index them in Pinecone
+        
+        :param user: the user to process, a list of user details (user_id, name, email, token, refresh_token)
         """
 
         if user:
             print(f"Processing user: {user} from org: {org}")
-            token = user[4]
-            refresh_token = user[5]
+            token = user[3]
+            refresh_token = user[4]
 
             credentials = Credentials.from_authorized_user_info({
                 "refresh_token": refresh_token,
@@ -54,6 +56,11 @@ class Indexer:
                 "client_secret": self.google_creds['client_secret']
 
             })
+            
+            # see if the credentials work and refresh if expired
+            if not credentials.valid:
+                credentials.refresh(Request())
+                print("Refreshed credentials")
 
         # 2. Get the Google Drive document IDs
         document_ids = self.get_google_docs_ids(credentials)
@@ -63,9 +70,9 @@ class Indexer:
 
             if not os.environ.get('DRY_RUN'):
                 processor = Processor()
-                processor.process_google_doc(document_id, credentials, org)
+                processor.process_google_doc(document_id, credentials, org, user)
 
-    def get_google_docs_ids(self, credentials):
+    def get_google_docs_ids(self, credentials) -> list[str]:
         """
         Retrieves all Google Docs document IDs from the user's Google Drive.
 
