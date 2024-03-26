@@ -3,6 +3,7 @@
 
 import json
 import os
+from pprint import pprint
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -65,17 +66,22 @@ class Contextretriever:
 
         model = ChatOpenAI(model="gpt-3.5-turbo")
         output_parser = StrOutputParser()
-        
-        
+
         index_name = pinecone_index_name(self.org_name, "googledrive")
         vector_store = PineconeVectorStore(index_name=index_name, embedding=OpenAIEmbeddings())
 
         retriever = vector_store.as_retriever()
 
-        docs = retriever.get_relevant_documents(question, k=1)
+        docs = retriever.get_relevant_documents(question, k=3)
+
+        #print the source of the document
+        source = []
+        for doc in docs:
+            # add the source to the list of sources
+            source.append(doc.metadata['source'])
 
         chain = prompt | model | output_parser
 
         result = chain.invoke({"context": docs, "question": question})
 
-        return result
+        return result, source
