@@ -2,12 +2,7 @@
 
 # **WIP** This is a Work in Progress!
 
-Walter: This repo is a work in progress. It's not meant to be beautiful, done or working. Rather, I'm working in the open so that others can see what I am doing.
-
-### Todo:
-1. the flask app is very basic but works
-1. the crawler currently picks a specific file defined in [lorelai_pinecone.py#L30-L31]() instead of crawling the whole drive
-1. the `test_query` script is not working yet
+Walter: This repo is a work in progress. It's not meant to be beautiful, done or working. 
 
 ## Overview
 
@@ -22,8 +17,8 @@ This repository is dedicated to showcasing a Proof of Concept (POC) for Lorelai,
 ### Components
 
 - `app.py`: A Flask application to facilitate Google OAuth permission setup.
-- `crawler.py`: A script for nightly crawling of Google Drive documents to index them into Pinecone.
-- `test_query.py`: Executes a test query using context from Pinecone before querying OpenAI.
+- `indexer.py`: A script for nightly crawling of Google Drive documents to index them into Pinecone.
+- `lorelaicli.py`: Executes a test query using context from Pinecone before querying OpenAI.
 
 ## Getting Started
 
@@ -43,28 +38,28 @@ Follow these steps to set up the project and run the components.
 
 1. Create a Python virtual environment: `python -m venv .venv` and activate it with `source .venv/bin/activate`.
 2. Install required dependencies: `pip install -r requirements.txt`.
-3. Ensure all `.py` scripts are executable: `chmod +x crawler.py test_query.py`.
+3. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
 
 ### Google OAuth Configuration
 
 1. Launch the Flask application: `flask run`, and navigate to the local server URL ([http://127.0.0.1:5000](http://127.0.0.1:5000)).
     - Follow the on-screen instructions to log in and authorize access to Google Drive.
-2. Confirm that credentials are stored correctly in SQLite by accessing the `userdb.sqlite` database and querying the `user_tokens` table. Example commands:
+2. Confirm that credentials are stored correctly in SQLite by accessing the `userdb.sqlite` database and querying the `users` table. Example commands:
     ```bash
     sqlite3 userdb.sqlite
     .mode table
     .tables
-    SELECT * FROM user_tokens;
+    SELECT * FROM users;
     ```
 
 ### Executing the Crawler
 
-1. Initiate the document crawling process: `./crawler.py`.
+1. Initiate the document crawling process: `./indexer.py`.
 2. Check Pinecone to ensure your documents have been indexed successfully.
 
 ### Running Test Queries
 
-1. Execute the test query script: `./test_query.py` to simulate querying with context from Pinecone and processing through OpenAI.
+1. Execute the test query script: `./lorelaicli.py` to simulate querying with context from Pinecone and processing through OpenAI.
 
 This documentation provides a comprehensive guide to getting started with the Lorelai RAG POC. Follow the outlined steps to set up your environment, configure access, and execute the components to explore the capabilities of this integration.
 

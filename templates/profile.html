@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Profile</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>User Profile</h1>
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Welcome, {{ user.name }}!</h5>
+                <h6 class="card-subtitle mb-2 text-muted">{{ user.email }}</h6>
+                <p class="card-text">Here are some details about your current session:</p>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item">Email: {{ user.email }}</li>
+                    <li class="list-group-item">Organisation: {{ user.org_name }}</li>
+                    <!-- Add other credential details here -->
+                </ul>
+                <a href="/" class="card-link">Home</a>
+                <a href="/logout" class="card-link">Logout</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

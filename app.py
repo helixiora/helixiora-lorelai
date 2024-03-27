@@ -2,8 +2,11 @@
 """
 import json
 import os
+import sys
+from pprint import pprint
 import sqlite3
-from flask import Flask, redirect, url_for, session, request
+from flask import Flask, redirect, url_for, session, request, render_template, flash
+
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 import google.auth.transport.requests
@@ -11,8 +14,67 @@ import google.auth.transport.requests
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
 
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+# Allow OAuthlib to use HTTP for local testing only
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+# Helper function for database connections
+def get_db_connection() -> sqlite3.Connection:
+    """Get a database connection
+
+    Returns:
+        conn: a connection to the database
+    """
+    try:
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.Error as e:
+        print(f"Database connection failed: {e}")
+        raise e
+
+def get_user_details():
+    """Fetches details of the currently logged-in user from the database.
+
+    Returns:
+        A dictionary with user details or None if not found.
+    """
+    if 'google_id' not in session:
+        return None
+
+    print(f"SESSION: {session}")
+
+    email = session['email']
+
+    try:
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+        else:
+            raise Exception("Failed to connect to the database.")
+
+        user_details = cursor.execute("""
+            SELECT u.name, u.email, o.name AS org_name
+            FROM users u
+            INNER JOIN organisations o ON u.org_id = o.id
+            WHERE u.email = ?
+        """, (email,)).fetchone()
+
+        if user_details:
+            # Convert the row to a dictionary
+            details = {
+                'name': user_details['name'],
+                'email': user_details['email'],
+                'org_name': user_details['org_name']
+            }
+            return details
+    except Exception as e:
+        print(f"Failed to fetch user details: {e}")
+        raise e
+    finally:
+        if conn:
+            conn.close()
+
+# Load the Google OAuth2 secrets
 with open('settings.json', encoding='utf-8') as f:
     secrets = json.load(f)['google']
 
@@ -41,17 +103,37 @@ flow = Flow.from_client_config(
 # Database setup
 DATABASE = './userdb.sqlite'
 
-def get_db_connection():
-    """returns a connection to the database
+# Database schema
+connection = get_db_connection()
+if connection:
+    cur = connection.cursor()
+else:
+    raise Exception("Failed to connect to the database.")
 
-    Returns:
-        conn: the connection to the database
-    """
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+# make sure the organisation table exists
+cur.execute('''CREATE TABLE IF NOT EXISTS organisations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE
+)''')
 
-# shows a link to lorelai if the user is logged in, otherwise shows a link to login
+# make sure the users table exists
+cur.execute('''CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER,
+    name TEXT,
+    email TEXT,
+    access_token TEXT,
+    refresh_token TEXT,
+    expires_in INTEGER,
+    token_type TEXT,
+    scope TEXT
+)''')
+
+connection.commit()
+cur.close()
+connection.close()
+
+# Improved index route using render_template
 @app.route('/')
 def index():
     """the index page
@@ -61,12 +143,28 @@ def index():
     """
     if 'google_id' in session:
         name = session['name']
-        return f"Hello, {name}. <a href=""lorelai.helixiora.com"">Go to Lorelai</a>"
+        return render_template('index_logged_in.html', name=name)
     else:
-        authorization_url, state = flow.authorization_url(access_type='offline',
-                                                          include_granted_scopes='true')
-        session['state'] = state
-        return f'<a href="{authorization_url}">Login with Google</a>'
+        try:
+            authorization_url, state = flow.authorization_url(access_type='offline',
+                                                              include_granted_scopes='true')
+            session['state'] = state
+            return render_template('index.html', auth_url=authorization_url)
+        except Exception as e:
+            print(f"Error generating authorization URL: {e}")
+            return render_template('error.html', error_message="Failed to generate login URL.")
+
+@app.route('/profile')
+def profile():
+    """the profile page
+    """
+    if 'google_id' in session:
+        # Example: Fetch user details from the database
+        user = get_user_details()
+        # Assume `get_user_details` returns a dict with user info and credentials
+        return render_template('profile.html', user=user)
+    else:
+        return 'You are not logged in!'
 
 @app.route('/oauth2callback')
 def callback():
@@ -84,81 +182,104 @@ def callback():
     credentials = flow.credentials
     request_session = google.auth.transport.requests.Request()
     id_info = id_token.verify_oauth2_token(
-        id_token=credentials.id_token,
+        id_token=credentials.id_token, #pylint: disable=no-member
         request=request_session,
         audience=flow.client_config['client_id']
     )
 
-    print(f"CREDS: {credentials}")
+    pprint(f"CREDS: {credentials}")
     print(f"ID: {id_info}")
 
     # Here, 'sub' is used as the user ID. Depending on your application, you might use a different
     # identifier
-    user_id = id_info.get('sub')
+    # user_id = id_info.get('sub')
     username = id_info.get('name')
     user_email = id_info.get('email')
+    organisation = id_info.get('email').split('@')[1]
 
     # Database insert/update
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('''CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        email TEXT
-    )''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS user_tokens (
-        user_id TEXT PRIMARY KEY,
-        access_token TEXT,
-        refresh_token TEXT,
-        expires_in INTEGER,
-        token_type TEXT,
-        scope TEXT
-    )''')
+    cursor = conn.cursor()
 
-    cur.execute(("""
-        INSERT INTO users (id, name, email)
-        VALUES (?, ?, ?)
-        ON CONFLICT (id)
-        DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name;
-    """), (user_id, username, user_email))
+    # check if a user with the same email exists
+    sql = "SELECT user_id FROM users WHERE email = ?;"
+    user_id = cursor.execute(sql, (user_email,)).fetchone()
 
-    cur.execute('''
-        INSERT INTO user_tokens (user_id, access_token, refresh_token, expires_in, token_type, scope)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id) DO UPDATE SET
-        access_token=excluded.access_token,
-        refresh_token=excluded.refresh_token,
-        expires_in=excluded.expires_in,
-        token_type=excluded.token_type,
-        scope=excluded.scope;
-        ''', (
-        user_id,
-        credentials.token,
-        credentials.refresh_token,
-        credentials.expiry,
-        "Bearer",
-        ' '.join(credentials.scopes)
-    ))
-    conn.commit()
-    cur.close()
-    conn.close()
+    if user_id is None:
+        print(f"ORG: {organisation}")
+
+        # create a new organisation if it doesn't exist
+        # if it does exist, return it's id
+        cursor.execute(("""
+            INSERT INTO organisations (name)
+            VALUES (?)
+            ON CONFLICT (name)
+            DO NOTHING;
+        """), (organisation,))
+
+        sql = "SELECT id FROM organisations WHERE name = ?;"
+        org_id = cursor.execute(sql, (organisation,)).fetchone()[0]
+
+        cursor.execute(("""
+            INSERT INTO users (
+                org_id,
+                name,
+                email,
+                access_token,
+                refresh_token,
+                expires_in,
+                token_type,
+                scope)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        """), (
+            org_id,
+            username,
+            user_email,
+            credentials.token,
+            credentials.refresh_token,
+            credentials.expiry,
+            "Bearer",
+            ' '.join(str(credentials.scopes))
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
 
     session['google_id'] = id_info.get('sub')
     session['name'] = id_info.get('name')
-    return redirect(url_for('profile'))
+    session['email'] = id_info.get('email')
+    return redirect(url_for('index'))
 
-@app.route('/profile')
-def profile():
-    """the profile page
-
-    Returns:
-        string: the profile page
+# Logout route
+@app.route('/logout')
+def logout():
+    """the logout route
     """
-    if 'google_id' in session:
-        name = session['name']
-        return f'Hello, {name}. <a href="lorelai.helixiora.com">Go to Lorelai</a>'
+    session.clear()
+    flash("You have been logged out.")
+    return redirect(url_for('index'))
+
+# Error handler for 404
+@app.errorhandler(404)
+def page_not_found(e):
+    """the error handler for 404 errors
+    """
+    return render_template('404.html', e=e), 404
+
+# Error handler for 500
+@app.errorhandler(500)
+def internal_server_error(e):
+    """the error handler for 500 errors
+    """
+    error_info = sys.exc_info()
+    if error_info:
+        error_message = str(error_info[1])  # Get the exception message
     else:
-        return 'You are not logged in!'
+        error_message = "An unknown error occurred."
+
+    # Pass the error message to the template
+    return render_template('500.html', error_message=error_message), 500
 
 if __name__ == '__main__':
-    app.run('localhost', 5000)
+    app.run(host='localhost', port=5000, use_reloader=True)
