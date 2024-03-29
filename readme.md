@@ -28,9 +28,9 @@ Follow these steps to set up the project and run the components.
 
 #### Obtain API Keys and Credentials
 
-1. Obtain a Pinecone API key from [Pinecone's portal](https://app.pinecone.io/organizations/).
-2. Acquire an OpenAI API key through [OpenAI's platform](https://platform.openai.com/api-keys).
-3. Generate Google OAuth credentials via [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+1. Obtain a Pinecone API key from [Pinecone's portal](https://app.pinecone.io/organizations/). If you don't have access to Helixiora's Pinecone, ask Walter.
+2. Acquire an OpenAI API key through [OpenAI's platform](https://platform.openai.com/api-keys). If you don't have access to Helixiora's OpenAI, ask Walter.
+3. Generate Google OAuth credentials via [Google Cloud Console](https://console.cloud.google.com/apis/credentials). If you don't have access to Lorelai's Google Cloud Profile, ask Walter.
 4. Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
     1. The project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager) 
 
