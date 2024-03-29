@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """the main application file for the OAuth2 flow flask app
 """
 import json
@@ -6,6 +8,8 @@ import sys
 from pprint import pprint
 import sqlite3
 from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
+from celery import Celery
+from lorelai.contextretriever import Contextretriever
 
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
@@ -13,6 +17,24 @@ import google.auth.transport.requests
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
+
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+
+# Celery configuration
+def make_celery(app):
+    celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
+    celery.conf.update(app.config)
+    TaskBase = celery.Task
+    class ContextTask(TaskBase):
+        abstract = True
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return TaskBase.__call__(self, *args, **kwargs)
+    celery.Task = ContextTask
+    return celery
+
+celery = make_celery(app)
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -133,6 +155,28 @@ connection.commit()
 cur.close()
 connection.close()
 
+@celery.task
+def execute_rag_llm(chat_message, user, organisation):
+    """A Celery task to execute the RAG+LLM model
+    """
+    print(f"Task ID: {execute_rag_llm.request.id}, Message: {chat_message}")
+    print(f"Session: {user}, {organisation}")
+
+    # update the task state before we begin processing
+    execute_rag_llm.update_state(state='PROGRESS', meta={'status': 'Processing...'})
+
+    # get the context for the question
+    enriched_context = Contextretriever(org_name=organisation, user=user)
+
+    answer, source = enriched_context.retrieve_context(chat_message)
+
+    json_data = {
+        'answer': answer,
+        'source': source
+    }
+
+    return json_data
+
 # Improved index route using render_template
 @app.route('/')
 def index():
@@ -169,61 +213,28 @@ def serve_js(script_name):
 def chat():
     """the chat route
     """
+    content = request.get_json()
 
-    print(f"POST /chat User: {session['email']}")
+    # this is used to post a task to the celery worker
+    task = execute_rag_llm.apply_async(args=[content['message'], session['email'], session['organisation']])
 
-    # Ensure that the request has a JSON content
-    if not request.is_json:
-        return jsonify({"error": "Request must be JSON"}), 400
+    # print(f"KEYS: {celery.control.inspect().active_queues()}")
 
-    data = request.get_json()
+    # print(f"POST /chat User: {session['email']} Organisation: {session['organisation']}, Task ID: {task.id}")
 
-    # Extract the message from the request JSON
-    message = data.get('prompt')
+    return jsonify({'task_id': task.id}), 202
 
-    # Basic validation to check if message is present
-    if message is None:
-        print("No message provided")
-        return jsonify({"error": "No message provided"}), 400
-
-    # For demonstration purposes, the received message is echoed back in the response
-    # You can modify the response logic as needed for your application
-    print(f"Received message: {message}")
-    return jsonify({"status": "completed", "requestID": 100, "output": message})
-
-# A sample route for demonstration purposes
 @app.route('/chat', methods=['GET'])
 def fetch_chat_result():
-    """A sample route for demonstration purposes
+    """the chat route
     """
-    print(f"GET /chat User: {session['email']}")
 
-    # Retrieve the requestID from the query parameters
-    request_id = request.args.get('requestID')
-
-    # Validate the requestID
-    if not request_id:
-        return jsonify({"error": "Missing requestID parameter"}), 400
-
-    # Simulate fetching result based on requestID
-    # Here, you would fetch data from a database or external service
-    # For demonstration, let's assume a simple logic that echoes back the requestID
-    # note that output must be json
-    result = {
-        "status": "completed",
-        "requestID": request_id,
-        "user": session['email'],
-        "output": "response"
-    }
-
-    response = jsonify(result)
-
-    # log the response
-    print(f"Response: {response.data}")
-
-    # Return the result as a JSON response
-    return response
-
+    # print(f"GET /chat User: {session['email']}, Organisation: {session['organisation']}, Task: {request.args.get('task_id')}")
+    task_id = request.args.get('task_id')
+    task = execute_rag_llm.AsyncResult(task_id)
+    if task.state == 'SUCCESS':
+        return jsonify({'status': 'SUCCESS', 'result': task.result})
+    return jsonify({'status': 'PENDING'}), 202
 
 @app.route('/profile')
 def profile():
@@ -354,4 +365,5 @@ def internal_server_error(e):
     return render_template('500.html', error_message=error_message), 500
 
 if __name__ == '__main__':
+    print("Starting the app...")
     app.run(host='localhost', port=5000, use_reloader=True, debug=True)
