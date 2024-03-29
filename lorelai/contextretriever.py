@@ -57,10 +57,10 @@ class Contextretriever:
         """retrieves the context for the question
         """
 
-        Template = """Beantwoord de volgende vraag alleen gebaseerd op de context hieronder:
+        Template = """Answer the following question solely based on the context provided below. Translate Dutch to English if needed.:
         {context}
 
-        Vraag: {question}
+        Question: {question}
         """
         prompt = PromptTemplate.from_template(Template)
 
