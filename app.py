@@ -5,7 +5,7 @@ import os
 import sys
 from pprint import pprint
 import sqlite3
-from flask import Flask, redirect, url_for, session, request, render_template, flash
+from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
 
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
@@ -142,8 +142,11 @@ def index():
         string: the index page
     """
     if 'google_id' in session:
-        name = session['name']
-        return render_template('index_logged_in.html', name=name)
+        user_data = {
+            'user_organization': session['organisation'],
+            'user_email': session['email'],
+        }
+        return render_template('index_logged_in.html', **user_data)
     else:
         try:
             authorization_url, state = flow.authorization_url(access_type='offline',
@@ -153,6 +156,72 @@ def index():
         except Exception as e:
             print(f"Error generating authorization URL: {e}")
             return render_template('error.html', error_message="Failed to generate login URL.")
+
+@app.route('/js/<script_name>.js')
+def serve_js(script_name):
+    """the javascript endpoint
+    """
+    return render_template(f"js/{script_name}.js"), 200, {'Content-Type': 'application/javascript'}
+
+
+# a get and post route for the chat page
+@app.route('/chat', methods=['POST'])
+def chat():
+    
+    print(f"POST /chat User: {session['email']}")
+
+    # Ensure that the request has a JSON content
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.get_json()
+
+    # Extract the message from the request JSON
+    message = data.get('prompt')
+
+    # Basic validation to check if message is present
+    if message is None:
+        print("No message provided")
+        return jsonify({"error": "No message provided"}), 400
+
+    # For demonstration purposes, the received message is echoed back in the response
+    # You can modify the response logic as needed for your application
+    print(f"Received message: {message}")
+    return jsonify({"status": "completed", "requestID": 100, "output": message})
+
+# A sample route for demonstration purposes
+@app.route('/chat', methods=['GET'])
+def fetch_chat_result():
+    """A sample route for demonstration purposes
+    """
+    print(f"GET /chat User: {session['email']}")
+    
+    # Retrieve the requestID from the query parameters
+    request_id = request.args.get('requestID')
+
+    # Validate the requestID
+    if not request_id:
+        return jsonify({"error": "Missing requestID parameter"}), 400
+
+    # Simulate fetching result based on requestID
+    # Here, you would fetch data from a database or external service
+    # For demonstration, let's assume a simple logic that echoes back the requestID
+    # note that output must be json
+    result = {
+        "status": "completed",
+        "requestID": request_id,
+        "user": session['email'],
+        "output": "response"
+    }
+
+    response = jsonify(result)
+
+    # log the response
+    print(f"Response: {response.data}")
+
+    # Return the result as a JSON response
+    return response
+
 
 @app.route('/profile')
 def profile():
@@ -249,6 +318,7 @@ def callback():
     session['google_id'] = id_info.get('sub')
     session['name'] = id_info.get('name')
     session['email'] = id_info.get('email')
+    session['organisation'] = organisation
     return redirect(url_for('index'))
 
 # Logout route
@@ -282,4 +352,4 @@ def internal_server_error(e):
     return render_template('500.html', error_message=error_message), 500
 
 if __name__ == '__main__':
-    app.run(host='localhost', port=5000, use_reloader=True)
+    app.run(host='localhost', port=5000, use_reloader=True, debug=True)
