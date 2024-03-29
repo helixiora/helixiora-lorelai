@@ -77,8 +77,13 @@ class Contextretriever:
         #print the source of the document
         source = []
         for doc in docs:
-            # add the source to the list of sources
-            source.append(doc.metadata['source'])
+            # add the source and the document title to the list of sources
+            source_object = {
+                "source": doc.metadata['source'],
+                "title": doc.metadata['title']
+            }
+
+            source.append(source_object)
 
         chain = prompt | model | output_parser
 
