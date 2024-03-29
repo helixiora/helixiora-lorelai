@@ -1,33 +1,31 @@
-function typeMessage(message, parentElement, callback) {
-    const typingSpeed = 50; // Milliseconds per character
-    let paragraphs = message.split('\n\n'); // Split the message into paragraphs
-    let currentParagraphIndex = 0;
-    let charIndex = 0;
-    let currentParagraphElement = document.createElement('p');
-    parentElement.appendChild(currentParagraphElement); // Start with the first paragraph element
+function typeMessage(message, parentElement, isHTML, callback) {
+    if (isHTML) {
+        // Immediately set HTML content
+        parentElement.innerHTML = message;
+        if (callback) callback();
+    } else {
+        // Proceed with typing animation for plain text
+        const typingSpeed = 50;
+        let charIndex = 0;
 
-    function typing() {
-        if (currentParagraphIndex < paragraphs.length) {
-            if (charIndex < paragraphs[currentParagraphIndex].length) {
-                currentParagraphElement.textContent += paragraphs[currentParagraphIndex][charIndex];
-                charIndex++;
+        function typing() {
+            if (charIndex < message.length) {
+                parentElement.textContent += message[charIndex++];
                 setTimeout(typing, typingSpeed);
-            } else {
-                // Finished typing the current paragraph
-                charIndex = 0;
-                currentParagraphIndex++;
-                if (currentParagraphIndex < paragraphs.length) {
-                    currentParagraphElement = document.createElement('p'); // Start a new paragraph
-                    parentElement.appendChild(currentParagraphElement);
-                }
-                setTimeout(typing, typingSpeed);
+            } else if (callback) {
+                callback();
             }
-        } else if (callback) {
-            callback();
         }
-    }
 
-    typing();
+        typing();
+    }
+}
+
+// Utility function to escape HTML if necessary
+function escapeHTML(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
 }
 
 // Create a loading indicator that matches the bot message styling
@@ -63,42 +61,31 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('messageInput');
     const messagesDiv = document.getElementById('messages');
 
-    function addMessage(content, isUser = true) {
+    function addMessage(content, isUser = true, isHTML = false, isSources = false) {
         const messagesDiv = document.getElementById('messages'); // The main container for all messages
-
-        if (isUser) {
-            // If it's a user message, append directly to messagesDiv
-            const userMessageDiv = document.createElement('div');
-            userMessageDiv.className = 'p-2 text-left';
-
-            const messageP = document.createElement('p');
-            messageP.className = 'inline-block rounded-lg p-4 bg-white';
-            messageP.textContent = content; // Use textContent for user messages to avoid HTML
-            userMessageDiv.appendChild(messageP);
-
-            messagesDiv.appendChild(userMessageDiv); // Append the user message to messagesDiv
+    
+        const messageContainerDiv = document.createElement('div');
+        messageContainerDiv.className = 'p-2 ' + (isUser ? 'text-left' : 'text-right');
+    
+        const messageContentDiv = document.createElement('div');
+        if (isSources) {
+            // make the sources div with smaller text
+            messageContentDiv.className = 'inline-block rounded-lg p-4 bg-white text-sm';
         } else {
-            // If it's a bot message, first hide the loading indicator and then append the message
-            hideLoadingIndicator();
-
-            const botMessageDiv = document.createElement('div');
-            botMessageDiv.className = 'p-2 text-right'; // Align to the right for bot messages
-
-            const messageContentDiv = document.createElement('div');
             messageContentDiv.className = 'inline-block rounded-lg p-4 bg-white';
-            messageContentDiv.style.width = '690px';
-            messageContentDiv.style.textAlign = 'left';
-            messageContentDiv.style.overflowWrap = 'break-word';
-
-            // Use innerHTML to allow for HTML content like <br> in bot messages
-            typeMessage(content, messageContentDiv, () => {
-                messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom
-            });
-
-            botMessageDiv.appendChild(messageContentDiv); // Append the typed message to the bot message div
-            messagesDiv.appendChild(botMessageDiv); // Append the bot message to messagesDiv
         }
-
+        messageContentDiv.style.overflowWrap = 'break-word';
+        if (isHTML) {
+            // Use innerHTML for bot messages that need to render HTML content
+            console.log('innerHTML:', content);
+            messageContentDiv.innerHTML = content;
+        } else {
+            console.log('textContent:', content);
+            messageContentDiv.textContent = content; // Use textContent for user messages to avoid HTML
+        }
+    
+        messageContainerDiv.appendChild(messageContentDiv);
+        messagesDiv.appendChild(messageContainerDiv); // Append the message to messagesDiv
         messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom of the chat
     }
 
@@ -139,41 +126,35 @@ document.addEventListener('DOMContentLoaded', function() {
      * 
      * @param {string} requestId The ID of the request for which to fetch the result.
      */
-    async function fetchResult(requestId) {
-        try {
-            const response = await fetch(`{{ url_for('chat') }}?requestID=${requestId}`);
-
-            // Check if the HTTP response is successful
-            if (!response.ok) {
-                throw new Error(`Server responded with status ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            switch (data.status) {
-                case 'completed':
+    async function pollForResponse(taskId) {
+        console.log('Polling for response:', taskId);
+        setTimeout(function() {
+            fetch(`/chat?task_id=${taskId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'SUCCESS') {
                     hideLoadingIndicator();
-                    try {
-                        addMessage(data.output, false);
-                    } catch (error) {
-                        console.error('Error parsing response:', error);
-                        addMessage("Error parsing response.", false);
+                    // console.log('Response:', data.result);
+
+                    // Extract the text content from the JSON result
+                    const text = extractTextFromJSON(data.result);
+
+                    // Format the message and the sources into html
+                    let message = data.result.answer;
+                    addMessage(message, isUser=false, isHTML=false); // Display the message
+                    
+                    let sourceText = '';
+                    if (data.result.source) {
+                        data.result.source.forEach(source => {
+                            sourceText += `<li><a href="${source.source}">${source.title}</a></li>`;
+                        });
                     }
-                    break;
-                case 'error':
-                    addMessage("Error processing request.", false);
-                    break;
-                default:
-                    // Assume status is pending or in progress, retry after a delay
-                    setTimeout(() => fetchResult(requestId), 3000);
-                    break;
-            }
-        } catch (error) {
-            // This catch block now handles network errors as well as errors thrown manually
-            hideLoadingIndicator();
-            console.error('Error fetching result:', error);
-            addMessage("Error fetching result.", false);
-        }
+                    addMessage(message="<p><strong>Sources:</strong></p><ol type='1'>" + sourceText + "</ol>", isUser=false, isHTML=true, isSources=true); 
+                } else {
+                    pollForResponse(taskId); // Keep polling if pending
+                }
+            });
+        }, 500); // Adjust polling interval as needed
     }
 
 
@@ -185,40 +166,21 @@ document.addEventListener('DOMContentLoaded', function() {
      * 
      * @param {string} text The text message to send to the server.
      */
-    async function sendMessage(text) {
-        try {
-            addMessage(text); // Display the message being sent
-            showLoadingIndicator(); // Show loading indicator
-
-            // Send the message to the server
-            const response = await fetch(`/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ prompt: text }),
-            });
-
-            // Check if the HTTP response is successful
-            if (!response.ok) {
-                throw new Error(`Server responded with status ${response.status}`);
+    async function sendMessage(message) {
+        console.log('Sending message:', message);
+        addMessage(message, true);
+        showLoadingIndicator();
+        fetch('/chat', {
+            method: 'POST',
+            body: JSON.stringify({message: message}),
+            headers: {
+                'Content-Type': 'application/json'
             }
-
-            const data = await response.json();
-
-            // Handle the server's response data
-            if (data.requestID) {
-                fetchResult(data.requestID);
-            } else {
-                // Handle unexpected response format
-                throw new Error("Invalid response format from server");
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            addMessage("Error sending request.", false);
-        } finally {
-            hideLoadingIndicator(); // Always hide the loading indicator, whether the request succeeded or failed
-        }
+        })
+        .then(response => response.json())
+        .then(data => {
+            pollForResponse(data.task_id);
+        });
     }
 
     sendButton.addEventListener('click', function() {
