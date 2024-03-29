@@ -50,7 +50,7 @@ def get_user_details():
         if conn:
             cursor = conn.cursor()
         else:
-            raise Exception("Failed to connect to the database.")
+            raise ConnectionError("Failed to connect to the database.")
 
         user_details = cursor.execute("""
             SELECT u.name, u.email, o.name AS org_name
@@ -108,7 +108,7 @@ connection = get_db_connection()
 if connection:
     cur = connection.cursor()
 else:
-    raise Exception("Failed to connect to the database.")
+    raise ConnectionError("Failed to connect to the database.")
 
 # make sure the organisation table exists
 cur.execute('''CREATE TABLE IF NOT EXISTS organisations (
@@ -153,7 +153,7 @@ def index():
                                                               include_granted_scopes='true')
             session['state'] = state
             return render_template('index.html', auth_url=authorization_url)
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error generating authorization URL: {e}")
             return render_template('error.html', error_message="Failed to generate login URL.")
 
@@ -167,7 +167,9 @@ def serve_js(script_name):
 # a get and post route for the chat page
 @app.route('/chat', methods=['POST'])
 def chat():
-    
+    """the chat route
+    """
+
     print(f"POST /chat User: {session['email']}")
 
     # Ensure that the request has a JSON content
@@ -195,7 +197,7 @@ def fetch_chat_result():
     """A sample route for demonstration purposes
     """
     print(f"GET /chat User: {session['email']}")
-    
+
     # Retrieve the requestID from the query parameters
     request_id = request.args.get('requestID')
 
@@ -251,7 +253,7 @@ def callback():
     credentials = flow.credentials
     request_session = google.auth.transport.requests.Request()
     id_info = id_token.verify_oauth2_token(
-        id_token=credentials.id_token, #pylint: disable=no-member
+        id_token=credentials.id_token, #pyright: ignore reportAttributeAccessIssue=false
         request=request_session,
         audience=flow.client_config['client_id']
     )
@@ -346,7 +348,7 @@ def internal_server_error(e):
     if error_info:
         error_message = str(error_info[1])  # Get the exception message
     else:
-        error_message = "An unknown error occurred."
+        error_message = f"An unknown error occurred. {e}"
 
     # Pass the error message to the template
     return render_template('500.html', error_message=error_message), 500
