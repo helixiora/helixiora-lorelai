@@ -146,10 +146,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     let sourceText = '';
                     if (data.result.source) {
                         data.result.source.forEach(source => {
-                            sourceText += `<li><a href="${source.source}">${source.title}</a></li>`;
+                            sourceText += `<li><a href="${source.source}">${source.title} (score: ${source.score})</a></li>`;
                         });
                     }
-                    addMessage(message="<p><strong>Sources:</strong></p><ol type='1'>" + sourceText + "</ol>", isUser=false, isHTML=true, isSources=true); 
+                    addMessage(message="<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>" + sourceText + "</ol>", isUser=false, isHTML=true, isSources=true); 
                 } else {
                     pollForResponse(taskId); // Keep polling if pending
                 }

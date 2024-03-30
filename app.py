@@ -9,7 +9,7 @@ from pprint import pprint
 import sqlite3
 from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
 from celery import Celery
-from lorelai.contextretriever import Contextretriever
+from lorelai.contextretriever import ContextRetriever
 
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
@@ -166,7 +166,7 @@ def execute_rag_llm(chat_message, user, organisation):
     execute_rag_llm.update_state(state='PROGRESS', meta={'status': 'Processing...'})
 
     # get the context for the question
-    enriched_context = Contextretriever(org_name=organisation, user=user)
+    enriched_context = ContextRetriever(org_name=organisation, user=user)
 
     answer, source = enriched_context.retrieve_context(chat_message)
 
