@@ -218,18 +218,12 @@ def chat():
     # this is used to post a task to the celery worker
     task = execute_rag_llm.apply_async(args=[content['message'], session['email'], session['organisation']])
 
-    # print(f"KEYS: {celery.control.inspect().active_queues()}")
-
-    # print(f"POST /chat User: {session['email']} Organisation: {session['organisation']}, Task ID: {task.id}")
-
     return jsonify({'task_id': task.id}), 202
 
 @app.route('/chat', methods=['GET'])
 def fetch_chat_result():
     """the chat route
     """
-
-    # print(f"GET /chat User: {session['email']}, Organisation: {session['organisation']}, Task: {request.args.get('task_id')}")
     task_id = request.args.get('task_id')
     task = execute_rag_llm.AsyncResult(task_id)
     if task.state == 'SUCCESS':
@@ -333,6 +327,41 @@ def callback():
     session['email'] = id_info.get('email')
     session['organisation'] = organisation
     return redirect(url_for('index'))
+
+@app.route('/admin')
+def admin():
+    """the admin page
+    """
+    if 'google_id' in session:
+        return render_template('admin.html')
+    else:
+        return 'You are not logged in!'
+
+@app.route('/admin/pinecone')
+def list_indexes():
+    """the list indexes page
+    """
+    
+    enriched_context = ContextRetriever(org_name=session['organisation'], user=session['email'])
+    
+    indexes = enriched_context.get_all_indexes()
+
+    pprint(indexes)
+    # Render a template, passing the indexes and their metadata
+    return render_template('admin/pinecone.html', indexes=indexes)
+
+@app.route('/admin/pinecone/<host_name>')
+def index_details(host_name):
+    """the index details page
+    """
+    enriched_context = ContextRetriever(org_name=session['organisation'], user=session['email'])
+    
+    # Assume getIndexDetails function exists to fetch metadata for a specific index
+    index_metadata = enriched_context.get_index_details(index_host=host_name)
+    
+    pprint(index_metadata)
+    
+    return render_template('admin/index_details.html', index_host=host_name, metadata=index_metadata)
 
 # Logout route
 @app.route('/logout')
