@@ -19,7 +19,7 @@ import lorelai.utils
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone
     """
-    
+
     def __init__(self):
         """initializes the Processor class
         """
@@ -32,10 +32,6 @@ class Processor:
         # set env variable with openai api key
         os.environ["OPENAI_API_KEY"] = self.openai_api_key
         os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
-        
-        self.pinecone_environment = self.pinecone_creds['environment']
-        self.pinecone_index_name = self.pinecone_creds['index-name']
-
 
     def store_docs_in_pinecone(self, docs: Iterable[Document], index_name) -> None:
         """process the documents and index them in Pinecone
@@ -73,20 +69,21 @@ class Processor:
             print(f"Created new Pinecone index {index_name}")
         else:
             print(f"Pinecone index {index_name} already exists")
-            
+
         print(f"Indexing {len(documents)} documents in Pinecone index {index_name}")
-    
+
         vector_store = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key,
                                            index_name=index_name, embedding=embeddings)
 
         #TODO: subsequent runs should update, not add/duplicate # pylint: disable=fixme
-        db = vector_store.from_documents(documents,
+        vector_store.from_documents(documents,
                                             embeddings,
                                             index_name=index_name)
-        
+
         print(f"Indexed {len(documents)} documents in Pinecone index {index_name}")
 
-    def google_docs_to_pinecone_docs(self, document_ids: List[str], credentials: Credentials, org_name: str, user_email: str):
+    def google_docs_to_pinecone_docs(self, document_ids: List[str], credentials: Credentials,
+                                     org_name: str, user_email: str):
         """process the Google Drive documents and divide them into pinecone compatible chunks
 
         :param document_id: the document to process
@@ -112,19 +109,19 @@ class Processor:
         # go through all docs. For each doc, see if the user is already in the metadata. If not,
         # add the user to the metadata
         for doc in docs:
-            print(f"Processing doc: {doc}")
+            print(f"Processing doc: {doc.metadata['title']}")
             # check if the user key is in the metadata
             if "users" not in doc.metadata:
                 doc.metadata["users"] = []
             # check if the user is in the metadata
             if user_email not in doc.metadata["users"]:
-                # print(f"Adding user {user_email} to doc.metadata['users'] for metadata.users ${doc.metadata['users']}")
+                # print(f"Adding user {user_email} to doc.metadata['users'] for metadata.users
+                # ${doc.metadata['users']}")
                 doc.metadata["users"].append(user_email)
-    
+
         #indexname must consist of lower case alphanumeric characters or '-'"
         index_name = lorelai.utils.pinecone_index_name(org=org_name, datasource='googledrive')
 
 
         self.store_docs_in_pinecone(docs, index_name=index_name)
-        
-        
+        print(f"Processed {len(docs)} documents for user: {user_email}")

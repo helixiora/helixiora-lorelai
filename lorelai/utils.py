@@ -1,3 +1,7 @@
+"""
+This module contains utility functions for the Lorelai package.
+"""
+
 import os
 import json
 from pathlib import Path
@@ -10,7 +14,7 @@ def pinecone_index_name(org, datasource):
     """returns the pinecone index name for the org
     """
     index_name = org.lower().replace(".", "-")
-    
+
     return f"{index_name}-{datasource}"
 
 def load_creds(service: str) -> Dict[str, str]:
@@ -32,7 +36,7 @@ def load_creds(service: str) -> Dict[str, str]:
 def save_google_creds_to_tempfile(refresh_token, token_uri, client_id, client_secret):
     """loads the google creds to a tempfile. This is needed because the GoogleDriveLoader uses
     the Credentials.from_authorized_user_file method to load the credentials
-    
+
     :param refresh_token: the refresh token
     :param token_uri: the token uri
     :param client_id: the client id
@@ -52,7 +56,7 @@ def save_google_creds_to_tempfile(refresh_token, token_uri, client_id, client_se
             "client_secret": client_secret
         }))
         f.close()
-        
+
 
 def get_embedding_dimension(model_name) -> int:
     """
@@ -75,9 +79,9 @@ def get_embedding_dimension(model_name) -> int:
 
 def get_index_details(index_name: str) -> DescribeIndexStatsResponse | None:
     """retrieves the details for a specified index in Pinecone
-    
+
     :param index_name: the name of the index for which to retrieve details
-    
+
     :return: a list of dictionaries containing the metadata for the specified index
     """
     pinecone = Pinecone(api_key=os.environ.get('PINECONE_API_KEY'))
@@ -85,15 +89,16 @@ def get_index_details(index_name: str) -> DescribeIndexStatsResponse | None:
     if index:
         index_stats = index.describe_index_stats()
     print(f"Index description: ${index_stats}")
-    
+
     if index_stats:
         return index_stats
-    
+    return None
+
 def print_index_stats_diff(index_stats_before, index_stats_after):
     """prints the difference in the index statistics
     """
     print("Index statistics before indexing:")
     print(index_stats_before)
-    
+
     print("Index statistics after indexing:")
     print(index_stats_after)

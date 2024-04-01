@@ -26,20 +26,19 @@ app.secret_key = 'your_very_secret_and_long_random_string_here'
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
 app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 
-def make_celery(flask_app: Flask) -> Celery:
+def make_celery(appflask: Flask) -> Celery:
     """
     Create and configure a Celery instance for a Flask application.
 
     Parameters:
-    - app: Flask application instance.
+    - app: The Flask application instance.
 
     Returns:
     - Configured Celery instance.
     """
-
     # Initialize Celery with Flask app's settings
-    celeryapp = Celery(flask_app.import_name, broker=flask_app.config['CELERY_BROKER_URL'])
-    celeryapp.conf.update(flask_app.config)
+    celery = Celery(appflask.import_name, broker=appflask.config['CELERY_BROKER_URL'])
+    celery.conf.update(appflask.config)
 
     # pylint: disable=R0903
     class ContextTask(celery.Task):
@@ -47,14 +46,15 @@ def make_celery(flask_app: Flask) -> Celery:
         A Celery Task that ensures the task executes with Flask application context.
         """
         def __call__(self, *args, **kwargs):
-            with flask_app.app_context():
+            with appflask.app_context():
                 return self.run(*args, **kwargs)
 
-    celeryapp.Task = ContextTask
+    # Setting the custom task class
+    celery.Task = ContextTask
 
-    return celeryapp
+    return celery
 
-celery = make_celery(app)
+celeryapp = make_celery(app)
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -160,7 +160,7 @@ connection.commit()
 cur.close()
 connection.close()
 
-@celery.task
+@celeryapp.task
 def execute_rag_llm(chat_message, user, organisation):
     """A Celery task to execute the RAG+LLM model
     """

@@ -29,7 +29,8 @@ class Indexer:
         """process the Google Drive documents for an organisation
 
         :param org: the organisation to process, a list of org details (org_id, name)
-        :param users: the users to process, a list of user details (user_id, name, email, token, refresh_token)
+        :param users: the users to process, a list of user details (user_id, name, email, token, 
+            refresh_token)
 
         :return: None
         """
@@ -42,7 +43,8 @@ class Indexer:
     def index_user_drive(self, user: list[Any], org: list[Any]) -> None:
         """process the Google Drive documents for a user and index them in Pinecone
 
-        :param user: the user to process, a list of user details (user_id, name, email, token, refresh_token)
+        :param user: the user to process, a list of user details (user_id, name, email, token, 
+            refresh_token)
         :param org: the organisation to process, a list of org details (org_id, name)
 
         :return: None
@@ -120,11 +122,11 @@ class Indexer:
             if not items:
                 print('No files found.')
                 break
-            else:
-                print(f"Found {len(items)} files")
-                for item in items:
-                    print(f"Found file: {item['name']} with ID: {item['id']} ")
-                    document_ids.append(item['id'])
+
+            print(f"Found {len(items)} files")
+            for item in items:
+                print(f"Found file: {item['name']} with ID: {item['id']} ")
+                document_ids.append(item['id'])
 
             # Go through all docs in pinecone and remove the ones that are not in the google drive
             # anymore
