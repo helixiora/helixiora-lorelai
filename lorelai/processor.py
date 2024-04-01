@@ -14,57 +14,26 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 import pinecone
 from pinecone import ServerlessSpec
-from lorelai.utils import pinecone_index_name
+
+import lorelai.utils
 
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone
     """
-    # load openai creds from file
-    @staticmethod
-    def load_openai_creds():
-        """loads the openai creds from the settings.json file
-        """
-        with open('settings.json', encoding='utf-8') as f:
-            return json.load(f)['openai']
-
-    # load pinecone creds from file
-    @staticmethod
-    def load_pinecone_creds():
-        """loads the pinecone creds from the settings.json file
-        """
-        with open('settings.json', encoding='utf-8') as f:
-            return json.load(f)['pinecone']
-
-    @staticmethod
-    def get_embedding_dimension(model_name) -> int:
-        """
-        Returns the dimension of embeddings for a given model name.
-        This function currently uses a hardcoded mapping based on documentation,
-        as there's no API endpoint to retrieve this programmatically.
-        See: https://platform.openai.com/docs/models/embeddings
-        """
-        # Mapping of model names to their embedding dimensions
-        model_dimensions = {
-            'text-embedding-3-large':	3072,
-            'text-embedding-3-small':	1536,
-            'text-embedding-ada-002':	1536
-            # Add new models and their dimensions here as they become available
-        }
-
-        return model_dimensions.get(model_name, -1)  # Return None if model is not found
-
-
-
+    
     def __init__(self):
-        self.pinecone_creds = self.load_pinecone_creds()
-        self.openai_creds = self.load_openai_creds()
+        """initializes the Processor class
+        """
+
+        self.pinecone_creds = lorelai.utils.load_creds('pinecone')
+        self.openai_creds = lorelai.utils.load_creds('openai')
 
         self.pinecone_api_key = self.pinecone_creds['api-key']
         self.openai_api_key = self.openai_creds['api-key']
         # set env variable with openai api key
         os.environ["OPENAI_API_KEY"] = self.openai_api_key
         os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
-
+        
         self.pinecone_environment = self.pinecone_creds['environment']
         self.pinecone_index_name = self.pinecone_creds['index-name']
 
@@ -81,12 +50,9 @@ class Processor:
         # use text-embedding-ada-002
         embedding_model = 'text-embedding-ada-002'
         embeddings = OpenAIEmbeddings(model=embedding_model)
-        embedding_dimension = self.get_embedding_dimension(embedding_model)
+        embedding_dimension = lorelai.utils.get_embedding_dimension(embedding_model)
         if embedding_dimension == -1:
             raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
-
-        #indexname must consist of lower case alphanumeric characters or '-'"
-        index_name = pinecone_index_name(organisation[1], datasource)
 
         pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
 
@@ -112,34 +78,16 @@ class Processor:
 
         return db
 
-    def save_google_creds_to_tempfile(self, refresh_token, token_uri, client_id, client_secret):
-        """loads the google creds to a tempfile. This is needed because the GoogleDriveLoader uses
-        the Credentials.from_authorized_user_file method to load the credentials
-        """
-        # create a file: Path.home() / ".credentials" / "token.json" to store the credentials so
-        # they can be loaded by GoogleDriveLoader's auth process (this uses
-        # Credentials.from_authorized_user_file)
-        if not os.path.exists(Path.home() / ".credentials"):
-            os.makedirs(Path.home() / ".credentials")
-
-        with open(Path.home() / ".credentials" / "token.json", 'w', encoding='utf-8') as f:
-            f.write(json.dumps({
-                "refresh_token": refresh_token,
-                "token_uri": token_uri,
-                "client_id": client_id,
-                "client_secret": client_secret
-            }))
-            f.close()
 
     def process_google_doc(self, document_id: str, credentials: Credentials, org: str, user: list[Any]):
         """process the Google Drive documents and index them in Pinecone
         """
         # save the google creds to a tempfile as they are needed by the langchain google drive
         # loader until this issue is fixed: https://github.com/langchain-ai/langchain/issues/15058
-        self.save_google_creds_to_tempfile(credentials.refresh_token,
-                                           "https://oauth2.googleapis.com/token",
-                                           credentials.client_id,
-                                           credentials.client_secret)
+        lorelai.utils.save_google_creds_to_tempfile(refresh_token=credentials.refresh_token,
+                                           token_uri="https://oauth2.googleapis.com/token",
+                                           client_id=credentials.client_id,
+                                           client_secret=credentials.client_secret)
 
         drive_loader = GoogleDriveLoader(
             document_ids=[document_id])
@@ -150,5 +98,8 @@ class Processor:
         # go through all docs and add the user as metadata
         for doc in docs:
             doc.metadata['user'] += user[2]
+        #indexname must consist of lower case alphanumeric characters or '-'"
+        index_name = lorelai.utils.pinecone_index_name(org=org_name, datasource='googledrive')
 
-        self.process(docs, org, "googledrive", user)
+
+        self.store_docs_in_pinecone(docs, index_name=index_name)

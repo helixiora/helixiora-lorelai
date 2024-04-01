@@ -1,7 +1,4 @@
-import json
-import os
 from typing import Tuple, List, Dict, Any
-from pprint import pprint
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -10,7 +7,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 from pinecone.models.index_list import IndexList
-from lorelai.utils import pinecone_index_name
+from lorelai.utils import pinecone_index_name, load_creds
 
 class ContextRetriever:
     """
@@ -22,23 +19,6 @@ class ContextRetriever:
     language models to generate responses based on the retrieved contexts.
     """
 
-    @staticmethod
-    def load_creds(service: str) -> Dict[str, str]:
-        """
-        Loads API credentials for a specified service from settings.json.
-
-        Parameters:
-            service (str): The name of the service ('openai' or 'pinecone') for which to load
-            credentials.
-
-        Returns:
-            dict: A dictionary containing the API key for the specified service.
-        """
-        with open('settings.json', 'r', encoding='utf-8') as f:
-            creds = json.load(f).get(service, {})
-        os.environ[f"{service.upper()}_API_KEY"] = creds.get('api-key', '')
-        return creds
-
     def __init__(self, org_name: str, user: str):
         """
         Initializes the ContextRetriever instance.
@@ -47,8 +27,8 @@ class ContextRetriever:
             org_name (str): The organization name, used for Pinecone index naming.
             user (str): The user name, potentially used for logging or customization.
         """
-        self.pinecone_creds = self.load_creds('pinecone')
-        self.openai_creds = self.load_creds('openai')
+        self.pinecone_creds = load_creds('pinecone')
+        self.openai_creds = load_creds('openai')
 
         self.org_name: str = org_name
         self.user: str = user

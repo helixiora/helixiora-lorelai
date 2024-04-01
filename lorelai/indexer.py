@@ -1,7 +1,6 @@
 """this file creates a class to process google drive documents using the google drive api, chunk
 them using langchain and then index them in pinecone"""
 
-import json
 import os
 
 from typing import Any
@@ -11,6 +10,7 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from lorelai.processor import Processor
+import lorelai.utils
 
 # The scopes needed to read documents in Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
@@ -20,14 +20,10 @@ class Indexer:
     """This class is used to process the Google Drive documents and index them in Pinecone
     """
     def __init__(self):
-        self.google_creds = self.load_google_creds()
+        self.google_creds = lorelai.utils.load_creds('google')
+        self.pinecone_creds = lorelai.utils.load_creds('pinecone')
 
-    @staticmethod
-    def load_google_creds() -> dict[str, str]:
-        """loads the google creds from the settings.json file
-        """
-        with open('settings.json', encoding='utf-8') as f:
-            return json.load(f)['google']
+        os.environ["PINECONE_API_KEY"] = self.pinecone_creds['api-key']
 
     def index_org_drive(self, org: list[Any], users: list[list[Any]]) -> None:
         """process the Google Drive documents for an organisation
