@@ -5,15 +5,20 @@
 import json
 import os
 import sys
-from pprint import pprint
+import logging
 import sqlite3
+from contextlib import closing
+from typing import Dict
+from pprint import pprint
+
 from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
 from celery import Celery
-from lorelai.contextretriever import ContextRetriever
 
+import google.auth.transport.requests
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
-import google.auth.transport.requests
+
+from lorelai.contextretriever import ContextRetriever
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
@@ -21,18 +26,33 @@ app.secret_key = 'your_very_secret_and_long_random_string_here'
 app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
 app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 
-# Celery configuration
-def make_celery(app):
-    celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
-    celery.conf.update(app.config)
-    TaskBase = celery.Task
-    class ContextTask(TaskBase):
-        abstract = True
+def make_celery(flask_app: Flask) -> Celery:
+    """
+    Create and configure a Celery instance for a Flask application.
+
+    Parameters:
+    - app: Flask application instance.
+
+    Returns:
+    - Configured Celery instance.
+    """
+
+    # Initialize Celery with Flask app's settings
+    celeryapp = Celery(flask_app.import_name, broker=flask_app.config['CELERY_BROKER_URL'])
+    celeryapp.conf.update(flask_app.config)
+
+    # pylint: disable=R0903
+    class ContextTask(celery.Task):
+        """
+        A Celery Task that ensures the task executes with Flask application context.
+        """
         def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return TaskBase.__call__(self, *args, **kwargs)
-    celery.Task = ContextTask
-    return celery
+            with flask_app.app_context():
+                return self.run(*args, **kwargs)
+
+    celeryapp.Task = ContextTask
+
+    return celeryapp
 
 celery = make_celery(app)
 
@@ -54,47 +74,33 @@ def get_db_connection() -> sqlite3.Connection:
         print(f"Database connection failed: {e}")
         raise e
 
-def get_user_details():
+def get_user_details() -> Dict[str, str]:
     """Fetches details of the currently logged-in user from the database.
-
     Returns:
-        A dictionary with user details or None if not found.
+        A dictionary with user details or an empty dictionary if not found.
     """
-    if 'google_id' not in session:
-        return None
+    required_keys = ['google_id', 'email']
+    if not all(key in session for key in required_keys):
+        return {}  # Returns an empty dictionary if required keys are missing
 
-    print(f"SESSION: {session}")
-
+    logging.debug("SESSION: %s", session)
     email = session['email']
 
     try:
-        conn = get_db_connection()
-        if conn:
-            cursor = conn.cursor()
-        else:
-            raise ConnectionError("Failed to connect to the database.")
-
-        user_details = cursor.execute("""
-            SELECT u.name, u.email, o.name AS org_name
-            FROM users u
-            INNER JOIN organisations o ON u.org_id = o.id
-            WHERE u.email = ?
-        """, (email,)).fetchone()
-
-        if user_details:
-            # Convert the row to a dictionary
-            details = {
-                'name': user_details['name'],
-                'email': user_details['email'],
-                'org_name': user_details['org_name']
-            }
-            return details
-    except Exception as e:
-        print(f"Failed to fetch user details: {e}")
-        raise e
-    finally:
-        if conn:
-            conn.close()
+        with get_db_connection() as conn:
+            with closing(conn.cursor()) as cursor:
+                user_details = cursor.execute("""
+                    SELECT u.name, u.email, o.name AS org_name
+                    FROM users u
+                    INNER JOIN organisations o ON u.org_id = o.id
+                    WHERE u.email = ?
+                """, (email,)).fetchone()
+                if user_details:
+                    return {key: user_details[key] for key in ['name', 'email', 'org_name']}
+                return {}  # Returns an empty dictionary if no user details are found
+    except RuntimeError as e:  # Consider narrowing this to specific exceptions
+        logging.error("Failed to fetch user details: %s", e, exc_info=True)
+        return {}  # Returns an empty dictionary in case of an exception
 
 # Load the Google OAuth2 secrets
 with open('settings.json', encoding='utf-8') as f:
@@ -119,7 +125,6 @@ flow = Flow.from_client_config(
             "https://www.googleapis.com/auth/drive.readonly",
             "openid"],
     redirect_uri="http://127.0.0.1:5000/oauth2callback"
-    # redirect_uri="https://lorelai.helixiora.com"
 )
 
 # Database setup
@@ -191,15 +196,15 @@ def index():
             'user_email': session['email'],
         }
         return render_template('index_logged_in.html', **user_data)
-    else:
-        try:
-            authorization_url, state = flow.authorization_url(access_type='offline',
-                                                              include_granted_scopes='true')
-            session['state'] = state
-            return render_template('index.html', auth_url=authorization_url)
-        except RuntimeError as e:
-            print(f"Error generating authorization URL: {e}")
-            return render_template('error.html', error_message="Failed to generate login URL.")
+
+    try:
+        authorization_url, state = flow.authorization_url(access_type='offline',
+                                                            include_granted_scopes='true')
+        session['state'] = state
+        return render_template('index.html', auth_url=authorization_url)
+    except RuntimeError as e:
+        print(f"Error generating authorization URL: {e}")
+        return render_template('error.html', error_message="Failed to generate login URL.")
 
 @app.route('/js/<script_name>.js')
 def serve_js(script_name):
@@ -216,7 +221,8 @@ def chat():
     content = request.get_json()
 
     # this is used to post a task to the celery worker
-    task = execute_rag_llm.apply_async(args=[content['message'], session['email'], session['organisation']])
+    task = execute_rag_llm.apply_async(args=[content['message'], session['email'],
+                                             session['organisation']])
 
     return jsonify({'task_id': task.id}), 202
 
@@ -239,8 +245,7 @@ def profile():
         user = get_user_details()
         # Assume `get_user_details` returns a dict with user info and credentials
         return render_template('profile.html', user=user)
-    else:
-        return 'You are not logged in!'
+    return 'You are not logged in!'
 
 @app.route('/oauth2callback')
 def callback():
@@ -334,16 +339,15 @@ def admin():
     """
     if 'google_id' in session:
         return render_template('admin.html')
-    else:
-        return 'You are not logged in!'
+    return 'You are not logged in!'
 
 @app.route('/admin/pinecone')
 def list_indexes():
     """the list indexes page
     """
-    
+
     enriched_context = ContextRetriever(org_name=session['organisation'], user=session['email'])
-    
+
     indexes = enriched_context.get_all_indexes()
 
     pprint(indexes)
@@ -355,13 +359,14 @@ def index_details(host_name):
     """the index details page
     """
     enriched_context = ContextRetriever(org_name=session['organisation'], user=session['email'])
-    
+
     # Assume getIndexDetails function exists to fetch metadata for a specific index
     index_metadata = enriched_context.get_index_details(index_host=host_name)
-    
+
     pprint(index_metadata)
-    
-    return render_template('admin/index_details.html', index_host=host_name, metadata=index_metadata)
+
+    return render_template('admin/index_details.html', index_host=host_name,
+                           metadata=index_metadata)
 
 # Logout route
 @app.route('/logout')
