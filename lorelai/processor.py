@@ -1,19 +1,18 @@
 """This module contains the Processor class that processes documents and indexes them in Pinecone
 """
-import json
 import os
-from pathlib import Path
 
-from typing import Any
+from typing import Iterable, List
 from google.oauth2.credentials import Credentials
 
-from langchain_community.document_loaders.googledrive import GoogleDriveLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
-
-from langchain_pinecone import PineconeVectorStore
 import pinecone
 from pinecone import ServerlessSpec
+
+from langchain_community.document_loaders.googledrive import GoogleDriveLoader
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
 
 import lorelai.utils
 
@@ -38,13 +37,17 @@ class Processor:
         self.pinecone_index_name = self.pinecone_creds['index-name']
 
 
-    def process(self, docs, organisation: str, datasource: str, user: str):
+    def store_docs_in_pinecone(self, docs: Iterable[Document], index_name) -> None:
         """process the documents and index them in Pinecone
+
+        :param docs: the documents to process
+        :param organisation: the organisation to process
+        :param datasource: the datasource to process
+        :param user: the user to process
         """
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
         # Iterate over documents and split each document's text into chunks
         # for doc_id, document_content in documents.items():
-        #     print(f"Processing document: {doc_id}")
         documents = splitter.split_documents(docs)
 
         # use text-embedding-ada-002
@@ -67,20 +70,31 @@ class Processor:
                                 cloud='aws',
                                 region='us-west-2'
                             ))
-
+            print(f"Created new Pinecone index {index_name}")
+        else:
+            print(f"Pinecone index {index_name} already exists")
+            
+        print(f"Indexing {len(documents)} documents in Pinecone index {index_name}")
+    
         vector_store = PineconeVectorStore(pinecone_api_key=self.pinecone_api_key,
                                            index_name=index_name, embedding=embeddings)
 
         #TODO: subsequent runs should update, not add/duplicate # pylint: disable=fixme
         db = vector_store.from_documents(documents,
                                             embeddings,
-                                            index_name=index_name,)
+                                            index_name=index_name)
+        
+        print(f"Indexed {len(documents)} documents in Pinecone index {index_name}")
 
-        return db
+    def google_docs_to_pinecone_docs(self, document_ids: List[str], credentials: Credentials, org_name: str, user_email: str):
+        """process the Google Drive documents and divide them into pinecone compatible chunks
 
+        :param document_id: the document to process
+        :param credentials: the credentials to use to process the document
+        :param org: the organisation to process
+        :param user: the user to process
 
-    def process_google_doc(self, document_id: str, credentials: Credentials, org: str, user: list[Any]):
-        """process the Google Drive documents and index them in Pinecone
+        :return: None
         """
         # save the google creds to a tempfile as they are needed by the langchain google drive
         # loader until this issue is fixed: https://github.com/langchain-ai/langchain/issues/15058
@@ -89,17 +103,28 @@ class Processor:
                                            client_id=credentials.client_id,
                                            client_secret=credentials.client_secret)
 
-        drive_loader = GoogleDriveLoader(
-            document_ids=[document_id])
+        drive_loader = GoogleDriveLoader(document_ids=document_ids)
 
-        print(f"Processing document: {document_id} for user: {user[2]}")
+        print(f"Processing document: {document_ids} for user: {user_email}")
         docs = drive_loader.load()
+        print(f"Loaded {len(docs)} documents from Google Drive")
 
-        # go through all docs and add the user as metadata
+        # go through all docs. For each doc, see if the user is already in the metadata. If not,
+        # add the user to the metadata
         for doc in docs:
-            doc.metadata['user'] += user[2]
+            print(f"Processing doc: {doc}")
+            # check if the user key is in the metadata
+            if "users" not in doc.metadata:
+                doc.metadata["users"] = []
+            # check if the user is in the metadata
+            if user_email not in doc.metadata["users"]:
+                # print(f"Adding user {user_email} to doc.metadata['users'] for metadata.users ${doc.metadata['users']}")
+                doc.metadata["users"].append(user_email)
+    
         #indexname must consist of lower case alphanumeric characters or '-'"
         index_name = lorelai.utils.pinecone_index_name(org=org_name, datasource='googledrive')
 
 
         self.store_docs_in_pinecone(docs, index_name=index_name)
+        
+        

@@ -58,14 +58,11 @@ class ContextRetriever:
         vector_store = PineconeVectorStore.from_existing_index(index_name=index_name,
                                                                embedding=OpenAIEmbeddings())
 
-        # retriever = vector_store.as_retriever(search_kwargs={"filter": {"user": self.user}})
-        # docs = retriever.get_relevant_documents(question, k=3)
-
         # Assuming similarity_search_with_relevance_scores returns List[Tuple[Document, float]]
         results: List[Tuple[Document, float]] = vector_store.similarity_search_with_relevance_scores(question, k=3)
 
         docs: List[Document] = []
-        sources: List[Dict[str, any]] = []
+        sources: List[Dict[str, Any]] = []
 
         for doc, score in results:
             # Append the whole document object if needed
@@ -78,8 +75,6 @@ class ContextRetriever:
                 "score": f"{score*100:.2f}%"
             }
             sources.append(source_entry)
-
-
 
         chain = prompt | model | output_parser
         result = chain.invoke({"context": docs, "question": question})
@@ -97,7 +92,7 @@ class ContextRetriever:
 
         return pinecone.list_indexes()
 
-    def get_index_details(self, index_host) -> Dict[str, Any]:
+    def get_index_details(self, index_host) -> List[Any]:
         """
         Retrieves details for a specified index in Pinecone.
 
@@ -110,7 +105,7 @@ class ContextRetriever:
         pinecone = Pinecone(api_key=self.pinecone_creds['api-key'])
         index = pinecone.Index(host=index_host)
         
-        result = []
+        result = List[Any]
         
         if index is None:
             raise ValueError("Index not found")
