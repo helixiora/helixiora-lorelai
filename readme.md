@@ -10,13 +10,15 @@ This repository is dedicated to showcasing a Proof of Concept (POC) for Lorelai,
 
 ### Key Features
 
+- **Ask questions to your private google docs** A chat interface to ask questions to the info you have indexed
 - **Google Drive Integration:** Securely crawl a user's Google Drive contents using OAuth.
 - **Automated Indexing:** Nightly indexing of Google Drive documents into Pinecone for efficient retrieval.
 - **Query Processing:** Leverage OpenAI's API to process queries with context retrieved from Pinecone.
+- **Admin backend** See what info you have indexed in pinecone
 
 ### Components
 
-- `app.py`: A Flask application to facilitate Google OAuth permission setup.
+- `app.py`: A Flask application to chat with your information. Includes signup, an admin backend and a chat interface
 - `indexer.py`: A script for nightly crawling of Google Drive documents to index them into Pinecone.
 - `lorelaicli.py`: Executes a test query using context from Pinecone before querying OpenAI.
 
@@ -39,6 +41,62 @@ Follow these steps to set up the project and run the components.
 1. Create a Python virtual environment: `python -m venv .venv` and activate it with `source .venv/bin/activate`.
 2. Install required dependencies: `pip install -r requirements.txt`.
 3. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
+4. Set up redis and start it locally:
+   ```
+   (.venv) walterheck in ~/source/helixiora/helixiora-crawler on frontend-app-merge
+   > redis-server
+   35572:C 01 Apr 2024 11:37:22.046 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+   35572:C 01 Apr 2024 11:37:22.046 * Redis version=7.2.4, bits=64, commit=00000000, modified=0, pid=35572, just started
+   35572:C 01 Apr 2024 11:37:22.046 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+   35572:M 01 Apr 2024 11:37:22.047 * Increased maximum number of open files to 10032 (it was originally set to 256).
+   35572:M 01 Apr 2024 11:37:22.047 * monotonic clock: POSIX clock_gettime
+                  _._
+            _.-``__ ''-._
+         _.-``    `.  `_.  ''-._           Redis 7.2.4 (00000000/0) 64 bit
+   .-`` .-```.  ```\/    _.,_ ''-._
+   (    '      ,       .-`  | `,    )     Running in standalone mode
+   |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
+   |    `-._   `._    /     _.-'    |     PID: 35572
+   `-._    `-._  `-./  _.-'    _.-'
+   |`-._`-._    `-.__.-'    _.-'_.-'|
+   |    `-._`-._        _.-'_.-'    |           https://redis.io
+   `-._    `-._`-.__.-'_.-'    _.-'
+   |`-._`-._    `-.__.-'    _.-'_.-'|
+   |    `-._`-._        _.-'_.-'    |
+   `-._    `-._`-.__.-'_.-'    _.-'
+         `-._    `-.__.-'    _.-'
+            `-._        _.-'
+               `-.__.-'
+
+   35572:M 01 Apr 2024 11:37:22.047 # WARNING: The TCP backlog setting of 511 cannot be enforced because kern.ipc.somaxconn is set to the lower value of 128.
+   35572:M 01 Apr 2024 11:37:22.047 * Server initialized
+   35572:M 01 Apr 2024 11:37:22.047 * Loading RDB produced by version 7.2.4
+   35572:M 01 Apr 2024 11:37:22.047 * RDB age 14 seconds
+   35572:M 01 Apr 2024 11:37:22.047 * RDB memory usage when created 1.64 Mb
+   35572:M 01 Apr 2024 11:37:22.048 * Done loading RDB, keys loaded: 8, keys expired: 0.
+   35572:M 01 Apr 2024 11:37:22.048 * DB loaded from disk: 0.000 seconds
+   35572:M 01 Apr 2024 11:37:22.048 * Ready to accept connections tcp
+   ```
+5. Install celery and run a worker:
+   ```
+   (.venv) walterheck in ~/source/helixiora/helixiora-crawler on frontend-app-merge
+   > celery -A app.celery worker
+
+
+   celery@Walters-M3Pro.localdomain v5.3.6 (emerald-rush)
+
+   macOS-14.3.1-arm64-arm-64bit 2024-04-01 11:38:28
+
+   [config]
+   .> app:         app:0x107e18050
+   .> transport:   redis://localhost:6379/0
+   .> results:     redis://localhost:6379/0
+   .> concurrency: 12 (prefork)
+   .> task events: OFF (enable -E to monitor tasks in this worker)
+
+   [queues]
+   .> celery           exchange=celery(direct) key=celery
+   ```
 
 ### Google OAuth Configuration
 
@@ -51,6 +109,14 @@ Follow these steps to set up the project and run the components.
     .tables
     SELECT * FROM users;
     ```
+
+### Chat application
+
+When logged in, you will see the chat interface at [https://127.0.0.1:5000]()
+
+### Admin interface
+
+Very rudimentary admin interface to see what you have stored in pinecone, accessible from [https://127.0.0.1:5000/admin/pinecone]()
 
 ### Executing the Crawler
 
