@@ -123,6 +123,7 @@ env.bak/
 venv.bak/
 __pycache__/
 setting.json
+settings.json
 # Spyder project settings
 .spyderproject
 .spyproject
