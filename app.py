@@ -19,6 +19,7 @@ from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
 from lorelai.contextretriever import ContextRetriever
+from lorelai.llm import Llm
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
@@ -173,7 +174,13 @@ def execute_rag_llm(chat_message, user, organisation):
     # get the context for the question
     enriched_context = ContextRetriever(org_name=organisation, user=user)
 
-    answer, source = enriched_context.retrieve_context(chat_message)
+    context, source = enriched_context.retrieve_context(chat_message)
+
+    llm = Llm(model="gpt-3.5-turbo")
+    answer = llm.get_answer(question=chat_message, context=context)
+
+    print(f"Answer: {answer}")
+    print(f"Source: {source}")
 
     json_data = {
         'answer': answer,

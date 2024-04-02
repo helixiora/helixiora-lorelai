@@ -43,8 +43,7 @@ class ContextRetriever:
         self.org_name: str = org_name
         self.user: str = user
 
-    # pylint: disable=R0914
-    def retrieve_context(self, question: str) -> Tuple[str, List[Dict[str, str]]]:
+    def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
         """
         Retrieves context for a given question using Pinecone and OpenAI.
 
@@ -54,16 +53,6 @@ class ContextRetriever:
         Returns:
             tuple: A tuple containing the retrieval result and a list of sources for the context.
         """
-        prompt_template = """
-        Answer the following question solely based on the context provided below. Translate Dutch
-        to English if needed.:
-        {context}
-
-        Question: {question}
-        """
-        prompt = PromptTemplate.from_template(prompt_template)
-        model = ChatOpenAI(model="gpt-3.5-turbo")
-        output_parser = StrOutputParser()
 
         index_name = pinecone_index_name(org=self.org_name, datasource="googledrive", 
                                          environment=self.lorelai_creds['environment'], 
@@ -91,10 +80,7 @@ class ContextRetriever:
             }
             sources.append(source_entry)
 
-        chain = prompt | model | output_parser
-        result = chain.invoke({"context": docs, "question": question})
-
-        return result, sources
+        return docs, sources
 
     def get_all_indexes(self) -> IndexList:
         """
