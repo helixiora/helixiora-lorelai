@@ -9,13 +9,19 @@ from typing import Dict
 
 from pinecone import Pinecone
 from pinecone.core.client.model.describe_index_stats_response import DescribeIndexStatsResponse
+from pinecone.core.client.exceptions import NotFoundException
 
-def pinecone_index_name(org, datasource):
+def pinecone_index_name(org: str, datasource: str, environment: str="dev", env_name: str="lorelai",
+                        version: str="v1"):
     """returns the pinecone index name for the org
     """
-    index_name = org.lower().replace(".", "-")
 
-    return f"{index_name}-{datasource}"
+    name = f"{environment}-{env_name}-{org}-{datasource}-{version}"
+
+    name = name.lower().replace(".", "-").replace(" ", "-")
+
+    print(f"Index name: {name}")
+    return name
 
 def load_creds(service: str) -> Dict[str, str]:
     """
@@ -77,7 +83,7 @@ def get_embedding_dimension(model_name) -> int:
 
     return model_dimensions.get(model_name, -1)  # Return None if model is not found
 
-def get_index_details(index_name: str) -> DescribeIndexStatsResponse | None:
+def get_index_stats(index_name: str) -> DescribeIndexStatsResponse | None:
     """retrieves the details for a specified index in Pinecone
 
     :param index_name: the name of the index for which to retrieve details
@@ -85,7 +91,12 @@ def get_index_details(index_name: str) -> DescribeIndexStatsResponse | None:
     :return: a list of dictionaries containing the metadata for the specified index
     """
     pinecone = Pinecone(api_key=os.environ.get('PINECONE_API_KEY'))
-    index = pinecone.Index(index_name)
+    try:
+        index = pinecone.Index(index_name)
+    except NotFoundException:
+        print(f"Index {index_name} not found")
+        return None
+
     if index:
         index_stats = index.describe_index_stats()
     print(f"Index description: ${index_stats}")
@@ -97,8 +108,20 @@ def get_index_details(index_name: str) -> DescribeIndexStatsResponse | None:
 def print_index_stats_diff(index_stats_before, index_stats_after):
     """prints the difference in the index statistics
     """
-    print("Index statistics before indexing:")
-    print(index_stats_before)
-
-    print("Index statistics after indexing:")
-    print(index_stats_after)
+    if index_stats_before and index_stats_after:
+        diff = {
+            "num_documents": index_stats_after.num_documents - index_stats_before.num_documents,
+            "num_vectors": index_stats_after.num_vectors - index_stats_before.num_vectors,
+            "num_partitions": index_stats_after.num_partitions - index_stats_before.num_partitions,
+            "num_replicas": index_stats_after.num_replicas - index_stats_before.num_replicas,
+            "num_shards": index_stats_after.num_shards - index_stats_before.num_shards,
+            "num_segments": index_stats_after.num_segments - index_stats_before.num_segments,
+            "num_unique_segments": index_stats_after.num_unique_segments - index_stats_before.num_unique_segments,
+            "num_unique_shards": index_stats_after.num_unique_shards - index_stats_before.num_unique_shards,
+            "num_unique_replicas": index_stats_after.num_unique_replicas - index_stats_before.num_unique_replicas,
+            "num_unique_partitions": index_stats_after.num_unique_partitions - index_stats_before.num_unique_partitions
+        }
+        print("Index statistics difference:")
+        print(diff)
+    else:
+        print("No index statistics to compare")

@@ -22,6 +22,7 @@ class Indexer:
     def __init__(self):
         self.google_creds = lorelai.utils.load_creds('google')
         self.pinecone_creds = lorelai.utils.load_creds('pinecone')
+        self.settings = lorelai.utils.load_creds('lorelai')
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds['api-key']
 
@@ -73,10 +74,13 @@ class Indexer:
         document_ids = self.get_google_docs_ids(credentials)
 
         # 3. Generate the index name we will use in Pinecone
-        index_name=lorelai.utils.pinecone_index_name(org=org[1], datasource = 'googledrive')
+        index_name=lorelai.utils.pinecone_index_name(org=org[1], datasource = 'googledrive', 
+                                                     environment=self.settings['environment'],
+                                                     env_name=self.settings['environment_slug'],
+                                                     version = "v1")
 
         # 4. Get index statistics before starting the indexing process
-        index_stats_before = lorelai.utils.get_index_details(index_name)
+        index_stats_before = lorelai.utils.get_index_stats(index_name)
 
         # 5. Process the Google Drive documents and index them in Pinecone
         print(f"Processing {len(document_ids)} documents for user: {user[2]}")
@@ -85,7 +89,7 @@ class Indexer:
 
         # 6. Get index statistics after the indexing process
         print(f"Indexing complete for user: {user[2]}")
-        index_stats_after = lorelai.utils.get_index_details(index_name)
+        index_stats_after = lorelai.utils.get_index_stats(index_name)
 
         # 7. Print the index statistics
         print("Index statistics before indexing vs after indexing:")

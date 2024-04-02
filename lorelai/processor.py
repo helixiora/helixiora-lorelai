@@ -14,7 +14,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 
-import lorelai.utils
+from lorelai.utils import pinecone_index_name, load_creds, save_google_creds_to_tempfile
+from lorelai.utils import get_embedding_dimension
 
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone
@@ -24,8 +25,9 @@ class Processor:
         """initializes the Processor class
         """
 
-        self.pinecone_creds = lorelai.utils.load_creds('pinecone')
-        self.openai_creds = lorelai.utils.load_creds('openai')
+        self.pinecone_creds = load_creds('pinecone')
+        self.openai_creds = load_creds('openai')
+        self.lorelai_settings = load_creds('lorelai')
 
         self.pinecone_api_key = self.pinecone_creds['api-key']
         self.openai_api_key = self.openai_creds['api-key']
@@ -49,7 +51,7 @@ class Processor:
         # use text-embedding-ada-002
         embedding_model = 'text-embedding-ada-002'
         embeddings = OpenAIEmbeddings(model=embedding_model)
-        embedding_dimension = lorelai.utils.get_embedding_dimension(embedding_model)
+        embedding_dimension = get_embedding_dimension(embedding_model)
         if embedding_dimension == -1:
             raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
@@ -95,7 +97,7 @@ class Processor:
         """
         # save the google creds to a tempfile as they are needed by the langchain google drive
         # loader until this issue is fixed: https://github.com/langchain-ai/langchain/issues/15058
-        lorelai.utils.save_google_creds_to_tempfile(refresh_token=credentials.refresh_token,
+        save_google_creds_to_tempfile(refresh_token=credentials.refresh_token,
                                            token_uri="https://oauth2.googleapis.com/token",
                                            client_id=credentials.client_id,
                                            client_secret=credentials.client_secret)
@@ -120,7 +122,11 @@ class Processor:
                 doc.metadata["users"].append(user_email)
 
         #indexname must consist of lower case alphanumeric characters or '-'"
-        index_name = lorelai.utils.pinecone_index_name(org=org_name, datasource='googledrive')
+        index_name = pinecone_index_name(org=org_name,
+                                         datasource='googledrive',
+                                         environment=self.lorelai_settings['environment'],
+                                         env_name=self.lorelai_settings['environment_slug'],
+                                         version="v1")
 
 
         self.store_docs_in_pinecone(docs, index_name=index_name)

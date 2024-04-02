@@ -38,6 +38,7 @@ class ContextRetriever:
         """
         self.pinecone_creds = load_creds('pinecone')
         self.openai_creds = load_creds('openai')
+        self.lorelai_creds = load_creds('lorelai')
 
         self.org_name: str = org_name
         self.user: str = user
@@ -64,7 +65,10 @@ class ContextRetriever:
         model = ChatOpenAI(model="gpt-3.5-turbo")
         output_parser = StrOutputParser()
 
-        index_name = pinecone_index_name(self.org_name, "googledrive")
+        index_name = pinecone_index_name(org=self.org_name, datasource="googledrive", 
+                                         environment=self.lorelai_creds['environment'], 
+                                         env_name=self.lorelai_creds['environment_slug'],
+                                         version="v1")
         vec_store = PineconeVectorStore.from_existing_index(index_name=index_name,
                                                                embedding=OpenAIEmbeddings())
 
