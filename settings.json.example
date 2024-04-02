@@ -15,5 +15,9 @@
     },
     "openai": {
         "api-key": "openapi_key_here"
+    },
+    "lorelai": {
+        "environment": "the stage of this environment eg dev/prod/qa",
+        "environment_slug": "a name to recognise this env by"
     }
 }
