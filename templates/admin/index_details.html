@@ -23,19 +23,19 @@
     <table id="metadataTable" class="display">
         <thead>
             <tr>
-                <th>ID</th>
                 <th>Title</th>
                 <th>Source</th>
                 <th>User</th>
+                <th>ID</th>
             </tr>
         </thead>
         <tbody>
             {% for item in metadata %}
                 <tr>
-                    <td>{{ item.id }}</td>
                     <td>{{ item.title }}</td>
                     <td>{{ item.source }}</td>
                     <td>{{ item.user }}</td>
+                    <td>{{ item.id }}</td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -47,6 +47,8 @@
 $(document).ready(function() {
     $('#metadataTable').DataTable({
         "pagingType": "simple_numbers", // Enables simple pagination
+        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]], // Sets the number of rows per page
+        "order": [[0, "asc"]] // Sorts the table by the first column in ascending order
     });
 });
 </script>

@@ -30,7 +30,7 @@ class Indexer:
         """process the Google Drive documents for an organisation
 
         :param org: the organisation to process, a list of org details (org_id, name)
-        :param users: the users to process, a list of user details (user_id, name, email, token, 
+        :param users: the users to process, a list of user details (user_id, name, email, token,
             refresh_token)
 
         :return: None
@@ -44,7 +44,7 @@ class Indexer:
     def index_user_drive(self, user: list[Any], org: list[Any]) -> None:
         """process the Google Drive documents for a user and index them in Pinecone
 
-        :param user: the user to process, a list of user details (user_id, name, email, token, 
+        :param user: the user to process, a list of user details (user_id, name, email, token,
             refresh_token)
         :param org: the organisation to process, a list of org details (org_id, name)
 
@@ -74,7 +74,7 @@ class Indexer:
         document_ids = self.get_google_docs_ids(credentials)
 
         # 3. Generate the index name we will use in Pinecone
-        index_name=lorelai.utils.pinecone_index_name(org=org[1], datasource = 'googledrive', 
+        index_name=lorelai.utils.pinecone_index_name(org=org[1], datasource = 'googledrive',
                                                      environment=self.settings['environment'],
                                                      env_name=self.settings['environment_slug'],
                                                      version = "v1")

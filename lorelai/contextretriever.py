@@ -9,13 +9,13 @@ OpenAI's embeddings and language models to generate responses based on the retri
 """
 from typing import Tuple, List, Dict, Any
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 from pinecone.models.index_list import IndexList
+from pinecone.core.client.model.fetch_response import FetchResponse
+
 from lorelai.utils import pinecone_index_name, load_creds
 
 class ContextRetriever:
@@ -54,8 +54,8 @@ class ContextRetriever:
             tuple: A tuple containing the retrieval result and a list of sources for the context.
         """
 
-        index_name = pinecone_index_name(org=self.org_name, datasource="googledrive", 
-                                         environment=self.lorelai_creds['environment'], 
+        index_name = pinecone_index_name(org=self.org_name, datasource="googledrive",
+                                         environment=self.lorelai_creds['environment'],
                                          env_name=self.lorelai_creds['environment_slug'],
                                          version="v1")
         vec_store = PineconeVectorStore.from_existing_index(index_name=index_name,
@@ -101,33 +101,29 @@ class ContextRetriever:
             index_host (str): The host of the index for which to retrieve details.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors in 
-            the specified index.
+            List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
+            in the specified index.
         """
         pinecone = Pinecone(api_key=self.pinecone_creds['api-key'])
         index = pinecone.Index(host=index_host)
-
         if index is None:
-            raise ValueError(f"Index '{index_host}' not found in Pinecone")
+            raise ValueError(f"Index {index_host} not found.")
 
         result = []
 
         try:
-            # If index.list() yields individual ids directly
-            # pylint: disable=R1721
-            ids = [ident for ident in index.list()]  # Assuming this gathers IDs as strings
-            if ids:
-                vectors = index.fetch(ids)  # This assumes fetch can accept multiple ids directly
-                for ident in ids:
-                    if ident in vectors.vectors:
-                        vector = vectors.vectors[ident]
-                        metadata = vector.metadata
+            for ident in index.list():
+                vectors: FetchResponse = index.fetch(ids=ident)
+
+                for vector_id, vector_data in vectors.vectors.items():
+                    if isinstance(vector_data.metadata, dict):
+                        metadata = vector_data.metadata
                         result.append({
-                            "id": ident,
-                            "title": metadata.get('title', ''),
-                            "source": metadata.get('source', ''),
-                            "user": metadata.get('users', ''),
-                            "when": metadata.get('when', '')
+                            "id": vector_id,
+                            "title": metadata['title'],
+                            "source": metadata['source'],
+                            "user": metadata['users'],
+                            "when": metadata['when'],
                         })
         except Exception as e:
             raise ValueError(f"Failed to fetch index details: {e}") from e
