@@ -25,7 +25,8 @@ def main():
     # get the user creds for this org from sqlite
     cur = conn.cursor()
     for org in rows:
-        cur.execute("SELECT user_id, name, email, access_token, refresh_token FROM users where org_id = ?", (org[0],))
+        cur.execute("SELECT user_id, name, email, access_token, refresh_token \n"
+                    "FROM users where org_id = ?", (org[0],))
 
         users = cur.fetchall()
 

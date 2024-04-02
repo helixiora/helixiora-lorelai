@@ -1,87 +1,131 @@
-"""This module is used to retrieve the context for a question from pinecone
 """
+This module contains the ContextRetriever class, which is responsible for retrieving context
+for a given question from Pinecone.
 
-import json
-import os
-from pprint import pprint
+The ContextRetriever class manages the
+integration with Pinecone and OpenAI services, facilitating the retrieval of relevant document
+contexts for specified questions. It leverages Pinecone's vector search capabilities alongside
+OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
+"""
+from typing import Tuple, List, Dict, Any
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_openai import ChatOpenAI
+from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
-from lorelai.utils import pinecone_index_name
+from pinecone import Pinecone
+from pinecone.models.index_list import IndexList
+from pinecone.core.client.model.fetch_response import FetchResponse
 
-class Contextretriever:
-    """this class is used to retrieve the context for a question from pinecone
+from lorelai.utils import pinecone_index_name, load_creds
+
+class ContextRetriever:
     """
-    # load openai creds from file and set env variable
-    @staticmethod
-    def load_openai_creds():
-        """loads the openai creds from the settings.json file
+    A class to retrieve context for a given question from Pinecone.
+
+    This class manages the integration with Pinecone and OpenAI services,
+    facilitating the retrieval of relevant document contexts for specified questions.
+    It leverages Pinecone's vector search capabilities alongside OpenAI's embeddings and
+    language models to generate responses based on the retrieved contexts.
+    """
+
+    def __init__(self, org_name: str, user: str):
         """
-        with open('settings.json', encoding='utf-8') as f:
-            creds = json.load(f)['openai']
-        os.environ["OPENAI_API_KEY"] = creds['api-key']
-        return creds
+        Initializes the ContextRetriever instance.
 
-    @staticmethod
-    def load_pinecone_creds():
-        """loads the pinecone creds from the settings.json file
+        Parameters:
+            org_name (str): The organization name, used for Pinecone index naming.
+            user (str): The user name, potentially used for logging or customization.
         """
-        with open('settings.json', encoding='utf-8') as f:
-            creds = json.load(f)['pinecone']
-        os.environ["PINECONE_API_KEY"] = creds['api-key']
-        return creds
+        self.pinecone_creds = load_creds('pinecone')
+        self.openai_creds = load_creds('openai')
+        self.lorelai_creds = load_creds('lorelai')
 
+        self.org_name: str = org_name
+        self.user: str = user
 
-    def __init__(self, org_name, user):
-        """initializes the class and loads the pinecone and openai creds
+    def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
         """
-        pinecone_creds = self.load_pinecone_creds()
-        openai_creds = self.load_openai_creds()
+        Retrieves context for a given question using Pinecone and OpenAI.
 
-        self.pinecone_creds = pinecone_creds
-        self.openai_creds = openai_creds
+        Parameters:
+            question (str): The question for which context is being retrieved.
 
-        self.pinecone_api_key = pinecone_creds['api-key']
-        self.openai_api_key = openai_creds['api-key']
-
-        os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
-
-        self.org_name = org_name
-        self.user = user
-
-    def retrieve_context(self, question):
-        """retrieves the context for the question
+        Returns:
+            tuple: A tuple containing the retrieval result and a list of sources for the context.
         """
 
-        Template = """Beantwoord de volgende vraag alleen gebaseerd op de context hieronder:
-        {context}
+        index_name = pinecone_index_name(org=self.org_name, datasource="googledrive",
+                                         environment=self.lorelai_creds['environment'],
+                                         env_name=self.lorelai_creds['environment_slug'],
+                                         version="v1")
+        vec_store = PineconeVectorStore.from_existing_index(index_name=index_name,
+                                                               embedding=OpenAIEmbeddings())
 
-        Vraag: {question}
+        # Assuming similarity_search_with_relevance_scores returns List[Tuple[Document, float]]
+        results: List[Tuple[Document, float]] = vec_store.similarity_search_with_relevance_scores(
+            question, k=3)
+
+        docs: List[Document] = []
+        sources: List[Dict[str, Any]] = []
+
+        for doc, score in results:
+            # Append the whole document object if needed
+            docs.append(doc)
+            # Create a source entry with title, source, and score (converted to percentage and
+            # stringified)
+            source_entry = {
+                "title": doc.metadata['title'],
+                "source": doc.metadata['source'],
+                "score": f"{score*100:.2f}%"
+            }
+            sources.append(source_entry)
+
+        return docs, sources
+
+    def get_all_indexes(self) -> IndexList:
         """
-        prompt = PromptTemplate.from_template(Template)
+        Retrieves all indexes in Pinecone along with their metadata.
 
-        model = ChatOpenAI(model="gpt-3.5-turbo")
-        output_parser = StrOutputParser()
+        Returns:
+            list: A list of dictionaries containing the metadata for each index.
+        """
+        pinecone = Pinecone(api_key=self.pinecone_creds['api-key'])
 
-        index_name = pinecone_index_name(self.org_name, "googledrive")
-        vector_store = PineconeVectorStore(index_name=index_name, embedding=OpenAIEmbeddings())
+        return pinecone.list_indexes()
 
-        retriever = vector_store.as_retriever()
+    def get_index_details(self, index_host: str) -> List[Dict[str, Any]]:
+        """
+        Retrieves details for a specified index in Pinecone.
 
-        docs = retriever.get_relevant_documents(question, k=3)
+        Parameters:
+            index_host (str): The host of the index for which to retrieve details.
 
-        #print the source of the document
-        source = []
-        for doc in docs:
-            # add the source to the list of sources
-            source.append(doc.metadata['source'])
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
+            in the specified index.
+        """
+        pinecone = Pinecone(api_key=self.pinecone_creds['api-key'])
+        index = pinecone.Index(host=index_host)
+        if index is None:
+            raise ValueError(f"Index {index_host} not found.")
 
-        chain = prompt | model | output_parser
+        result = []
 
-        result = chain.invoke({"context": docs, "question": question})
+        try:
+            for ident in index.list():
+                vectors: FetchResponse = index.fetch(ids=ident)
 
-        return result, source
+                for vector_id, vector_data in vectors.vectors.items():
+                    if isinstance(vector_data.metadata, dict):
+                        metadata = vector_data.metadata
+                        result.append({
+                            "id": vector_id,
+                            "title": metadata['title'],
+                            "source": metadata['source'],
+                            "user": metadata['users'],
+                            "when": metadata['when'],
+                        })
+        except Exception as e:
+            raise ValueError(f"Failed to fetch index details: {e}") from e
+
+        return result

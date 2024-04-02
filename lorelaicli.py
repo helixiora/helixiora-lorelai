@@ -6,7 +6,7 @@
 import sqlite3
 import sys
 
-from lorelai.contextretriever import Contextretriever
+from lorelai.contextretriever import ContextRetriever
 
 # a simple test script to ask a question langchain that has been indexed in pinecone
 
@@ -65,7 +65,7 @@ user_id = select_user_from_organisation(org_id)
 
 
 # get the context for the question
-enriched_context = Contextretriever(org_name=org_name, user=user_id)
+enriched_context = ContextRetriever(org_name=org_name, user=user_id)
 
 answer, source = enriched_context.retrieve_context(question)
 
