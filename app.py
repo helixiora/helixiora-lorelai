@@ -191,33 +191,18 @@ def execute_rag_llm(chat_message, user, organisation):
 
 @app.route('/submit_custom_org', methods=['POST'])
 def submit():
-    """Create custom org for generic domain ie @gmail.com
+    """Create custom org for new sign up
 
     Returns:
-        string: the index page
+        string: callback
     """
     org_name = request.form['org_name']
     print("Entered Org Name:", org_name)
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    # create a new organisation if it doesn't exist
-    # if it does exist, return it's id
-    cursor.execute(("""
-            INSERT INTO organisations (name)
-            VALUES (?)
-            ON CONFLICT (name)
-            DO NOTHING;
-        """), (org_name,))
-
-    sql = "SELECT id FROM organisations WHERE name = ?;"
-    org_id = cursor.execute(sql, (org_name,)).fetchone()[0]
-    sql="Update users SET org_id = ? WHERE email = ?"
-    cursor.execute(sql,(org_id,session["email"]))
-    conn.commit()
-    cursor.close()
-    conn.close()
     print("updated org name")
-    return redirect(url_for("index"))
+    session['organisation']=org_name
+    session['captured_org_name']=True
+
+    return redirect(url_for("callback"))
 
 # Improved index route using render_template
 @app.route('/')
@@ -227,24 +212,15 @@ def index():
     Returns:
         string: the index page
     """
+    print("POKEMON")
     if 'google_id' in session:
         #get user org from db
         # Database insert/update
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT users.user_id,users.org_id, organisations.name FROM users \
-        JOIN organisations on users.org_id=organisations.id WHERE email = ?;"
-        user_id,ord_id,org_name = cursor.execute(sql, (session['email'],)).fetchone()
-        print(user_id,ord_id,org_name)
-        # checks if domain is gmail.com, if true then proceed to create custom org
-        if org_name.lower() == "gmail.com":
-            return render_template('index_create_custom_org.html')
-
         user_data = {
-            'user_organization': org_name,
+            'user_organization': session['organisation'],
             'user_email': session['email'],
         }
-        session['organisation']=org_name
+
         return render_template('index_logged_in.html', **user_data)
 
     try:
@@ -326,11 +302,24 @@ def callback():
     # user_id = id_info.get('sub')
     username = id_info.get('name')
     user_email = id_info.get('email')
-    organisation = id_info.get('email').split('@')[1]
+    organisation = session.get('organisation')
 
     # Database insert/update
     conn = get_db_connection()
     cursor = conn.cursor()
+    #this checks if the user already created org
+    if organisation is None:
+        sql="SELECT organisations.name FROM users \
+        JOIN organisations on users.org_id=organisations.id WHERE users.email = ?"
+        organisation = cursor.execute(sql, (user_email,)).fetchone()
+        if organisation:
+            organisation=organisation[0]
+
+        print("organisation",organisation)
+
+    #this checks if user did not create org and also did not enter custom org name
+    if organisation is None and session.get('captured_org_name') is None:
+        return render_template('index_create_custom_org.html')
 
     # check if a user with the same email exists
     sql = "SELECT user_id FROM users WHERE email = ?;"
@@ -338,7 +327,6 @@ def callback():
 
     if user_id is None:
         print(f"ORG: {organisation}")
-
         # create a new organisation if it doesn't exist
         # if it does exist, return it's id
         cursor.execute(("""
