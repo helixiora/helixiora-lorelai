@@ -231,13 +231,14 @@ def index():
         sql = "SELECT users.user_id,users.org_id, organisations.name FROM users JOIN organisations on users.org_id=organisations.id WHERE email = ?;"
         user_id,ord_id,org_name = cursor.execute(sql, (session['email'],)).fetchone()
         print(user_id,ord_id,org_name)
-        if org_name.lower() == "gmail.com":#checks if domain is organization or gmail.com
+        if org_name.lower() == "gmail.com":  #checks if domain is gmail.com, if true then proceed to create custom org
             return render_template('index_create_custom_org.html')
         
         user_data = {
             'user_organization': org_name,
             'user_email': session['email'],
         }
+        session['organisation']=org_name 
         return render_template('index_logged_in.html', **user_data)
 
     try:
