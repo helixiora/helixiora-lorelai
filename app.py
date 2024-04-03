@@ -307,7 +307,7 @@ def callback():
     # Database insert/update
     conn = get_db_connection()
     cursor = conn.cursor()
-    #this checks if the user already created org
+    # this checks if the user already created org
     if organisation is None:
         sql="SELECT organisations.name FROM users \
         JOIN organisations on users.org_id=organisations.id WHERE users.email = ?"
@@ -317,7 +317,7 @@ def callback():
 
         print("organisation",organisation)
 
-    #this checks if user did not create org and also did not enter custom org name
+    # this checks if user did not create org and also did not enter custom org name
     if organisation is None and session.get('captured_org_name') is None:
         return render_template('index_create_custom_org.html')
 
