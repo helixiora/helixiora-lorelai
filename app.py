@@ -212,7 +212,7 @@ def index():
     Returns:
         string: the index page
     """
-    print("POKEMON")
+
     if 'google_id' in session:
         #get user org from db
         # Database insert/update
