@@ -189,6 +189,32 @@ def execute_rag_llm(chat_message, user, organisation):
 
     return json_data
 
+@app.route('/submit_custom_org', methods=['POST'])
+def submit():
+    org_name = request.form['org_name']
+    session["custom_org"]=org_name
+    print("Entered Org Name:", org_name)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # create a new organisation if it doesn't exist
+    # if it does exist, return it's id
+    cursor.execute(("""
+            INSERT INTO organisations (name)
+            VALUES (?)
+            ON CONFLICT (name)
+            DO NOTHING;
+        """), (org_name,))
+
+    sql = "SELECT id FROM organisations WHERE name = ?;"
+    org_id = cursor.execute(sql, (org_name,)).fetchone()[0]
+    sql="Update users SET org_id = ? WHERE email = ?"
+    cursor.execute(sql,(org_id,session["email"]))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("updated org name")
+    return redirect(url_for("index"))
+
 # Improved index route using render_template
 @app.route('/')
 def index():
@@ -198,8 +224,18 @@ def index():
         string: the index page
     """
     if 'google_id' in session:
+        #get user org from db
+        # Database insert/update
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT users.user_id,users.org_id, organisations.name FROM users JOIN organisations on users.org_id=organisations.id WHERE email = ?;"
+        user_id,ord_id,org_name = cursor.execute(sql, (session['email'],)).fetchone()
+        print(user_id,ord_id,org_name)
+        if org_name.lower() == "gmail.com":#checks if domain is organization or gmail.com
+            return render_template('index_create_custom_org.html')
+        
         user_data = {
-            'user_organization': session['organisation'],
+            'user_organization': org_name,
             'user_email': session['email'],
         }
         return render_template('index_logged_in.html', **user_data)
