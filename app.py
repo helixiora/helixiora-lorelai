@@ -199,8 +199,8 @@ def submit():
     org_name = request.form['org_name']
     print("Entered Org Name:", org_name)
     print("updated org name")
-    session['organisation']=org_name
-    session['captured_org_name']=True
+    session['organisation'] = org_name
+    session['captured_org_name'] = True
 
     return redirect(url_for("callback"))
 
@@ -313,9 +313,9 @@ def callback():
         JOIN organisations on users.org_id=organisations.id WHERE users.email = ?"
         organisation = cursor.execute(sql, (user_email,)).fetchone()
         if organisation:
-            organisation=organisation[0]
+            organisation = organisation[0]
 
-        print("organisation",organisation)
+        print("organisation", organisation)
 
     # this checks if user did not create org and also did not enter custom org name
     if organisation is None and session.get('captured_org_name') is None:
