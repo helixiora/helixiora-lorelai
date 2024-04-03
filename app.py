@@ -197,7 +197,6 @@ def submit():
         string: the index page
     """
     org_name = request.form['org_name']
-    session["custom_org"]=org_name
     print("Entered Org Name:", org_name)
     conn = get_db_connection()
     cursor = conn.cursor()
