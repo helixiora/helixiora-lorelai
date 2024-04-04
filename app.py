@@ -311,9 +311,9 @@ def callback():
     if organisation is None:
         sql="SELECT organisations.name FROM users \
         JOIN organisations on users.org_id=organisations.id WHERE users.email = ?"
-        organisation = cursor.execute(sql, (user_email,)).fetchone()
-        if organisation:
-            organisation = organisation[0]
+        sql_result = cursor.execute(sql, (user_email,)).fetchone()
+        if sql_result:
+            organisation = sql_result[0]
 
         print("organisation", organisation)
 
