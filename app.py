@@ -198,8 +198,8 @@ def submit():
     """
     org_name = request.form['org_name']
     print("Entered Org Name:", org_name)
-    print("updated org name")
     session['organisation'] = org_name
+
     session['captured_org_name'] = True
 
     return redirect(url_for("callback"))
@@ -214,8 +214,6 @@ def index():
     """
 
     if 'google_id' in session:
-        #get user org from db
-        # Database insert/update
         user_data = {
             'user_organization': session['organisation'],
             'user_email': session['email'],
@@ -307,9 +305,9 @@ def callback():
     # Database insert/update
     conn = get_db_connection()
     cursor = conn.cursor()
-    # this checks if the user already created org
+    # This checks if the user already created the organisation
     if organisation is None:
-        sql="SELECT organisations.name FROM users \
+        sql = "SELECT organisations.name FROM users \
         JOIN organisations on users.org_id=organisations.id WHERE users.email = ?"
         organisation = cursor.execute(sql, (user_email,)).fetchone()
         if organisation:
