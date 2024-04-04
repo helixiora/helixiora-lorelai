@@ -189,20 +189,20 @@ def execute_rag_llm(chat_message, user, organisation):
 
     return json_data
 
-@app.route('/submit_custom_org', methods=['POST'])
+@app.route('/submit_custom_org', methods=['GET','POST'])
 def submit():
     """Create custom org for new sign up
 
     Returns:
         string: callback
     """
-    org_name = request.form['org_name']
-    print("Entered Org Name:", org_name)
-    session['organisation'] = org_name
-
+    if request.method == 'GET':
+        return render_template("index_create_custom_org.html")
+    organisation = request.form['organisation']
+    session['organisation'] = organisation
     session['captured_org_name'] = True
-
-    return redirect(url_for("callback"))
+    # have to redirect to index if we redirect to oauth callback it breaks the flow we get error.
+    return redirect(url_for("index"))
 
 # Improved index route using render_template
 @app.route('/')
@@ -225,7 +225,8 @@ def index():
         authorization_url, state = flow.authorization_url(access_type='offline',
                                                             include_granted_scopes='true')
         session['state'] = state
-        return render_template('index.html', auth_url=authorization_url)
+        return render_template('index.html', auth_url=authorization_url,
+                                organisation_created=session.get('organisation'))
     except RuntimeError as e:
         print(f"Error generating authorization URL: {e}")
         return render_template('error.html', error_message="Failed to generate login URL.")
@@ -246,7 +247,7 @@ def chat():
 
     # this is used to post a task to the celery worker
     task = execute_rag_llm.apply_async(args=[content['message'], session['email'],
-                                             session['organisation']])
+                                            session['organisation']])
 
     return jsonify({'task_id': task.id}), 202
 
@@ -309,15 +310,15 @@ def callback():
     if organisation is None:
         sql = "SELECT organisations.name FROM users \
         JOIN organisations on users.org_id=organisations.id WHERE users.email = ?"
-        organisation = cursor.execute(sql, (user_email,)).fetchone()
-        if organisation:
-            organisation = organisation[0]
+        sql_result = cursor.execute(sql, (user_email,)).fetchone()
+        if sql_result:
+            organisation = sql_result[0]
 
         print("organisation", organisation)
 
     # this checks if user did not create org and also did not enter custom org name
     if organisation is None and session.get('captured_org_name') is None:
-        return render_template('index_create_custom_org.html')
+        return redirect(url_for("submit"))
 
     # check if a user with the same email exists
     sql = "SELECT user_id FROM users WHERE email = ?;"
