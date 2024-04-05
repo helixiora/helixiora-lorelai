@@ -10,6 +10,9 @@
         <h1>Welcome to Our Application</h1>
         <p>Please log in to access your profile.</p>
         <a href="{{ auth_url }}" class="btn btn-primary">Login with Google</a>
+        {% if organisation_created is not none %}
+        <p><b>{{organisation_created}}</b>, organisation has been created, Please login again</p>
+        {% endif %}
     </div>
 </body>
 </html>
