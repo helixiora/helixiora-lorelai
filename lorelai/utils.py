@@ -13,10 +13,13 @@ from pinecone.core.client.exceptions import NotFoundException
 
 def pinecone_index_name(org: str, datasource: str, environment: str="dev", env_name: str="lorelai",
                         version: str="v1"):
-    """returns the pinecone index name for the org
-    """
+    """Returns the pinecone index name for the org."""
+    parts = [environment, env_name, org, datasource, version]
 
-    name = f"{environment}-{env_name}-{org}-{datasource}-{version}"
+    # Remove empty parts to avoid extra dashes
+    parts = [part for part in parts if part]
+
+    name = "-".join(parts)
 
     name = name.lower().replace(".", "-").replace(" ", "-")
 

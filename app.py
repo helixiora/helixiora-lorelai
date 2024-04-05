@@ -24,8 +24,8 @@ from lorelai.llm import Llm
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
 
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+app.config['CELERY_BROKER_URL'] = 'redis://redis:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://redis:6379/0'
 
 def make_celery(appflask: Flask) -> Celery:
     """
@@ -56,6 +56,7 @@ def make_celery(appflask: Flask) -> Celery:
     return celery
 
 celeryapp = make_celery(app)
+#celery = make_celery(app)
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -125,7 +126,7 @@ flow = Flow.from_client_config(
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/drive.readonly",
             "openid"],
-    redirect_uri="http://127.0.0.1:5000/oauth2callback"
+    redirect_uri="http://127.0.0.1:5001/oauth2callback"
 )
 
 # Database setup
@@ -161,7 +162,7 @@ connection.commit()
 cur.close()
 connection.close()
 
-@celeryapp.task
+@celeryapp.task(name='execute_rag_llm')
 def execute_rag_llm(chat_message, user, organisation):
     """A Celery task to execute the RAG+LLM model
     """
@@ -229,7 +230,7 @@ def chat():
 
     # this is used to post a task to the celery worker
     task = execute_rag_llm.apply_async(args=[content['message'], session['email'],
-                                             session['organisation']])
+                                             session['organisation']], task_name='execute_rag_llm')
 
     return jsonify({'task_id': task.id}), 202
 
@@ -407,4 +408,4 @@ def internal_server_error(e):
 
 if __name__ == '__main__':
     print("Starting the app...")
-    app.run(host='localhost', port=5000, use_reloader=True, debug=True)
+    app.run(host='0.0.0.0', port=5001, use_reloader=True, debug=True)

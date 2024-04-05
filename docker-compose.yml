@@ -1,0 +1,24 @@
+version: '3.10'
+
+services:
+  web:
+    build: .
+    command: python app.py
+    volumes:
+      - .:/app
+    ports:
+      - "5001:5001"
+    depends_on:
+      - redis
+
+  redis:
+    image: "redis:alpine"
+
+  worker:
+    build: .
+    command: celery -A app.celeryapp worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+      - redis
