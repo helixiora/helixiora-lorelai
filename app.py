@@ -56,7 +56,6 @@ def make_celery(appflask: Flask) -> Celery:
     return celery
 
 celeryapp = make_celery(app)
-#celery = make_celery(app)
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -126,7 +125,7 @@ flow = Flow.from_client_config(
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/drive.readonly",
             "openid"],
-    redirect_uri="http://127.0.0.1:5001/oauth2callback"
+    redirect_uri="http://127.0.0.1:5000/oauth2callback"
 )
 
 # Database setup
@@ -198,6 +197,7 @@ def index():
     Returns:
         string: the index page
     """
+    print(f"Session: {session}")
     if 'google_id' in session:
         user_data = {
             'user_organization': session['organisation'],
@@ -408,4 +408,4 @@ def internal_server_error(e):
 
 if __name__ == '__main__':
     print("Starting the app...")
-    app.run(host='0.0.0.0', port=5001, use_reloader=True, debug=True)
+    app.run()

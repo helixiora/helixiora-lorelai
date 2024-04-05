@@ -3,22 +3,46 @@ version: '3.10'
 services:
   web:
     build: .
-    command: python app.py
+    command: flask run --host=0.0.0.0 --port=5000 --reload --debug
     volumes:
-      - .:/app
+      - type: bind
+        source: ./
+        target: /app
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5000:5000"
     depends_on:
       - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    restart: on-failure # Ensures the service restarts if it exits due to an error.
 
   redis:
     image: "redis:alpine"
+    command: redis-server --appendonly yes # Enables AOF persistence for better data durability.
+    volumes:
+      - redis-data:/data # Persists Redis data across container restarts.
+    healthcheck: # Health check to ensure Redis is ready before other services start.
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   worker:
     build: .
     command: celery -A app.celeryapp worker --loglevel=info
     volumes:
-      - .:/app
+      - type: bind
+        source: ./
+        target: /app
     depends_on:
       - web
       - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0 # Ensure workers have the environment variables they need.
+    restart: on-failure
+
+volumes:
+  redis-data: # Defines the volume for Redis data.
+
+networks:
+  default: # Utilizes the default network, but can be customized for complex applications.

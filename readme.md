@@ -1,8 +1,4 @@
-# Enhanced README for Lorelai RAG Proof of Concept Repository
-
-# **WIP** This is a Work in Progress!
-
-Walter: This repo is a work in progress. It's not meant to be beautiful, done or working. 
+# Lorelai readme
 
 ## Overview
 
@@ -36,71 +32,31 @@ Follow these steps to set up the project and run the components.
 4. Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
     1. The project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager) 
 
-#### Prepare Your Environment
+#### Running in a python venv
 
 1. Create a Python virtual environment: `python -m venv .venv` and activate it with `source .venv/bin/activate`.
 2. Install required dependencies: `pip install -r requirements.txt`.
 3. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
-4. Set up redis and start it locally:
-   ```
-   (.venv) walterheck in ~/source/helixiora/helixiora-crawler on frontend-app-merge
-   > redis-server
-   35572:C 01 Apr 2024 11:37:22.046 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
-   35572:C 01 Apr 2024 11:37:22.046 * Redis version=7.2.4, bits=64, commit=00000000, modified=0, pid=35572, just started
-   35572:C 01 Apr 2024 11:37:22.046 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
-   35572:M 01 Apr 2024 11:37:22.047 * Increased maximum number of open files to 10032 (it was originally set to 256).
-   35572:M 01 Apr 2024 11:37:22.047 * monotonic clock: POSIX clock_gettime
-                  _._
-            _.-``__ ''-._
-         _.-``    `.  `_.  ''-._           Redis 7.2.4 (00000000/0) 64 bit
-   .-`` .-```.  ```\/    _.,_ ''-._
-   (    '      ,       .-`  | `,    )     Running in standalone mode
-   |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
-   |    `-._   `._    /     _.-'    |     PID: 35572
-   `-._    `-._  `-./  _.-'    _.-'
-   |`-._`-._    `-.__.-'    _.-'_.-'|
-   |    `-._`-._        _.-'_.-'    |           https://redis.io
-   `-._    `-._`-.__.-'_.-'    _.-'
-   |`-._`-._    `-.__.-'    _.-'_.-'|
-   |    `-._`-._        _.-'_.-'    |
-   `-._    `-._`-.__.-'_.-'    _.-'
-         `-._    `-.__.-'    _.-'
-            `-._        _.-'
-               `-.__.-'
-
-   35572:M 01 Apr 2024 11:37:22.047 # WARNING: The TCP backlog setting of 511 cannot be enforced because kern.ipc.somaxconn is set to the lower value of 128.
-   35572:M 01 Apr 2024 11:37:22.047 * Server initialized
-   35572:M 01 Apr 2024 11:37:22.047 * Loading RDB produced by version 7.2.4
-   35572:M 01 Apr 2024 11:37:22.047 * RDB age 14 seconds
-   35572:M 01 Apr 2024 11:37:22.047 * RDB memory usage when created 1.64 Mb
-   35572:M 01 Apr 2024 11:37:22.048 * Done loading RDB, keys loaded: 8, keys expired: 0.
-   35572:M 01 Apr 2024 11:37:22.048 * DB loaded from disk: 0.000 seconds
-   35572:M 01 Apr 2024 11:37:22.048 * Ready to accept connections tcp
-   ```
-5. Install celery and run a worker:
+4. Set up redis and start it locally
+   1. On a mac: `brew install redis` followed by `redis-server`
+   2. On linux: <add instructions>
+5. Run a celery worker:
    ```
    (.venv) walterheck in ~/source/helixiora/helixiora-crawler on frontend-app-merge
    > celery -A app.celery worker
 
-
-   celery@Walters-M3Pro.localdomain v5.3.6 (emerald-rush)
-
-   macOS-14.3.1-arm64-arm-64bit 2024-04-01 11:38:28
-
-   [config]
-   .> app:         app:0x107e18050
-   .> transport:   redis://localhost:6379/0
-   .> results:     redis://localhost:6379/0
-   .> concurrency: 12 (prefork)
-   .> task events: OFF (enable -E to monitor tasks in this worker)
-
-   [queues]
-   .> celery           exchange=celery(direct) key=celery
    ```
+6. Launch the Flask application: `flask run`
+
+#### Running using docker compose
+
+1. Install and run [docker desktop](https://docs.docker.com/desktop/).
+   1. on a mac, run `brew install docker` to install docker desktop
+1. Get the stack of redis, celery and the flask app up and running using `docker-compose up --build`
 
 ### Google OAuth Configuration
 
-1. Launch the Flask application: `flask run`, and navigate to the local server URL ([http://127.0.0.1:5000](http://127.0.0.1:5000)).
+1. Once you followed the setup steps above, navigate to the local server URL ([http://127.0.0.1:5000](http://127.0.0.1:5000)).
     - Follow the on-screen instructions to log in and authorize access to Google Drive.
 2. Confirm that credentials are stored correctly in SQLite by accessing the `userdb.sqlite` database and querying the `users` table. Example commands:
     ```bash
