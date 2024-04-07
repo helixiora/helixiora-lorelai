@@ -23,7 +23,7 @@ def pinecone_index_name(org: str, datasource: str, environment: str="dev", env_n
     print(f"Index name: {name}")
     return name
 
-def load_creds(service: str) -> Dict[str, str]:
+def load_config(service: str) -> Dict[str, str]:
     """
     Loads API credentials for a specified service from settings.json.
 

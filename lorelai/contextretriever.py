@@ -16,7 +16,7 @@ from pinecone import Pinecone
 from pinecone.models.index_list import IndexList
 from pinecone.core.client.model.fetch_response import FetchResponse
 
-from lorelai.utils import pinecone_index_name, load_creds
+from lorelai.utils import pinecone_index_name, load_config
 
 class ContextRetriever:
     """
@@ -36,9 +36,9 @@ class ContextRetriever:
             org_name (str): The organization name, used for Pinecone index naming.
             user (str): The user name, potentially used for logging or customization.
         """
-        self.pinecone_creds = load_creds('pinecone')
-        self.openai_creds = load_creds('openai')
-        self.lorelai_creds = load_creds('lorelai')
+        self.pinecone_creds = load_config('pinecone')
+        self.openai_creds = load_config('openai')
+        self.lorelai_creds = load_config('lorelai')
 
         self.org_name: str = org_name
         self.user: str = user

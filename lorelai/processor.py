@@ -14,7 +14,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 
-from lorelai.utils import pinecone_index_name, load_creds, save_google_creds_to_tempfile
+from lorelai.utils import pinecone_index_name, load_config, save_google_creds_to_tempfile
 from lorelai.utils import get_embedding_dimension
 
 class Processor:
@@ -25,9 +25,9 @@ class Processor:
         """initializes the Processor class
         """
 
-        self.pinecone_creds = load_creds('pinecone')
-        self.openai_creds = load_creds('openai')
-        self.lorelai_settings = load_creds('lorelai')
+        self.pinecone_creds = load_config('pinecone')
+        self.openai_creds = load_config('openai')
+        self.lorelai_settings = load_config('lorelai')
 
         self.pinecone_api_key = self.pinecone_creds['api-key']
         self.openai_api_key = self.openai_creds['api-key']

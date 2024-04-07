@@ -20,9 +20,9 @@ class Indexer:
     """This class is used to process the Google Drive documents and index them in Pinecone
     """
     def __init__(self):
-        self.google_creds = lorelai.utils.load_creds('google')
-        self.pinecone_creds = lorelai.utils.load_creds('pinecone')
-        self.settings = lorelai.utils.load_creds('lorelai')
+        self.google_creds = lorelai.utils.load_config('google')
+        self.pinecone_creds = lorelai.utils.load_config('pinecone')
+        self.settings = lorelai.utils.load_config('lorelai')
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds['api-key']
 
