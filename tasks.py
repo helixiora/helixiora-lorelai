@@ -1,3 +1,5 @@
+import time
+
 from celery import shared_task
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
@@ -29,3 +31,14 @@ def execute_rag_llm(chat_message, user, organisation):
     }
 
     return json_data
+
+@shared_task(name='run_indexer', bind=True)
+def run_indexer(self):
+    for i in range(1, 101):
+        # Simulate indexing work with progress
+        self.update_state(state='PROGRESS', meta={'current': i, 'total': 100})
+        print(f"Indexing {i}%")
+        # Simulate some work being done
+        time.sleep(0.1)
+    print("Indexing completed!")
+    return {'current': 100, 'total': 100, 'status': 'Task completed!', 'result': 42}
