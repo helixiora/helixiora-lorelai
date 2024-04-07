@@ -20,42 +20,28 @@ from google_auth_oauthlib.flow import Flow
 
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
+from lorelai.utils import load_config
+
+from celery_worker import make_celery, init_celery
+from tasks import execute_rag_llm
+
+# Configure the root logger
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
 
-app.config['CELERY_BROKER_URL'] = 'redis://redis:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://redis:6379/0'
+celery_config = load_config('celery')
 
-def make_celery(appflask: Flask) -> Celery:
-    """
-    Create and configure a Celery instance for a Flask application.
+app.config['CELERY_BROKER_URL'] = celery_config['broker_url']
+app.config['CELERY_RESULT_BACKEND'] = celery_config['result_backend']
 
-    Parameters:
-    - app: The Flask application instance.
+# Initialize Celery
+celery = make_celery(app.import_name, app.config['CELERY_BROKER_URL'], app.config['CELERY_RESULT_BACKEND'])
+init_celery(celery, app)
 
-    Returns:
-    - Configured Celery instance.
-    """
-    # Initialize Celery with Flask app's settings
-    celery = Celery(appflask.import_name, broker=appflask.config['CELERY_BROKER_URL'])
-    celery.conf.update(appflask.config)
-
-    # pylint: disable=R0903
-    class ContextTask(celery.Task):
-        """
-        A Celery Task that ensures the task executes with Flask application context.
-        """
-        def __call__(self, *args, **kwargs):
-            with appflask.app_context():
-                return self.run(*args, **kwargs)
-
-    # Setting the custom task class
-    celery.Task = ContextTask
-
-    return celery
-
-celeryapp = make_celery(app)
+# Ensure tasks.py is imported AFTER Celery app is initialized to make sure they get decorated
+import tasks  # Import tasks to ensure they are registered
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -160,34 +146,6 @@ cur.execute('''CREATE TABLE IF NOT EXISTS users (
 connection.commit()
 cur.close()
 connection.close()
-
-@celeryapp.task(name='execute_rag_llm')
-def execute_rag_llm(chat_message, user, organisation):
-    """A Celery task to execute the RAG+LLM model
-    """
-    print(f"Task ID: {execute_rag_llm.request.id}, Message: {chat_message}")
-    print(f"Session: {user}, {organisation}")
-
-    # update the task state before we begin processing
-    execute_rag_llm.update_state(state='PROGRESS', meta={'status': 'Processing...'})
-
-    # get the context for the question
-    enriched_context = ContextRetriever(org_name=organisation, user=user)
-
-    context, source = enriched_context.retrieve_context(chat_message)
-
-    llm = Llm(model="gpt-3.5-turbo")
-    answer = llm.get_answer(question=chat_message, context=context)
-
-    print(f"Answer: {answer}")
-    print(f"Source: {source}")
-
-    json_data = {
-        'answer': answer,
-        'source': source
-    }
-
-    return json_data
 
 @app.route('/submit_custom_org', methods=['GET','POST'])
 def submit():
