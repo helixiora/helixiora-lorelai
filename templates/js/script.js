@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     
         setTimeout(function() {
-            fetch(`/chat?task_id=${taskId}`)
+            fetch(`/chat?task_id=${taskId}&attempt=${attempt}`)
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'SUCCESS') {
