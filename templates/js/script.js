@@ -126,50 +126,70 @@ document.addEventListener('DOMContentLoaded', function() {
      * 
      * @param {string} requestId The ID of the request for which to fetch the result.
      */
-    async function pollForResponse(taskId) {
-        console.log('Polling for response:', taskId);
+    async function pollForResponse(taskId, attempt = 1) {
+        console.log('Polling for response:', taskId, 'Attempt:', attempt);
+        
+        // Calculate delay based on attempt number
+        let delay;
+        if (attempt <= 5) { // First 5 attempts
+            delay = 500; // 0.5 seconds
+        } else if (attempt <= 7) { // Next 2 attempts
+            delay = 1000; // 1 second
+        } else { // Last 2 attempts
+            delay = 1500; // 1.5 seconds
+        }
+    
         setTimeout(function() {
             fetch(`/chat?task_id=${taskId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'SUCCESS') {
                     hideLoadingIndicator();
-                    // console.log('Response:', data.result);
-
-                    // Extract the text content from the JSON result
+                    // Process successful response
                     const text = extractTextFromJSON(data.result);
-
-                    // Format the message and the sources into html
                     let message = data.result.answer;
-                    addMessage(message, isUser=false, isHTML=false); // Display the message
-                    
+                    addMessage(message, false, false); // Display the message
+    
                     let sourceText = '';
                     if (data.result.source) {
                         data.result.source.forEach(source => {
                             sourceText += `<li><a href="${source.source}">${source.title} (score: ${source.score})</a></li>`;
                         });
                     }
-                    addMessage(message="<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>" + sourceText + "</ol>", isUser=false, isHTML=true, isSources=true); 
+                    addMessage(`<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
+                } else if (attempt < 9) { // Retry if less than 9 attempts have been made
+                    pollForResponse(taskId, attempt + 1);
                 } else {
-                    pollForResponse(taskId); // Keep polling if pending
+                    hideLoadingIndicator();
+                    console.error('Error: No response received after multiple attempts.');
+                    addMessage('Error: No response received after multiple attempts.', false, false);
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                if (attempt < 9) {
+                    pollForResponse(taskId, attempt + 1);
+                } else {
+                    hideLoadingIndicator();
+                    addMessage('Error: Unable to retrieve response.', false, false);
                 }
             });
-        }, 500); // Adjust polling interval as needed
+        }, delay);
     }
-
-
+    
     /**
      * Sends a message to the server and handles the response.
      * Shows a loading indicator while waiting for the server's response.
      * Upon receiving a response, it triggers fetching the result with the provided request ID.
-     * If an error occurs, it logs the error and shows an error message to the user.
+     * If an error occurs during the fetch operation, it logs the error and displays an error message.
      * 
-     * @param {string} text The text message to send to the server.
+     * @param {string} message The text message to send to the server.
      */
     async function sendMessage(message) {
         console.log('Sending message:', message);
-        addMessage(message, true);
-        showLoadingIndicator();
+        addMessage(message, true); // Display the message as sent by the user
+        showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
+
         fetch('/chat', {
             method: 'POST',
             body: JSON.stringify({message: message}),
@@ -179,7 +199,21 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            pollForResponse(data.task_id);
+            // Check if the server has accepted the message and is processing it
+            if (data.task_id) {
+                pollForResponse(data.task_id); // Begin polling for the response based on the provided task ID
+            } else {
+                // Handle cases where the server response might not include a task_id due to an error or other issue
+                console.error('Server response did not include a task_id.');
+                hideLoadingIndicator();
+                addMessage('Error: The message could not be processed at this time. Please try again later.', false, false); // Display a generic error message
+            }
+        })
+        .catch(error => {
+            // Handle network errors or issues with the fetch operation itself
+            console.error('Fetch error:', error);
+            hideLoadingIndicator(); // Hide the loading indicator as there's been an error
+            addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
         });
     }
 
