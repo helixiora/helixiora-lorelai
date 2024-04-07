@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <!-- Bootstrap CSS for styling -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container { margin-top: 20px; }
+        #progressBarContainer { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Admin Dashboard</h1>
+        <p>Click the button below to start indexing the documents.</p>
+        <div class="alert" id="statusMessage" role="alert" style="display: none;"></div>
+        <button class="btn btn-primary" onclick="startIndexing()">Run Indexer</button>
+        <div id="progressBarContainer" class="mt-3">
+            <div class="progress">
+                <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            </div>
+        </div>
+        <!-- Go to pinecone admin pages -->
+        <p class="mt-3">Once indexing is complete, you can view the indexed documents in the Pinecone Admin.</p>
+        <a href="/admin/pinecone" class="btn btn-primary mt-3">Go to Pinecone Admin</a>
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        function startIndexing() {
+            fetch('/admin/index', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    $('#statusMessage').hide();
+                    $('#progressBarContainer').show();
+                    $('#progressBar').css('width', '0%').attr('aria-valuenow', 0).text('0%');
+                    checkStatus(data.task_id);
+                }).catch(() => {
+                    $('#statusMessage').show().addClass('alert-danger').text('Failed to start indexing.');
+                });
+        }
+
+        function checkStatus(taskId) {
+            fetch(`/task-status/${taskId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.state === 'PROGRESS') {
+                        let percent = (data.current / data.total) * 100;
+                        $('#progressBar').css('width', percent+'%').attr('aria-valuenow', percent).text(Math.round(percent) + '%');
+                        setTimeout(() => checkStatus(taskId), 1000);
+                    } else if (data.state === 'SUCCESS') {
+                        $('#progressBar').css('width', '100%').attr('aria-valuenow', 100).text('100%');
+                        $('#statusMessage').show().removeClass('alert-danger').addClass('alert-success').text(data.status);
+                    }
+                }).catch(() => {
+                    $('#statusMessage').show().addClass('alert-danger').text('Error checking task status.');
+                });
+        }
+    </script>
+</body>
+</html>
