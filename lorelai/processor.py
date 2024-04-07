@@ -12,7 +12,9 @@ from pinecone import ServerlessSpec
 from langchain_community.document_loaders.googledrive import GoogleDriveLoader
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
-from lorelai.utils import pinecone_index_name, load_creds, save_google_creds_to_tempfile
+from langchain_pinecone import PineconeVectorStore
+
+from lorelai.utils import pinecone_index_name, load_config, save_google_creds_to_tempfile
 from lorelai.utils import get_embedding_dimension
 
 
