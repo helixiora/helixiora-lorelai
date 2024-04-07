@@ -22,7 +22,7 @@ from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
 from lorelai.utils import load_config
 
-from celery_worker import make_celery, init_celery
+from celery_worker import make_celery
 from tasks import execute_rag_llm
 
 # Configure the root logger
@@ -38,10 +38,9 @@ app.config['CELERY_RESULT_BACKEND'] = celery_config['result_backend']
 
 # Initialize Celery
 celery = make_celery(app.import_name, app.config['CELERY_BROKER_URL'], app.config['CELERY_RESULT_BACKEND'])
-init_celery(celery, app)
+celery.conf.update(app.config)
 
-# Ensure tasks.py is imported AFTER Celery app is initialized to make sure they get decorated
-import tasks  # Import tasks to ensure they are registered
+execute_rag_llm = celery.task(name='execute_rag_llm')(execute_rag_llm)
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
