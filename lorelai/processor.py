@@ -34,8 +34,10 @@ class Processor:
         os.environ["OPENAI_API_KEY"] = self.openai_api_key
         os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
 
-    def pinecone_filter_deduplicate_documents_list(self,documents: Iterable[Document],pc_index)-> list:
-        """process the vectors and removes vector which exist in database.Also tag doc metadata with new user
+    def pinecone_filter_deduplicate_documents_list(self,documents: Iterable[Document],pc_index) \
+        -> list:
+        """process the vectors and removes vector which exist in database.
+            Also tag doc metadata with new user
 
         :param documents: the documents to process
         :param pc_index: pinecone index object
@@ -44,7 +46,7 @@ class Processor:
                 2. (number of documents updated)
         """
         updated_documents_numbers = 0
-        # Check if docs exist in pinecone. 
+        # Check if docs exist in pinecone.
         for doc in documents[:]:
             #doc["metadata"]["users"]=["newuser.com"]
             result=pc_index.query(vector = doc["values"],top_k = 1,include_metadata=True,
@@ -60,15 +62,18 @@ class Processor:
                         # if so then we remove doc form the vector list
                         documents.remove(doc)
 
-                    # if doc is not tagged for user then we update the meta data to include this user. and we remove the doc.   
+                    # if doc is not tagged for user, then we update the meta data
+                    # to include this user and we remove the doc.
                     else:
-                        users_list = result["matches"][0]["metadata"]["users"] + doc["metadata"]["users"]
-                        pc_index.update(id = result["matches"][0]["id"],set_metadata = {"users":users_list})
+                        users_list = \
+                            result["matches"][0]["metadata"]["users"] + doc["metadata"]["users"]
+                        pc_index.update(id = result["matches"][0]["id"], \
+                                        set_metadata = {"users":users_list})
                         documents.remove(doc)
                         updated_documents_numbers += 1
 
         return documents, updated_documents_numbers
-    
+
     def pinecone_format_vectors(self,documents: Iterable[Document],embeddings_model)-> list:
         """process the documents and format them for pinecone insert.
 
@@ -88,7 +93,7 @@ class Processor:
         print(len(documents),len(embeds))
         if len(documents) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
-        
+
         for i in range(len(documents)):
             temp_dict = {"id":str(uuid.uuid4()),
                         "values":embeds[i],
@@ -144,7 +149,8 @@ class Processor:
 
         # Format the document for insertion
         formatted_documents = self.pinecone_format_vectors(documents,embedding_model)
-        filtered_documents, updated_documents_numbers =self.pinecone_filter_deduplicate_documents_list(formatted_documents,pc_index)
+        filtered_documents, updated_documents_numbers = \
+            self.pinecone_filter_deduplicate_documents_list(formatted_documents,pc_index)
 
         # inserting  the documents
         if filtered_documents:
