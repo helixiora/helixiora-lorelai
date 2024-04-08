@@ -86,15 +86,17 @@ class Processor:
         #prepare pinecone vectors
         formatted_documents =[]
         print(len(documents),len(embeds))
-        if len(documents) == len(embeds):
-            for i in range(len(documents)):
-                temp_dict = {"id":str(uuid.uuid4()),
-                            "values":embeds[i],
-                            "metadata":documents[i].metadata,
-                            }
+        if len(documents) != len(embeds):
+            raise ValueError("Embeds length and document length mismatch")
+        
+        for i in range(len(documents)):
+            temp_dict = {"id":str(uuid.uuid4()),
+                        "values":embeds[i],
+                        "metadata":documents[i].metadata,
+                        }
 
-                temp_dict["metadata"]["text"] = documents[i].page_content
-                formatted_documents.append(temp_dict)
+            temp_dict["metadata"]["text"] = text_docs[i]
+            formatted_documents.append(temp_dict)
 
         return formatted_documents
 
