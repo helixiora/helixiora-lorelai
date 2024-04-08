@@ -2,33 +2,65 @@
 
 """the main application file for the OAuth2 flow flask app
 """
+import json
 import os
 import sys
+import logging
+import sqlite3
+from contextlib import closing
+from typing import Dict
+from pprint import pprint
 
-from flask import Flask, flash, redirect, render_template, session, url_for
+from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
+from celery import Celery
+
+import google.auth.transport.requests
+from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
+
+from lorelai.contextretriever import ContextRetriever
+from lorelai.llm import Llm
+from lorelai.utils import load_config
+
+from celery_worker import make_celery
+from tasks import execute_rag_llm, run_indexer
+
+from app.utils import get_db_connection, get_user_details, is_admin
+
+# Configure the root logger
+# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+app = Flask(__name__)
+app.secret_key = 'your_very_secret_and_long_random_string_here'
+
+celery_config = load_config('celery')
+
+app.config['CELERY_BROKER_URL'] = celery_config['broker_url']
+app.config['result_backend'] = celery_config['result_backend']
+app.config['broker_connection_retry_on_startup'] = True
 
 # load blueprints
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import get_db_connection, is_admin
-
-from lorelai.utils import load_config
-
-app = Flask(__name__)
-app.secret_key = 'your_very_secret_and_long_random_string_here'
-
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 
+# Initialize Celery
+celery = make_celery(app.import_name, app.config['CELERY_BROKER_URL'], app.config['result_backend'])
+celery.conf.update(app.config)
+
+execute_rag_llm = celery.task(name='execute_rag_llm')(execute_rag_llm)
+run_indexer = celery.task(name='run_indexer')(run_indexer)
+
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # Load the Google OAuth2 secrets
-secrets = load_config('google')
+with open('settings.json', encoding='utf-8') as f:
+    secrets = json.load(f)['google']
 
 client_config = {
     "web": {
@@ -59,16 +91,13 @@ else:
     raise ConnectionError("Failed to connect to the database.")
 
 # make sure the organisation table exists
-cur.execute(
-    """CREATE TABLE IF NOT EXISTS organisations (
+cur.execute('''CREATE TABLE IF NOT EXISTS organisations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE
-)"""
-)
+)''')
 
 # make sure the users table exists
-cur.execute(
-    """CREATE TABLE IF NOT EXISTS users (
+cur.execute('''CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id INTEGER,
     name TEXT,
@@ -78,8 +107,7 @@ cur.execute(
     expires_in INTEGER,
     token_type TEXT,
     scope TEXT
-)"""
-)
+)''')
 
 connection.commit()
 cur.close()
@@ -96,7 +124,7 @@ def index():
     """
     if 'google_id' in session:
         user_data = {
-            'user_organization': session['organisation'],
+            # 'user_organization': session['organisation'],
             'user_email': session['email'],
             'is_admin': is_admin(session['google_id'])
         }
@@ -105,8 +133,8 @@ def index():
 
     try:
         authorization_url, state = flow.authorization_url(access_type='offline',
-                                                          include_granted_scopes='true',
-                                                          prompt='consent')
+                                                            include_granted_scopes='true', 
+                                                            prompt='consent')
         session['state'] = state
         return render_template('index.html', auth_url=authorization_url)
     except RuntimeError as e:
@@ -118,6 +146,22 @@ def serve_js(script_name):
     """the javascript endpoint
     """
     return render_template(f"js/{script_name}.js"), 200, {'Content-Type': 'application/javascript'}
+
+
+
+
+@app.route('/profile')
+def profile():
+    """the profile page
+    """
+    if 'google_id' in session:
+        # Example: Fetch user details from the database
+        user = get_user_details()
+        # Assume `get_user_details` returns a dict with user info and credentials
+        return render_template('profile.html', user=user, is_admin=is_admin(session['google_id']))
+    return 'You are not logged in!'
+
+
 
 # Logout route
 @app.route('/logout')
