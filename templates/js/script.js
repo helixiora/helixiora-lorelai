@@ -118,64 +118,81 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     /**
-     * Fetches the result of a chat operation from the server using a provided request ID.
-     * It checks the operation status and handles the response accordingly.
-     * If the operation is completed, it processes and displays the result.
-     * If an error occurred during the operation, it shows an error message.
-     * If the operation is still in progress, it retries fetching the result after a delay.
+     * Calculates the delay before making the next poll based on the attempt number.
      * 
-     * @param {string} requestId The ID of the request for which to fetch the result.
+     * @param {number} attempt The current attempt number.
+     * @returns {number} The delay in milliseconds.
+     */
+    function calculateDelay(attempt) {
+        if (attempt <= 5) return 500; // 0.5 seconds
+        if (attempt <= 7) return 1000; // 1 second
+        return 1500; // 1.5 seconds for all further attempts
+    }
+
+    /**
+     * Fetches the result of a chat operation from the server using a provided task ID.
+     * It checks the operation status and handles the response accordingly.
+     * 
+     * @param {string} taskId The ID of the task for which to fetch the result.
+     * @param {number} attempt The current attempt number.
      */
     async function pollForResponse(taskId, attempt = 1) {
-        console.log('Polling for response:', taskId, 'Attempt:', attempt);
-        
-        // Calculate delay based on attempt number
-        let delay;
-        if (attempt <= 5) { // First 5 attempts
-            delay = 500; // 0.5 seconds
-        } else if (attempt <= 7) { // Next 2 attempts
-            delay = 1000; // 1 second
-        } else { // Last 2 attempts
-            delay = 1500; // 1.5 seconds
+        console.log(`Polling for response: ${taskId}, Attempt: ${attempt}`);
+        const delay = calculateDelay(attempt);
+
+        try {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            const response = await fetch(`/chat?task_id=${taskId}`);
+            const data = await response.json();
+
+            if (data.status === 'SUCCESS') {
+                console.log('Operation completed successfully.');
+                displaySuccessMessage(data.result);
+            } else if (data.status === 'FAILED') {
+                console.error('Operation failed:', data.error);
+                displayErrorMessage('Operation failed. Please try again later.');
+            } else if (attempt < 9) {
+                console.log('Operation still in progress. Retrying...');
+                pollForResponse(taskId, attempt + 1);
+            } else {
+                console.error('Error: No successful response after multiple attempts.');
+                displayErrorMessage('Error: No successful response after multiple attempts.');
+            }
+        } catch (error) {
+            console.error('Fetch error:', error);
+            if (attempt < 9) {
+                pollForResponse(taskId, attempt + 1);
+            } else {
+                displayErrorMessage('Error: Unable to retrieve response.');
+            }
         }
-    
-        setTimeout(function() {
-            fetch(`/chat?task_id=${taskId}&attempt=${attempt}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'SUCCESS') {
-                    hideLoadingIndicator();
-                    // Process successful response
-                    const text = extractTextFromJSON(data.result);
-                    let message = data.result.answer;
-                    addMessage(message, false, false); // Display the message
-    
-                    let sourceText = '';
-                    if (data.result.source) {
-                        data.result.source.forEach(source => {
-                            sourceText += `<li><a href="${source.source}">${source.title} (score: ${source.score})</a></li>`;
-                        });
-                    }
-                    addMessage(`<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
-                } else if (attempt < 9) { // Retry if less than 9 attempts have been made
-                    pollForResponse(taskId, attempt + 1);
-                } else {
-                    hideLoadingIndicator();
-                    console.error('Error: No response received after multiple attempts.');
-                    addMessage('Error: No response received after multiple attempts.', false, false);
-                }
-            })
-            .catch(error => {
-                console.error('Fetch error:', error);
-                if (attempt < 9) {
-                    pollForResponse(taskId, attempt + 1);
-                } else {
-                    hideLoadingIndicator();
-                    addMessage('Error: Unable to retrieve response.', false, false);
-                }
-            });
-        }, delay);
     }
+
+    /**
+     * Displays the success message and any sources if available.
+     * 
+     * @param {Object} result The result object from the server.
+     */
+    function displaySuccessMessage(result) {
+        hideLoadingIndicator();
+        addMessage(result.answer, false, false); // Display the answer
+
+        if (result.source && result.source.length > 0) {
+            const sourceText = result.source.map(src => `<li><a href="${src.source}">${src.title} (score: ${src.score})</a></li>`).join('');
+            addMessage(`<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
+        }
+    }
+
+    /**
+     * Displays an error message to the user.
+     * 
+     * @param {string} message The error message to display.
+     */
+    function displayErrorMessage(message) {
+        hideLoadingIndicator();
+        addMessage(message, false, false);
+    }
+
     
     /**
      * Sends a message to the server and handles the response.

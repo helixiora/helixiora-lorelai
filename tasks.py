@@ -1,44 +1,94 @@
+import json
 import time
+import sqlite3
 
+# import the indexer
 from celery import shared_task
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
+from lorelai.indexer import Indexer
+from app.utils import get_db_connection
 
-@shared_task(name='execute_rag_llm')
-def execute_rag_llm(chat_message, user, organisation):
-    """A Celery task to execute the RAG+LLM model
+from celery.utils.log import get_task_logger
+
+logger = get_task_logger(__name__)
+
+@shared_task(name='execute_rag_llm', bind=True)
+def execute_rag_llm(self, chat_message, user, organisation):
     """
-    print(f"Task ID: {execute_rag_llm.request.id}, Message: {chat_message}")
-    print(f"Session: {user}, {organisation}")
+    A Celery task to execute the RAG+LLM model.
+    """
+    logger.info(f"Task ID: {self.request.id}, Message: {chat_message}")
+    logger.info(f"Session: {user}, {organisation}")
 
-    # update the task state before we begin processing
-    execute_rag_llm.update_state(state='PROGRESS', meta={'status': 'Processing...'})
+    # Update the task state before we begin processing
+    self.update_state(state='PROGRESS', meta={'status': 'Processing...'})
 
-    # get the context for the question
-    enriched_context = ContextRetriever(org_name=organisation, user=user)
+    try:
+        # Get the context for the question
+        enriched_context = ContextRetriever(org_name=organisation, user=user)
+        context, source = enriched_context.retrieve_context(chat_message)
 
-    context, source = enriched_context.retrieve_context(chat_message)
+        if context is None:
+            raise ValueError("Failed to retrieve context for the provided chat message.")
 
-    llm = Llm(model="gpt-3.5-turbo")
-    answer = llm.get_answer(question=chat_message, context=context)
+        llm = Llm(model="gpt-3.5-turbo")
+        answer = llm.get_answer(question=chat_message, context=context)
 
-    print(f"Answer: {answer}")
-    print(f"Source: {source}")
+        logger.info(f"Answer: {answer}")
+        logger.info(f"Source: {source}")
 
-    json_data = {
-        'answer': answer,
-        'source': source
-    }
+        json_data = {
+            'answer': answer,
+            'source': source,
+            'status': 'Success'
+        }
+
+    except Exception as e:
+        logger.error(f"Error in execute_rag_llm task: {str(e)}")
+        json_data = {
+            'error': str(e),
+            'status': 'Failed'
+        }
+        # Optionally, re-raise the exception if you want the task to be marked as failed
+        raise e
 
     return json_data
 
 @shared_task(name='run_indexer', bind=True)
 def run_indexer(self):
-    for i in range(1, 101):
-        # Simulate indexing work with progress
-        self.update_state(state='PROGRESS', meta={'current': i, 'total': 100})
-        print(f"Indexing {i}%")
-        # Simulate some work being done
-        time.sleep(0.1)
-    print("Indexing completed!")
-    return {'current': 100, 'total': 100, 'status': 'Task completed!', 'result': 42}
+    """A Celery task to run the indexer."""
+    print(f"Task ID -> Run Indexer: {self.request.id}")
+
+    # Update the task state before we begin processing
+    self.update_state(state='PROGRESS', meta={'status': 'Processing...'})
+
+    try:
+        # Connect to SQLite database
+        conn = app.utils.get_db_connection()
+        cur = conn.cursor()
+        
+        # Fetch organisations
+        cur.execute("SELECT id, name FROM organisations")
+        org_rows = cur.fetchall()
+
+        for org in org_rows:
+            # Fetch user credentials for this org
+            cur.execute("SELECT user_id, name, email, access_token, refresh_token FROM users \n"
+                        "WHERE org_id = ?", (org[0],))
+            users = cur.fetchall()
+
+            # Initialize indexer and perform indexing
+            indexer = Indexer()
+            indexer.index_org_drive(org, users)
+
+        print("Indexing completed!")
+        return {'current': 100, 'total': 100, 'status': 'Task completed!', 'result': 42}
+    except Exception as e:
+        # Handle any exceptions that occur during the indexing process
+        print(f"An error occurred: {str(e)}")
+        return {'current': 0, 'total': 100, 'status': 'Failed', 'result': 0}
+    finally:
+        # Ensure the database connection is closed
+        conn.close()
+

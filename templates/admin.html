@@ -1,18 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <!-- Bootstrap CSS for styling -->
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .container { margin-top: 20px; }
-        #progressBarContainer { display: none; }
-    </style>
-</head>
-<body>
-    <div class="container">
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container mx-auto mt-8">
+
         <h1>Admin Dashboard</h1>
         <p>Click the button below to start indexing the documents.</p>
         <div class="alert" id="statusMessage" role="alert" style="display: none;"></div>
@@ -47,7 +37,7 @@
         }
 
         function checkStatus(taskId) {
-            fetch(`/task-status/${taskId}`)
+            fetch(`/admin/task-status/${taskId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.state === 'PROGRESS') {
@@ -63,5 +53,4 @@
                 });
         }
     </script>
-</body>
-</html>
+{% endblock %}

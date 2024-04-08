@@ -78,16 +78,32 @@
 <body class="bg-[#eaf5ff]">
     <div class="h-screen flex">
         <!-- Vertical Navigation Bar -->
-        <nav class="bg-[#4b9feb] text-white w-20 pt-2 fixed h-screen flex flex-col items-center">
-            <!-- Navigation content -->
-            <img src="{{ url_for('static', filename='img/helixiora.png') }}" alt="Logo" class="my-2" style="width: 3.2rem;">
+        <nav class="bg-[#4b9feb] text-white w-20 pt-2 fixed h-screen flex flex-col justify-between">
+            <div class="flex flex-col items-center">
+                <!-- Logo at the top -->
+                <img src="{{ url_for('static', filename='img/helixiora.png') }}" alt="Logo" class="my-2" style="width: 3.2rem;">
 
-            <!-- Logout link with icon -->
-            <a href="/logout" class="logout-link mt-4 flex flex-col items-center">
-                <i class="fas fa-sign-out-alt fa-2x"></i> <!-- Font Awesome Logout Icon -->
-                <span class="text-xs mt-2">Logout</span>
-            </a>
+                <!-- Other links can go here -->
+            </div>
 
+            <!-- Logout link at the bottom -->
+            <div class="flex flex-col items-center mb-4">
+                <!-- Dynamically show Admin and Profile link if user is an admin -->
+                <a href="/profile" class="mt-4 flex flex-col items-center">
+                    <i class="fas fa-user fa-2x"></i>
+                    <span class="text-xs mt-2">Profile</span>
+                </a>
+                {% if is_admin %}
+                    <a href="/admin" class="mt-4 flex flex-col items-center">
+                        <i class="fas fa-user-shield fa-2x"></i>
+                        <span class="text-xs mt-2">Admin</span>
+                    </a>
+                {% endif %}
+                <a href="/logout" class="logout-link flex flex-col items-center">
+                    <i class="fas fa-sign-out-alt fa-2x"></i>
+                    <span class="text-xs mt-2">Logout</span>
+                </a>
+            </div>
         </nav>
         
         <!-- 2/3 Space Column -->

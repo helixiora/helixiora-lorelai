@@ -7,8 +7,7 @@ import sqlite3
 
 # import the indexer
 from lorelai.indexer import Indexer
-
-DATABASE = './userdb.sqlite'
+from app.utils import get_db_connection
 
 
 def main():
@@ -16,7 +15,7 @@ def main():
     """
 
     # get the orgs from sqlite
-    conn = sqlite3.connect(DATABASE)
+    conn = get_db_connection()
 
     cur = conn.cursor()
     cur.execute("SELECT id, name FROM organisations")
