@@ -79,7 +79,8 @@ class Processor:
         #Get Text
         text_docs = []
         for doc in documents:
-            text_docs.append(doc.page_content)
+            texts=doc.page_content.replace("\n", " ").replace(("\r", " "))
+            text_docs.append(texts)
         embeds = embeddings_model.embed_documents(text_docs)
         #prepare pinecone vectors
         formatted_documents =[]
