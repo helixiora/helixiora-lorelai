@@ -124,7 +124,7 @@ def index():
     """
     if 'google_id' in session:
         user_data = {
-            # 'user_organization': session['organisation'],
+            'user_organization': session['organisation'],
             'user_email': session['email'],
             'is_admin': is_admin(session['google_id'])
         }
@@ -146,22 +146,6 @@ def serve_js(script_name):
     """the javascript endpoint
     """
     return render_template(f"js/{script_name}.js"), 200, {'Content-Type': 'application/javascript'}
-
-
-
-
-@app.route('/profile')
-def profile():
-    """the profile page
-    """
-    if 'google_id' in session:
-        # Example: Fetch user details from the database
-        user = get_user_details()
-        # Assume `get_user_details` returns a dict with user info and credentials
-        return render_template('profile.html', user=user, is_admin=is_admin(session['google_id']))
-    return 'You are not logged in!'
-
-
 
 # Logout route
 @app.route('/logout')
