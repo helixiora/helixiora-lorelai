@@ -206,7 +206,7 @@ def index():
 
     try:
         authorization_url, state = flow.authorization_url(access_type='offline',
-                                                            include_granted_scopes='true')
+                                                            include_granted_scopes='true',prompt="consent")
         session['state'] = state
         return render_template('index.html', auth_url=authorization_url)
     except RuntimeError as e:
