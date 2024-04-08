@@ -96,7 +96,6 @@ class Processor:
                 formatted_documents.append(temp_dict)
 
         return formatted_documents
-        #text = text.replace("\n", " ")
 
     def store_docs_in_pinecone(self, docs: Iterable[Document], index_name) -> None:
         """process the documents and index them in Pinecone
