@@ -46,6 +46,7 @@ class Processor:
         updated_documents_numbers = 0
         # Check if docs exist in pinecone. 
         for doc in documents[:]:
+            #doc["metadata"]["users"]=["newuser.com"]
             result=pc_index.query(vector = doc["values"],top_k = 1,include_metadata=True,
                                     filter = {"source":doc["metadata"]["source"]})
             # Check if we got matches from query result
@@ -79,7 +80,7 @@ class Processor:
         #Get Text
         text_docs = []
         for doc in documents:
-            texts=doc.page_content.replace("\n", " ").replace(("\r", " "))
+            texts=doc.page_content.replace("\n", " ").replace("\r", " ")
             text_docs.append(texts)
         embeds = embeddings_model.embed_documents(text_docs)
         #prepare pinecone vectors
