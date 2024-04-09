@@ -22,22 +22,12 @@ from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
 from lorelai.utils import load_config
 
-from celery_worker import make_celery
 from tasks import execute_rag_llm, run_indexer
 
 from app.utils import get_db_connection, get_user_details, is_admin
 
-# Configure the root logger
-# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
-
-celery_config = load_config('celery')
-
-app.config['CELERY_BROKER_URL'] = celery_config['broker_url']
-app.config['result_backend'] = celery_config['result_backend']
-app.config['broker_connection_retry_on_startup'] = True
 
 # load blueprints
 from app.routes.admin import admin_bp
@@ -47,13 +37,6 @@ from app.routes.chat import chat_bp
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
-
-# Initialize Celery
-celery = make_celery(app.import_name, app.config['CELERY_BROKER_URL'], app.config['result_backend'])
-celery.conf.update(app.config)
-
-execute_rag_llm = celery.task(name='execute_rag_llm')(execute_rag_llm)
-run_indexer = celery.task(name='run_indexer')(run_indexer)
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -133,8 +116,8 @@ def index():
 
     try:
         authorization_url, state = flow.authorization_url(access_type='offline',
-                                                            include_granted_scopes='true', 
-                                                            prompt='consent')
+                                                          include_granted_scopes='true', 
+                                                          prompt='consent')
         session['state'] = state
         return render_template('index.html', auth_url=authorization_url)
     except RuntimeError as e:

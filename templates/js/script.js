@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const response = await fetch(`/chat?task_id=${taskId}`);
+            const response = await fetch(`/chat?job_id=${taskId}`);
             const data = await response.json();
 
             if (data.status === 'SUCCESS') {
@@ -217,11 +217,11 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             // Check if the server has accepted the message and is processing it
-            if (data.task_id) {
-                pollForResponse(data.task_id); // Begin polling for the response based on the provided task ID
+            if (data.job) {
+                pollForResponse(data.job); // Begin polling for the response based on the provided task ID
             } else {
-                // Handle cases where the server response might not include a task_id due to an error or other issue
-                console.error('Server response did not include a task_id.');
+                // Handle cases where the server response might not include a job_id due to an error or other issue
+                console.error('Server response did not include a job_id. Data received: ', data.job);
                 hideLoadingIndicator();
                 addMessage('Error: The message could not be processed at this time. Please try again later.', false, false); // Display a generic error message
             }

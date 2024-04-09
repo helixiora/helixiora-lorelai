@@ -2,27 +2,24 @@ import json
 import time
 import sqlite3
 
+from rq import get_current_job
+import logging
+
 # import the indexer
-from celery import shared_task
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
 from lorelai.indexer import Indexer
 from app.utils import get_db_connection
 
-from celery.utils.log import get_task_logger
-
-logger = get_task_logger(__name__)
-
-@shared_task(name='execute_rag_llm', bind=True)
-def execute_rag_llm(self, chat_message, user, organisation):
+def execute_rag_llm(chat_message, user, organisation):
     """
     A Celery task to execute the RAG+LLM model.
     """
-    logger.info(f"Task ID: {self.request.id}, Message: {chat_message}")
+    job = get_current_job()
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Task ID: {job.id}, Message: {chat_message}")
     logger.info(f"Session: {user}, {organisation}")
-
-    # Update the task state before we begin processing
-    self.update_state(state='PROGRESS', meta={'status': 'Processing...'})
 
     try:
         # Get the context for the question
@@ -55,17 +52,17 @@ def execute_rag_llm(self, chat_message, user, organisation):
 
     return json_data
 
-@shared_task(name='run_indexer', bind=True)
-def run_indexer(self):
-    """A Celery task to run the indexer."""
-    print(f"Task ID -> Run Indexer: {self.request.id}")
+def run_indexer():
+    """
+    An rq job to run the indexer
+    """
+    job = get_current_job()
+    
+    print(f"Task ID -> Run Indexer: {job.id}")
 
-    # Update the task state before we begin processing
-    self.update_state(state='PROGRESS', meta={'status': 'Processing...'})
-
+    conn = get_db_connection()
     try:
         # Connect to SQLite database
-        conn = app.utils.get_db_connection()
         cur = conn.cursor()
         
         # Fetch organisations

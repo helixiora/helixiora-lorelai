@@ -1,8 +1,11 @@
 
 from flask import blueprints, render_template, session, jsonify
+from pprint import pprint
 
 from tasks import run_indexer
 from lorelai.contextretriever import ContextRetriever
+from redis import Redis
+from rq import Queue
 
 from app.utils import is_admin
 
@@ -17,34 +20,39 @@ def admin():
 
 @admin_bp.route('/admin/task-status/<task_id>')
 def task_status(task_id):
-    task = run_indexer.AsyncResult(task_id)
-    if task.state == 'PENDING':
-        response = {
-            'state': task.state,
-            'status': 'Pending...'
-        }
-    elif task.state != 'FAILURE':
-        response = {
-            'state': task.state,
-            'current': task.info.get('current', 0),
-            'total': task.info.get('total', 1),
-            'status': task.info.get('status', '')
-        }
-        if 'result' in task.info:
-            response['result'] = task.info['result']
-    else:
-        # something went wrong in the background job
-        response = {
-            'state': task.state,
-            'status': str(task.info),  # this is the exception raised
-        }
+    # task = run_indexer.AsyncResult(task_id)
+    # if task.state == 'PENDING':
+    #     response = {
+    #         'state': task.state,
+    #         'status': 'Pending...'
+    #     }
+    # elif task.state != 'FAILURE':
+    #     response = {
+    #         'state': task.state,
+    #         'current': task.info.get('current', 0),
+    #         'total': task.info.get('total', 1),
+    #         'status': task.info.get('status', '')
+    #     }
+    #     if 'result' in task.info:
+    #         response['result'] = task.info['result']
+    # else:
+    #     # something went wrong in the background job
+    response = {
+        'state': 'task.state',
+        'status': 'str(task.info),  # this is the exception raised'
+    }
     return jsonify(response)
 
 @admin_bp.route('/admin/index', methods=['POST'])
 def start_indexing():
     if 'google_id' in session and is_admin(session['google_id']):
-        task = run_indexer.apply_async()
-        return jsonify({'task_id': task.id}), 202
+        print("Posting task to rq worker...")    
+        queue = Queue(connection=Redis())
+        job = queue.enqueue(run_indexer)
+        
+        job_id = job.get_id()
+        return jsonify({'job': job_id}), 202
+
     else:
         return 'Unauthorized', 403
 

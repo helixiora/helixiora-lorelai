@@ -1,5 +1,7 @@
 from flask import blueprints, request, jsonify, session
 from tasks import execute_rag_llm
+from redis import Redis
+from rq import Queue
 
 chat_bp = blueprints.Blueprint('chat', __name__)
 
@@ -9,12 +11,22 @@ def chat():
     """the chat route
     """
     content = request.get_json()
+    if not content:
+        return jsonify({'status': 'ERROR', 'message': 'Request body is required'}), 400
+    
+    if 'message' not in content:
+        return jsonify({'status': 'ERROR', 'message': 'Message is required'}), 400
+    
+    if 'email' not in session:
+        return jsonify({'status': 'ERROR', 'message': 'User is not authenticated'}), 401
 
     # this is used to post a task to the celery worker
-    task = execute_rag_llm.apply_async(args=[content['message'], session['email'],
-                                       session['organisation']], task_name='execute_rag_llm')
-
-    return jsonify({'task_id': task.id}), 202
+    print("Posting task to rq worker...")    
+    queue = Queue(connection=Redis())
+    job = queue.enqueue(execute_rag_llm, content['message'], session['email'], session['organisation'])
+    
+    job_id = job.get_id()
+    return jsonify({'job': job_id}), 202
 
 @chat_bp.route('/chat', methods=['GET'])
 def fetch_chat_result():
