@@ -9,4 +9,4 @@ langchain-community~=0.0.31
 langchain-pinecone~=0.0.3
 langchain-openai~=0.1.1
 redis~=5.0.3
-python-dotenv~=1.0.1rq~=1.16.1
+rq~=1.16.1

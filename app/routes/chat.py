@@ -2,6 +2,8 @@ from flask import blueprints, jsonify, request, session
 from redis import Redis
 from rq import Queue
 from tasks import execute_rag_llm
+from redis import Redis
+from rq import Queue
 
 chat_bp = blueprints.Blueprint('chat', __name__)
 
