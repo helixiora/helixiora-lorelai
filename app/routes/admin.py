@@ -70,7 +70,7 @@ def list_indexes():
     return render_template('admin/pinecone.html', indexes=indexes, is_admin=is_admin(session['google_id']))
 
 @admin_bp.route('/admin/pinecone/<host_name>')
-def index_details(host_name):
+def index_details(host_name: str) -> str:
     """the index details page
     """
     enriched_context = ContextRetriever(org_name=session['organisation'], user=session['email'])

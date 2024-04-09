@@ -3,7 +3,6 @@
 """This script is used to crawl the Google Drive and process the documents using Pinecone and
 OpenAI API through langchain
 """
-import sqlite3
 
 # import the indexer
 from lorelai.indexer import Indexer

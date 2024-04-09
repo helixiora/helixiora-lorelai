@@ -136,15 +136,15 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {string} taskId The ID of the task for which to fetch the result.
      * @param {number} attempt The current attempt number.
      */
-    async function pollForResponse(taskId, attempt = 1) {
-        console.log(`Polling for response: ${taskId}, Attempt: ${attempt}`);
+    async function pollForResponse(jobId, attempt = 1) {
+        console.log(`Polling for response: ${jobId}, Attempt: ${attempt}`);
         const delay = calculateDelay(attempt);
-
+    
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const response = await fetch(`/chat?job_id=${taskId}`);
+            const response = await fetch(`/chat?job_id=${jobId}`);
             const data = await response.json();
-
+    
             if (data.status === 'SUCCESS') {
                 console.log('Operation completed successfully.');
                 displaySuccessMessage(data.result);
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 displayErrorMessage('Operation failed. Please try again later.');
             } else if (attempt < 9) {
                 console.log('Operation still in progress. Retrying...');
-                pollForResponse(taskId, attempt + 1);
+                pollForResponse(jobId, attempt + 1);
             } else {
                 console.error('Error: No successful response after multiple attempts.');
                 displayErrorMessage('Error: No successful response after multiple attempts.');
@@ -161,12 +161,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Fetch error:', error);
             if (attempt < 9) {
-                pollForResponse(taskId, attempt + 1);
+                pollForResponse(jobId, attempt + 1);
             } else {
                 displayErrorMessage('Error: Unable to retrieve response.');
             }
         }
-    }
+    }  
 
     /**
      * Displays the success message and any sources if available.
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Sending message:', message);
         addMessage(message, true); // Display the message as sent by the user
         showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
-
+    
         fetch('/chat', {
             method: 'POST',
             body: JSON.stringify({message: message}),
@@ -218,9 +218,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             // Check if the server has accepted the message and is processing it
             if (data.job) {
-                pollForResponse(data.job); // Begin polling for the response based on the provided task ID
+                pollForResponse(data.job); // Begin polling for the response based on the provided job ID
             } else {
-                // Handle cases where the server response might not include a job_id due to an error or other issue
+                // Handle cases where the server response might not include a job ID due to an error or other issue
                 console.error('Server response did not include a job_id. Data received: ', data.job);
                 hideLoadingIndicator();
                 addMessage('Error: The message could not be processed at this time. Please try again later.', false, false); // Display a generic error message
@@ -233,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
             addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
         });
     }
+    
 
     sendButton.addEventListener('click', function() {
         const text = messageInput.value;

@@ -20,7 +20,6 @@ def profile():
             'email': session['email'],
             'organisation': session['organisation']
         }
-        # Assume `get_user_details` returns a dict with user info and credentials
         return render_template('profile.html', user=user, is_admin=is_admin(session['google_id']))
     return 'You are not logged in!'
 
@@ -128,14 +127,14 @@ def oauth_callback():
     login_user(name, email, orgid, organisation)
     return redirect(url_for('index'))
 
-def login_user(name, email, org_id, organisation):
+def login_user(name: str, email: str, org_id: int, organisation: str) -> None:
     session['google_id'] = email
     session['name'] = name
     session['email'] = email
     session['org_id'] = org_id
     session['organisation'] = organisation
 
-def check_user_in_database(email):
+def check_user_in_database(email: str) -> tuple(int, str, int, str):
     db = get_db_connection()
     cursor = db.cursor()
     cursor.execute("SELECT user_id, users.name, org_id, organisations.name FROM users LEFT JOIN organisations ON users.org_id = organisations.id WHERE email = ?", (email,))
@@ -146,7 +145,7 @@ def check_user_in_database(email):
     organisation = user[3] if user else None
     return user_id, name, org_id, organisation
 
-def process_user(organisation, username, user_email, access_token, refresh_token, expires_in, token_type, scope):
+def process_user(organisation: str, username: str, user_email: str, access_token: str, refresh_token: str, expires_in: str, token_type: str, scope: list) -> dict:
     """Process the user information obtained from Google."""
 
     with get_db_connection() as conn:
