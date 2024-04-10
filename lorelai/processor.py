@@ -67,7 +67,7 @@ class Processor:
                         doc["metadata"]["users"][0]
                         in result["matches"][0]["metadata"]["users"]
                     ):
-                        # if so then we remove doc form the vector list
+                        # if so then we remove doc form the document list
                         documents.remove(doc)
 
                     # if doc is not tagged for user, then we update the meta data
