@@ -10,6 +10,7 @@ import sqlite3
 from contextlib import closing
 from typing import Dict
 from pprint import pprint
+from dotenv import load_dotenv
 
 from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
 from celery import Celery
@@ -21,7 +22,7 @@ from google_auth_oauthlib.flow import Flow
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
 
-from dotenv import load_dotenv
+
 load_dotenv()
 
 app = Flask(__name__)
