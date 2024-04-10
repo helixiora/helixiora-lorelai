@@ -13,7 +13,7 @@ from app.utils import get_db_connection
 
 def execute_rag_llm(chat_message: str, user: str, organisation: str) -> dict:
     """
-    A Celery task to execute the RAG+LLM model.
+    A rq task to execute the RAG+LLM model.
     """
     job = get_current_job()
     logger = logging.getLogger(__name__)
