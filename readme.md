@@ -30,7 +30,7 @@ Follow these steps to set up the project and run the components.
 2. Acquire an OpenAI API key through [OpenAI's platform](https://platform.openai.com/api-keys). If you don't have access to Helixiora's OpenAI, ask Walter.
 3. Generate Google OAuth credentials via [Google Cloud Console](https://console.cloud.google.com/apis/credentials). If you don't have access to Lorelai's Google Cloud Profile, ask Walter.
 4. Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
-    1. The project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager) 
+    1. The project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager)
 
 #### Running in a python venv
 
@@ -99,7 +99,7 @@ Below a number of questions that are open
 
    Here's a brief example of how you might determine the dimension for a Pinecone Index:
 
-   1. **Determine Embedding Model Output Size**: First, identify the model you are using for generating embeddings and check the documentation or configuration to find out the size of the output vectors (the dimensionality). 
+   1. **Determine Embedding Model Output Size**: First, identify the model you are using for generating embeddings and check the documentation or configuration to find out the size of the output vectors (the dimensionality).
 
    2. **Configure Pinecone Index**: When setting up your Pinecone Index, use this dimension size as the value for the index's "dimension" property.
 
@@ -177,7 +177,7 @@ Below a number of questions that are open
 
    For the most current information about OpenAI models and their embedding sizes, refer directly to the OpenAI API documentation.
 
-## 5. [Walter - 21-03-2024] It seems like the vectorizer (the code that translates our documents into vector format) is a key component. How do these work, what are the best practices? 
+## 5. [Walter - 21-03-2024] It seems like the vectorizer (the code that translates our documents into vector format) is a key component. How do these work, what are the best practices?
 
 ## 6. [Walter - 21-03-2024] If my assumption is correct, data that is vectorized with a specific algorithm is only usable with an algorithm that knows the same format, kind of like encryption. Is this true? And if so, how do we handle that coupling?
 

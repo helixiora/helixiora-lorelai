@@ -1,7 +1,7 @@
-from flask import blueprints, request, jsonify, session
-from tasks import execute_rag_llm
+from flask import blueprints, jsonify, request, session
 from redis import Redis
 from rq import Queue
+from tasks import execute_rag_llm
 
 chat_bp = blueprints.Blueprint('chat', __name__)
 

@@ -63,10 +63,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function addMessage(content, isUser = true, isHTML = false, isSources = false) {
         const messagesDiv = document.getElementById('messages'); // The main container for all messages
-    
+
         const messageContainerDiv = document.createElement('div');
         messageContainerDiv.className = 'p-2 ' + (isUser ? 'text-left' : 'text-right');
-    
+
         const messageContentDiv = document.createElement('div');
         if (isSources) {
             // make the sources div with smaller text
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('textContent:', content);
             messageContentDiv.textContent = content; // Use textContent for user messages to avoid HTML
         }
-    
+
         messageContainerDiv.appendChild(messageContentDiv);
         messagesDiv.appendChild(messageContainerDiv); // Append the message to messagesDiv
         messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom of the chat
@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /**
      * Calculates the delay before making the next poll based on the attempt number.
-     * 
+     *
      * @param {number} attempt The current attempt number.
      * @returns {number} The delay in milliseconds.
      */
@@ -132,19 +132,19 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * Fetches the result of a chat operation from the server using a provided task ID.
      * It checks the operation status and handles the response accordingly.
-     * 
+     *
      * @param {string} taskId The ID of the task for which to fetch the result.
      * @param {number} attempt The current attempt number.
      */
     async function pollForResponse(jobId, attempt = 1) {
         console.log(`Polling for response: ${jobId}, Attempt: ${attempt}`);
         const delay = calculateDelay(attempt);
-    
+
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
             const response = await fetch(`/chat?job_id=${jobId}`);
             const data = await response.json();
-    
+
             if (data.status === 'SUCCESS') {
                 console.log('Operation completed successfully.');
                 displaySuccessMessage(data.result);
@@ -166,11 +166,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 displayErrorMessage('Error: Unable to retrieve response.');
             }
         }
-    }  
+    }
 
     /**
      * Displays the success message and any sources if available.
-     * 
+     *
      * @param {Object} result The result object from the server.
      */
     function displaySuccessMessage(result) {
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /**
      * Displays an error message to the user.
-     * 
+     *
      * @param {string} message The error message to display.
      */
     function displayErrorMessage(message) {
@@ -193,20 +193,20 @@ document.addEventListener('DOMContentLoaded', function() {
         addMessage(message, false, false);
     }
 
-    
+
     /**
      * Sends a message to the server and handles the response.
      * Shows a loading indicator while waiting for the server's response.
      * Upon receiving a response, it triggers fetching the result with the provided request ID.
      * If an error occurs during the fetch operation, it logs the error and displays an error message.
-     * 
+     *
      * @param {string} message The text message to send to the server.
      */
     async function sendMessage(message) {
         console.log('Sending message:', message);
         addMessage(message, true); // Display the message as sent by the user
         showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
-    
+
         fetch('/chat', {
             method: 'POST',
             body: JSON.stringify({message: message}),
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
             addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
         });
     }
-    
+
 
     sendButton.addEventListener('click', function() {
         const text = messageInput.value;

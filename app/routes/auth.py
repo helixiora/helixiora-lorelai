@@ -1,7 +1,12 @@
+"""Routes for user authentication.
+"""
+
 import json
 import sqlite3
-from flask import blueprints, render_template, session, jsonify, request, redirect, url_for
+from collections import namedtuple
+
 import google.auth.transport.requests
+from flask import blueprints, redirect, render_template, request, session, url_for
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
@@ -128,24 +133,56 @@ def oauth_callback():
     return redirect(url_for('index'))
 
 def login_user(name: str, email: str, org_id: int, organisation: str) -> None:
-    session['google_id'] = email
-    session['name'] = name
-    session['email'] = email
-    session['org_id'] = org_id
-    session['organisation'] = organisation
+    """
+    Log the user in by setting the session variables.
+    """
 
-def check_user_in_database(email: str) -> tuple(int, str, int, str):
-    db = get_db_connection()
-    cursor = db.cursor()
-    cursor.execute("SELECT user_id, users.name, org_id, organisations.name FROM users LEFT JOIN organisations ON users.org_id = organisations.id WHERE email = ?", (email,))
-    user = cursor.fetchone()
-    user_id = user[0] if user else None
-    name = user[1] if user else None
-    org_id = user[2] if user else None
-    organisation = user[3] if user else None
-    return user_id, name, org_id, organisation
+    session["google_id"] = email
+    session["name"] = name
+    session["email"] = email
+    session["org_id"] = org_id
+    session["organisation"] = organisation
 
-def process_user(organisation: str, username: str, user_email: str, access_token: str, refresh_token: str, expires_in: str, token_type: str, scope: list) -> dict:
+
+# Define a named tuple structure for the user information
+UserInfo = namedtuple("UserInfo", "user_id name org_id organisation")
+
+
+def check_user_in_database(email: str) -> UserInfo:
+    """Check if the user exists in the database.""
+    """
+    try:
+        # Use context manager for handling the database connection
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+                SELECT users.user_id, users.name, org_id, organisations.name
+                FROM users
+                LEFT JOIN organisations ON users.org_id = organisations.id
+                WHERE email = ?
+            """
+            cursor.execute(query, (email,))
+            user = cursor.fetchone()
+
+            # Directly unpack values with defaults for None if user is None
+            user_id, name, org_id, organisation = user if user else (None, None, None, None)
+
+            return UserInfo(user_id=user_id, name=name, org_id=org_id, organisation=organisation)
+    except sqlite3.Error as error:
+        print(f"An error occurred: {error}")
+        return UserInfo(user_id=None, name=None, org_id=None, organisation=None)
+
+
+def process_user(
+    organisation: str,
+    username: str,
+    user_email: str,
+    access_token: str,
+    refresh_token: str,
+    expires_in: str,
+    token_type: str,
+    scope: list,
+) -> dict:
     """Process the user information obtained from Google."""
 
     with get_db_connection() as conn:

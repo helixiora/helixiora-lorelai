@@ -5,8 +5,7 @@
 import os
 import sys
 
-from flask import Flask, redirect, url_for, session, render_template, flash
-
+from flask import Flask, flash, redirect, render_template, session, url_for
 from google_auth_oauthlib.flow import Flow
 
 # load blueprints
@@ -60,13 +59,16 @@ else:
     raise ConnectionError("Failed to connect to the database.")
 
 # make sure the organisation table exists
-cur.execute('''CREATE TABLE IF NOT EXISTS organisations (
+cur.execute(
+    """CREATE TABLE IF NOT EXISTS organisations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE
-)''')
+)"""
+)
 
 # make sure the users table exists
-cur.execute('''CREATE TABLE IF NOT EXISTS users (
+cur.execute(
+    """CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id INTEGER,
     name TEXT,
@@ -76,7 +78,8 @@ cur.execute('''CREATE TABLE IF NOT EXISTS users (
     expires_in INTEGER,
     token_type TEXT,
     scope TEXT
-)''')
+)"""
+)
 
 connection.commit()
 cur.close()
