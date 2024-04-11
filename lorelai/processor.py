@@ -108,7 +108,7 @@ class Processor:
         if len(documents) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
 
-        for i in range(len(documents)):
+        for i in enumerate(documents):
             temp_dict = {
                 "id": str(uuid.uuid4()),
                 "values": embeds[i],
