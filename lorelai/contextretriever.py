@@ -7,16 +7,17 @@ integration with Pinecone and OpenAI services, facilitating the retrieval of rel
 contexts for specified questions. It leverages Pinecone's vector search capabilities alongside
 OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
 """
-from typing import Tuple, List, Dict, Any
+from typing import Any, Dict, List, Tuple
 
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
-from pinecone.models.index_list import IndexList
 from pinecone.core.client.model.fetch_response import FetchResponse
+from pinecone.models.index_list import IndexList
 
-from lorelai.utils import pinecone_index_name, load_config
+from lorelai.utils import load_config, pinecone_index_name
+
 
 class ContextRetriever:
     """

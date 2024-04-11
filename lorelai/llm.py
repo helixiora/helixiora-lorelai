@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 
 from lorelai.utils import load_config
 
+
 class Llm:
     """A class to interact with the OpenAI language model for answering questions based on context
     """
@@ -19,9 +20,9 @@ class Llm:
         self.model = model
 
     def get_answer(self, question, context):
-        """Get the answer to a question based on the provided context using the OpenAI language 
+        """Get the answer to a question based on the provided context using the OpenAI language
         model.
-        
+
         parameters:
             question (str): The question to be answered.
             context (str): The context in which the question is asked.
@@ -59,4 +60,3 @@ class Llm:
         chat = ChatOpenAI(model=self.model)
 
         return chat.get_status()
-    

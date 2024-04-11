@@ -1,21 +1,20 @@
 """This module contains the Processor class that processes documents and indexes them in Pinecone
 """
 import os
-
 from typing import Iterable, List
-from google.oauth2.credentials import Credentials
 
 import pinecone
-from pinecone import ServerlessSpec
-
+from google.oauth2.credentials import Credentials
 from langchain_community.document_loaders.googledrive import GoogleDriveLoader
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pinecone import ServerlessSpec
 
-from lorelai.utils import pinecone_index_name, load_config, save_google_creds_to_tempfile
-from lorelai.utils import get_embedding_dimension
+from lorelai.utils import (get_embedding_dimension, load_config, pinecone_index_name,
+                           save_google_creds_to_tempfile)
+
 
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone

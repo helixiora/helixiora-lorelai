@@ -1,13 +1,13 @@
 
-from flask import blueprints, render_template, session, jsonify
 from pprint import pprint
 
-from tasks import run_indexer
-from lorelai.contextretriever import ContextRetriever
+from flask import blueprints, jsonify, render_template, session
 from redis import Redis
 from rq import Queue
+from tasks import run_indexer
 
 from app.utils import is_admin
+from lorelai.contextretriever import ContextRetriever
 
 admin_bp = blueprints.Blueprint('admin', __name__)
 
@@ -46,10 +46,10 @@ def task_status(task_id):
 @admin_bp.route('/admin/index', methods=['POST'])
 def start_indexing():
     if 'google_id' in session and is_admin(session['google_id']):
-        print("Posting task to rq worker...")    
+        print("Posting task to rq worker...")
         queue = Queue(connection=Redis())
         job = queue.enqueue(run_indexer)
-        
+
         job_id = job.get_id()
         return jsonify({'job': job_id}), 202
 
