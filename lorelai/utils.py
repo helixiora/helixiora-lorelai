@@ -57,8 +57,8 @@ def get_creds_from_os(service: str) -> Dict[str, str]:
                 creds[n_k] = os.environ[k].split("|")
             else:
                 creds[n_k] = os.environ[k]
-    if not any(i in creds.keys() for i in e_creds):
-          sys.exit("No env vars found!\nCowardly quitting...")
+    if not any(i in creds for i in e_creds):
+        sys.exit("No env vars found!\nCowardly quitting...")
 
     return creds
 
@@ -77,16 +77,16 @@ def load_creds(service: str) -> Dict[str, str]:
 
     if os.path.isfile("./settings.json"):
         with open('settings.json', 'r', encoding='utf-8') as f:
-             try:
-                 creds = json.load(f).get(service, {})
+            try:
+                creds = json.load(f).get(service, {})
 
-                 if service != "google" or service != "lorelai":
-                     os.environ[f"{service.upper()}_API_KEY"] = creds.get('api_key', '')
+                if service != "google" or service != "lorelai":
+                    os.environ[f"{service.upper()}_API_KEY"] = creds.get('api_key', '')
 
-             except Exception as e:
-                 print(f"There was an error in your JSON:\n    {e}")
-                 print("Trying to fallbak to env vars...")
-                 creds = get_creds_from_os(service)
+            except Exception as e:
+                print(f"There was an error in your JSON:\n    {e}")
+                print("Trying to fallbak to env vars...")
+                creds = get_creds_from_os(service)
     else:
         creds = get_creds_from_os(service)
 

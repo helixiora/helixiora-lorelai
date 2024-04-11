@@ -1,7 +1,5 @@
 """This module contains the Processor class that processes documents and indexes them in Pinecone
 """
-import os
-
 from typing import Iterable, List
 from google.oauth2.credentials import Credentials
 
@@ -31,9 +29,6 @@ class Processor:
 
         self.pinecone_api_key = self.pinecone_creds['api_key']
         self.openai_api_key = self.openai_creds['api_key']
-        # set env variable with openai api key
-        #os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        #os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
 
     def store_docs_in_pinecone(self, docs: Iterable[Document], index_name) -> None:
         """process the documents and index them in Pinecone

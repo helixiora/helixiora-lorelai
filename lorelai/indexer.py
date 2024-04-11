@@ -80,7 +80,7 @@ class Indexer:
                                                      version = "v1")
         # 3.1 Pinecone only allows max 45 chars index names
         if len(index_name) > 45:
-            sys.exit(f"{index_name} is longer than maximum allowed chars (45)"            
+            sys.exit(f"{index_name} is longer than maximum allowed chars (45)")
         # 4. Get index statistics before starting the indexing process
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 

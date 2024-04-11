@@ -59,4 +59,4 @@ class Llm:
         chat = ChatOpenAI(model=self.model)
 
         return chat.get_status()
-    
+
