@@ -221,8 +221,11 @@ def index():
         return render_template('index_logged_in.html', **user_data)
 
     try:
-        authorization_url, state = flow.authorization_url(access_type='offline',
-                                                            include_granted_scopes='true')
+        authorization_url, state = flow.authorization_url(
+                                                            access_type='offline',
+                                                            include_granted_scopes='true',
+                                                            prompt="consent"
+                                                         )
         session['state'] = state
         return render_template('index.html', auth_url=authorization_url,
                                 organisation_created=session.get('organisation'))
