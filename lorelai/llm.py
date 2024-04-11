@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 
 from lorelai.utils import load_config
 
+
 class Llm:
     """A class to interact with the OpenAI language model for answering questions based on context
     """

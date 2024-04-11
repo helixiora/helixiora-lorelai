@@ -18,7 +18,6 @@ from pinecone.models.index_list import IndexList
 
 from lorelai.utils import load_config, pinecone_index_name
 
-from lorelai.utils import pinecone_index_name, load_config
 
 class ContextRetriever:
     """
