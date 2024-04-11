@@ -2,7 +2,6 @@
 
 """the main application file for the OAuth2 flow flask app
 """
-import json
 import os
 import sys
 import logging
@@ -20,6 +19,7 @@ from google_auth_oauthlib.flow import Flow
 
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
+from lorelai.utils import load_creds
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
@@ -104,8 +104,7 @@ def get_user_details() -> Dict[str, str]:
         return {}  # Returns an empty dictionary in case of an exception
 
 # Load the Google OAuth2 secrets
-with open('settings.json', encoding='utf-8') as f:
-    secrets = json.load(f)['google']
+secrets = load_creds('google')
 
 client_config = {
     "web": {

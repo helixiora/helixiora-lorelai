@@ -29,8 +29,25 @@ Follow these steps to set up the project and run the components.
 1. Obtain a Pinecone API key from [Pinecone's portal](https://app.pinecone.io/organizations/). If you don't have access to Helixiora's Pinecone, ask Walter.
 2. Acquire an OpenAI API key through [OpenAI's platform](https://platform.openai.com/api-keys). If you don't have access to Helixiora's OpenAI, ask Walter.
 3. Generate Google OAuth credentials via [Google Cloud Console](https://console.cloud.google.com/apis/credentials). If you don't have access to Lorelai's Google Cloud Profile, ask Walter.
-4. Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
-    1. The project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager) 
+4. In order to pass these values there are two options:
+    a) Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
+
+    b) You need to export the following env vars: 
+
+```
+GOOGLE_CLIENT_ID
+GOOGLE_PROJECT_ID
+GOOGLE_AUTH_URI
+GOOGLE_TOKEN_URI
+GOOGLE_AUTH_PROVIDER_X509_CERT_U
+GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URIS
+PINECONE_API_KEY
+OPENAI_API_KEY
+LORELAI_ENVIRONMENT
+LORELAI_ENVIRONMENT_SLUG
+```
+Note that the project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager) 
 
 #### Running in a python venv
 
@@ -39,14 +56,15 @@ Follow these steps to set up the project and run the components.
 3. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
 4. Set up redis and start it locally
    1. On a mac: `brew install redis` followed by `redis-server`
-   2. On linux: <add instructions>
-5. Run a celery worker:
+   2. On Ubuntu: `sudo apt install redis`
+5. Make sure that the redis host resolves to localhost or wherever you're running the redis server.
+6. Run a celery worker:
    ```
    (.venv) walterheck in ~/source/helixiora/helixiora-crawler on frontend-app-merge
    > celery -A app.celery worker
 
    ```
-6. Launch the Flask application: `flask run`
+7. Launch the Flask application: `flask run`
 
 #### Running using docker compose
 
@@ -54,9 +72,12 @@ Follow these steps to set up the project and run the components.
    1. on a mac, run `brew install docker` to install docker desktop
 1. Get the stack of redis, celery and the flask app up and running using `docker-compose up --build`
 
-### Google OAuth Configuration
+### Initial Configuration
 
 1. Once you followed the setup steps above, navigate to the local server URL ([http://127.0.0.1:5000](http://127.0.0.1:5000)).
+    - You wil be asked to create an organisation if ./userdb.sqlite doesn't exist. 
+    - Note that this organization name will be the index name of the vector database folowing this structure: $env_name-$slug-$whatever_you_put_in_org_name
+    - There's a limitation to the length of the index name sot the above string should not exceed 45 characters.
     - Follow the on-screen instructions to log in and authorize access to Google Drive.
 2. Confirm that credentials are stored correctly in SQLite by accessing the `userdb.sqlite` database and querying the `users` table. Example commands:
     ```bash

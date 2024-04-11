@@ -15,7 +15,7 @@ class Llm:
     def __init__(self, model="gpt-3.5-turbo"):
         creds = load_creds('openai')
         self.openai_creds = creds
-        os.environ["OPENAI_API_KEY"] = creds['api-key']
+        os.environ["OPENAI_API_KEY"] = creds['api_key']
         self.model = model
 
     def get_answer(self, question, context):

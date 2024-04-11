@@ -29,11 +29,11 @@ class Processor:
         self.openai_creds = load_creds('openai')
         self.lorelai_settings = load_creds('lorelai')
 
-        self.pinecone_api_key = self.pinecone_creds['api-key']
-        self.openai_api_key = self.openai_creds['api-key']
+        self.pinecone_api_key = self.pinecone_creds['api_key']
+        self.openai_api_key = self.openai_creds['api_key']
         # set env variable with openai api key
-        os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
+        #os.environ["OPENAI_API_KEY"] = self.openai_api_key
+        #os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
 
     def store_docs_in_pinecone(self, docs: Iterable[Document], index_name) -> None:
         """process the documents and index them in Pinecone

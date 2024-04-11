@@ -11,7 +11,7 @@
         ]
     },
     "pinecone": {
-        "api-key": "pinecone_api_key_here",
+        "api-key": "pinecone_api_key_here"
     },
     "openai": {
         "api-key": "openapi_key_here"
