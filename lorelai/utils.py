@@ -83,7 +83,7 @@ def load_creds(service: str) -> Dict[str, str]:
                 if service != "google" or service != "lorelai":
                     os.environ[f"{service.upper()}_API_KEY"] = creds.get('api_key', '')
 
-            except Exception as e:
+            except ValueError as e:
                 print(f"There was an error in your JSON:\n    {e}")
                 print("Trying to fallbak to env vars...")
                 creds = get_creds_from_os(service)
