@@ -5,14 +5,8 @@
 import json
 import os
 import sys
-import logging
-import sqlite3
-from contextlib import closing
-from typing import Dict
-from pprint import pprint
 
-from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
-from celery import Celery
+from flask import Flask, redirect, url_for, session, render_template, flash
 
 import google.auth.transport.requests
 from google.oauth2 import id_token
@@ -24,7 +18,7 @@ from lorelai.utils import load_config
 
 from tasks import execute_rag_llm, run_indexer
 
-from app.utils import get_db_connection, get_user_details, is_admin
+from app.utils import get_db_connection, is_admin
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'

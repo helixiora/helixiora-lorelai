@@ -7,7 +7,7 @@ from lorelai.utils import load_config
 
 def is_admin(google_id: str) -> bool:
     """Check if the user is an admin"""
-    return google_id is not ""  # Assuming all users are admins for now
+    return google_id != ""  # Assuming all users are admins for now
 
 
 # Helper function for database connections
