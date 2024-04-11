@@ -18,7 +18,7 @@ def chat():
     job = queue.enqueue(execute_rag_llm, content['message'], session.get('email'), session.get('organisation'))
 
     return jsonify({'job': job.get_id()}), 202
-    
+
 @chat_bp.route('/chat', methods=['GET'])
 def fetch_chat_result():
     """Endpoint to fetch the result of a chat operation."""

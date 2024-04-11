@@ -34,22 +34,22 @@ def register():
     if request.method == 'GET':
         email = session.get('oauth_data', {}).get('email')
         name = session.get('oauth_data', {}).get('name')
-        
+
         return render_template('register.html', email=email, name=name)
-    
+
     # Process the registration form submission
     registration_info = request.form
 
     # Combine OAuth data with registration form data
     oauth_data = session.pop('oauth_data', {})
-    
+
     print(f"Registration info: {registration_info}")
     print(f"OAuth data: {oauth_data}")
-    
+
     username = registration_info['name']
     user_email = registration_info['email']
     organisation = registration_info['organisation']
-    
+
     access_token = session.pop('access_token', None)
     refresh_token = session.pop('refresh_token', None)
     expires_in = session.pop('expires_in', None)
@@ -88,8 +88,8 @@ def oauth_callback():
                 "https://www.googleapis.com/auth/drive.readonly",
                 "openid"],
         redirect_uri="http://127.0.0.1:5000/oauth2callback"
-    )    
-    
+    )
+
     flow.fetch_token(authorization_response=request.url)
 
     if not session['state'] == request.args['state']:
@@ -101,14 +101,14 @@ def oauth_callback():
         id_token=credentials.id_token, #pyright: ignore reportAttributeAccessIssue=false
         request=request_session,
         audience=flow.client_config['client_id']
-    )   
-    
+    )
+
     print(f"id_info: {id_info}")
     print(f"credentials: {credentials}")
-    
+
     # # Example of processing OAuth callback to get user info
     # user_info = process_user(id_info, credentials)
-    
+
     # print(f"user_info: {user_info}")
 
     # Check if user exists in your database (pseudo code)
@@ -117,18 +117,18 @@ def oauth_callback():
 
     if not userid:
         # Save the necessary OAuth data in the session to complete registration later
-        
-        session['access_token'] = credentials.token 
+
+        session['access_token'] = credentials.token
         session['refresh_token'] = credentials.refresh_token
         session['expires_in'] = credentials.expiry
         session['token_type'] = 'Bearer'
         session['scope'] = credentials.scopes
-    
+
         session['oauth_data'] = id_info
         # Redirect to the registration page
         return redirect(url_for('auth.register'))
-    
-    # Log the user in 
+
+    # Log the user in
     login_user(name, email, orgid, organisation)
     return redirect(url_for('index'))
 
@@ -193,7 +193,7 @@ def process_user(
         cursor.execute("SELECT id FROM organisations WHERE name = ?;", (organisation,))
         org_id = cursor.fetchone()[0]
         scope_str = ' '.join(scope)
-        
+
         # Insert/Update User
         cursor.execute("SELECT user_id FROM users WHERE email = ?;", (user_email,))
         user = cursor.fetchone()
