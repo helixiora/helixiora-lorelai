@@ -13,7 +13,8 @@ services:
     depends_on:
       - redis
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0 # Ensure workers have the environment variables they need.
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     restart: on-failure # Ensures the service restarts if it exits due to an error.
 
   redis:
@@ -38,7 +39,8 @@ services:
       - web
       - redis
     environment:
-      - REDIS_URL=redis://redis:6379/0 # Ensure workers have the environment variables they need.
+      - CELERY_BROKER_URL=redis://redis:6379/0 # Ensure workers have the environment variables they need.
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     restart: on-failure
 
 volumes:

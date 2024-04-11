@@ -46,7 +46,12 @@ Follow these steps to set up the project and run the components.
    > celery -A app.celery worker
 
    ```
-6. Launch the Flask application: `flask run`
+6. Create a .env file with this variables
+   ```
+   CELERY_BROKER_URL=redis://localhost:6379/0
+   CELERY_RESULT_BACKEND=redis://localhost:6379/0
+   ```
+7. Launch the Flask application: `flask run`
 
 #### Running using docker compose
 
