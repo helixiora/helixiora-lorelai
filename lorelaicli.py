@@ -1,73 +1,115 @@
 #!/usr/bin/env python3
 
-"""this script is used to query the indexed documents in pinecone using langchain and OpenAI
+"""
+This script is used to query indexed documents in Pinecone using LangChain and OpenAI.
 """
 
 import sqlite3
-import sys
+import argparse
+from colorama import Fore, Style, init
 
 from lorelai.contextretriever import ContextRetriever
-
-# a simple test script to ask a question langchain that has been indexed in pinecone
-
-# the question to ask is supplied as commenad line argument
-args = sys.argv
-question = args[1]
+from lorelai.llm import Llm
 
 
-def select_organisation():
-    """list the organisations in sqlite and ask the user to pick one, defaulting to the first one"""
-    sql = "SELECT id, name FROM organisations"
+def main():
+    """Main function to retrieve the context, ask a question, and display the results."""
+    init(autoreset=True)  # Initialize Colorama
+    parser = setup_arg_parser()
+    args = parser.parse_args()
+
+    question = args.question
+    org_id, org_name = get_organisation(args.org_name)
+    user_id = get_user_from_organisation(org_id, args.user_name)
+    enriched_context = ContextRetriever(org_name=org_name, user=user_id)
+    answer, source = enriched_context.retrieve_context(question)
+    llm = Llm()
+    llm_answer = llm.get_answer(question, answer)
+    display_results(llm_answer, source)
+
+
+def setup_arg_parser():
+    """Setup argument parser for command-line options."""
+    parser = argparse.ArgumentParser(description="Query indexed documents with context.")
+    parser.add_argument("question", help="Question to query")
+    parser.add_argument("--org-name", help="Name of the organisation", default=None)
+    parser.add_argument("--user-name", help="Name of the user", default=None)
+    return parser
+
+
+def get_organisation(org_name=None) -> tuple:
+    """Retrieve or select an organisation."""
     conn = sqlite3.connect("userdb.sqlite")
     cur = conn.cursor()
-    orgs = cur.execute(sql).fetchall()
-
-    print("Select an organisation:")
-    # start numbering at 1
-    for i, org in enumerate(orgs):
-        print(f"{i+1}: {org[1]}")
-
-    choice = input(f"Organisation ({orgs[0][1]}): ")
-
-    # if no id is given, default to the first one
-    if choice:
-        org = orgs[int(choice) - 1][1]
-    else:
-        org = orgs[0][1]
-        choice = orgs[0][0]
-
-    return org, choice
+    if org_name:
+        org = cur.execute(
+            "SELECT id, name FROM organisations WHERE name = ?", (org_name,)
+        ).fetchone()
+        if org:
+            return org
+        else:
+            print(
+                f"{Fore.RED}No organisation found with the name '{org_name}'.",
+                " Falling back to selection.",
+            )
+    return select_organisation()
 
 
-def select_user_from_organisation(organisation_id):
-    """list the users in sqlite and ask the user to pick one, defaulting to the first one"""
-    sql = f"SELECT user_id, name, email FROM users WHERE org_id = {organisation_id}"
+def select_organisation() -> tuple:
+    """Interactively select an organisation from a list."""
     conn = sqlite3.connect("userdb.sqlite")
     cur = conn.cursor()
-    users = cur.execute(sql).fetchall()
+    organisations = cur.execute("SELECT id, name FROM organisations").fetchall()
+    print(f"{Fore.CYAN}Select an organisation:")
+    for index, org in enumerate(organisations, start=1):
+        print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{org[1]}")
+    choice = input(f"{Fore.MAGENTA}Organisation ({organisations[0][1]}): ") or organisations[0][0]
+    return organisations[int(choice) - 1]
 
-    print("Select a user:")
-    # start numbering at 1
-    for i, user in enumerate(users):
-        print(f"{i+1}: {user[1]} ({user[2]})")
 
-    choice = input(f"User ({users[0][1]}): ")
+def get_user_from_organisation(org_id, user_name=None):
+    """Retrieve or select a user from a specific organisation."""
+    conn = sqlite3.connect("userdb.sqlite")
+    cur = conn.cursor()
+    if user_name:
+        user = cur.execute(
+            "SELECT user_id, name, email FROM users WHERE org_id = ? AND name = ?",
+            (org_id, user_name),
+        ).fetchone()
+        if user:
+            return user[0]
+        else:
+            print(
+                f"{Fore.RED}No user found with name '{user_name}' in the selected organisation.",
+                "Falling back to selection.",
+            )
+    return select_user_from_organisation(org_id)
 
-    # if no id is given, default to the first one
-    if not choice:
-        choice = users[0][0]
 
+def select_user_from_organisation(org_id):
+    """Interactively select a user from a list."""
+    conn = sqlite3.connect("userdb.sqlite")
+    cur = conn.cursor()
+    users = cur.execute(
+        f"SELECT user_id, name, email FROM users WHERE org_id = {org_id}"
+    ).fetchall()
+    print(f"{Fore.CYAN}Select a user:")
+    for index, user in enumerate(users, start=1):
+        print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{user[1]} ({user[2]})")
+    choice = input(f"{Fore.MAGENTA}User ({users[0][1]}): ") or users[0][0]
     return choice
 
 
-org_name, org_id = select_organisation()
+def display_results(answer, sources):
+    """Display the results in a formatted manner."""
+    print(f"{Fore.BLUE}Answer: {Style.BRIGHT}{answer}\nSources:")
 
-user_id = select_user_from_organisation(org_id)
+    for source in sources:
+        src = source["source"]
+        title = source["title"]
+        score = source["score"]
+        print(f"- {Fore.YELLOW}{src} {Fore.BLUE}({score}): {Fore.GREEN}{title}")
 
 
-# get the context for the question
-enriched_context = ContextRetriever(org_name=org_name, user=user_id)
-
-answer, source = enriched_context.retrieve_context(question)
-
-print(f"Answer: {answer}\nSource: {source}")
+if __name__ == "__main__":
+    main()
