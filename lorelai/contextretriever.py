@@ -90,7 +90,7 @@ class ContextRetriever:
         Returns:
             list: A list of dictionaries containing the metadata for each index.
         """
-        pinecone = Pinecone(api_key=self.pinecone_creds['api-key'])
+        pinecone = Pinecone(api_key=self.pinecone_creds['api_key'])
 
         return pinecone.list_indexes()
 
@@ -105,7 +105,7 @@ class ContextRetriever:
             List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
             in the specified index.
         """
-        pinecone = Pinecone(api_key=self.pinecone_creds['api-key'])
+        pinecone = Pinecone(api_key=self.pinecone_creds['api_key'])
         index = pinecone.Index(host=index_host)
         if index is None:
             raise ValueError(f"Index {index_host} not found.")

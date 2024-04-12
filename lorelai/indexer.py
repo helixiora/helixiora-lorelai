@@ -2,6 +2,7 @@
 them using langchain and then index them in pinecone"""
 
 import os
+import sys
 from typing import Any
 
 from google.auth.transport.requests import Request
@@ -24,7 +25,7 @@ class Indexer:
         self.pinecone_creds = lorelai.utils.load_config('pinecone')
         self.settings = lorelai.utils.load_config('lorelai')
 
-        os.environ["PINECONE_API_KEY"] = self.pinecone_creds['api-key']
+        os.environ["PINECONE_API_KEY"] = self.pinecone_creds['api_key']
 
     def index_org_drive(self, org: list[Any], users: list[list[Any]]) -> None:
         """process the Google Drive documents for an organisation
@@ -78,7 +79,9 @@ class Indexer:
                                                      environment=self.settings['environment'],
                                                      env_name=self.settings['environment_slug'],
                                                      version = "v1")
-
+        # 3.1 Pinecone only allows max 45 chars index names
+        if len(index_name) > 45:
+            sys.exit(f"{index_name} is longer than maximum allowed chars (45)")
         # 4. Get index statistics before starting the indexing process
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 

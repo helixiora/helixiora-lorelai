@@ -3,6 +3,7 @@ This module contains utility functions for the Lorelai package.
 """
 
 import json
+import sys
 import os
 from pathlib import Path
 from typing import Dict
@@ -24,20 +25,72 @@ def pinecone_index_name(org: str, datasource: str, environment: str="dev", env_n
     print(f"Index name: {name}")
     return name
 
-def load_config(service: str) -> Dict[str, str]:
+def get_creds_from_os(service: str) -> Dict[str, str]:
     """
-    Loads API credentials for a specified service from settings.json.
-
+    Loads credentials from OS env vars.
+    
     Parameters:
-        service (str): The name of the service ('openai' or 'pinecone') for which to load
+        service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
         credentials.
 
     Returns:
-        dict: A dictionary containing the API key for the specified service.
+        dict: A dictionary containing the creds for the specified service.
+    
     """
-    with open('settings.json', 'r', encoding='utf-8') as f:
-        creds = json.load(f).get(service, {})
-    os.environ[f"{service.upper()}_API_KEY"] = creds.get('api-key', '')
+    creds = {}
+    # Expected creds
+    e_creds = [
+        "client_id",
+        "project_id",
+        "auth_uri",
+        "token_uri",
+        "auth_provider_x509_cert_url",
+        "client_secret",
+        "redirect_uris",
+        "api_key",
+        "environment",
+        "environment_slug"
+    ]
+    for k in os.environ:
+        if service.upper() in k:
+            n_k = k.lower().replace(f"{service}_", '')
+            if "redirect_uris" in n_k:
+                creds[n_k] = os.environ[k].split("|")
+            else:
+                creds[n_k] = os.environ[k]
+    if not any(i in creds for i in e_creds):
+        sys.exit("No env vars found!\nCowardly quitting...")
+
+    return creds
+
+def load_config(service: str) -> Dict[str, str]:
+    """
+    Loads credentials for a specified service from settings.json.
+    If file is non-existant or has syntax errors will try to pull from OS env vars.
+
+    Parameters:
+        service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
+        credentials.
+
+    Returns:
+        dict: A dictionary containing the creds for the specified service.
+    """
+
+    if os.path.isfile("./settings.json"):
+        with open('settings.json', 'r', encoding='utf-8') as f:
+            try:
+                creds = json.load(f).get(service, {})
+
+                if service != "google" or service != "lorelai":
+                    os.environ[f"{service.upper()}_API_KEY"] = creds.get('api_key', '')
+
+            except ValueError as e:
+                print(f"There was an error in your JSON:\n    {e}")
+                print("Trying to fallbak to env vars...")
+                creds = get_creds_from_os(service)
+    else:
+        creds = get_creds_from_os(service)
+
     return creds
 
 def save_google_creds_to_tempfile(refresh_token, token_uri, client_id, client_secret):
