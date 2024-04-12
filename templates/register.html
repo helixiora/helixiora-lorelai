@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container mt-5">
+        <h2>Registration</h2>
+        <form action="{{ url_for('auth.register') }}" method="POST">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" required value="{{ email }}">
+            </div>
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" class="form-control" id="name" name="name" placeholder="Enter your name" required value="{{ name }}">
+            </div>
+            <div class="form-group">
+                <label for="organisation">Organisation</label>
+                <input type="text" class="form-control" id="organisation" name="organisation" placeholder="Enter your organisation" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Register</button>
+        </form>
+    </div>
+{% endblock %}

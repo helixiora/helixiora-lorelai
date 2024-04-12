@@ -2,14 +2,15 @@
 This module contains utility functions for the Lorelai package.
 """
 
-import os
 import json
+import os
 from pathlib import Path
 from typing import Dict
 
 from pinecone import Pinecone
-from pinecone.core.client.model.describe_index_stats_response import DescribeIndexStatsResponse
 from pinecone.core.client.exceptions import NotFoundException
+from pinecone.core.client.model.describe_index_stats_response import DescribeIndexStatsResponse
+
 
 def pinecone_index_name(org: str, datasource: str, environment: str="dev", env_name: str="lorelai",
                         version: str="v1"):
@@ -23,7 +24,7 @@ def pinecone_index_name(org: str, datasource: str, environment: str="dev", env_n
     print(f"Index name: {name}")
     return name
 
-def load_creds(service: str) -> Dict[str, str]:
+def load_config(service: str) -> Dict[str, str]:
     """
     Loads API credentials for a specified service from settings.json.
 
@@ -116,13 +117,13 @@ def print_index_stats_diff(index_stats_before, index_stats_after):
             "num_replicas": index_stats_after.num_replicas - index_stats_before.num_replicas,
             "num_shards": index_stats_after.num_shards - index_stats_before.num_shards,
             "num_segments": index_stats_after.num_segments - index_stats_before.num_segments,
-            "num_unique_segments": index_stats_after.num_unique_segments - 
+            "num_unique_segments": index_stats_after.num_unique_segments -
                                     index_stats_before.num_unique_segments,
-            "num_unique_shards": index_stats_after.num_unique_shards - 
+            "num_unique_shards": index_stats_after.num_unique_shards -
                                     index_stats_before.num_unique_shards,
-            "num_unique_replicas": index_stats_after.num_unique_replicas - 
+            "num_unique_replicas": index_stats_after.num_unique_replicas -
                                     index_stats_before.num_unique_replicas,
-            "num_unique_partitions": index_stats_after.num_unique_partitions - 
+            "num_unique_partitions": index_stats_after.num_unique_partitions -
                                     index_stats_before.num_unique_partitions
         }
         print("Index statistics difference:")
