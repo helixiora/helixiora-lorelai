@@ -4,6 +4,9 @@ services:
   web:
     build: .
     command: flask run --host=0.0.0.0 --port=5000 --reload --debug
+    environment:
+      - FLASK_APP=run.py
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - type: bind
         source: ./
@@ -12,9 +15,6 @@ services:
       - "127.0.0.1:5000:5000"
     depends_on:
       - redis
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0 # Ensure workers have the environment variables they need.
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     restart: on-failure # Ensures the service restarts if it exits due to an error.
 
   redis:
@@ -30,7 +30,9 @@ services:
 
   worker:
     build: .
-    command: celery -A app.celeryapp worker --loglevel=info
+    command: rq worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - type: bind
         source: ./
@@ -38,9 +40,6 @@ services:
     depends_on:
       - web
       - redis
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0 # Ensure workers have the environment variables they need.
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     restart: on-failure
 
 volumes:

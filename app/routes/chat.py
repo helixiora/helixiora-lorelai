@@ -1,3 +1,5 @@
+import os 
+
 from flask import blueprints, jsonify, request, session
 from redis import Redis
 from rq import Queue
@@ -15,7 +17,9 @@ def chat():
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
     # Assuming session['email'] and session['organisation'] are set after user authentication
-    queue = Queue(connection=Redis())
+    redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_conn = Redis.from_url(redis_host)
+    queue = Queue(connection=redis_conn)
     job = queue.enqueue(
         execute_rag_llm, content["message"], session.get("email"), session.get("organisation")
     )
@@ -30,8 +34,10 @@ def fetch_chat_result():
     if not job_id:
         return jsonify({"status": "ERROR", "message": "Job ID is required"}), 400
 
-    redis_conn = Redis()
-    job = Queue(connection=redis_conn).fetch_job(job_id)
+    redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_conn = Redis.from_url(redis_host)
+    queue = Queue(connection=redis_conn)
+    job = queue.fetch_job(job_id)
 
     if job is None:
         return jsonify({"status": "ERROR", "message": "Job not found"}), 404
