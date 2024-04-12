@@ -20,7 +20,7 @@ def admin():
         return render_template('admin.html', is_admin=is_admin(session['google_id']))
     return 'You are not logged in!'
 
-@admin_bp.route('/admin/job-status/job_id')
+@admin_bp.route('/admin/job-status/<job_id>')
 def job_status(job_id):
     """Return the status of a job given its job_id"""
 
