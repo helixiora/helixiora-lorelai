@@ -2,7 +2,6 @@
 
 """the main application file for the OAuth2 flow flask app
 """
-import json
 import os
 import sys
 
@@ -17,6 +16,8 @@ from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
 
+from lorelai.utils import load_config
+
 app = Flask(__name__)
 app.secret_key = "your_very_secret_and_long_random_string_here"
 
@@ -28,8 +29,7 @@ app.register_blueprint(chat_bp)
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 # Load the Google OAuth2 secrets
-with open("settings.json", encoding="utf-8") as f:
-    secrets = json.load(f)["google"]
+secrets = load_config("google")
 
 client_config = {
     "web": {
