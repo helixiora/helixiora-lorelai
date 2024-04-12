@@ -32,7 +32,7 @@ Follow these steps to set up the project and run the components.
 4. In order to pass these values there are two options:
     a) Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
 
-    b) You need to export the following env vars: 
+    b) You need to export the following env vars:
 
 ```
 GOOGLE_CLIENT_ID
@@ -47,7 +47,7 @@ OPENAI_API_KEY
 LORELAI_ENVIRONMENT
 LORELAI_ENVIRONMENT_SLUG
 ```
-Note that the project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager) 
+Note that the project id is the id of the project in the [google console](https://console.cloud.google.com/cloud-resource-manager)
 
 #### Running in a python venv
 
@@ -80,7 +80,7 @@ Note that the project id is the id of the project in the [google console](https:
 ### Initial Configuration
 
 1. Once you followed the setup steps above, navigate to the local server URL ([http://127.0.0.1:5000](http://127.0.0.1:5000)).
-    - You wil be asked to create an organisation if ./userdb.sqlite doesn't exist. 
+    - You wil be asked to create an organisation if ./userdb.sqlite doesn't exist.
     - Note that this organization name will be the index name of the vector database folowing this structure: $env_name-$slug-$whatever_you_put_in_org_name
     - There's a limitation to the length of the index name sot the above string should not exceed 45 characters.
     - Follow the on-screen instructions to log in and authorize access to Google Drive.

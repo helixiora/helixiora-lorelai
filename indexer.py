@@ -10,8 +10,7 @@ from app.utils import get_db_connection
 
 
 def main():
-    """the main function
-    """
+    """the main function"""
 
     # get the orgs from sqlite
     conn = get_db_connection()
@@ -23,13 +22,17 @@ def main():
     # get the user creds for this org from sqlite
     cur = conn.cursor()
     for org in rows:
-        cur.execute("SELECT user_id, name, email, access_token, refresh_token \n"
-                    "FROM users where org_id = ?", (org[0],))
+        cur.execute(
+            "SELECT user_id, name, email, access_token, refresh_token \n"
+            "FROM users where org_id = ?",
+            (org[0],),
+        )
 
         users = cur.fetchall()
 
         indexer = Indexer()
         indexer.index_org_drive(org, users)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

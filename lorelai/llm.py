@@ -1,6 +1,7 @@
 """
     a class that takes a question and context and sends it to the LLM, then returns the answer
 """
+
 import os
 
 from langchain_core.output_parsers import StrOutputParser
@@ -11,12 +12,12 @@ from lorelai.utils import load_config
 
 
 class Llm:
-    """A class to interact with the OpenAI language model for answering questions based on context
-    """
+    """A class to interact with the OpenAI llm for answering questions based on context"""
+
     def __init__(self, model="gpt-3.5-turbo"):
-        creds = load_config('openai')
+        creds = load_config("openai")
         self.openai_creds = creds
-        os.environ["OPENAI_API_KEY"] = creds['api_key']
+        os.environ["OPENAI_API_KEY"] = creds["api_key"]
         self.model = model
 
     def get_answer(self, question, context):
@@ -55,8 +56,7 @@ class Llm:
         return result
 
     def get_llm_status(self):
-        """Get the status of the LLM model.
-        """
+        """Get the status of the LLM model."""
         chat = ChatOpenAI(model=self.model)
 
         return chat.get_status()

@@ -7,6 +7,7 @@ integration with Pinecone and OpenAI services, facilitating the retrieval of rel
 contexts for specified questions. It leverages Pinecone's vector search capabilities alongside
 OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
 """
+
 from typing import Any, Dict, List, Tuple
 
 from langchain_core.documents import Document
@@ -37,9 +38,9 @@ class ContextRetriever:
             org_name (str): The organization name, used for Pinecone index naming.
             user (str): The user name, potentially used for logging or customization.
         """
-        self.pinecone_creds = load_config('pinecone')
-        self.openai_creds = load_config('openai')
-        self.lorelai_creds = load_config('lorelai')
+        self.pinecone_creds = load_config("pinecone")
+        self.openai_creds = load_config("openai")
+        self.lorelai_creds = load_config("lorelai")
 
         self.org_name: str = org_name
         self.user: str = user
@@ -55,16 +56,21 @@ class ContextRetriever:
             tuple: A tuple containing the retrieval result and a list of sources for the context.
         """
 
-        index_name = pinecone_index_name(org=self.org_name, datasource="googledrive",
-                                         environment=self.lorelai_creds['environment'],
-                                         env_name=self.lorelai_creds['environment_slug'],
-                                         version="v1")
-        vec_store = PineconeVectorStore.from_existing_index(index_name=index_name,
-                                                               embedding=OpenAIEmbeddings())
+        index_name = pinecone_index_name(
+            org=self.org_name,
+            datasource="googledrive",
+            environment=self.lorelai_creds["environment"],
+            env_name=self.lorelai_creds["environment_slug"],
+            version="v1",
+        )
+        vec_store = PineconeVectorStore.from_existing_index(
+            index_name=index_name, embedding=OpenAIEmbeddings()
+        )
 
         # Assuming similarity_search_with_relevance_scores returns List[Tuple[Document, float]]
         results: List[Tuple[Document, float]] = vec_store.similarity_search_with_relevance_scores(
-            question, k=3)
+            question, k=3
+        )
 
         docs: List[Document] = []
         sources: List[Dict[str, Any]] = []
@@ -75,9 +81,9 @@ class ContextRetriever:
             # Create a source entry with title, source, and score (converted to percentage and
             # stringified)
             source_entry = {
-                "title": doc.metadata['title'],
-                "source": doc.metadata['source'],
-                "score": f"{score*100:.2f}%"
+                "title": doc.metadata["title"],
+                "source": doc.metadata["source"],
+                "score": f"{score*100:.2f}%",
             }
             sources.append(source_entry)
 
@@ -90,7 +96,7 @@ class ContextRetriever:
         Returns:
             list: A list of dictionaries containing the metadata for each index.
         """
-        pinecone = Pinecone(api_key=self.pinecone_creds['api_key'])
+        pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
 
         return pinecone.list_indexes()
 
@@ -105,7 +111,7 @@ class ContextRetriever:
             List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
             in the specified index.
         """
-        pinecone = Pinecone(api_key=self.pinecone_creds['api_key'])
+        pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
         index = pinecone.Index(host=index_host)
         if index is None:
             raise ValueError(f"Index {index_host} not found.")
@@ -119,13 +125,15 @@ class ContextRetriever:
                 for vector_id, vector_data in vectors.vectors.items():
                     if isinstance(vector_data.metadata, dict):
                         metadata = vector_data.metadata
-                        result.append({
-                            "id": vector_id,
-                            "title": metadata['title'],
-                            "source": metadata['source'],
-                            "user": metadata['users'],
-                            "when": metadata['when'],
-                        })
+                        result.append(
+                            {
+                                "id": vector_id,
+                                "title": metadata["title"],
+                                "source": metadata["source"],
+                                "user": metadata["users"],
+                                "when": metadata["when"],
+                            }
+                        )
         except Exception as e:
             raise ValueError(f"Failed to fetch index details: {e}") from e
 
