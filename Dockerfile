@@ -1,5 +1,5 @@
 # Use an explicit version of Python for consistent builds. Consider using slim variant for reduced size.
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -22,4 +22,4 @@ RUN chmod +x indexer.py lorelaicli.py
 # EXPOSE 5000
 
 # Use exec form of CMD to make sure Python is run directly and receives UNIX signals
-CMD ["python", "app.py"]
+CMD ["python", "run.py"]

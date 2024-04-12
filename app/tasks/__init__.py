@@ -2,14 +2,12 @@
 This module contains the tasks that are executed asynchronously.
 """
 
-import json
 import logging
-import sqlite3
-import time
 
 from rq import get_current_job
 
 from app.utils import get_db_connection
+
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer

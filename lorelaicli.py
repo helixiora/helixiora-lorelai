@@ -14,11 +14,11 @@ from lorelai.contextretriever import ContextRetriever
 args = sys.argv
 question = args[1]
 
+
 def select_organisation():
-    """ list the organisations in sqlite and ask the user to pick one, defaulting to the first one
-    """
+    """list the organisations in sqlite and ask the user to pick one, defaulting to the first one"""
     sql = "SELECT id, name FROM organisations"
-    conn = sqlite3.connect('userdb.sqlite')
+    conn = sqlite3.connect("userdb.sqlite")
     cur = conn.cursor()
     orgs = cur.execute(sql).fetchall()
 
@@ -31,18 +31,18 @@ def select_organisation():
 
     # if no id is given, default to the first one
     if choice:
-        org = orgs[int(choice)-1][1]
+        org = orgs[int(choice) - 1][1]
     else:
         org = orgs[0][1]
         choice = orgs[0][0]
 
     return org, choice
 
+
 def select_user_from_organisation(organisation_id):
-    """ list the users in sqlite and ask the user to pick one, defaulting to the first one
-    """
+    """list the users in sqlite and ask the user to pick one, defaulting to the first one"""
     sql = f"SELECT user_id, name, email FROM users WHERE org_id = {organisation_id}"
-    conn = sqlite3.connect('userdb.sqlite')
+    conn = sqlite3.connect("userdb.sqlite")
     cur = conn.cursor()
     users = cur.execute(sql).fetchall()
 
@@ -58,6 +58,7 @@ def select_user_from_organisation(organisation_id):
         choice = users[0][0]
 
     return choice
+
 
 org_name, org_id = select_organisation()
 

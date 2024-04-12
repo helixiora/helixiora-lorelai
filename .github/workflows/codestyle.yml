@@ -1,4 +1,4 @@
-name: Pylint
+name: Python Code Style and Lint
 
 on: [push]
 
@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11","3.12"]
+        python-version: ["3.11", "3.12"]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
@@ -18,7 +18,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pylint
-    - name: Analysing the code with pylint
-      run: |
-        pylint $(git ls-files '*.py')
+        pip install black flake8  # Install Black and Flake8
+
+    - name: Format code with Black
+      run: black --check .  # This will check if the code is formatted correctly without changing it
+
+    - name: Lint with Flake8
+      run: flake8  # This will lint the code and report any issues
