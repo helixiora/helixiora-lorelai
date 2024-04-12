@@ -1,4 +1,4 @@
-import os 
+import os
 
 from flask import blueprints, jsonify, request, session
 from redis import Redis

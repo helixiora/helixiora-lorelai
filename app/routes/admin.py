@@ -1,5 +1,6 @@
 """This module contains the routes for the admin page.
 """
+
 import os
 
 from pprint import pprint

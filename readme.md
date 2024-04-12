@@ -74,7 +74,6 @@ Note that the project id is the id of the project in the [google console](https:
    flask run
    ```
 
-
 #### Running using docker compose
 
 1. Install and run [docker desktop](https://docs.docker.com/desktop/).
