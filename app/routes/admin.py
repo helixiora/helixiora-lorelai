@@ -1,10 +1,12 @@
+"""This module contains the routes for the admin page.
+"""
 
 from pprint import pprint
 
 from flask import blueprints, jsonify, render_template, session
 from redis import Redis
 from rq import Queue
-from tasks import run_indexer
+from app.tasks import run_indexer
 
 from app.utils import is_admin
 from lorelai.contextretriever import ContextRetriever
@@ -14,37 +16,54 @@ admin_bp = blueprints.Blueprint('admin', __name__)
 @admin_bp.route('/admin')
 def admin():
     """The admin page."""
-    if 'google_id' in session and is_admin(session['google_id']):  # Assuming is_admin() checks if the user is an admin
+    if 'google_id' in session and is_admin(session['google_id']):
         return render_template('admin.html', is_admin=is_admin(session['google_id']))
     return 'You are not logged in!'
 
-@admin_bp.route('/admin/task-status/<task_id>')
-def task_status(task_id):
-    # task = run_indexer.AsyncResult(task_id)
-    # if task.state == 'PENDING':
-    #     response = {
-    #         'state': task.state,
-    #         'status': 'Pending...'
-    #     }
-    # elif task.state != 'FAILURE':
-    #     response = {
-    #         'state': task.state,
-    #         'current': task.info.get('current', 0),
-    #         'total': task.info.get('total', 1),
-    #         'status': task.info.get('status', '')
-    #     }
-    #     if 'result' in task.info:
-    #         response['result'] = task.info['result']
-    # else:
-    #     # something went wrong in the background job
+@admin_bp.route('/admin/job-status/job_id')
+def job_status(job_id):
+    """Return the status of a job given its job_id"""
+
+    queue = Queue(connection=Redis())
+    job = queue.fetch_job(job_id)
+
+    if job is None:
+        response = {
+            'state': 'unknown',
+            'status': 'unknown'
+        }
+        return jsonify(response)
+
+    if job.is_finished:
+        response = {
+            'state': 'done',
+            'status': 'done'
+        }
+        return jsonify(response)
+
+    if job.is_failed:
+        response = {
+            'state': 'failed',
+            'status': 'failed'
+        }
+        return jsonify(response)
+
+    if job.is_started:
+        response = {
+            'state': 'running',
+            'status': 'running'
+        }
+        return jsonify(response)
+
     response = {
-        'state': 'task.state',
-        'status': 'str(task.info),  # this is the exception raised'
+        'state': 'unknown',
+        'status': 'unknown'
     }
     return jsonify(response)
 
 @admin_bp.route('/admin/index', methods=['POST'])
 def start_indexing():
+    """Start indexing the data"""
     if 'google_id' in session and is_admin(session['google_id']):
         print("Posting task to rq worker...")
         queue = Queue(connection=Redis())
@@ -67,7 +86,8 @@ def list_indexes():
 
     pprint(indexes)
     # Render a template, passing the indexes and their metadata
-    return render_template('admin/pinecone.html', indexes=indexes, is_admin=is_admin(session['google_id']))
+    return render_template('admin/pinecone.html', indexes=indexes,
+                           is_admin=is_admin(session['google_id']))
 
 @admin_bp.route('/admin/pinecone/<host_name>')
 def index_details(host_name: str) -> str:

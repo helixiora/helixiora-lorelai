@@ -30,20 +30,20 @@
                     $('#statusMessage').hide();
                     $('#progressBarContainer').show();
                     $('#progressBar').css('width', '0%').attr('aria-valuenow', 0).text('0%');
-                    checkStatus(data.task_id);
+                    checkStatus(data.job);
                 }).catch(() => {
                     $('#statusMessage').show().addClass('alert-danger').text('Failed to start indexing.');
                 });
         }
 
-        function checkStatus(taskId) {
-            fetch(`/admin/task-status/${taskId}`)
+        function checkStatus(job) {
+            fetch(`/admin/job-status/${job}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.state === 'PROGRESS') {
                         let percent = (data.current / data.total) * 100;
                         $('#progressBar').css('width', percent+'%').attr('aria-valuenow', percent).text(Math.round(percent) + '%');
-                        setTimeout(() => checkStatus(taskId), 1000);
+                        setTimeout(() => checkStatus(job), 1000);
                     } else if (data.state === 'SUCCESS') {
                         $('#progressBar').css('width', '100%').attr('aria-valuenow', 100).text('100%');
                         $('#statusMessage').show().removeClass('alert-danger').addClass('alert-success').text(data.status);

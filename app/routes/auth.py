@@ -23,7 +23,7 @@ def profile():
         user = {
             'name': session['name'],
             'email': session['email'],
-            'organisation': session['organisation']
+            'org_name': session['organisation']
         }
         return render_template('profile.html', user=user, is_admin=is_admin(session['google_id']))
     return 'You are not logged in!'
