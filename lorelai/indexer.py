@@ -5,12 +5,13 @@ import os
 import sys
 from typing import Any
 
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
 from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from lorelai.processor import Processor
+
 import lorelai.utils
+from lorelai.processor import Processor
 
 # The scopes needed to read documents in Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
@@ -20,9 +21,9 @@ class Indexer:
     """This class is used to process the Google Drive documents and index them in Pinecone
     """
     def __init__(self):
-        self.google_creds = lorelai.utils.load_creds('google')
-        self.pinecone_creds = lorelai.utils.load_creds('pinecone')
-        self.settings = lorelai.utils.load_creds('lorelai')
+        self.google_creds = lorelai.utils.load_config('google')
+        self.pinecone_creds = lorelai.utils.load_config('pinecone')
+        self.settings = lorelai.utils.load_config('lorelai')
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds['api_key']
 

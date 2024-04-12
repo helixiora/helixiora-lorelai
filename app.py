@@ -9,6 +9,7 @@ import sqlite3
 from contextlib import closing
 from typing import Dict
 from pprint import pprint
+from dotenv import load_dotenv
 
 from flask import Flask, redirect, url_for, session, request, render_template, flash, jsonify
 from celery import Celery
@@ -21,11 +22,15 @@ from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
 from lorelai.utils import load_creds
 
+
+load_dotenv()
+
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_and_long_random_string_here'
 
-app.config['CELERY_BROKER_URL'] = 'redis://redis:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://redis:6379/0'
+#TODO We should also pass API keys and secrets via AWS secret manager
+app.config['CELERY_BROKER_URL'] = os.getenv("CELERY_BROKER_URL")
+app.config['CELERY_RESULT_BACKEND'] = os.getenv("CELERY_RESULT_BACKEND")
 
 def make_celery(appflask: Flask) -> Celery:
     """
@@ -220,8 +225,11 @@ def index():
         return render_template('index_logged_in.html', **user_data)
 
     try:
-        authorization_url, state = flow.authorization_url(access_type='offline',
-                                                            include_granted_scopes='true')
+        authorization_url, state = flow.authorization_url(
+                                                            access_type='offline',
+                                                            include_granted_scopes='true',
+                                                            prompt="consent"
+                                                         )
         session['state'] = state
         return render_template('index.html', auth_url=authorization_url,
                                 organisation_created=session.get('organisation'))

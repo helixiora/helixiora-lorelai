@@ -64,6 +64,11 @@ Note that the project id is the id of the project in the [google console](https:
    > celery -A app.celery worker
 
    ```
+6. Create a .env file with this variables
+   ```
+   CELERY_BROKER_URL=redis://localhost:6379/0
+   CELERY_RESULT_BACKEND=redis://localhost:6379/0
+   ```
 7. Launch the Flask application: `flask run`
 
 #### Running using docker compose
@@ -120,7 +125,7 @@ Below a number of questions that are open
 
    Here's a brief example of how you might determine the dimension for a Pinecone Index:
 
-   1. **Determine Embedding Model Output Size**: First, identify the model you are using for generating embeddings and check the documentation or configuration to find out the size of the output vectors (the dimensionality). 
+   1. **Determine Embedding Model Output Size**: First, identify the model you are using for generating embeddings and check the documentation or configuration to find out the size of the output vectors (the dimensionality).
 
    2. **Configure Pinecone Index**: When setting up your Pinecone Index, use this dimension size as the value for the index's "dimension" property.
 
@@ -198,7 +203,7 @@ Below a number of questions that are open
 
    For the most current information about OpenAI models and their embedding sizes, refer directly to the OpenAI API documentation.
 
-## 5. [Walter - 21-03-2024] It seems like the vectorizer (the code that translates our documents into vector format) is a key component. How do these work, what are the best practices? 
+## 5. [Walter - 21-03-2024] It seems like the vectorizer (the code that translates our documents into vector format) is a key component. How do these work, what are the best practices?
 
 ## 6. [Walter - 21-03-2024] If my assumption is correct, data that is vectorized with a specific algorithm is only usable with an algorithm that knows the same format, kind of like encryption. Is this true? And if so, how do we handle that coupling?
 

@@ -7,21 +7,22 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
-from lorelai.utils import load_creds
+from lorelai.utils import load_config
+
 
 class Llm:
     """A class to interact with the OpenAI language model for answering questions based on context
     """
     def __init__(self, model="gpt-3.5-turbo"):
-        creds = load_creds('openai')
+        creds = load_config('openai')
         self.openai_creds = creds
         os.environ["OPENAI_API_KEY"] = creds['api_key']
         self.model = model
 
     def get_answer(self, question, context):
-        """Get the answer to a question based on the provided context using the OpenAI language 
+        """Get the answer to a question based on the provided context using the OpenAI language
         model.
-        
+
         parameters:
             question (str): The question to be answered.
             context (str): The context in which the question is asked.
