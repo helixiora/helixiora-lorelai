@@ -31,6 +31,8 @@ def profile():
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
+    """Register a new user.
+    """
     if request.method == 'GET':
         email = session.get('oauth_data', {}).get('email')
         name = session.get('oauth_data', {}).get('name')
@@ -55,16 +57,20 @@ def register():
     expires_in = session.pop('expires_in', None)
     token_type = session.pop('token_type', None)
     scope = session.pop('scope', None)
-    user_info = process_user(organisation, username, user_email, access_token, refresh_token, expires_in, token_type, scope)
+    user_info = process_user(organisation, username, user_email, access_token, refresh_token,
+                             expires_in, token_type, scope)
 
     # logging.info(f"Creating user: {registration_info} / {oauth_data}")
 
     # Log the user in (pseudo code)
-    login_user(user_info['name'], user_info['email'], user_info['org_id'], user_info['organisation'])
+    login_user(user_info['name'], user_info['email'], user_info['org_id'],
+               user_info['organisation'])
     return redirect(url_for('index'))
 
 @auth_bp.route('/oauth2callback')
 def oauth_callback():
+    """OAuth2 callback route.
+    """
     # Load the Google OAuth2 secrets
     with open('settings.json', encoding='utf-8') as f:
         secrets = json.load(f)['google']
@@ -188,7 +194,8 @@ def process_user(
     with get_db_connection() as conn:
         cursor = conn.cursor()
         # Insert/Get Organisation
-        cursor.execute("INSERT INTO organisations (name) VALUES (?) ON CONFLICT(name) DO NOTHING;", (organisation,))
+        cursor.execute("INSERT INTO organisations (name) VALUES (?) ON CONFLICT(name) DO NOTHING;",
+                       (organisation,))
         conn.commit()
         cursor.execute("SELECT id FROM organisations WHERE name = ?;", (organisation,))
         org_id = cursor.fetchone()[0]
@@ -200,14 +207,18 @@ def process_user(
         if user:
             cursor.execute("""
                 UPDATE users
-                SET org_id = ?, name = ?, access_token = ?, refresh_token = ?, expires_in = ?, token_type = ?, scope = ?
+                SET org_id = ?, name = ?, access_token = ?, refresh_token = ?,
+                           expires_in = ?, token_type = ?, scope = ?
                 WHERE email = ?;
-            """, (org_id, username, access_token, refresh_token, expires_in, token_type, scope_str, user_email))
+            """, (org_id, username, access_token, refresh_token, expires_in, token_type, scope_str,
+                  user_email))
         else:
             cursor.execute("""
-                INSERT INTO users (org_id, name, email, access_token, refresh_token, expires_in, token_type, scope)
+                INSERT INTO users (org_id, name, email, access_token, refresh_token, expires_in,
+                           token_type, scope)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-            """, (org_id, username, user_email, access_token, refresh_token, expires_in, token_type, scope_str))
+            """, (org_id, username, user_email, access_token, refresh_token, expires_in,
+                  token_type, scope_str))
         conn.commit()
 
     return {

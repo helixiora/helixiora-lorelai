@@ -8,25 +8,17 @@ import sys
 
 from flask import Flask, redirect, url_for, session, render_template, flash
 
-import google.auth.transport.requests
-from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
-from lorelai.contextretriever import ContextRetriever
-from lorelai.llm import Llm
-from lorelai.utils import load_config
-
-from tasks import execute_rag_llm, run_indexer
-
 from app.utils import get_db_connection, is_admin
-
-app = Flask(__name__)
-app.secret_key = 'your_very_secret_and_long_random_string_here'
 
 # load blueprints
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
+
+app = Flask(__name__)
+app.secret_key = 'your_very_secret_and_long_random_string_here'
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
@@ -110,7 +102,7 @@ def index():
 
     try:
         authorization_url, state = flow.authorization_url(access_type='offline',
-                                                          include_granted_scopes='true', 
+                                                          include_granted_scopes='true',
                                                           prompt='consent')
         session['state'] = state
         return render_template('index.html', auth_url=authorization_url)
@@ -123,22 +115,6 @@ def serve_js(script_name):
     """the javascript endpoint
     """
     return render_template(f"js/{script_name}.js"), 200, {'Content-Type': 'application/javascript'}
-
-
-
-
-@app.route('/profile')
-def profile():
-    """the profile page
-    """
-    if 'google_id' in session:
-        # Example: Fetch user details from the database
-        user = get_user_details()
-        # Assume `get_user_details` returns a dict with user info and credentials
-        return render_template('profile.html', user=user, is_admin=is_admin(session['google_id']))
-    return 'You are not logged in!'
-
-
 
 # Logout route
 @app.route('/logout')
