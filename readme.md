@@ -57,19 +57,23 @@ Note that the project id is the id of the project in the [google console](https:
 4. Set up redis and start it locally
    1. On a mac: `brew install redis` followed by `redis-server`
    2. On Ubuntu: `sudo apt install redis`
-5. Make sure that the redis host resolves to localhost or wherever you're running the redis server.
-6. Run a celery worker:
+   NOTE: Make sure that the redis host resolves to localhost or wherever you're running the redis server.
+6. Run an rq worker:
    ```
-   (.venv) walterheck in ~/source/helixiora/helixiora-crawler on frontend-app-merge
-   > celery -A app.celery worker
+   (.venv) walterheck in ~/Library/CloudStorage/Dropbox/Source/helixiora/helixiora-lorelai on 86by8rm9f-code-quality
+   > .venv/bin/rq worker
+   11:44:03 Worker rq:worker:dd2b92d43db1495383d426d5cb44ff79 started with PID 82721, version 1.16.1
+   11:44:03 Subscribing to channel rq:pubsub:dd2b92d43db1495383d426d5cb44ff79
+   11:44:03 *** Listening on default...
+   11:44:03 Cleaning registries for queue: default
 
    ```
-6. Create a .env file with this variables
+7. Launch the Flask application:
    ```
-   CELERY_BROKER_URL=redis://localhost:6379/0
-   CELERY_RESULT_BACKEND=redis://localhost:6379/0
+   export FLASK_APP=run.py
+   flask run
    ```
-7. Launch the Flask application: `flask run`
+
 
 #### Running using docker compose
 
@@ -98,12 +102,19 @@ When logged in, you will see the chat interface at [https://127.0.0.1:5000]()
 
 ### Admin interface
 
-Very rudimentary admin interface to see what you have stored in pinecone, accessible from [https://127.0.0.1:5000/admin/pinecone]()
+Very rudimentary admin interface to see what you have stored in pinecone and run the indexer, accessible from [https://127.0.0.1:5000/admin]()
 
 ### Executing the Crawler
 
+#### From the command line
+
 1. Initiate the document crawling process: `./indexer.py`.
 2. Check Pinecone to ensure your documents have been indexed successfully.
+
+#### From the web UI
+
+1. Go to [https://127.0.0.1:5000/admin]() and press the indexer button
+2. Check the rq worker logs in case something goes wrong
 
 ### Running Test Queries
 
