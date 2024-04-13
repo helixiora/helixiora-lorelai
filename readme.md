@@ -167,6 +167,10 @@ Below a schematic of how we could build each of these modules so that we can kee
 
 ![Lorelai System Diagram](./imgs/Lorelai%20System%20Diagram.png)
 
+# Benchmarking
+
+See [the benchmark directory](benchmark/readme.md)
+
 # Frequently Asked Questions
 
 for a number of in-depth questions, see the [FAQ](docs/faq.md)
