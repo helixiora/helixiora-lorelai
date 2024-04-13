@@ -1,6 +1,4 @@
-"""
-This module contains utility functions for the Lorelai package.
-"""
+"""This module contains utility functions for the Lorelai package."""
 
 import json
 import sys
@@ -20,7 +18,7 @@ def pinecone_index_name(
     env_name: str = "lorelai",
     version: str = "v1",
 ):
-    """Returns the pinecone index name for the org."""
+    """Return the pinecone index name for the org."""
     parts = [environment, env_name, org, datasource, version]
 
     name = "-".join(parts)
@@ -33,7 +31,7 @@ def pinecone_index_name(
 
 def get_creds_from_os(service: str) -> Dict[str, str]:
     """
-    Loads credentials from OS env vars.
+    Load credentials from OS env vars.
 
     Parameters:
         service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
@@ -72,7 +70,7 @@ def get_creds_from_os(service: str) -> Dict[str, str]:
 
 def load_config(service: str) -> Dict[str, str]:
     """
-    Loads credentials for a specified service from settings.json.
+    Load credentials for a specified service from settings.json.
     If file is non-existant or has syntax errors will try to pull from OS env vars.
 
     Parameters:
@@ -82,7 +80,6 @@ def load_config(service: str) -> Dict[str, str]:
     Returns:
         dict: A dictionary containing the creds for the specified service.
     """
-
     if os.path.isfile("./settings.json"):
         with open("settings.json", "r", encoding="utf-8") as f:
             try:
@@ -102,7 +99,8 @@ def load_config(service: str) -> Dict[str, str]:
 
 
 def save_google_creds_to_tempfile(refresh_token, token_uri, client_id, client_secret):
-    """loads the google creds to a tempfile. This is needed because the GoogleDriveLoader uses
+    """load the google creds to a tempfile.
+    This is needed because the GoogleDriveLoader uses
     the Credentials.from_authorized_user_file method to load the credentials
 
     :param refresh_token: the refresh token
@@ -151,7 +149,7 @@ def get_embedding_dimension(model_name) -> int:
 
 
 def get_index_stats(index_name: str) -> DescribeIndexStatsResponse | None:
-    """retrieves the details for a specified index in Pinecone
+    """Retrieve the details for a specified index in Pinecone.
 
     :param index_name: the name of the index for which to retrieve details
 

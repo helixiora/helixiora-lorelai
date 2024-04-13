@@ -1,5 +1,4 @@
-"""This module contains the Processor class that processes documents and indexes them in Pinecone
-"""
+"""This module contains the Processor class that processes and indexes them in Pinecone."""
 
 import os
 import uuid
@@ -22,11 +21,10 @@ from lorelai.utils import (
 
 
 class Processor:
-    """This class is used to process the Google Drive documents and index them in Pinecone"""
+    """This class is used to process the Google Drive documents and index them in Pinecone."""
 
     def __init__(self):
-        """initializes the Processor class"""
-
+        """Initialize the Processor class."""
         self.pinecone_creds = load_config("pinecone")
         self.openai_creds = load_config("openai")
         self.lorelai_settings = load_config("lorelai")
@@ -40,8 +38,9 @@ class Processor:
     def pinecone_filter_deduplicate_documents_list(
         self, documents: Iterable[Document], pc_index
     ) -> list:
-        """process the vectors and removes vector which exist in database.
-            Also tag doc metadata with new user
+        """Process the vectors and removes vector which exist in database.
+
+        Also tag doc metadata with new user
 
         :param documents: the documents to process
         :param pc_index: pinecone index object
