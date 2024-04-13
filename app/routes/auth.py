@@ -1,5 +1,4 @@
-"""Routes for user authentication.
-"""
+"""Routes for user authentication."""
 
 import json
 import sqlite3

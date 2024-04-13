@@ -65,7 +65,6 @@ class Processor:
                     result["matches"][0]["score"] >= 0.99
                     and result["matches"][0]["metadata"]["source"] == doc["metadata"]["source"]
                 ):
-
                     # Check if doc already tag for this users
                     if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
                         # if so then we remove doc form the document list

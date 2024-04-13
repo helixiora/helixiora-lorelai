@@ -1,5 +1,4 @@
-"""This module contains the routes for the admin page.
-"""
+"""This module contains the routes for the admin page."""
 
 import os
 

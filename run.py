@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-"""the main application file for the OAuth2 flow flask app
-"""
+"""the main application file for the OAuth2 flow flask app"""
+
 import os
 import sys
 

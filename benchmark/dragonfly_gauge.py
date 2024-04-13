@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-  LaurelAI benchmarking module
+LaurelAI benchmarking module
 """
 
 import argparse

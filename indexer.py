@@ -5,12 +5,12 @@ OpenAI API through langchain
 """
 
 # import the indexer
-from lorelai.indexer import Indexer
 from app.utils import get_db_connection
+from lorelai.indexer import Indexer
 
 
 def main():
-    """the main function"""
+    """the main function."""
 
     # get the orgs from sqlite
     conn = get_db_connection()

@@ -4,8 +4,9 @@
 This script is used to query indexed documents in Pinecone using LangChain and OpenAI.
 """
 
-import sqlite3
 import argparse
+import sqlite3
+
 from colorama import Fore, Style, init
 
 from lorelai.contextretriever import ContextRetriever
