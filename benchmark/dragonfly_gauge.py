@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
   LaurelAI benchmarking module
 """
@@ -5,6 +7,7 @@
 import argparse
 import json
 import time
+from typing import Tuple
 from tonic_validate import ValidateApi, ValidateScorer, Benchmark, LLMResponse
 from tonic_validate.metrics import (
     AnswerConsistencyMetric,
@@ -41,7 +44,7 @@ def setup_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def ask_lorelai(question: str, context_ret: ContextRetriever) -> (str, str, float):
+def ask_lorelai(question: str, context_ret: ContextRetriever) -> Tuple(str, str, float):
     """
     Function that does all the preload for asking a question.
     Params:
