@@ -122,8 +122,9 @@ Note that the project id is the id of the project in the [google console](https:
 6. Launch the Flask application:
    ```
    export FLASK_APP=run.py
-   flask run &
+   flask run 
    ```
+   Note: add an `&` to `flask run` to have it run in the background, or use multiple terminals.
 
 #### Running using docker compose
 
