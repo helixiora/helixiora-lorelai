@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-"""This script is used to crawl the Google Drive and process the documents using Pinecone and
-OpenAI API through langchain
+"""Crawl the Google Drive and index the documents.
+
+It processes the documents using Pinecone and OpenAI API through langchain
 """
 
 # import the indexer
@@ -9,9 +10,8 @@ from app.utils import get_db_connection
 from lorelai.indexer import Indexer
 
 
-def main():
-    """the main function."""
-
+def main() -> None:
+    """Implement the main function."""
     # get the orgs from sqlite
     conn = get_db_connection()
 
