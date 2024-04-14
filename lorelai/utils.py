@@ -41,34 +41,18 @@ def get_creds_from_os(service: str) -> dict[str, str]:
 
     """
     creds = {}
-    # Expected creds
-    e_creds = [
-        "client_id",
-        "project_id",
-        "auth_uri",
-        "token_uri",
-        "auth_provider_x509_cert_url",
-        "client_secret",
-        "redirect_uris",
-        "api_key",
-        "environment",
-        "environment_slug",
-    ]
-
     # loop through the env vars
     for k in os.environ:
         # check if the service is in the env var
+        # eg. GOOGLE_CLIENT_ID
         if service.upper() in k:
             # remove the service name and convert to lower case
+            # eg. GOOGLE_CLIENT_ID -> client_id
             n_k = k.lower().replace(f"{service}_", "")
             if "redirect_uris" in n_k:
                 creds[n_k] = os.environ[k].split("|")
             else:
                 creds[n_k] = os.environ[k]
-    if not any(i in creds for i in e_creds):
-        missing_creds = ", ".join([ec for ec in e_creds if ec not in creds])
-        msg = "Missing required credentials: "
-        raise ValueError(msg, missing_creds)
 
     return creds
 

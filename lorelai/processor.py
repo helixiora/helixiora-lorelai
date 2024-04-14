@@ -6,11 +6,11 @@ from typing import Iterable, List
 
 import pinecone
 from google.oauth2.credentials import Credentials
-from pinecone import ServerlessSpec
 from langchain_community.document_loaders.googledrive import GoogleDriveLoader
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pinecone import ServerlessSpec
 
 from lorelai.utils import (
     get_embedding_dimension,
@@ -29,8 +29,8 @@ class Processor:
         self.openai_creds = load_config("openai")
         self.lorelai_settings = load_config("lorelai")
 
-        self.pinecone_api_key = self.pinecone_creds["api-key"]
-        self.openai_api_key = self.openai_creds["api-key"]
+        self.pinecone_api_key = self.pinecone_creds["api_key"]
+        self.openai_api_key = self.openai_creds["api_key"]
         # set env variable with openai api key
         os.environ["OPENAI_API_KEY"] = self.openai_api_key
         os.environ["PINECONE_API_KEY"] = self.pinecone_api_key

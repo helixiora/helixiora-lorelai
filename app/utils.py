@@ -22,8 +22,10 @@ def get_db_connection() -> sqlite3.Connection:
     """
     try:
         conn = load_config("db")
+        # check if the db_path is set in the config
+        db_path = conn.get("db_path") if conn else "./userdb.sqlite"
 
-        conn = sqlite3.connect(conn["db_path"])
+        conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error:
         logging.exception("Database connection failed")
