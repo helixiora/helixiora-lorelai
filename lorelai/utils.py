@@ -4,7 +4,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import dict
 
 from pinecone import Pinecone
 from pinecone.core.client.exceptions import NotFoundException
@@ -55,8 +54,12 @@ def get_creds_from_os(service: str) -> dict[str, str]:
         "environment",
         "environment_slug",
     ]
+
+    # loop through the env vars
     for k in os.environ:
+        # check if the service is in the env var
         if service.upper() in k:
+            # remove the service name and convert to lower case
             n_k = k.lower().replace(f"{service}_", "")
             if "redirect_uris" in n_k:
                 creds[n_k] = os.environ[k].split("|")
@@ -64,7 +67,7 @@ def get_creds_from_os(service: str) -> dict[str, str]:
                 creds[n_k] = os.environ[k]
     if not any(i in creds for i in e_creds):
         missing_creds = ", ".join([ec for ec in e_creds if ec not in creds])
-        msg = "Missing required credentials: %s"
+        msg = "Missing required credentials: "
         raise ValueError(msg, missing_creds)
 
     return creds

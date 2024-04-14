@@ -2,14 +2,16 @@
 This file contains the rq jobs that are executed asynchronously.
 """
 
-from rq import get_current_job
 import logging
+
+from rq import get_current_job
+
+from app.utils import get_db_connection
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
-from lorelai.llm import Llm
 from lorelai.indexer import Indexer
-from app.utils import get_db_connection
+from lorelai.llm import Llm
 
 
 def execute_rag_llm(chat_message, user, organisation):
@@ -47,6 +49,8 @@ def execute_rag_llm(chat_message, user, organisation):
     return json_data
 
 
+# TODO: this won't fly if we're running in containers, the sqlite db will be in a different location
+# to fix we need to pass the needed info as parameters from the main app
 def run_indexer():
     """
     An rq job to run the indexer
