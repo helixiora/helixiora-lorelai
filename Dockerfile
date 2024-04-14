@@ -15,11 +15,8 @@ RUN pip install --upgrade pip && \
 # Now copy the rest of the application's code into the container
 COPY . .
 
-# Only make the scripts executable if they aren't already. If they are, this step can be omitted.
-RUN chmod +x indexer.py lorelaicli.py
-
 # Make port 5000 available to the world outside this container
-# EXPOSE 5000
+EXPOSE 5000
 
-# Use exec form of CMD to make sure Python is run directly and receives UNIX signals
-CMD ["python", "run.py"]
+# Use Gunicorn to serve the Flask application; adjust the number of workers and host/port as necessary
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "run:app"]
