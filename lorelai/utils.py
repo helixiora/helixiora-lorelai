@@ -1,10 +1,10 @@
 """This module contains utility functions for the Lorelai package."""
 
 import json
-import sys
+import logging
 import os
 from pathlib import Path
-from typing import Dict
+from typing import dict
 
 from pinecone import Pinecone
 from pinecone.core.client.exceptions import NotFoundException
@@ -17,7 +17,7 @@ def pinecone_index_name(
     environment: str = "dev",
     env_name: str = "lorelai",
     version: str = "v1",
-):
+) -> str:
     """Return the pinecone index name for the org."""
     parts = [environment, env_name, org, datasource, version]
 
@@ -25,19 +25,19 @@ def pinecone_index_name(
 
     name = name.lower().replace(".", "-").replace(" ", "-")
 
-    print(f"Index name: {name}")
+    logging.debug("Index name: %s", name)
     return name
 
 
-def get_creds_from_os(service: str) -> Dict[str, str]:
-    """
-    Load credentials from OS env vars.
+def get_creds_from_os(service: str) -> dict[str, str]:
+    """Load credentials from OS env vars.
 
-    Parameters:
+    Arguments:
+    ---------
         service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
-        credentials.
 
     Returns:
+    -------
         dict: A dictionary containing the creds for the specified service.
 
     """
@@ -63,25 +63,30 @@ def get_creds_from_os(service: str) -> Dict[str, str]:
             else:
                 creds[n_k] = os.environ[k]
     if not any(i in creds for i in e_creds):
-        sys.exit("No env vars found!\nCowardly quitting...")
+        missing_creds = ", ".join([ec for ec in e_creds if ec not in creds])
+        msg = "Missing required credentials: %s"
+        raise ValueError(msg, missing_creds)
 
     return creds
 
 
-def load_config(service: str) -> Dict[str, str]:
-    """
-    Load credentials for a specified service from settings.json.
+def load_config(service: str) -> dict[str, str]:
+    """Load credentials for a specified service from settings.json.
+
     If file is non-existant or has syntax errors will try to pull from OS env vars.
 
-    Parameters:
+    Arguments:
+    ---------
         service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
         credentials.
 
     Returns:
+    -------
         dict: A dictionary containing the creds for the specified service.
+
     """
-    if os.path.isfile("./settings.json"):
-        with open("settings.json", "r", encoding="utf-8") as f:
+    if Path("./settings.json").is_file():
+        with Path("./settings.json").open(encoding="utf-8") as f:
             try:
                 creds = json.load(f).get(service, {})
 
