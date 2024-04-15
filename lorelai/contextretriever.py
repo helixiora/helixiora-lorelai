@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Tuple
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import FlashrankRerank
 from pinecone import Pinecone
 from pinecone.core.client.model.fetch_response import FetchResponse
 from pinecone.models.index_list import IndexList
@@ -66,16 +68,22 @@ class ContextRetriever:
         vec_store = PineconeVectorStore.from_existing_index(
             index_name=index_name, embedding=OpenAIEmbeddings()
         )
-
+        retriever = vec_store.as_retriever(search_type="similarity", search_kwargs={"k": 10})
         # Assuming similarity_search_with_relevance_scores returns List[Tuple[Document, float]]
-        results: List[Tuple[Document, float]] = vec_store.similarity_search_with_relevance_scores(
+        """results: List[Tuple[Document, float]] = vec_store.similarity_search_with_relevance_scores(
             question, k=3
+        )"""
+        # list of models:https://github.com/PrithivirajDamodaran/FlashRank
+        compressor = FlashrankRerank(top_n=3, model="ms-marco-MultiBERT-L-12")
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor, base_retriever=retriever
         )
+
+        results = compression_retriever.get_relevant_documents(question)
 
         docs: List[Document] = []
         sources: List[Dict[str, Any]] = []
-
-        for doc, score in results:
+        for doc in results:
             # Append the whole document object if needed
             docs.append(doc)
             # Create a source entry with title, source, and score (converted to percentage and
@@ -83,7 +91,8 @@ class ContextRetriever:
             source_entry = {
                 "title": doc.metadata["title"],
                 "source": doc.metadata["source"],
-                "score": f"{score*100:.2f}%",
+                "score": "{:.2f}".format(doc.metadata["relevance_score"] * 100),
+                # "score": f"{score*100:.2f}%",
             }
             sources.append(source_entry)
 
