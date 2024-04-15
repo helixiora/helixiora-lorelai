@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master  # Adjust this as per your branching strategy
+    tags:
+      - 'v*'  # Trigger on version tags. For example v1.0, v1.0.1 etc.
   pull_request:
     branches:
       - master  # Adjust this as per your branching strategy
@@ -17,9 +19,11 @@ jobs:
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
         ports:
           - 6379:6379
-    permissions: # Add this to set specific permissions for the job
+
+    permissions:
       contents: read
       packages: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,7 +44,10 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/web:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/web:latest
+            ghcr.io/${{ github.repository }}/web:${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
 
       - name: Build and push worker image
         uses: docker/build-push-action@v5.3.0
@@ -48,7 +55,10 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/worker:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/worker:latest
+            ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
 
       - name: Logout from Docker
         run: docker logout ghcr.io
