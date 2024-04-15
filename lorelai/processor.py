@@ -29,8 +29,8 @@ class Processor:
         self.openai_creds = load_config("openai")
         self.lorelai_settings = load_config("lorelai")
 
-        self.pinecone_api_key = self.pinecone_creds["api-key"]
-        self.openai_api_key = self.openai_creds["api-key"]
+        self.pinecone_api_key = self.pinecone_creds["api_key"]
+        self.openai_api_key = self.openai_creds["api_key"]
         # set env variable with openai api key
         os.environ["OPENAI_API_KEY"] = self.openai_api_key
         os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
@@ -100,13 +100,15 @@ class Processor:
             texts = doc.page_content.replace("\n", " ").replace("\r", " ")
             text_docs.append(texts)
         embeds = embeddings_model.embed_documents(text_docs)
+
         # prepare pinecone vectors
         formatted_documents = []
         print(len(documents), len(embeds))
         if len(documents) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
 
-        for i in enumerate(documents):
+        for i ,doc in enumerate(documents):
+            print("enumerate stuff on i ", i , type(i))
             temp_dict = {
                 "id": str(uuid.uuid4()),
                 "values": embeds[i],
