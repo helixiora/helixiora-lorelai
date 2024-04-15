@@ -51,6 +51,7 @@ client_config = {
     }
 }
 
+lorelaicreds = load_config("lorelai")
 flow = Flow.from_client_config(
     client_config=client_config,
     scopes=[
@@ -59,7 +60,7 @@ flow = Flow.from_client_config(
         "https://www.googleapis.com/auth/drive.readonly",
         "openid",
     ],
-    redirect_uri="http://127.0.0.1:5000/oauth2callback",
+    redirect_uri=lorelaicreds["redirect_uri"],
 )
 
 # Database schema
