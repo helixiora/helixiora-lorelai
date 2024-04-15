@@ -1,15 +1,14 @@
 """This module contains the routes for the admin page."""
 
 import os
-
 from pprint import pprint
 
 from flask import blueprints, jsonify, render_template, session
 from redis import Redis
 from rq import Queue
-from app.tasks import run_indexer
 
-from app.utils import is_admin
+from app.tasks import run_indexer
+from app.utils import get_db_connection, is_admin
 from lorelai.contextretriever import ContextRetriever
 
 admin_bp = blueprints.Blueprint("admin", __name__)
@@ -59,7 +58,14 @@ def start_indexing():
         redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
         redis_conn = Redis.from_url(redis_host)
         queue = Queue(connection=redis_conn)
-        job = queue.enqueue(run_indexer)
+
+        db = get_db_connection()
+        org_rows = db.execute("SELECT id, name FROM organisations").fetchall()
+        for org_row in org_rows:
+            user_rows = db.execute(
+                "SELECT id, email FROM users WHERE organisation_id = ?", (org_row[0],)
+            ).fetchall()
+            job = queue.enqueue(run_indexer, org_row=org_row, user_rows=user_rows)
 
         job_id = job.get_id()
         return jsonify({"job": job_id}), 202
