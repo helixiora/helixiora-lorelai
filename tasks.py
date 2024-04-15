@@ -1,12 +1,9 @@
-"""
-This file contains the rq jobs that are executed asynchronously.
-"""
+"""The rq jobs that are executed asynchronously."""
 
 import logging
 from typing import Any
 
 from rq import get_current_job
-
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
@@ -15,9 +12,7 @@ from lorelai.llm import Llm
 
 
 def execute_rag_llm(chat_message, user, organisation):
-    """
-    An rq job to execute the RAG+LLM model.
-    """
+    """An rq job to execute the RAG+LLM model."""
     job = get_current_job()
     logger = logging.getLogger(__name__)
 
