@@ -63,6 +63,3 @@ def run_indexer(org_row: list[Any], user_rows: list[list[Any]]):
         # Handle any exceptions that occur during the indexing process
         print(f"An error occurred: {str(e)}")
         return {"current": 0, "total": 100, "status": "Failed", "result": 0}
-    finally:
-        # Ensure the database connection is closed
-        conn.close()
