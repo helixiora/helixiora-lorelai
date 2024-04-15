@@ -16,7 +16,8 @@ RUN pip install --upgrade pip && \
 COPY . .
 
 # Make port 5000 available to the world outside this container
-EXPOSE 5000
+# EXPOSE 5000
 
-# Use Gunicorn to serve the Flask application; adjust the number of workers and host/port as necessary
-CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5000", "run:app"]
+# Set the default command to run the RQ worker
+# Assumes that RQ is set up in your Python application and environment variables are managed at runtime
+CMD ["rq", "worker", "--url", "${REDIS_URL}"]
