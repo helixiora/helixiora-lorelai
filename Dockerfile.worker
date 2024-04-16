@@ -9,7 +9,6 @@ COPY requirements.txt ./
 
 # Install any needed packages specified in requirements.txt
 # Consider using --upgrade pip and a virtual environment for even better practice.
-RUN apk add dumb-init
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
