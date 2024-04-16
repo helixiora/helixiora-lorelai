@@ -68,7 +68,10 @@ class ContextRetriever:
         vec_store = PineconeVectorStore.from_existing_index(
             index_name=index_name, embedding=OpenAIEmbeddings()
         )
-        retriever = vec_store.as_retriever(search_type="similarity", search_kwargs={"k": 10})
+        retriever = vec_store.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
+        )
         # Assuming similarity_search_with_relevance_scores returns List[Tuple[Document, float]]
         """results: List[Tuple[Document, float]] = vec_store.similarity_search_with_relevance_scores(
             question, k=3
