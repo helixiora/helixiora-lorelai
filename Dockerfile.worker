@@ -9,15 +9,14 @@ COPY requirements.txt ./
 
 # Install any needed packages specified in requirements.txt
 # Consider using --upgrade pip and a virtual environment for even better practice.
+RUN apk add dumb-init
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Now copy the rest of the application's code into the container
 COPY . .
-
 # Make port 5000 available to the world outside this container
 # EXPOSE 5000
-
 # Set the default command to run the RQ worker
 # Assumes that RQ is set up in your Python application and environment variables are managed at runtime
-CMD ["rq", "worker", "--url", "${REDIS_URL}"]
+CMD "rq worker --url $REDIS_URL"

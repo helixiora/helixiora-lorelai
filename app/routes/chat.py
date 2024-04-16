@@ -1,5 +1,4 @@
 import os
-import logging
 
 from flask import blueprints, jsonify, request, session
 from redis import Redis
@@ -14,13 +13,11 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 def chat():
     """Endpoint to post chat messages."""
     content = request.get_json()
-    logger = logging.getLogger(__name__)
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
     # Assuming session['email'] and session['organisation'] are set after user authentication
     redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
-    logger.info(f"REDIS_HOST: {redis_host}")
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
     job = queue.enqueue(
