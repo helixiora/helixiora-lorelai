@@ -18,4 +18,4 @@ COPY . .
 # EXPOSE 5000
 # Set the default command to run the RQ worker
 # Assumes that RQ is set up in your Python application and environment variables are managed at runtime
-CMD "/usr/local/bin/rq worker --url $REDIS_URL"
+ENTRYPOINT exec rq worker --url $REDIS_URL
