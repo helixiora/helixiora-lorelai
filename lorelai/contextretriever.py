@@ -72,12 +72,10 @@ class ContextRetriever:
             search_type="similarity",
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
         )
-        # Assuming similarity_search_with_relevance_scores returns List[Tuple[Document, float]]
-        """results: List[Tuple[Document, float]] = vec_store.similarity_search_with_relevance_scores(
-            question, k=3
-        )"""
+
         # list of models:https://github.com/PrithivirajDamodaran/FlashRank
         compressor = FlashrankRerank(top_n=3, model="ms-marco-MultiBERT-L-12")
+
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
