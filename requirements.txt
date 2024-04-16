@@ -14,3 +14,4 @@ rq~=1.16.1
 ruff~=0.3.7
 tonic-validate~=4.0.6
 gunicorn~=20.1.0
+gevent~=24.2.1
