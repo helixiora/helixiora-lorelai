@@ -16,3 +16,9 @@ pinecone-client~=3.2.2
 python-dotenv~=1.0.1
 redis~=5.0.4
 rq~=1.16.2
+black~=24.3.0
+flake8~=7.0.0
+flake8-black~=0.3.6
+tonic-validate~=4.0.6
+slack_sdk~=3.27.1
+
