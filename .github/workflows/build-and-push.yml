@@ -14,6 +14,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
     steps:
       - uses: 8398a7/action-slack@v3
         with:
