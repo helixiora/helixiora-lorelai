@@ -24,12 +24,65 @@ Follow these steps to set up the project and run the components.
 
 ### Initial Setup
 
+### Prerequisites
+
+Redis
+a) On Linux:
+
+1. Ubuntu/Debian:
+
+```
+sudo apt update
+sudo apt install redis-server
+```
+2. CentOS/RedHat
+
+```
+sudo yum install epel-release
+sudo yum install redis
+sudo systemctl start redis
+sudo systemctl enable redis
+```
+b) On macOS:
+
+1. Using Homebrew
+
+```
+brew install redis
+```
+SQLite
+a) On Linux:
+
+1. Ubuntu/Debian:
+
+```
+sudo apt update
+sudo apt install sqlite3
+```
+
+2. CentOS/RedHat
+
+```
+sudo yum install sqlite
+```
+
+b) on macOS
+
+1. Using Homebrew
+
+```
+brew install sqlite
+```
+
+
+
 #### Obtain API Keys and Credentials
 
 1. Obtain a Pinecone API key from [Pinecone's portal](https://app.pinecone.io/organizations/). If you don't have access to Helixiora's Pinecone, ask Walter.
 2. Acquire an OpenAI API key through [OpenAI's platform](https://platform.openai.com/api-keys). If you don't have access to Helixiora's OpenAI, ask Walter.
 3. Generate Google OAuth credentials via [Google Cloud Console](https://console.cloud.google.com/apis/credentials). If you don't have access to Lorelai's Google Cloud Profile, ask Walter.
 4. In order to pass these values there are two options:
+
     a) Copy the `settings.json.example` file to `settings.json` and fill in the placeholders with the obtained values.
 
     b) You need to export the following env vars:
@@ -51,28 +104,27 @@ Note that the project id is the id of the project in the [google console](https:
 
 #### Running in a python venv
 
-1. Create a Python virtual environment: `python -m venv .venv` and activate it with `source .venv/bin/activate`.
-2. Install required dependencies: `pip install -r requirements.txt`.
-3. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
-4. Set up redis and start it locally
-   1. On a mac: `brew install redis` followed by `redis-server`
-   2. On Ubuntu: `sudo apt install redis`
-   NOTE: Make sure that the redis host resolves to localhost or wherever you're running the redis server.
-6. Run an rq worker:
-   ```
-   (.venv) walterheck in ~/Library/CloudStorage/Dropbox/Source/helixiora/helixiora-lorelai on 86by8rm9f-code-quality
-   > .venv/bin/rq worker
-   11:44:03 Worker rq:worker:dd2b92d43db1495383d426d5cb44ff79 started with PID 82721, version 1.16.1
-   11:44:03 Subscribing to channel rq:pubsub:dd2b92d43db1495383d426d5cb44ff79
-   11:44:03 *** Listening on default...
-   11:44:03 Cleaning registries for queue: default
+1. Create a Python virtual environment: `python -m venv .venv`
+2. Activate it with `source .venv/bin/activate`.
+3. Install required dependencies: `pip install -r requirements.txt`.
+4. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
+5. Run an rq worker:
+
+   `.venv/bin/rq worker &`
 
    ```
-7. Launch the Flask application:
+    Worker rq:worker:dd2b92d43db1495383d426d5cb44ff79 started with PID 82721, version 1.16.1
+    Subscribing to channel rq:pubsub:dd2b92d43db1495383d426d5cb44ff79
+    *** Listening on default...
+    Cleaning registries for queue: default
+
+   ```
+6. Launch the Flask application:
    ```
    export FLASK_APP=run.py
-   flask run
+   flask run 
    ```
+   Note: add an `&` to `flask run` to have it run in the background, or use multiple terminals.
 
 #### Running using docker compose
 
