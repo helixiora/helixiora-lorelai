@@ -44,7 +44,7 @@ jobs:
           else
             BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
             echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
-
+          fi
       - name: Build and push web image
         uses: docker/build-push-action@v5.3.0
         with:
