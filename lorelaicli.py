@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 
-"""
-This script is used to query indexed documents in Pinecone using LangChain and OpenAI.
-"""
+"""Query indexed documents in Pinecone using LangChain and OpenAI."""
 
-import sqlite3
 import argparse
+import sqlite3
+
 from colorama import Fore, Style, init
 
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
 
 
-def main():
-    """Main function to retrieve the context, ask a question, and display the results."""
+def main() -> None:
+    """Retrieve the context, ask a question, and display the results."""
     init(autoreset=True)  # Initialize Colorama
     parser = setup_arg_parser()
     args = parser.parse_args()
@@ -28,8 +27,8 @@ def main():
     display_results(llm_answer, source)
 
 
-def setup_arg_parser():
-    """Setup argument parser for command-line options."""
+def setup_arg_parser() -> argparse.ArgumentParser:
+    """Set up argument parser for command-line options."""
     parser = argparse.ArgumentParser(description="Query indexed documents with context.")
     parser.add_argument("question", help="Question to query")
     parser.add_argument("--org-name", help="Name of the organisation", default=None)
@@ -37,7 +36,7 @@ def setup_arg_parser():
     return parser
 
 
-def get_organisation(org_name=None) -> tuple:
+def get_organisation(org_name: str or None) -> tuple:
     """Retrieve or select an organisation."""
     conn = sqlite3.connect("userdb.sqlite")
     cur = conn.cursor()
@@ -47,11 +46,10 @@ def get_organisation(org_name=None) -> tuple:
         ).fetchone()
         if org:
             return org
-        else:
-            print(
-                f"{Fore.RED}No organisation found with the name '{org_name}'.",
-                " Falling back to selection.",
-            )
+        print(
+            f"{Fore.RED}No organisation found with the name '{org_name}'.",
+            " Falling back to selection.",
+        )
     return select_organisation()
 
 
@@ -67,7 +65,7 @@ def select_organisation() -> tuple:
     return organisations[int(choice) - 1]
 
 
-def get_user_from_organisation(org_id, user_name=None):
+def get_user_from_organisation(org_id: int, user_name: str or None = None) -> int:
     """Retrieve or select a user from a specific organisation."""
     conn = sqlite3.connect("userdb.sqlite")
     cur = conn.cursor()
@@ -78,29 +76,26 @@ def get_user_from_organisation(org_id, user_name=None):
         ).fetchone()
         if user:
             return user[0]
-        else:
-            print(
-                f"{Fore.RED}No user found with name '{user_name}' in the selected organisation.",
-                "Falling back to selection.",
-            )
+        print(
+            f"{Fore.RED}No user found with name '{user_name}' in the selected organisation.",
+            "Falling back to selection.",
+        )
     return select_user_from_organisation(org_id)
 
 
-def select_user_from_organisation(org_id):
+def select_user_from_organisation(org_id: int) -> int:
     """Interactively select a user from a list."""
     conn = sqlite3.connect("userdb.sqlite")
     cur = conn.cursor()
-    users = cur.execute(
-        f"SELECT user_id, name, email FROM users WHERE org_id = {org_id}"
-    ).fetchall()
+    cur.execute("SELECT user_id, name, email FROM users WHERE org_id = ?", (org_id,))
+    users = cur.fetchall()
     print(f"{Fore.CYAN}Select a user:")
     for index, user in enumerate(users, start=1):
         print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{user[1]} ({user[2]})")
-    choice = input(f"{Fore.MAGENTA}User ({users[0][1]}): ") or users[0][0]
-    return choice
+    return input(f"{Fore.MAGENTA}User ({users[0][1]}): ") or users[0][0]
 
 
-def display_results(answer, sources):
+def display_results(answer: str, sources: dict) -> None:
     """Display the results in a formatted manner."""
     print(f"{Fore.BLUE}Answer: {Style.BRIGHT}{answer}\nSources:")
 

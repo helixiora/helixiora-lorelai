@@ -1,10 +1,9 @@
 """This module contains utility functions for the Lorelai package."""
 
 import json
-import sys
+import logging
 import os
 from pathlib import Path
-from typing import Dict
 
 from pinecone import Pinecone
 from pinecone.core.client.exceptions import NotFoundException
@@ -17,7 +16,7 @@ def pinecone_index_name(
     environment: str = "dev",
     env_name: str = "lorelai",
     version: str = "v1",
-):
+) -> str:
     """Return the pinecone index name for the org."""
     parts = [environment, env_name, org, datasource, version]
 
@@ -25,63 +24,56 @@ def pinecone_index_name(
 
     name = name.lower().replace(".", "-").replace(" ", "-")
 
-    print(f"Index name: {name}")
+    logging.debug("Index name: %s", name)
     return name
 
 
-def get_creds_from_os(service: str) -> Dict[str, str]:
-    """
-    Load credentials from OS env vars.
+def get_creds_from_os(service: str) -> dict[str, str]:
+    """Load credentials from OS env vars.
 
-    Parameters:
+    Arguments:
+    ---------
         service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
-        credentials.
 
     Returns:
+    -------
         dict: A dictionary containing the creds for the specified service.
 
     """
     creds = {}
-    # Expected creds
-    e_creds = [
-        "client_id",
-        "project_id",
-        "auth_uri",
-        "token_uri",
-        "auth_provider_x509_cert_url",
-        "client_secret",
-        "redirect_uris",
-        "api_key",
-        "environment",
-        "environment_slug",
-    ]
+    # loop through the env vars
     for k in os.environ:
+        # check if the service is in the env var
+        # eg. GOOGLE_CLIENT_ID
         if service.upper() in k:
+            # remove the service name and convert to lower case
+            # eg. GOOGLE_CLIENT_ID -> client_id
             n_k = k.lower().replace(f"{service}_", "")
             if "redirect_uris" in n_k:
                 creds[n_k] = os.environ[k].split("|")
             else:
                 creds[n_k] = os.environ[k]
-    if not any(i in creds for i in e_creds):
-        sys.exit("No env vars found!\nCowardly quitting...")
 
     return creds
 
 
-def load_config(service: str) -> Dict[str, str]:
-    """
-    Load credentials for a specified service from settings.json.
+def load_config(service: str) -> dict[str, str]:
+    """Load credentials for a specified service from settings.json.
+
     If file is non-existant or has syntax errors will try to pull from OS env vars.
 
-    Parameters:
+    Arguments:
+    ---------
         service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
         credentials.
 
     Returns:
+    -------
         dict: A dictionary containing the creds for the specified service.
+
     """
-    if os.path.isfile("./settings.json"):
-        with open("settings.json", "r", encoding="utf-8") as f:
+    if Path("./settings.json").is_file():
+        with Path("./settings.json").open(encoding="utf-8") as f:
             try:
                 creds = json.load(f).get(service, {})
 

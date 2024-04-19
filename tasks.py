@@ -1,21 +1,18 @@
-"""
-This file contains the rq jobs that are executed asynchronously.
-"""
+"""The rq jobs that are executed asynchronously."""
+
+import logging
+from typing import Any
 
 from rq import get_current_job
-import logging
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
-from lorelai.llm import Llm
 from lorelai.indexer import Indexer
-from app.utils import get_db_connection
+from lorelai.llm import Llm
 
 
 def execute_rag_llm(chat_message, user, organisation):
-    """
-    An rq job to execute the RAG+LLM model.
-    """
+    """An rq job to execute the RAG+LLM model."""
     job = get_current_job()
     logger = logging.getLogger(__name__)
 
@@ -47,35 +44,18 @@ def execute_rag_llm(chat_message, user, organisation):
     return json_data
 
 
-def run_indexer():
-    """
-    An rq job to run the indexer
-    """
+# TODO: this won't fly if we're running in containers, the sqlite db will be in a different location
+# to fix we need to pass the needed info as parameters from the main app
+def run_indexer(org_row: list[Any], user_rows: list[list[Any]]):
+    """Run the indexer job to index the Google Drive documents in Pinecone."""
     job = get_current_job()
 
     print(f"Task ID -> Run Indexer: {job.id}")
 
-    conn = get_db_connection()
     try:
-        # Connect to SQLite database
-        cur = conn.cursor()
-
-        # Fetch organisations
-        cur.execute("SELECT id, name FROM organisations")
-        org_rows = cur.fetchall()
-
-        for org in org_rows:
-            # Fetch user credentials for this org
-            cur.execute(
-                "SELECT user_id, name, email, access_token, refresh_token FROM users \n"
-                "WHERE org_id = ?",
-                (org[0],),
-            )
-            users = cur.fetchall()
-
-            # Initialize indexer and perform indexing
-            indexer = Indexer()
-            indexer.index_org_drive(org, users)
+        # Initialize indexer and perform indexing
+        indexer = Indexer()
+        indexer.index_org_drive(org_row, user_rows)
 
         print("Indexing completed!")
         return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
@@ -83,6 +63,3 @@ def run_indexer():
         # Handle any exceptions that occur during the indexing process
         print(f"An error occurred: {str(e)}")
         return {"current": 0, "total": 100, "status": "Failed", "result": 0}
-    finally:
-        # Ensure the database connection is closed
-        conn.close()
