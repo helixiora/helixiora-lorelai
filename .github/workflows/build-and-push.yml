@@ -3,24 +3,26 @@ name: Build and Push Docker images
 on:
   push:
     branches:
-      - master  # Adjust this as per your branching strategy
+      - '**'  # Listen to all branches
   pull_request:
     branches:
-      - master  # Adjust this as per your branching strategy
+      - '**'  # Listen to all branches
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis:alpine
-        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
-        ports:
-          - 6379:6379
-    permissions: # Add this to set specific permissions for the job
+    permissions:
       contents: read
       packages: write
+      actions: read
     steps:
+      - uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,job,took,pullRequest # selectable (default: repo,message)
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
+        if: always() # Pick up events even if the job fails or is canceled.
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -34,21 +36,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.3.0
 
+      - name: Extract branch name or set 'latest'
+        id: prep
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          else
+            BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
+            echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
+          fi
       - name: Build and push web image
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/web:latest
-
+          tags: ghcr.io/${{ github.repository }}/web:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64,linux/arm64
       - name: Build and push worker image
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.worker
           push: true
-          tags: ghcr.io/${{ github.repository }}/worker:latest
-
+          tags: ghcr.io/${{ github.repository }}/worker:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64,linux/arm64
       - name: Logout from Docker
         run: docker logout ghcr.io

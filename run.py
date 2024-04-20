@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 
-"""the main application file for the OAuth2 flow flask app
-"""
+"""the main application file for the OAuth2 flow flask app"""
+
 import os
 import sys
 
-from flask import Flask, redirect, url_for, session, render_template, flash
-
+from flask import Flask, flash, redirect, render_template, session, url_for
 from google_auth_oauthlib.flow import Flow
-
-from app.utils import get_db_connection, is_admin
 
 # load blueprints
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-
+from app.utils import get_db_connection, is_admin
 from lorelai.utils import load_config
 
 app = Flask(__name__)
@@ -30,6 +27,17 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 # Load the Google OAuth2 secrets
 secrets = load_config("google")
+# check if all the required creds are present
+e_creds = [
+    "client_id",
+    "project_id",
+    "client_secret",
+    "redirect_uris",
+]
+if not all(i in secrets for i in e_creds):
+    missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
+    msg = "Missing required google credentials: "
+    raise ValueError(msg, missing_creds)
 
 client_config = {
     "web": {
@@ -43,6 +51,7 @@ client_config = {
     }
 }
 
+lorelaicreds = load_config("lorelai")
 flow = Flow.from_client_config(
     client_config=client_config,
     scopes=[
@@ -51,7 +60,7 @@ flow = Flow.from_client_config(
         "https://www.googleapis.com/auth/drive.readonly",
         "openid",
     ],
-    redirect_uri="http://127.0.0.1:5000/oauth2callback",
+    redirect_uri=lorelaicreds["redirect_uri"],
 )
 
 # Database schema
