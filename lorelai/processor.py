@@ -3,7 +3,7 @@
 import os
 import uuid
 from typing import Iterable, List
-
+import numpy as np
 import pinecone
 from google.oauth2.credentials import Credentials
 from pinecone import ServerlessSpec
@@ -108,7 +108,6 @@ class Processor:
             raise ValueError("Embeds length and document length mismatch")
 
         for i, doc in enumerate(documents):
-            print("enumerate stuff on i ", i, type(i))
             temp_dict = {
                 "id": str(uuid.uuid4()),
                 "values": embeds[i],
@@ -119,14 +118,70 @@ class Processor:
             formatted_documents.append(temp_dict)
 
         return formatted_documents
+    
+    def remove_nolonger_accessed_documents(self, formatted_documents, pc_index, embedding_dimension, user_email):
+        """Delete document from pinecone, which user no longer have accessed
+        
+        :param formatted_documents: document user currently have access to
+        :param pc_index: pinecone index object
+        :param embedding_dimension: embedding model dimension
+        
+        :return: None
+        
+        """
+        
+        count_updated=0
+        count_deleted=0
+        input_vector = np.random.rand(embedding_dimension).tolist()
+        result = pc_index.query(
+                vector=input_vector,
+                top_k=10000,
+                include_metadata=True,
+                include_values=False,
+                filter={"users":{"$eq":user_email}}
+            )
 
-    def store_docs_in_pinecone(self, docs: Iterable[Document], index_name) -> None:
+        # This dict contains all doc accessed by this user in db.
+        db_vector_dict={}
+        for i in result["matches"]:
+            if i["metadata"]["source"] not in db_vector_dict:
+                db_vector_dict[i["metadata"]["source"]] = {"ids":[i["id"]],"users":i["metadata"]["users"]}
+                continue
+            db_vector_dict[i["metadata"]["source"]]["ids"]=db_vector_dict[i["metadata"]["source"]]["ids"]+[i["id"]]
+                
+        # TODO add user field to check if doc has more than 2 user if so then update the metadata
+        # Compare current doc list accessible by user to the doc in the db. only keep which is not accessible by user
+        for doc in formatted_documents:
+            if doc["metadata"]["source"] in db_vector_dict:
+                db_vector_dict.pop(doc["metadata"]["source"])
+        print("^^^^^^^^^^",len(db_vector_dict))
+        delete_vector_list=[]
+        for key in db_vector_dict:
+            print("users list ",db_vector_dict[key]["users"], len(db_vector_dict[key]["users"]))
+            if len(db_vector_dict[key]["users"])>=2:
+                new_user_list=db_vector_dict[key]["users"]
+                new_user_list.remove(user_email)
+                for id in db_vector_dict[key]["ids"]: 
+                    pc_index.update(
+                                id=id,
+                                set_metadata={"users": new_user_list},
+                            )
+                    count_updated+=1
+            else:
+                delete_vector_list=delete_vector_list+db_vector_dict[key]["ids"]
+
+        pc_index.delete(ids=delete_vector_list)
+        count_deleted=len(delete_vector_list)
+        # store ids of doc in db to be delete as user does not have access
+        return count_updated, count_deleted
+
+    
+    def store_docs_in_pinecone(self, docs: Iterable[Document], index_name, user_email) -> None:
         """process the documents and index them in Pinecone
 
         :param docs: the documents to process
-        :param organisation: the organisation to process
-        :param datasource: the datasource to process
-        :param user: the user to process
+        :param index_name: name of index
+        :param user_email: the user to process
         """
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
         # Iterate over documents and split each document's text into chunks
@@ -158,15 +213,17 @@ class Processor:
 
         print(f"Indexing {len(documents)} documents in Pinecone index {index_name}")
 
-        # TODO: subsequent runs should update, not add/duplicate # pylint: disable=fixme
         pc_index = pc.Index(index_name)
 
         # Format the document for insertion
         formatted_documents = self.pinecone_format_vectors(documents, embedding_model)
-        filtered_documents, updated_documents_numbers = (
+        '''filtered_documents, updated_documents_numbers = (
             self.pinecone_filter_deduplicate_documents_list(formatted_documents, pc_index)
-        )
-
+        )'''
+        # Revome not access
+        #####################################
+        self.remove_nolonger_accessed_documents(formatted_documents, pc_index, embedding_dimension, user_email)
+        ################################
         # inserting  the documents
         if filtered_documents:
             pc_index.upsert(filtered_documents)
@@ -227,5 +284,5 @@ class Processor:
             version="v1",
         )
 
-        self.store_docs_in_pinecone(docs, index_name=index_name)
+        self.store_docs_in_pinecone(docs, index_name=index_name,user_email=user_email)
         print(f"Processed {len(docs)} documents for user: {user_email}")
