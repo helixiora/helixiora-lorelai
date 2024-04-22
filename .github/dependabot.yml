@@ -1,6 +1,5 @@
 version: 2
 updates:
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -11,3 +10,5 @@ updates:
     schedule:
       # Check for updates to pip dependencies every week
       interval: "weekly"
+groups:
+  patterns: *
