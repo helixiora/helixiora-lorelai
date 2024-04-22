@@ -217,19 +217,20 @@ class Processor:
 
         # Format the document for insertion
         formatted_documents = self.pinecone_format_vectors(documents, embedding_model)
-        '''filtered_documents, updated_documents_numbers = (
+        filtered_documents, updated_documents_numbers = (
             self.pinecone_filter_deduplicate_documents_list(formatted_documents, pc_index)
-        )'''
-        # Revome not access
-        #####################################
-        self.remove_nolonger_accessed_documents(formatted_documents, pc_index, embedding_dimension, user_email)
-        ################################
+        )
+        
+        count_removed_access, count_deleted = self.remove_nolonger_accessed_documents(formatted_documents, pc_index, embedding_dimension, user_email)
+        
         # inserting  the documents
         if filtered_documents:
             pc_index.upsert(filtered_documents)
 
-        print(f"Updated {updated_documents_numbers} documents in Pinecone index {index_name}")
-        print(f"Indexed {len(documents)} documents in Pinecone index {index_name}")
+        print(f"removed user tag to {count_removed_access} documents in Pinecone index {index_name}")
+        print(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
+        print(f"Added user tag to {updated_documents_numbers} documents in Pinecone index {index_name}")
+        print(f"Added {len(documents)} new documents in Pinecone index {index_name}")
 
     def google_docs_to_pinecone_docs(
         self,
