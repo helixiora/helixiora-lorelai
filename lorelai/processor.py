@@ -156,12 +156,11 @@ class Processor:
                 i["metadata"]["source"]
             ]["ids"] + [i["id"]]
 
-        # TODO add user field to check if doc has more than 2 user if so then update the metadata
         # Compare current doc list accessible by user to the doc in the db. only keep which is not accessible by user
         for doc in formatted_documents:
             if doc["metadata"]["source"] in db_vector_dict:
                 db_vector_dict.pop(doc["metadata"]["source"])
-        print("^^^^^^^^^^", len(db_vector_dict))
+
         delete_vector_list = []
         for key in db_vector_dict:
             print("users list ", db_vector_dict[key]["users"], len(db_vector_dict[key]["users"]))
