@@ -3,7 +3,6 @@
 import os
 import uuid
 from typing import Iterable, List
-import numpy as np
 import pinecone
 from google.oauth2.credentials import Credentials
 from pinecone import ServerlessSpec
@@ -18,7 +17,7 @@ from lorelai.utils import (
     pinecone_index_name,
     save_google_creds_to_tempfile,
 )
-
+import numpy as np
 
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone."""
