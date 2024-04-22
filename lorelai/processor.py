@@ -155,7 +155,8 @@ class Processor:
                 i["metadata"]["source"]
             ]["ids"] + [i["id"]]
 
-        # Compare current doc list accessible by user to the doc in the db. only keep which is not accessible by user
+        # Compare current doc list accessible by user to the doc in the db.
+        # only keep which is not accessible by user
         for doc in formatted_documents:
             if doc["metadata"]["source"] in db_vector_dict:
                 db_vector_dict.pop(doc["metadata"]["source"])
@@ -233,14 +234,10 @@ class Processor:
         if filtered_documents:
             pc_index.upsert(filtered_documents)
 
-        print(
-            f"removed user tag to {count_removed_access} documents in Pinecone index {index_name}"
-        )
+        print(f"removed user tag to {count_removed_access} documents in index {index_name}")
         print(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
-        print(
-            f"Added user tag to {updated_documents_numbers} documents in Pinecone index {index_name}"
-        )
-        print(f"Added {len(documents)} new documents in Pinecone index {index_name}")
+        print(f"Added user tag to {updated_documents_numbers} documents in index {index_name}")
+        print(f"Added {len(documents)} new documents in index {index_name}")
 
     def google_docs_to_pinecone_docs(
         self,
