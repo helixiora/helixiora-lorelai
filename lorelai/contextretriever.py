@@ -74,6 +74,8 @@ class ContextRetriever:
         )
 
         # list of models:https://github.com/PrithivirajDamodaran/FlashRank
+        # Reranker takes the result from base retriever than reranks those retrived.
+        # flash reranker is used as its standalone, lighweight. and free and open source
         compressor = FlashrankRerank(top_n=3, model="ms-marco-MultiBERT-L-12")
 
         compression_retriever = ContextualCompressionRetriever(
