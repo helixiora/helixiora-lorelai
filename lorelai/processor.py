@@ -19,6 +19,7 @@ from lorelai.utils import (
 )
 import numpy as np
 
+
 class Processor:
     """This class is used to process the Google Drive documents and index them in Pinecone."""
 
