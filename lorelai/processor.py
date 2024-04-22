@@ -235,13 +235,9 @@ class Processor:
         if filtered_documents:
             pc_index.upsert(filtered_documents)
 
-        print(
-            f"removed user tag to {count_removed_access} documents in index {index_name}"
-        )
+        print(f"removed user tag to {count_removed_access} documents in index {index_name}")
         print(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
-        print(
-            f"Added user tag to {updated_documents_numbers} documents in index {index_name}"
-        )
+        print(f"Added user tag to {updated_documents_numbers} documents in index {index_name}")
         print(f"Added {len(documents)} new documents in index {index_name}")
 
     def google_docs_to_pinecone_docs(
