@@ -227,3 +227,33 @@ class Processor:
 
         self.store_docs_in_pinecone(docs, index_name=index_name)
         print(f"Processed {len(docs)} documents for user: {user_email}")
+
+class SlackProcessor:
+    
+    def __init__(self):
+        self.config = load_config('slack')
+        self.oauth_flow = AuthorizationCodeOAuthFlow(
+            client_id=self.config['client_id'],
+            client_secret=self.config['client_secret'],
+            redirect_uri=self.config['redirect_uri']
+        )
+        
+    def generate_auth_url(self, state: str) -> str:
+        return self.oauth_flow.generate_authorize_url(state=state)
+
+    def handle_oauth_callback(self, code: str) -> str:
+        token_response = self.oauth_flow.handle_callback(code)
+        access_token = token_response['access_token']
+        print(f"Access token received: {access_token}")
+        return access_token
+
+    def fetch_all_messages(self, access_token: str) -> None:
+        """Fetches all messages from all channels using the access token."""
+        client = WebClient(token=access_token)
+        channels_response = client.conversations_list(types='public_channel,private_channel')
+        channels = channels_response['channels']
+
+        for channel in channels:
+            history_response = client.conversations_history(channel=channel['id'])
+            messages = history_response['messages']
+            print(f"Messages from channel {channel['name']}: {messages}")
