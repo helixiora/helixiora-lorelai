@@ -8,6 +8,7 @@ import argparse
 import json
 import logging
 import os
+import sys
 
 import yaml
 
@@ -29,17 +30,37 @@ def setup_arg_parser():
     return parser
 
 
+def validate_config(config, verb):
+    # Define necessary keys for each operation
+    necessary_keys = {
+        "download": ["nltk_corpus_download_dir"],
+        "upload": ["drive_service_config", "folder_name", "data_dir"],
+        "benchmark": [
+            "question_file",
+            "org_name",
+            "user_name",
+            "evaluator",
+            "api_key",
+            "project_id",
+        ],
+    }
+    missing_keys = [key for key in necessary_keys[verb] if key not in config]
+    if missing_keys:
+        logging.error(f"Missing configuration keys for {verb}: {', '.join(missing_keys)}")
+        sys.exit(1)
+
+
 def main():
     parser = setup_arg_parser()
     args = parser.parse_args()
-    # Set default log level to INFO
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(level=log_level)
-
-    logging.log(logging.INFO, f"Performing operation: {args.verb}")
+    logging.info(f"Performing operation: {args.verb}")
 
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
+
+    validate_config(config, args.verb)  # Validate config before proceeding
 
     if args.verb == "download":
         benchmark.operations.download_nltk_reuters(config["nltk_corpus_download_dir"])
@@ -48,12 +69,12 @@ def main():
         if args.data_source == "drive":
             service = benchmark.operations.google_drive_auth(config["drive_service_config"])
             folder_id = benchmark.operations.find_or_create_folder(service, config["folder_name"])
-            benchmark.operations.upload_files(service, folder_id, config["extract_to"])
+            benchmark.operations.upload_files(service, folder_id, config["data_dir"])
+        else:
+            logging.error(f"Data source {args.data_source} not supported for upload operation.")
+            sys.exit(1)
 
     elif args.verb == "benchmark":
-        if not all([args.question_file, args.org_name, args.user_name]):
-            print("Question file, organization name, and user name are required for benchmarking.")
-            return
         with open(args.question_file, "r", encoding="utf-8") as f:
             q_a = json.load(f)
 
@@ -61,6 +82,9 @@ def main():
         benchmark_run.benchmark(
             args.org_name, args.user_name, q_a, args.evaluator, args.api_key, args.project_id
         )
+    else:
+        logging.error(f"Invalid operation: {args.verb}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

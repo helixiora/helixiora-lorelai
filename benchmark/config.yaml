@@ -7,3 +7,4 @@ folder_name: "Lorelai Test Data"
 drive_service_config: credentials.json
 default_evaluator: gpt-3.5-turbo
 lorelai_api: http://localhost:5000
+data_dir: test_data

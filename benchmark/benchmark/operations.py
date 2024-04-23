@@ -53,6 +53,11 @@ def download_nltk_reuters(extract_to: str):
 
 
 def google_drive_auth(credentials_path):
+    assert os.path.exists(credentials_path), f"Credentials file not found: {credentials_path}"
+    assert credentials_path.endswith(".json"), "Credentials file must be in JSON format"
+    assert "drive" in credentials_path, "Credentials file must be for Google Drive API"
+    assert "client_id" in credentials_path, "Credentials file must contain client ID"
+
     scopes = ["https://www.googleapis.com/auth/drive"]
     flow = InstalledAppFlow.from_client_secrets_file(credentials_path, scopes)
     creds = flow.run_local_server(port=0)
@@ -71,8 +76,19 @@ def find_or_create_folder(service, folder_name):
     return folders[0]["id"]
 
 
-def upload_files(service, folder_id, directory):
+def upload_files(service: object, folder_id: str, directory: str):
+    """
+    Upload files from a directory to a Google Drive folder.
+
+    Args:
+        service: Google Drive service object
+        folder_id: Google Drive folder ID
+        directory: Path to the directory containing files to upload
+    """
+    logging.info(f"Uploading files from '{directory}' to Google Drive folder '{folder_id}'")
+
     for filename in os.listdir(directory):
+        logging.info(f"Uploading file '{filename}'")
         file_path = os.path.join(directory, filename)
         file_metadata = {"name": filename, "parents": [folder_id]}
         media = MediaFileUpload(file_path, mimetype="text/plain")
