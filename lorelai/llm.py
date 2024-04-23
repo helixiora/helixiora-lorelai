@@ -1,5 +1,5 @@
 """
-    a class that takes a question and context and sends it to the LLM, then returns the answer
+a class that takes a question and context and sends it to the LLM, then returns the answer
 """
 
 import os

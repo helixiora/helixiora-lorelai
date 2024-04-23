@@ -1,15 +1,17 @@
-"""This module contains the Processor class that processes and indexes them in Pinecone."""
+"""Contains the Processor class that processes and indexes them in Pinecone."""
 
 import os
 import uuid
-from typing import Iterable, List
+from typing import Iterable
+
 import pinecone
 from google.oauth2.credentials import Credentials
-from pinecone import ServerlessSpec
 from langchain_community.document_loaders.googledrive import GoogleDriveLoader
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pinecone import ServerlessSpec
 
 from lorelai.utils import (
     get_embedding_dimension,
@@ -65,7 +67,6 @@ class Processor:
                     result["matches"][0]["score"] >= 0.99
                     and result["matches"][0]["metadata"]["source"] == doc["metadata"]["source"]
                 ):
-
                     # Check if doc already tag for this users
                     if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
                         # if so then we remove doc form the document list
@@ -86,7 +87,9 @@ class Processor:
 
         return documents, updated_documents_numbers
 
-    def pinecone_format_vectors(self, documents: Iterable[Document], embeddings_model) -> list:
+    def pinecone_format_vectors(
+        self, documents: Iterable[Document], embeddings_model: Embeddings
+    ) -> list:
         """process the documents and format them for pinecone insert.
 
         :param docs: the documents to process
@@ -241,13 +244,13 @@ class Processor:
         print(f"Added {len(documents)} new documents in index {index_name}")
 
     def google_docs_to_pinecone_docs(
-        self,
-        document_ids: List[str],
+        self: None,
+        document_ids: list[str],
         credentials: Credentials,
         org_name: str,
         user_email: str,
-    ):
-        """process the Google Drive documents and divide them into pinecone compatible chunks
+    ) -> None:
+        """Process the Google Drive documents and divide them into pinecone compatible chunks.
 
         :param document_id: the document to process
         :param credentials: the credentials to use to process the document

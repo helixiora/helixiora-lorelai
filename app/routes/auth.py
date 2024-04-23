@@ -1,7 +1,5 @@
-"""Routes for user authentication.
-"""
+"""Routes for user authentication."""
 
-import json
 import sqlite3
 from collections import namedtuple
 
@@ -10,7 +8,7 @@ from flask import blueprints, redirect, render_template, request, session, url_f
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
-from app.utils import get_db_connection, is_admin
+from app.utils import get_db_connection, is_admin, load_config
 
 auth_bp = blueprints.Blueprint("auth", __name__)
 
@@ -80,8 +78,8 @@ def register():
 def oauth_callback():
     """OAuth2 callback route."""
     # Load the Google OAuth2 secrets
-    with open("settings.json", encoding="utf-8") as f:
-        secrets = json.load(f)["google"]
+    secrets = load_config("google")
+    lorelaicreds = load_config("lorelai")
 
     client_config = {
         "web": {
@@ -103,7 +101,7 @@ def oauth_callback():
             "https://www.googleapis.com/auth/drive.readonly",
             "openid",
         ],
-        redirect_uri="http://127.0.0.1:5000/oauth2callback",
+        redirect_uri=lorelaicreds["redirect_uri"],
     )
 
     flow.fetch_token(authorization_response=request.url)

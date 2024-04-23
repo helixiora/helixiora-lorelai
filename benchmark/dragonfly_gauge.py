@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
 """
-  LaurelAI benchmarking module
+LaurelAI benchmarking module
 """
 
 import argparse
 import json
+import os
+import sys
 import time
 from typing import Tuple
 from tonic_validate import ValidateApi, ValidateScorer, Benchmark, LLMResponse
@@ -17,8 +19,10 @@ from tonic_validate.metrics import (
     RetrievalPrecisionMetric,
     LatencyMetric,
 )
-from lorelai.contextretriever import ContextRetriever
-from lorelai.llm import Llm
+
+sys.path.insert(1, "/".join(os.path.realpath(__file__).split("/")[0:-2]))
+from lorelai.contextretriever import ContextRetriever  # noqa: E402
+from lorelai.llm import Llm  # noqa: E402
 
 
 def setup_arg_parser() -> argparse.ArgumentParser:
@@ -44,7 +48,7 @@ def setup_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def ask_lorelai(question: str, context_ret: ContextRetriever) -> Tuple(str, str, float):
+def ask_lorelai(question: str, context_ret: ContextRetriever) -> Tuple[str, str, float]:
     """
     Function that does all the preload for asking a question.
     Params:
