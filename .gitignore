@@ -157,3 +157,4 @@ cython_debug/
 
 *.rdb
 benchmark/credentials.json
+benchmark/test_data
