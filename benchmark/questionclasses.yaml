@@ -1,0 +1,98 @@
+question_classes:
+  - class_name: "Fact Retrieval"
+    description: >
+      Questions that require retrieving factual information from a knowledge base or external sources.
+    validation_method: >
+      Check if the retrieved answer matches verified factual sources.
+    python_function: "validate_fact_retrieval"
+
+  - class_name: "Logical Reasoning"
+    description: >
+      Questions that involve logic and reasoning to reach a conclusion.
+    validation_method: >
+      Evaluate if the logic used is correct and the conclusion is accurate.
+    python_function: "validate_logical_reasoning"
+
+  - class_name: "Opinion and Interpretation"
+    description: >
+      Questions that seek opinions or interpretations of texts, events, or ideas.
+    validation_method: >
+      Validation should check for a well-supported and coherent response.
+    python_function: "validate_opinion_interpretation"
+
+  - class_name: "Language Understanding"
+    description: >
+      Questions that test the model's grasp of language nuances.
+    validation_method: >
+      Answers must demonstrate correct interpretation of linguistic features.
+    python_function: "validate_language_understanding"
+
+  - class_name: "Long-form Answers"
+    description: >
+      Questions requiring detailed, extended responses.
+    validation_method: >
+      Answers should be evaluated for depth, relevance, and coherence.
+    python_function: "validate_long_form_answers"
+
+  - class_name: "Contextual Awareness"
+    description: >
+      Questions that depend on understanding the context or background situation.
+    validation_method: >
+      Check if the answer appropriately addresses the specific context provided.
+    python_function: "validate_contextual_awareness"
+
+  - class_name: "Creative Problem-Solving"
+    description: >
+      Questions that require creative approaches or novel solutions.
+    validation_method: >
+      Validate based on the originality and practicality of the solutions.
+    python_function: "validate_creative_problem_solving"
+
+  - class_name: "Negative Questions"
+    description: >
+      Questions framed negatively, requiring understanding of negation.
+    validation_method: >
+      Validate by checking if the response accurately handles negation.
+    python_function: "validate_negative_questions"
+
+  - class_name: "Summaries"
+    description: >
+      Questions that require summarizing texts or events.
+    validation_method: >
+      Assess summaries for accuracy, completeness, and conciseness.
+    python_function: "validate_summaries"
+
+  - class_name: "Procedural Questions"
+    description: >
+      Questions that involve step-by-step processes.
+    validation_method: >
+      Validate by comparing the model's response to the established procedure.
+    python_function: "validate_procedural_questions"
+
+  - class_name: "Cause and Effect"
+    description: >
+      Questions that ask for reasons behind events or predict consequences.
+    validation_method: >
+      Check if the cause or effect identified by the model is correct.
+    python_function: "validate_cause_effect"
+
+  - class_name: "Comparative Analysis"
+    description: >
+      Questions requiring comparison and contrast of multiple items.
+    validation_method: >
+      Evaluate answers based on accuracy and depth of comparison.
+    python_function: "validate_comparative_analysis"
+
+  - class_name: "Speculative Questions"
+    description: >
+      Questions involving hypothesizing or imagining possibilities.
+    validation_method: >
+      Validate based on creativity, consistency, and plausibility.
+    python_function: "validate_speculative_questions"
+
+  - class_name: "Translation"
+    description: >
+      Questions requiring language translation.
+    validation_method: >
+      Validate translations for accuracy and fluency.
+    python_function: "validate_translation"

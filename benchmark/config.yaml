@@ -1,0 +1,10 @@
+# Configuration for downloading and uploading data
+# Reuters Dataset: https://kdd.ics.uci.edu/databases/reuters21578/reuters21578.html
+
+url: https://kdd.ics.uci.edu/databases/reuters21578/reuters21578.tar.gz
+save_path: test_data.tar.gz
+extract_to: test_data
+folder_name: "Lorelai Test Data"
+drive_service_config: credentials.json
+default_evaluator: gpt-3.5-turbo
+lorelai_api: http://localhost:5000
