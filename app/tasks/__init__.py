@@ -63,7 +63,7 @@ def run_indexer():
 
     conn = get_db_connection()
     try:
-        # Connect to SQLite database
+        # Connect to database
         cur = conn.cursor()
 
         # Fetch organisations

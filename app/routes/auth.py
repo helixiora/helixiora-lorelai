@@ -1,6 +1,6 @@
 """Routes for user authentication."""
 
-import sqlite3
+import mysql.connector
 from collections import namedtuple
 
 import google.auth.transport.requests
@@ -23,7 +23,9 @@ def profile():
             "email": session["email"],
             "org_name": session["organisation"],
         }
-        return render_template("profile.html", user=user, is_admin=is_admin(session["google_id"]))
+        return render_template(
+            "profile.html", user=user, is_admin=is_admin(session["google_id"])
+        )
     return "You are not logged in!"
 
 
@@ -69,7 +71,10 @@ def register():
 
     # Log the user in (pseudo code)
     login_user(
-        user_info["name"], user_info["email"], user_info["org_id"], user_info["organisation"]
+        user_info["name"],
+        user_info["email"],
+        user_info["org_id"],
+        user_info["organisation"],
     )
     return redirect(url_for("index"))
 
@@ -179,10 +184,14 @@ def check_user_in_database(email: str) -> UserInfo:
             user = cursor.fetchone()
 
             # Directly unpack values with defaults for None if user is None
-            user_id, name, org_id, organisation = user if user else (None, None, None, None)
+            user_id, name, org_id, organisation = (
+                user if user else (None, None, None, None)
+            )
 
-            return UserInfo(user_id=user_id, name=name, org_id=org_id, organisation=organisation)
-    except sqlite3.Error as error:
+            return UserInfo(
+                user_id=user_id, name=name, org_id=org_id, organisation=organisation
+            )
+    except mysql.connector.Error as error:
         print(f"An error occurred: {error}")
         return UserInfo(user_id=None, name=None, org_id=None, organisation=None)
 
@@ -253,4 +262,9 @@ def process_user(
             )
         conn.commit()
 
-    return {"name": username, "email": user_email, "organisation": organisation, "org_id": org_id}
+    return {
+        "name": username,
+        "email": user_email,
+        "organisation": organisation,
+        "org_id": org_id,
+    }

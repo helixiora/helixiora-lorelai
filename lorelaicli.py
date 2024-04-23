@@ -3,12 +3,12 @@
 """Query indexed documents in Pinecone using LangChain and OpenAI."""
 
 import argparse
-import sqlite3
 
 from colorama import Fore, Style, init
 
 from lorelai.contextretriever import ContextRetriever
 from lorelai.llm import Llm
+from lorelai.utils import mysql_connect
 
 
 def main() -> None:
@@ -29,7 +29,9 @@ def main() -> None:
 
 def setup_arg_parser() -> argparse.ArgumentParser:
     """Set up argument parser for command-line options."""
-    parser = argparse.ArgumentParser(description="Query indexed documents with context.")
+    parser = argparse.ArgumentParser(
+        description="Query indexed documents with context."
+    )
     parser.add_argument("question", help="Question to query")
     parser.add_argument("--org-name", help="Name of the organisation", default=None)
     parser.add_argument("--user-name", help="Name of the user", default=None)
@@ -38,7 +40,7 @@ def setup_arg_parser() -> argparse.ArgumentParser:
 
 def get_organisation(org_name: str or None) -> tuple:
     """Retrieve or select an organisation."""
-    conn = sqlite3.connect("userdb.sqlite")
+    conn = mysql_connect()
     cur = conn.cursor()
     if org_name:
         org = cur.execute(
@@ -55,19 +57,22 @@ def get_organisation(org_name: str or None) -> tuple:
 
 def select_organisation() -> tuple:
     """Interactively select an organisation from a list."""
-    conn = sqlite3.connect("userdb.sqlite")
+    conn = mysql_connect()
     cur = conn.cursor()
     organisations = cur.execute("SELECT id, name FROM organisations").fetchall()
     print(f"{Fore.CYAN}Select an organisation:")
     for index, org in enumerate(organisations, start=1):
         print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{org[1]}")
-    choice = input(f"{Fore.MAGENTA}Organisation ({organisations[0][1]}): ") or organisations[0][0]
+    choice = (
+        input(f"{Fore.MAGENTA}Organisation ({organisations[0][1]}): ")
+        or organisations[0][0]
+    )
     return organisations[int(choice) - 1]
 
 
 def get_user_from_organisation(org_id: int, user_name: str or None = None) -> int:
     """Retrieve or select a user from a specific organisation."""
-    conn = sqlite3.connect("userdb.sqlite")
+    conn = mysql_connect()
     cur = conn.cursor()
     if user_name:
         user = cur.execute(
@@ -85,7 +90,7 @@ def get_user_from_organisation(org_id: int, user_name: str or None = None) -> in
 
 def select_user_from_organisation(org_id: int) -> int:
     """Interactively select a user from a list."""
-    conn = sqlite3.connect("userdb.sqlite")
+    conn = mysql_connect()
     cur = conn.cursor()
     cur.execute("SELECT user_id, name, email FROM users WHERE org_id = ?", (org_id,))
     users = cur.fetchall()

@@ -1,7 +1,7 @@
 """Utility functions for the application."""
 
 import logging
-import sqlite3
+import mysql.connector
 
 from lorelai.utils import load_config
 
@@ -12,7 +12,7 @@ def is_admin(google_id: str) -> bool:
 
 
 # Helper function for database connections
-def get_db_connection() -> sqlite3.Connection:
+def get_db_connection():  # -> MySQLConnection.Connection:
     """Get a database connection.
 
     Returns
@@ -21,14 +21,14 @@ def get_db_connection() -> sqlite3.Connection:
 
     """
     try:
-        conn = load_config("db")
-        # check if the db_path is set in the config
-        db_path = conn.get("db_path") if conn else "./userdb.sqlite"
-
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-    except sqlite3.Error:
+        creds = load_config("db")
+        conn = mysql.connector.connect(
+            host=creds["host"],
+            user=creds["user"],
+            password=creds["password"],
+            database=creds["database"],
+        )
+        return conn
+    except mysql.connector.Error:
         logging.exception("Database connection failed")
         raise
-    else:
-        return conn

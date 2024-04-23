@@ -4,10 +4,13 @@ import json
 import logging
 import os
 from pathlib import Path
+import mysql.connector
 
 from pinecone import Pinecone
 from pinecone.core.client.exceptions import NotFoundException
-from pinecone.core.client.model.describe_index_stats_response import DescribeIndexStatsResponse
+from pinecone.core.client.model.describe_index_stats_response import (
+    DescribeIndexStatsResponse,
+)
 
 
 def pinecone_index_name(
@@ -33,7 +36,8 @@ def get_creds_from_os(service: str) -> dict[str, str]:
 
     Arguments:
     ---------
-        service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
+    service (str): The name of the service (e.g 'openai', 'pinecone')
+        for which to load
 
     Returns:
     -------
@@ -60,12 +64,13 @@ def get_creds_from_os(service: str) -> dict[str, str]:
 def load_config(service: str) -> dict[str, str]:
     """Load credentials for a specified service from settings.json.
 
-    If file is non-existant or has syntax errors will try to pull from OS env vars.
+    If file is non-existant or has syntax errors will try to pull from
+    OS env vars.
 
     Arguments:
     ---------
-        service (str): The name of the service (e.g 'openai', 'pinecone') for which to load
-        credentials.
+        service (str): The name of the service (e.g 'openai', 'pinecone')
+        for which to load credentials.
 
     Returns:
     -------
@@ -88,6 +93,28 @@ def load_config(service: str) -> dict[str, str]:
         creds = get_creds_from_os(service)
 
     return creds
+
+
+def mysql_connect():
+    """Get a database connection.
+
+    Returns
+    -------
+        conn: a connection to the database
+
+    """
+    try:
+        creds = load_config("db")
+        conn = mysql.connector.connect(
+            host=creds["host"],
+            user=creds["user"],
+            password=creds["password"],
+            database=creds["database"],
+        )
+        return conn
+    except mysql.connector.Error:
+        logging.exception("Database connection failed")
+        raise
 
 
 def save_google_creds_to_tempfile(refresh_token, token_uri, client_id, client_secret):
@@ -167,12 +194,17 @@ def print_index_stats_diff(index_stats_before, index_stats_after):
     """prints the difference in the index statistics"""
     if index_stats_before and index_stats_after:
         diff = {
-            "num_documents": index_stats_after.num_documents - index_stats_before.num_documents,
-            "num_vectors": index_stats_after.num_vectors - index_stats_before.num_vectors,
-            "num_partitions": index_stats_after.num_partitions - index_stats_before.num_partitions,
-            "num_replicas": index_stats_after.num_replicas - index_stats_before.num_replicas,
+            "num_documents": index_stats_after.num_documents
+            - index_stats_before.num_documents,
+            "num_vectors": index_stats_after.num_vectors
+            - index_stats_before.num_vectors,
+            "num_partitions": index_stats_after.num_partitions
+            - index_stats_before.num_partitions,
+            "num_replicas": index_stats_after.num_replicas
+            - index_stats_before.num_replicas,
             "num_shards": index_stats_after.num_shards - index_stats_before.num_shards,
-            "num_segments": index_stats_after.num_segments - index_stats_before.num_segments,
+            "num_segments": index_stats_after.num_segments
+            - index_stats_before.num_segments,
             "num_unique_segments": index_stats_after.num_unique_segments
             - index_stats_before.num_unique_segments,
             "num_unique_shards": index_stats_after.num_unique_shards
