@@ -1,21 +1,44 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container mt-5">
-        <h1>User Profile</h1>
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Welcome, {{ user.name }}!</h5>
-                <h6 class="card-subtitle mb-2 text-muted">{{ user.email }}</h6>
-                <p class="card-text">Here are some details about your current session:</p>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item">Email: {{ user.email }}</li>
-                    <li class="list-group-item">Organisation: {{ user.org_name }}</li>
-                    <!-- Add other credential details here -->
-                </ul>
-                <a href="/" class="card-link">Home</a>
-                <a href="/logout" class="card-link">Logout</a>
+<div class="container mt-5">
+    <div class="card shadow">
+        <div class="card-body">
+            <h1 class="card-title font-weight-bold" style="color: #4b9feb;">User Profile</h1>
+            <h6 class="card-subtitle mb-4 text-muted">{{ user.email }}</h6>
+            <p class="card-text">Welcome, {{ user.name }}! Here are some details about your current session:</p>
+            <ul class="list-group list-group-flush mb-3">
+                <li class="list-group-item">Email: {{ user.email }}</li>
+                <li class="list-group-item">Organisation: {{ user.org_name }}</li>
+                <!-- Add other credential details here -->
+            </ul>
+            <div class="d-flex justify-content-between">
+                <a href="/" class="btn btn-outline-primary">Home</a>
+                <a href="/logout" class="btn btn-outline-secondary">Logout</a>
             </div>
         </div>
     </div>
+    
+    <!-- Marketplace Integration Section -->
+    <div class="mt-4">
+        <h2 class="mb-3" style="color: #000;">Integrations Marketplace</h2>
+        <!-- Slack Integration -->
+        <div class="card mb-3">
+            <div class="card-body bg-light">
+                <div class="row">
+                    <div class="col-md-4">
+                        <img class="card-img-top" src="{{ url_for('static', filename='img/slack.jpg') }}" alt="Slack Integration">
+                    </div>
+                    <div class="col-md-8">
+                        <h5 class="card-title font-weight-bold">Enhance your experience</h5>
+                        <h6 class="card-title">Slack Integration</h6>
+                        <p class="card-text">Start feeding your business data to the hungry LLM!</p>
+                        <a href="/slack/auth" class="btn btn-primary">Start Integration</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Additional integrations can be added in similar div blocks -->
+    </div>
+</div>
 {% endblock %}

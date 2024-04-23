@@ -22,9 +22,13 @@
         "environment_slug": "a name to recognise this env by"
     },
     "db": {
-        "host": "your_mysql_server",
-        "user": "the_db_user",
-        "database": "the_name_of_your_db",
-        "password": "the_password_for_your_user"
-    }
+        "db_path": "./userdb.sqlite"
+    },
+    "slack": {
+        "client_id": "YOUR_SLACK_CLIENT_ID",
+        "client_secret": "YOUR_SLACK_CLIENT_SECRET",
+        "redirect_uri": "YOUR_REDIRECT_URI",
+        "authorization_url": "https://slack.com/oauth/v2/authorize",
+        "token_url": "https://slack.com/api/oauth.v2.access"
+  }
 }
