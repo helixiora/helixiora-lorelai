@@ -19,5 +19,12 @@
     },
     "db": {
         "db_path": "./userdb.sqlite"
-    }
+    },
+    "slack": {
+        "client_id": "YOUR_SLACK_CLIENT_ID",
+        "client_secret": "YOUR_SLACK_CLIENT_SECRET",
+        "redirect_uri": "YOUR_REDIRECT_URI",
+        "authorization_url": "https://slack.com/oauth/v2/authorize",
+        "token_url": "https://slack.com/api/oauth.v2.access"
+  }
 }
