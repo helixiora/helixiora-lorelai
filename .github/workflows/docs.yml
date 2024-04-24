@@ -1,0 +1,36 @@
+name: Generate docs
+
+on:
+  push:
+    branches:
+      - '*'
+
+jobs:
+  format-code:
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Give the default GITHUB_TOKEN write permission to commit and push the
+      # added or changed files to the repository.
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      
+      - name: Install pydoc-markdown
+        run: |
+          pip install pydoc-markdown
+      
+      - name: Generate Pydoc Markdown
+        run: |
+          pydoc-markdown -I ./ > docs/main.md
+
+      # Commit all changed files back to the repository
+      - uses: stefanzweifel/git-auto-commit-action@v5

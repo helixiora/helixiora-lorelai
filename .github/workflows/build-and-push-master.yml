@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - 'master'  # Your life burns faster
-  pull_request:
-    branches:
-      - 'master'  # Obey your master
 
 jobs:
   build-and-push:
