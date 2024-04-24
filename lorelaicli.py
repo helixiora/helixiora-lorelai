@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Query indexed documents in Pinecone using LangChain and OpenAI."""
+"""Query indexed documents in Pinecone using LangChain and OpenAI in the CLI"""
 
 import argparse
 
