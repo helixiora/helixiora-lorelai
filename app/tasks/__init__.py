@@ -32,7 +32,9 @@ def execute_rag_llm(chat_message: str, user: str, organisation: str) -> dict:
         context, source = enriched_context.retrieve_context(chat_message)
 
         if context is None:
-            raise ValueError("Failed to retrieve context for the provided chat message.")
+            raise ValueError(
+                "Failed to retrieve context for the provided chat message."
+            )
 
         llm = Llm(model="gpt-3.5-turbo")
         answer = llm.get_answer(question=chat_message, context=context)
@@ -73,8 +75,9 @@ def run_indexer():
         for org in org_rows:
             # Fetch user credentials for this org
             cur.execute(
-                "SELECT user_id, name, email, access_token, refresh_token FROM users \n"
-                "WHERE org_id = ?",
+                """
+                SELECT user_id, name, email, access_token, refresh_token FROM users
+                WHERE org_id = %s""",
                 (org[0],),
             )
             users = cur.fetchall()

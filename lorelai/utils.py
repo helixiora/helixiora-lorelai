@@ -95,7 +95,7 @@ def load_config(service: str) -> dict[str, str]:
     return creds
 
 
-def mysql_connect():
+def get_db_connection():
     """Get a database connection.
 
     Returns

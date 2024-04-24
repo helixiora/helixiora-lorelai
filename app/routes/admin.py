@@ -60,10 +60,11 @@ def start_indexing():
         queue = Queue(connection=redis_conn)
 
         db = get_db_connection()
-        org_rows = db.execute("SELECT id, name FROM organisations").fetchall()
+        db.execute("SELECT id, name FROM organisations")
+        org_rows = db.fetchall()
         for org_row in org_rows:
             user_rows = db.execute(
-                "SELECT id, email FROM users WHERE organisation_id = ?", (org_row[0],)
+                "SELECT id, email FROM users WHERE organisation_id = %s", (org_row[0],)
             ).fetchall()
             job = queue.enqueue(run_indexer, org_row=org_row, user_rows=user_rows)
 
@@ -78,7 +79,9 @@ def start_indexing():
 def list_indexes():
     """the list indexes page"""
 
-    enriched_context = ContextRetriever(org_name=session["organisation"], user=session["email"])
+    enriched_context = ContextRetriever(
+        org_name=session["organisation"], user=session["email"]
+    )
 
     indexes = enriched_context.get_all_indexes()
 
@@ -92,7 +95,9 @@ def list_indexes():
 @admin_bp.route("/admin/pinecone/<host_name>")
 def index_details(host_name: str) -> str:
     """the index details page"""
-    enriched_context = ContextRetriever(org_name=session["organisation"], user=session["email"])
+    enriched_context = ContextRetriever(
+        org_name=session["organisation"], user=session["email"]
+    )
 
     # Assume getIndexDetails function exists to fetch metadata for a specific index
     index_metadata = enriched_context.get_index_details(index_host=host_name)

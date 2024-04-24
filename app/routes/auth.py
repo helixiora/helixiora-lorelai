@@ -170,30 +170,25 @@ UserInfo = namedtuple("UserInfo", "user_id name org_id organisation")
 
 def check_user_in_database(email: str) -> UserInfo:
     """Check if the user exists in the database."" """
-    try:
-        # Use context manager for handling the database connection
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            query = """
-                SELECT users.user_id, users.name, org_id, organisations.name
-                FROM users
-                LEFT JOIN organisations ON users.org_id = organisations.id
-                WHERE email = ?
-            """
-            cursor.execute(query, (email,))
-            user = cursor.fetchone()
+    # Use context manager for handling the database connection
+    with get_db_connection() as db:
+        cursor = db.cursor()
+        query = """
+            SELECT users.user_id, users.name, org_id, organisations.name
+            FROM users
+            LEFT JOIN organisations ON users.org_id = organisations.id
+            WHERE email = %s
+        """
+        cursor.execute(query, (email,))
+        user = cursor.fetchone()
 
-            # Directly unpack values with defaults for None if user is None
-            user_id, name, org_id, organisation = (
-                user if user else (None, None, None, None)
-            )
+        # Directly unpack values with defaults for None if user is None
+        # Very pythonic :)
+        user_id, name, org_id, organisation = user if user else (None, None, None, None)
 
-            return UserInfo(
-                user_id=user_id, name=name, org_id=org_id, organisation=organisation
-            )
-    except mysql.connector.Error as error:
-        print(f"An error occurred: {error}")
-        return UserInfo(user_id=None, name=None, org_id=None, organisation=None)
+        return UserInfo(
+            user_id=user_id, name=name, org_id=org_id, organisation=organisation
+        )
 
 
 def process_user(
@@ -210,27 +205,35 @@ def process_user(
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        # Insert/Get Organisation
-        cursor.execute(
-            "INSERT INTO organisations (name) VALUES (?) ON CONFLICT(name) DO NOTHING;",
-            (organisation,),
-        )
-        conn.commit()
-        cursor.execute("SELECT id FROM organisations WHERE name = ?;", (organisation,))
-        org_id = cursor.fetchone()[0]
+        # Get the organisation ID or create one if it doesn't exist
+        # Do this while so I don't repeat the select querry upon creation
+        org_id = ""
+        while not org_id:
+            cursor.execute(
+                "select id from organisations where name = %s", (organisation,)
+            )
+            res = cursor.fetchone()
+            if not res:
+                cursor.execute(
+                    "insert into organisations (name) values (%s)", (organisation,)
+                )
+                conn.commit()
+            else:
+                org_id = res[0]
+
         scope_str = " ".join(scope)
 
         # Insert/Update User
-        cursor.execute("SELECT user_id FROM users WHERE email = ?;", (user_email,))
+        cursor.execute("SELECT user_id FROM users WHERE email = %s;", (user_email,))
         user = cursor.fetchone()
         if user:
             cursor.execute(
                 """
                 UPDATE users
-                SET org_id = ?, name = ?, access_token = ?, refresh_token = ?,
-                           expires_in = ?, token_type = ?, scope = ?
-                WHERE email = ?;
-            """,
+                SET org_id = %s, name = %s, access_token = %s,
+                refresh_token = %s, expires_in = %s, token_type = %s,
+                scope = %s WHERE email = %s;
+                """,
                 (
                     org_id,
                     username,
@@ -247,7 +250,7 @@ def process_user(
                 """
                 INSERT INTO users (org_id, name, email, access_token, refresh_token, expires_in,
                            token_type, scope)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
             """,
                 (
                     org_id,
