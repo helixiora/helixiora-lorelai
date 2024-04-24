@@ -23,6 +23,8 @@ def setup_arg_parser() -> argparse.ArgumentParser
 ```
 
 Set up argument parser for command-line options.
+Params: none
+Returns: ArgumentParser object
 
 <a id="lorelaicli.get_organisation"></a>
 
@@ -33,6 +35,9 @@ def get_organisation(org_name: str or None) -> tuple
 ```
 
 Retrieve or select an organisation.
+Params: org_name: str, name of the organisation
+Returns: tuple with org ID as the 0 object or select_organisation
+function
 
 <a id="lorelaicli.select_organisation"></a>
 
@@ -43,6 +48,8 @@ def select_organisation() -> tuple
 ```
 
 Interactively select an organisation from a list.
+Params: none
+Returns: tuple with the org ID and name
 
 <a id="lorelaicli.get_user_from_organisation"></a>
 
@@ -54,6 +61,14 @@ def get_user_from_organisation(org_id: int,
 ```
 
 Retrieve or select a user from a specific organisation.
+Params:
+org_id, int, the organisation ID
+user_name, str, the user name
+
+**Returns**:
+
+  user ID int or
+  results from select_user_from_organisation function
 
 <a id="lorelaicli.select_user_from_organisation"></a>
 
@@ -64,6 +79,12 @@ def select_user_from_organisation(org_id: int) -> int
 ```
 
 Interactively select a user from a list.
+Params:
+org_id: int, the ID of the organisation
+
+**Returns**:
+
+  user id: int
 
 <a id="lorelaicli.display_results"></a>
 
@@ -755,12 +776,12 @@ OS env vars.
   -------
 - `dict` - A dictionary containing the creds for the specified service.
 
-<a id="lorelai.utils.mysql_connect"></a>
+<a id="lorelai.utils.get_db_connection"></a>
 
-#### mysql\_connect
+#### get\_db\_connection
 
 ```python
-def mysql_connect()
+def get_db_connection()
 ```
 
 Get a database connection.
