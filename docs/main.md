@@ -498,12 +498,34 @@ process the documents and format them for pinecone insert.
 
 list of documents ready to be inserted in pinecone
 
+<a id="lorelai.processor.Processor.remove_nolonger_accessed_documents"></a>
+
+#### remove\_nolonger\_accessed\_documents
+
+```python
+def remove_nolonger_accessed_documents(formatted_documents, pc_index,
+                                       embedding_dimension, user_email)
+```
+
+Delete document from pinecone, which user no longer have accessed
+
+**Arguments**:
+
+- `formatted_documents`: document user currently have access to
+- `pc_index`: pinecone index object
+- `embedding_dimension`: embedding model dimension
+
+**Returns**:
+
+None
+
 <a id="lorelai.processor.Processor.store_docs_in_pinecone"></a>
 
 #### store\_docs\_in\_pinecone
 
 ```python
-def store_docs_in_pinecone(docs: Iterable[Document], index_name) -> None
+def store_docs_in_pinecone(docs: Iterable[Document], index_name,
+                           user_email) -> None
 ```
 
 process the documents and index them in Pinecone
@@ -511,9 +533,8 @@ process the documents and index them in Pinecone
 **Arguments**:
 
 - `docs`: the documents to process
-- `organisation`: the organisation to process
-- `datasource`: the datasource to process
-- `user`: the user to process
+- `index_name`: name of index
+- `user_email`: the user to process
 
 <a id="lorelai.processor.Processor.google_docs_to_pinecone_docs"></a>
 
