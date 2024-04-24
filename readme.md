@@ -13,7 +13,7 @@ Lorelai: a RAG (Retrieval-Augmented Generation) application. The project integra
 - **Admin backend** See what info you have indexed in pinecone
 
 ### Components
-Check out the [docs](./docs) for the individual components or the Architecture Diagram.
+Check out the [docs](./docs/main.md) for the individual components or the Architecture Diagram below for a more detailed overview.
 
 ## Prerequisites
 Before starting out with LorelAI, please make sure you've met the [prerequesites](./prerequisites.md)
