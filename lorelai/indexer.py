@@ -23,17 +23,17 @@ DATABASE = "./userdb.sqlite"
 
 
 class Indexer:
-    """This class is used to process the Google Drive documents and index them in Pinecone"""
+    """Used to process the Google Drive documents and index them in Pinecone."""
 
-    def __init__(self):
+    def __init__(self: None):
         self.google_creds = lorelai.utils.load_config("google")
         self.pinecone_creds = lorelai.utils.load_config("pinecone")
         self.settings = lorelai.utils.load_config("lorelai")
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds["api_key"]
 
-    def index_org_drive(self, org: list[Any], users: list[list[Any]]) -> None:
-        """process the Google Drive documents for an organisation
+    def index_org_drive(self: None, org: list[Any], users: list[list[Any]]) -> None:
+        """Process the Google Drive documents for an organisation.
 
         :param org: the organisation to process, a list of org details (org_id, name)
         :param users: the users to process, a list of user details (user_id, name, email, token,
@@ -46,8 +46,8 @@ class Indexer:
         for user in users:
             self.index_user_drive(user, org)
 
-    def index_user_drive(self, user: list[Any], org: list[Any]) -> None:
-        """process the Google Drive documents for a user and index them in Pinecone
+    def index_user_drive(self: None, user: list[Any], org: list[Any]) -> None:
+        """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
             refresh_token)
@@ -55,7 +55,6 @@ class Indexer:
 
         :return: None
         """
-
         # 1. Load the Google Drive credentials
         if user:
             print(f"Processing user: {user} from org: {org}")
@@ -67,7 +66,7 @@ class Indexer:
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "client_id": self.google_creds["client_id"],
                     "client_secret": self.google_creds["client_secret"],
-                }
+                },
             )
 
             # see if the credentials work and refresh if expired
@@ -106,9 +105,8 @@ class Indexer:
         print("Index statistics before indexing vs after indexing:")
         lorelai.utils.print_index_stats_diff(index_stats_before, index_stats_after)
 
-    def get_google_docs_ids(self, credentials) -> list[str]:
-        """
-        Retrieves all Google Docs document IDs from the user's Google Drive.
+    def get_google_docs_ids(self: None, credentials) -> list[str]:
+        """Retrieve all Google Docs document IDs from the user's Google Drive.
 
         :param credentials: Google-auth credentials object for the user
         :return: List of document IDs
