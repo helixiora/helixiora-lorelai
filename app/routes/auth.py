@@ -1,6 +1,5 @@
 """Routes for user authentication."""
 
-import mysql.connector
 from collections import namedtuple
 
 import google.auth.transport.requests
