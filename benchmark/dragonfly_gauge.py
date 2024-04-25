@@ -123,7 +123,7 @@ def generate_output(run, api_key: str, project_id: str) -> None:
 
 def main() -> None:
     """
-    Tie it all together
+    Tie it all together and
     """
     parser = setup_arg_parser()
     args = parser.parse_args()
