@@ -34,5 +34,7 @@ jobs:
 
       # Commit all changed files back using signing!
       - uses: planetscale/ghcommit-action@v0.1.6
+        with:
+          commit_message: "Auto-doc"
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
