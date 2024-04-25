@@ -3,10 +3,7 @@ name: Build and Push Docker images
 on:
   push:
     branches:
-      - '**'  # Listen to all branches
-  pull_request:
-    branches:
-      - '**'  # Listen to all branches
+      - 'master'  # Your life burns faster
 
 jobs:
   build-and-push:
@@ -36,22 +33,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.3.0
 
-      - name: Extract branch name or set 'latest'
-        id: prep
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
-          else
-            BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g; s/#//g')
-            echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
-          fi
       - name: Build and push web image
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/web:${{ env.IMAGE_TAG }}
+          tags: ghcr.io/${{ github.repository }}/web:latest
           platforms: linux/amd64,linux/arm64
       - name: Build and push worker image
         uses: docker/build-push-action@v5.3.0
@@ -59,7 +47,7 @@ jobs:
           context: .
           file: ./Dockerfile.worker
           push: true
-          tags: ghcr.io/${{ github.repository }}/worker:${{ env.IMAGE_TAG }}
+          tags: ghcr.io/${{ github.repository }}/worker:latest
           platforms: linux/amd64,linux/arm64
       - name: Logout from Docker
         run: docker logout ghcr.io
