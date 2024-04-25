@@ -1,3 +1,29 @@
+<a id="tasks"></a>
+
+# tasks
+
+The rq jobs that are executed asynchronously.
+
+<a id="tasks.execute_rag_llm"></a>
+
+#### execute\_rag\_llm
+
+```python
+def execute_rag_llm(chat_message, user, organisation)
+```
+
+An rq job to execute the RAG+LLM model.
+
+<a id="tasks.run_indexer"></a>
+
+#### run\_indexer
+
+```python
+def run_indexer(org_row: list[Any], user_rows: list[list[Any]])
+```
+
+Run the indexer job to index the Google Drive documents in Pinecone.
+
 <a id="lorelaicli"></a>
 
 # lorelaicli
@@ -179,364 +205,9 @@ def main() -> None
 
 Implement the main function.
 
-<a id="tasks"></a>
-
-# tasks
-
-The rq jobs that are executed asynchronously.
-
-<a id="tasks.execute_rag_llm"></a>
-
-#### execute\_rag\_llm
-
-```python
-def execute_rag_llm(chat_message, user, organisation)
-```
-
-An rq job to execute the RAG+LLM model.
-
-<a id="tasks.run_indexer"></a>
-
-#### run\_indexer
-
-```python
-def run_indexer(org_row: list[Any], user_rows: list[list[Any]])
-```
-
-Run the indexer job to index the Google Drive documents in Pinecone.
-
-<a id="app"></a>
-
-# app
-
-Basic init in order to make this an explicit package.
-
-<a id="app.tasks"></a>
-
-# app.tasks
-
-This module contains the tasks that are executed asynchronously.
-
-<a id="app.tasks.execute_rag_llm"></a>
-
-#### execute\_rag\_llm
-
-```python
-def execute_rag_llm(chat_message: str, user: str, organisation: str) -> dict
-```
-
-A task to execute the RAG+LLM model.
-
-<a id="app.tasks.run_indexer"></a>
-
-#### run\_indexer
-
-```python
-def run_indexer()
-```
-
-An rq job to run the indexer
-
-<a id="app.routes.auth"></a>
-
-# app.routes.auth
-
-Routes for user authentication.
-
-<a id="app.routes.auth.profile"></a>
-
-#### profile
-
-```python
-@auth_bp.route("/profile")
-def profile()
-```
-
-the profile page
-
-<a id="app.routes.auth.register"></a>
-
-#### register
-
-```python
-@auth_bp.route("/register", methods=["GET", "POST"])
-def register()
-```
-
-Register a new user.
-
-<a id="app.routes.auth.oauth_callback"></a>
-
-#### oauth\_callback
-
-```python
-@auth_bp.route("/oauth2callback")
-def oauth_callback()
-```
-
-OAuth2 callback route.
-
-<a id="app.routes.auth.login_user"></a>
-
-#### login\_user
-
-```python
-def login_user(name: str, email: str, org_id: int, organisation: str) -> None
-```
-
-Log the user in by setting the session variables.
-
-<a id="app.routes.auth.check_user_in_database"></a>
-
-#### check\_user\_in\_database
-
-```python
-def check_user_in_database(email: str) -> UserInfo
-```
-
-Check if the user exists in the database.""
-
-<a id="app.routes.auth.process_user"></a>
-
-#### process\_user
-
-```python
-def process_user(organisation: str, username: str, user_email: str,
-                 access_token: str, refresh_token: str, expires_in: str,
-                 token_type: str, scope: list) -> dict
-```
-
-Process the user information obtained from Google.
-
-<a id="app.routes.chat"></a>
-
-# app.routes.chat
-
-<a id="app.routes.chat.chat"></a>
-
-#### chat
-
-```python
-@chat_bp.route("/chat", methods=["POST"])
-def chat()
-```
-
-Endpoint to post chat messages.
-
-<a id="app.routes.chat.fetch_chat_result"></a>
-
-#### fetch\_chat\_result
-
-```python
-@chat_bp.route("/chat", methods=["GET"])
-def fetch_chat_result()
-```
-
-Endpoint to fetch the result of a chat operation.
-
-<a id="app.routes.admin"></a>
-
-# app.routes.admin
-
-This module contains the routes for the admin page.
-
-<a id="app.routes.admin.admin"></a>
-
-#### admin
-
-```python
-@admin_bp.route("/admin")
-def admin()
-```
-
-The admin page.
-
-<a id="app.routes.admin.job_status"></a>
-
-#### job\_status
-
-```python
-@admin_bp.route("/admin/job-status/<job_id>")
-def job_status(job_id)
-```
-
-Return the status of a job given its job_id
-
-<a id="app.routes.admin.start_indexing"></a>
-
-#### start\_indexing
-
-```python
-@admin_bp.route("/admin/index", methods=["POST"])
-def start_indexing()
-```
-
-Start indexing the data
-
-<a id="app.routes.admin.list_indexes"></a>
-
-#### list\_indexes
-
-```python
-@admin_bp.route("/admin/pinecone")
-def list_indexes()
-```
-
-the list indexes page
-
-<a id="app.routes.admin.index_details"></a>
-
-#### index\_details
-
-```python
-@admin_bp.route("/admin/pinecone/<host_name>")
-def index_details(host_name: str) -> str
-```
-
-the index details page
-
-<a id="app.utils"></a>
-
-# app.utils
-
-Utility functions for the application.
-
-<a id="app.utils.is_admin"></a>
-
-#### is\_admin
-
-```python
-def is_admin(google_id: str) -> bool
-```
-
-Check if the user is an admin.
-
-<a id="app.utils.get_db_connection"></a>
-
-#### get\_db\_connection
-
-```python
-def get_db_connection()
-```
-
-Get a database connection.
-
-Returns
--------
-    conn: a connection to the database
-
 <a id="lorelai"></a>
 
 # lorelai
-
-<a id="lorelai.processor"></a>
-
-# lorelai.processor
-
-Contains the Processor class that processes and indexes them in Pinecone.
-
-<a id="lorelai.processor.Processor"></a>
-
-## Processor Objects
-
-```python
-class Processor()
-```
-
-This class is used to process the Google Drive documents and index them in Pinecone.
-
-<a id="lorelai.processor.Processor.__init__"></a>
-
-#### \_\_init\_\_
-
-```python
-def __init__()
-```
-
-Initialize the Processor class.
-
-<a id="lorelai.processor.Processor.pinecone_filter_deduplicate_documents_list"></a>
-
-#### pinecone\_filter\_deduplicate\_documents\_list
-
-```python
-def pinecone_filter_deduplicate_documents_list(documents: Iterable[Document],
-                                               pc_index) -> list
-```
-
-Process the vectors and removes vector which exist in database.
-
-Also tag doc metadata with new user
-
-**Arguments**:
-
-- `documents`: the documents to process
-- `pc_index`: pinecone index object
-
-**Returns**:
-
-1. (list of documents deduplicated and filtered , ready to be inserted in pinecone)
-2. (number of documents updated)
-
-<a id="lorelai.processor.Processor.pinecone_format_vectors"></a>
-
-#### pinecone\_format\_vectors
-
-```python
-def pinecone_format_vectors(documents: Iterable[Document],
-                            embeddings_model: Embeddings) -> list
-```
-
-process the documents and format them for pinecone insert.
-
-**Arguments**:
-
-- `docs`: the documents to process
-- `embeddings_model`: embeddings_model object
-
-**Returns**:
-
-list of documents ready to be inserted in pinecone
-
-<a id="lorelai.processor.Processor.store_docs_in_pinecone"></a>
-
-#### store\_docs\_in\_pinecone
-
-```python
-def store_docs_in_pinecone(docs: Iterable[Document], index_name) -> None
-```
-
-process the documents and index them in Pinecone
-
-**Arguments**:
-
-- `docs`: the documents to process
-- `organisation`: the organisation to process
-- `datasource`: the datasource to process
-- `user`: the user to process
-
-<a id="lorelai.processor.Processor.google_docs_to_pinecone_docs"></a>
-
-#### google\_docs\_to\_pinecone\_docs
-
-```python
-def google_docs_to_pinecone_docs(document_ids: list[str],
-                                 credentials: Credentials, org_name: str,
-                                 user_email: str) -> None
-```
-
-Process the Google Drive documents and divide them into pinecone compatible chunks.
-
-**Arguments**:
-
-- `document_id`: the document to process
-- `credentials`: the credentials to use to process the document
-- `org`: the organisation to process
-- `user`: the user to process
-
-**Returns**:
-
-None
 
 <a id="lorelai.contextretriever"></a>
 
@@ -633,81 +304,6 @@ Retrieves details for a specified index in Pinecone.
 
   List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
   in the specified index.
-
-<a id="lorelai.indexer"></a>
-
-# lorelai.indexer
-
-this file creates a class to process google drive documents using the google drive api, chunk
-them using langchain and then index them in pinecone
-
-<a id="lorelai.indexer.Indexer"></a>
-
-## Indexer Objects
-
-```python
-class Indexer()
-```
-
-Used to process the Google Drive documents and index them in Pinecone.
-
-<a id="lorelai.indexer.Indexer.index_org_drive"></a>
-
-#### index\_org\_drive
-
-```python
-def index_org_drive(org: list[Any], users: list[list[Any]]) -> None
-```
-
-Process the Google Drive documents for an organisation.
-
-**Arguments**:
-
-- `org`: the organisation to process, a list of org details (org_id, name)
-- `users`: the users to process, a list of user details (user_id, name, email, token,
-refresh_token)
-
-**Returns**:
-
-None
-
-<a id="lorelai.indexer.Indexer.index_user_drive"></a>
-
-#### index\_user\_drive
-
-```python
-def index_user_drive(user: list[Any], org: list[Any]) -> None
-```
-
-Process the Google Drive documents for a user and index them in Pinecone.
-
-**Arguments**:
-
-- `user`: the user to process, a list of user details (user_id, name, email, token,
-refresh_token)
-- `org`: the organisation to process, a list of org details (org_id, name)
-
-**Returns**:
-
-None
-
-<a id="lorelai.indexer.Indexer.get_google_docs_ids"></a>
-
-#### get\_google\_docs\_ids
-
-```python
-def get_google_docs_ids(credentials) -> list[str]
-```
-
-Retrieve all Google Docs document IDs from the user's Google Drive.
-
-**Arguments**:
-
-- `credentials`: Google-auth credentials object for the user
-
-**Returns**:
-
-List of document IDs
 
 <a id="lorelai.utils"></a>
 
@@ -897,4 +493,429 @@ def get_llm_status()
 ```
 
 Get the status of the LLM model.
+
+<a id="lorelai.processor"></a>
+
+# lorelai.processor
+
+Contains the Processor class that processes and indexes them in Pinecone.
+
+<a id="lorelai.processor.Processor"></a>
+
+## Processor Objects
+
+```python
+class Processor()
+```
+
+This class is used to process the Google Drive documents and index them in Pinecone.
+
+<a id="lorelai.processor.Processor.__init__"></a>
+
+#### \_\_init\_\_
+
+```python
+def __init__()
+```
+
+Initialize the Processor class.
+
+<a id="lorelai.processor.Processor.pinecone_filter_deduplicate_documents_list"></a>
+
+#### pinecone\_filter\_deduplicate\_documents\_list
+
+```python
+def pinecone_filter_deduplicate_documents_list(documents: Iterable[Document],
+                                               pc_index) -> list
+```
+
+Process the vectors and removes vector which exist in database.
+
+Also tag doc metadata with new user
+
+**Arguments**:
+
+- `documents`: the documents to process
+- `pc_index`: pinecone index object
+
+**Returns**:
+
+1. (list of documents deduplicated and filtered , ready to be inserted in pinecone)
+2. (number of documents updated)
+
+<a id="lorelai.processor.Processor.pinecone_format_vectors"></a>
+
+#### pinecone\_format\_vectors
+
+```python
+def pinecone_format_vectors(documents: Iterable[Document],
+                            embeddings_model: Embeddings) -> list
+```
+
+process the documents and format them for pinecone insert.
+
+**Arguments**:
+
+- `docs`: the documents to process
+- `embeddings_model`: embeddings_model object
+
+**Returns**:
+
+list of documents ready to be inserted in pinecone
+
+<a id="lorelai.processor.Processor.remove_nolonger_accessed_documents"></a>
+
+#### remove\_nolonger\_accessed\_documents
+
+```python
+def remove_nolonger_accessed_documents(formatted_documents, pc_index,
+                                       embedding_dimension, user_email)
+```
+
+Delete document from pinecone, which user no longer have accessed
+
+**Arguments**:
+
+- `formatted_documents`: document user currently have access to
+- `pc_index`: pinecone index object
+- `embedding_dimension`: embedding model dimension
+
+**Returns**:
+
+None
+
+<a id="lorelai.processor.Processor.store_docs_in_pinecone"></a>
+
+#### store\_docs\_in\_pinecone
+
+```python
+def store_docs_in_pinecone(docs: Iterable[Document], index_name,
+                           user_email) -> None
+```
+
+process the documents and index them in Pinecone
+
+**Arguments**:
+
+- `docs`: the documents to process
+- `index_name`: name of index
+- `user_email`: the user to process
+
+<a id="lorelai.processor.Processor.google_docs_to_pinecone_docs"></a>
+
+#### google\_docs\_to\_pinecone\_docs
+
+```python
+def google_docs_to_pinecone_docs(document_ids: list[str],
+                                 credentials: Credentials, org_name: str,
+                                 user_email: str) -> None
+```
+
+Process the Google Drive documents and divide them into pinecone compatible chunks.
+
+**Arguments**:
+
+- `document_id`: the document to process
+- `credentials`: the credentials to use to process the document
+- `org`: the organisation to process
+- `user`: the user to process
+
+**Returns**:
+
+None
+
+<a id="lorelai.indexer"></a>
+
+# lorelai.indexer
+
+this file creates a class to process google drive documents using the google drive api, chunk
+them using langchain and then index them in pinecone
+
+<a id="lorelai.indexer.Indexer"></a>
+
+## Indexer Objects
+
+```python
+class Indexer()
+```
+
+Used to process the Google Drive documents and index them in Pinecone.
+
+<a id="lorelai.indexer.Indexer.index_org_drive"></a>
+
+#### index\_org\_drive
+
+```python
+def index_org_drive(org: list[Any], users: list[list[Any]]) -> None
+```
+
+Process the Google Drive documents for an organisation.
+
+**Arguments**:
+
+- `org`: the organisation to process, a list of org details (org_id, name)
+- `users`: the users to process, a list of user details (user_id, name, email, token,
+refresh_token)
+
+**Returns**:
+
+None
+
+<a id="lorelai.indexer.Indexer.index_user_drive"></a>
+
+#### index\_user\_drive
+
+```python
+def index_user_drive(user: list[Any], org: list[Any]) -> None
+```
+
+Process the Google Drive documents for a user and index them in Pinecone.
+
+**Arguments**:
+
+- `user`: the user to process, a list of user details (user_id, name, email, token,
+refresh_token)
+- `org`: the organisation to process, a list of org details (org_id, name)
+
+**Returns**:
+
+None
+
+<a id="lorelai.indexer.Indexer.get_google_docs_ids"></a>
+
+#### get\_google\_docs\_ids
+
+```python
+def get_google_docs_ids(credentials) -> list[str]
+```
+
+Retrieve all Google Docs document IDs from the user's Google Drive.
+
+**Arguments**:
+
+- `credentials`: Google-auth credentials object for the user
+
+**Returns**:
+
+List of document IDs
+
+<a id="app"></a>
+
+# app
+
+Basic init in order to make this an explicit package.
+
+<a id="app.utils"></a>
+
+# app.utils
+
+Utility functions for the application.
+
+<a id="app.utils.is_admin"></a>
+
+#### is\_admin
+
+```python
+def is_admin(google_id: str) -> bool
+```
+
+Check if the user is an admin.
+
+<a id="app.utils.get_db_connection"></a>
+
+#### get\_db\_connection
+
+```python
+def get_db_connection()
+```
+
+Get a database connection.
+
+Returns
+-------
+    conn: a connection to the database
+
+<a id="app.routes.auth"></a>
+
+# app.routes.auth
+
+Routes for user authentication.
+
+<a id="app.routes.auth.profile"></a>
+
+#### profile
+
+```python
+@auth_bp.route("/profile")
+def profile()
+```
+
+the profile page
+
+<a id="app.routes.auth.register"></a>
+
+#### register
+
+```python
+@auth_bp.route("/register", methods=["GET", "POST"])
+def register()
+```
+
+Register a new user.
+
+<a id="app.routes.auth.oauth_callback"></a>
+
+#### oauth\_callback
+
+```python
+@auth_bp.route("/oauth2callback")
+def oauth_callback()
+```
+
+OAuth2 callback route.
+
+<a id="app.routes.auth.login_user"></a>
+
+#### login\_user
+
+```python
+def login_user(name: str, email: str, org_id: int, organisation: str) -> None
+```
+
+Log the user in by setting the session variables.
+
+<a id="app.routes.auth.check_user_in_database"></a>
+
+#### check\_user\_in\_database
+
+```python
+def check_user_in_database(email: str) -> UserInfo
+```
+
+Check if the user exists in the database.""
+
+<a id="app.routes.auth.process_user"></a>
+
+#### process\_user
+
+```python
+def process_user(organisation: str, username: str, user_email: str,
+                 access_token: str, refresh_token: str, expires_in: str,
+                 token_type: str, scope: list) -> dict
+```
+
+Process the user information obtained from Google.
+
+<a id="app.routes.admin"></a>
+
+# app.routes.admin
+
+This module contains the routes for the admin page.
+
+<a id="app.routes.admin.admin"></a>
+
+#### admin
+
+```python
+@admin_bp.route("/admin")
+def admin()
+```
+
+The admin page.
+
+<a id="app.routes.admin.job_status"></a>
+
+#### job\_status
+
+```python
+@admin_bp.route("/admin/job-status/<job_id>")
+def job_status(job_id)
+```
+
+Return the status of a job given its job_id
+
+<a id="app.routes.admin.start_indexing"></a>
+
+#### start\_indexing
+
+```python
+@admin_bp.route("/admin/index", methods=["POST"])
+def start_indexing()
+```
+
+Start indexing the data
+
+<a id="app.routes.admin.list_indexes"></a>
+
+#### list\_indexes
+
+```python
+@admin_bp.route("/admin/pinecone")
+def list_indexes()
+```
+
+the list indexes page
+
+<a id="app.routes.admin.index_details"></a>
+
+#### index\_details
+
+```python
+@admin_bp.route("/admin/pinecone/<host_name>")
+def index_details(host_name: str) -> str
+```
+
+the index details page
+
+<a id="app.routes.chat"></a>
+
+# app.routes.chat
+
+<a id="app.routes.chat.chat"></a>
+
+#### chat
+
+```python
+@chat_bp.route("/chat", methods=["POST"])
+def chat()
+```
+
+Endpoint to post chat messages.
+
+<a id="app.routes.chat.fetch_chat_result"></a>
+
+#### fetch\_chat\_result
+
+```python
+@chat_bp.route("/chat", methods=["GET"])
+def fetch_chat_result()
+```
+
+Endpoint to fetch the result of a chat operation.
+
+<a id="app.tasks"></a>
+
+# app.tasks
+
+This module contains the tasks that are executed asynchronously.
+
+<a id="app.tasks.execute_rag_llm"></a>
+
+#### execute\_rag\_llm
+
+```python
+def execute_rag_llm(chat_message: str, user: str, organisation: str) -> dict
+```
+
+A task to execute the RAG+LLM model.
+
+<a id="app.tasks.run_indexer"></a>
+
+#### run\_indexer
+
+```python
+def run_indexer()
+```
+
+An rq job to run the indexer
 

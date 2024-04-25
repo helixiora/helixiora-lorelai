@@ -1,8 +1,16 @@
 # Prerequisites
 
 ## MySQL
+### Installation
+In order to store user and organisation data we utilize MySQL, though we recommend going with MariaDB. Please make sure to install it using [the documentation](https://mariadb.com/kb/en/getting-installing-and-upgrading-mariadb/) for your operating system and that it's reachable from the Lorelai instance.
+### Setup
+Once installed, make sure to create a database, a user with the approapriate grants and import the sql file found [here](./db/lorelai.sql)
 
-In order to store user and organisation data we utilize MySQL. 
+1. Connect to your MySQL instance (default installs allow access from root without password ```your-shell$ sudo mysql```).
+2. Create the database: ```create database $NAME;``` where $NAME would be what you later use for configuring LorelAI.
+3. Create the user ```grant usage on *.* to '$USER'@'$HOST_WHERE_LORELAI_LIVES' identified by '$PASSWORD';```. Here the $HOST_WHERE_LORELAI_LIVES is where you would launch the app, particularly the IP which the MySQL instance will see as the inbound connection. For local installs simply use 'localhost' or '127.0.0.1' here.
+4. Grant the relevant permissions ```grant all on $NAME.* to '$USER'@'$HOST_WHERE_LORELAI_LIVES';```
+5. Back on the shell again, import the file into the database ```your-shell$ mysql $NAME < path/to/db/lorelai.sql```
 
 ## Redis
 Please make sure to follow official documentation for installing Redis on your distribution of choice. Below is a general guide.
