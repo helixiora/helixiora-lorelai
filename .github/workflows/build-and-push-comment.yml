@@ -45,7 +45,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.3.0
 
-      - name: Extract branch name or set 'latest'
+      - name: Extract branch name
         id: prep
         run: |
             BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g; s/#//g')
