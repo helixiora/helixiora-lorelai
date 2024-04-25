@@ -32,7 +32,7 @@ def setup_arg_parser() -> argparse.ArgumentParser:
             None
     Returns:
             argparser object.
-            lots of good fortunes
+            lots of good fortune
     """
     parser = argparse.ArgumentParser(description="Runs a benchmark.")
     parser.add_argument(
