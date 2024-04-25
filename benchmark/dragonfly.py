@@ -67,7 +67,10 @@ def main():
 
     elif args.verb == "upload":
         if args.data_source == "drive":
+            # authenticate with Google Drive
             service = benchmark.operations.google_drive_auth(config["drive_service_config"])
+
+            # find or create folder and upload files
             folder_id = benchmark.operations.find_or_create_folder(service, config["folder_name"])
             benchmark.operations.upload_files(service, folder_id, config["data_dir"])
         else:
