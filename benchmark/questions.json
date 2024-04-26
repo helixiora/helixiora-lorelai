@@ -1,0 +1,29 @@
+[
+    {
+        "question": "What was the closing price of IBM stock in the article published on July 5, 1987?",
+        "class": "fact_retrieval",
+        "answer": "$125.50",
+        "context": {
+            "excerpt": "On July 5, 1987, the closing price of IBM stock was reported to be $125.50.",
+            "source": "google drive://stocks/IBM STOCK PRICES JULY 1987"
+        }
+    },
+    {
+        "question": "Which country was highlighted as the top coffee producer in 1987?",
+        "class": "fact_retrieval",
+        "answer": "Brazil",
+        "context": {
+            "excerpt": "Brazil was highlighted as the world's top coffee producer in 1987, according to a Reuters article.",
+            "source": "google drive://agriculture/TOP COFFEE PRODUCERS 1987"
+        }
+    },
+    {
+        "question": "What major political event in the United Kingdom was covered on September 10, 1987?",
+        "class": "fact_retrieval",
+        "answer": "Margaret Thatcher's re-election campaign launch",
+        "context": {
+            "excerpt": "Margaret Thatcher launched her re-election campaign on September 10, 1987, which was extensively covered by Reuters.",
+            "source": "google drive://politics/THATCHER CAMPAIGN LAUNCH 1987"
+        }
+    }
+]

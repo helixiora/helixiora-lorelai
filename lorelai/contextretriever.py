@@ -8,6 +8,7 @@ contexts for specified questions. It leverages Pinecone's vector search capabili
 OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
 """
 
+import logging
 from typing import Any, Dict, List, Tuple
 
 from langchain_core.documents import Document
@@ -55,6 +56,7 @@ class ContextRetriever:
         Returns:
             tuple: A tuple containing the retrieval result and a list of sources for the context.
         """
+        logging.info(f"Retrieving context for question: {question}")
 
         index_name = pinecone_index_name(
             org=self.org_name,

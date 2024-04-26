@@ -5,7 +5,6 @@ Module to perform benchmarking using LaurelAI's validation system.
 """
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -39,9 +38,7 @@ def validate_config(config, verb):
             "question_file",
             "org_name",
             "user_name",
-            "evaluator",
-            "api_key",
-            "project_id",
+            # "evaluator",
         ],
     }
     missing_keys = [key for key in necessary_keys[verb] if key not in config]
@@ -78,12 +75,12 @@ def main():
             sys.exit(1)
 
     elif args.verb == "benchmark":
-        with open(args.question_file, "r", encoding="utf-8") as f:
-            q_a = json.load(f)
-
-        benchmark_run = benchmark.Run()
+        benchmark_run = benchmark.run.Run()
         benchmark_run.benchmark(
-            args.org_name, args.user_name, q_a, args.evaluator, args.api_key, args.project_id
+            org_name=config["org_name"],
+            user_name=config["user_name"],
+            question_file=config["question_file"],
+            question_classes_file=config["question_classes_file"],
         )
     else:
         logging.error(f"Invalid operation: {args.verb}")
