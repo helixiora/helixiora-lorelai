@@ -14,7 +14,9 @@ from lorelai.indexer import Indexer
 from lorelai.llm import Llm
 
 
-def execute_rag_llm(chat_message: str, user: str, organisation: str) -> dict:
+def execute_rag_llm(
+    chat_message: str, user: str, organisation: str, model_type: str = "OpenAILlm"
+) -> dict:
     """
     A task to execute the RAG+LLM model.
     """
@@ -34,7 +36,7 @@ def execute_rag_llm(chat_message: str, user: str, organisation: str) -> dict:
         if context is None:
             raise ValueError("Failed to retrieve context for the provided chat message.")
 
-        llm = Llm(model="gpt-3.5-turbo")
+        llm = Llm.create(model_type=model_type)
         answer = llm.get_answer(question=chat_message, context=context)
 
         logger.info("Answer: %s", answer)

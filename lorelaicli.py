@@ -22,7 +22,7 @@ def main() -> None:
     user_id = get_user_from_organisation(org_id, args.user_name)
     enriched_context = ContextRetriever(org_name=org_name, user=user_id)
     answer, source = enriched_context.retrieve_context(question)
-    llm = Llm()
+    llm = Llm.create(model_type=args.model_type)
     llm_answer = llm.get_answer(question, answer)
     display_results(llm_answer, source)
 
@@ -33,6 +33,7 @@ def setup_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("question", help="Question to query")
     parser.add_argument("--org-name", help="Name of the organisation", default=None)
     parser.add_argument("--user-name", help="Name of the user", default=None)
+    parser.add_argument("--model-type", help="Type of the model to use", default="OpenAILlm")
     return parser
 
 

@@ -11,8 +11,8 @@ from lorelai.llm import Llm  # noqa E402
 
 
 class Run:
-    def __init__(self):
-        self.llm = Llm(model="gpt-3.5-turbo")
+    def __init__(self, model_type="OpenAILlm"):
+        self.llm = Llm.create(model_type=model_type)
 
     def benchmark(self, org_name, user_name, question_file, question_classes_file):
         logging.info("Starting benchmarking")

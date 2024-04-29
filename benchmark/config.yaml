@@ -8,3 +8,8 @@ drive_service_config: credentials.json
 default_evaluator: gpt-3.5-turbo
 lorelai_api: http://localhost:5000
 data_dir: test_data
+
+question_file: questions.json
+question_classes_file: questionclasses.yaml
+org_name: "Helixiora"
+user_name: "Walter Heck"

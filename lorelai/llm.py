@@ -1,7 +1,3 @@
-"""
-a class that takes a question and context and sends it to the LLM, then returns the answer
-"""
-
 import os
 
 from langchain_core.output_parsers import StrOutputParser
@@ -12,51 +8,61 @@ from lorelai.utils import load_config
 
 
 class Llm:
-    """A class to interact with the OpenAI llm for answering questions based on context"""
+    """Base class to handle interaction with different language model APIs."""
 
-    def __init__(self, model="gpt-3.5-turbo"):
-        creds = load_config("openai")
-        self.openai_creds = creds
-        os.environ["OPENAI_API_KEY"] = creds["api_key"]
-        self.model = model
+    _allowed = False  # Flag to control constructor access
+
+    @staticmethod
+    def create(model_type="OpenAILlm"):
+        """Factory method to create instances of derived classes based on the class name."""
+        Llm._allowed = True
+        class_ = globals().get(model_type)
+        if class_ is None or not issubclass(class_, Llm):
+            Llm._allowed = False
+            raise ValueError(f"Unsupported model type: {model_type}")
+        instance = class_()
+        Llm._allowed = False
+        return instance
+
+    def __init__(self):
+        if not self._allowed:
+            raise Exception("This class should be instantiated through a create() factory method.")
 
     def get_answer(self, question, context):
-        """Get the answer to a question based on the provided context using the OpenAI language
-        model.
+        """Retrieve an answer to a given question based on provided context."""
+        raise NotImplementedError
 
-        parameters:
-            question (str): The question to be answered.
-            context (str): The context in which the question is asked.
-        """
+    def get_llm_status(self):
+        """Retrieve the status of the language model."""
+        raise NotImplementedError
 
-        prompt_template = """
-        Answer the following question solely based on the context provided below. Translate Dutch
-        to English if needed.:
+
+class OpenAILlm(Llm):
+    """Class to interact with the OpenAI LLM for answering context-based questions."""
+
+    def __init__(self):
+        super().__init__()
+        self.openai_creds = load_config("openai")
+        os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
+        self.model = "gpt-3.5-turbo"
+
+    def get_answer(self, question, context):
+        """Implementation specific to OpenAI models."""
+        prompt_template = f"""
+        Answer the following question based on the provided context:
         {context}
 
         Question: {question}
         """
-
-        # Create a prompt from the template
         prompt = PromptTemplate.from_template(prompt_template)
+        prompt.format(context=context, question=question)
 
-        # Create a chain of components to process the prompt
         model = ChatOpenAI(model=self.model)
-
-        # Create an output parser to extract the answer from the model's response
         output_parser = StrOutputParser()
-
-        # Create a chain of components to process the prompt
-        chain = prompt | model | output_parser
-
-        # Invoke the chain
-        result = chain.invoke({"context": context, "question": question})
-
-        # Return the result
+        result = (prompt | model | output_parser).invoke({"context": context, "question": question})
         return result
 
     def get_llm_status(self):
-        """Get the status of the LLM model."""
-        chat = ChatOpenAI(model=self.model)
-
-        return chat.get_status()
+        """Check the current status of the LLM."""
+        model = ChatOpenAI(model=self.model)
+        return model.get_status()
