@@ -18,6 +18,9 @@
         "environment_slug": "a name to recognise this env by"
     },
     "db": {
-        "db_path": "./userdb.sqlite"
+        "host": "your_mysql_server",
+        "user": "the_db_user",
+        "database": "the_name_of_your_db",
+        "password": "the_password_for_your_user"
     }
 }

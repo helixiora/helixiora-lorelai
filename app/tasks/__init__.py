@@ -65,7 +65,7 @@ def run_indexer():
 
     conn = get_db_connection()
     try:
-        # Connect to SQLite database
+        # Connect to database
         cur = conn.cursor()
 
         # Fetch organisations
@@ -75,8 +75,9 @@ def run_indexer():
         for org in org_rows:
             # Fetch user credentials for this org
             cur.execute(
-                "SELECT user_id, name, email, access_token, refresh_token FROM users \n"
-                "WHERE org_id = ?",
+                """
+                SELECT user_id, name, email, access_token, refresh_token FROM users
+                WHERE org_id = %s""",
                 (org[0],),
             )
             users = cur.fetchall()
