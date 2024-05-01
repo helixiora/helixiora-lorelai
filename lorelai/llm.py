@@ -1,5 +1,7 @@
+import logging
 import os
 
+from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
@@ -11,6 +13,13 @@ class Llm:
     """Base class to handle interaction with different language model APIs."""
 
     _allowed = False  # Flag to control constructor access
+
+    _prompt_template = """
+        Answer the following question based on the provided context:
+        {context_doc_text}
+
+        Question: {question}
+        """
 
     @staticmethod
     def create(model_type="OpenAILlm"):
@@ -48,18 +57,29 @@ class OpenAILlm(Llm):
 
     def get_answer(self, question, context):
         """Implementation specific to OpenAI models."""
-        prompt_template = f"""
-        Answer the following question based on the provided context:
-        {context}
 
-        Question: {question}
-        """
-        prompt = PromptTemplate.from_template(prompt_template)
-        prompt.format(context=context, question=question)
+        context_doc_text = ""
+        for context_doc in context:
+            if isinstance(context_doc, Document):
+                context_doc_text += context_doc.page_content
+
+        logging.debug("Prompt template: %s", self._prompt_template)
+        logging.debug("Question: %s", question)
+        logging.debug("Context_doc_text: %s", context_doc_text)
+
+        prompt = PromptTemplate.from_template(
+            template=self._prompt_template, template_format="f-string"
+        )
+        prompt.input_variables = ["context_doc_text", "question"]
+        logging.debug("Prompt: %s", prompt)
+
+        # prompt.format(context=context, question=question)
 
         model = ChatOpenAI(model=self.model)
         output_parser = StrOutputParser()
-        result = (prompt | model | output_parser).invoke({"context": context, "question": question})
+        result = (prompt | model | output_parser).invoke(
+            {"context_doc_text": context_doc_text, "question": question}
+        )
         return result
 
     def get_llm_status(self):

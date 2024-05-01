@@ -18,4 +18,4 @@ gevent~=24.2.1
 mysql-connector-python~=8.3.0
 colorama~=0.4.6
 pydoc-markdown~=4.8.2
-FlashRank~=0.2.0
+FlashRank~=0.2.4

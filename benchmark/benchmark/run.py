@@ -8,6 +8,7 @@ import yaml
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
 from lorelai.contextretriever import ContextRetriever  # noqa E402
 from lorelai.llm import Llm  # noqa E402
+from benchmark.validate import Validate  # noqa E402
 
 
 class Run:
@@ -39,7 +40,7 @@ class Run:
             question_classes_file = yaml.safe_load(f)
 
         for question in question_file:
-            logging.info(f"Processing question: {question['question']}")
+            logging.info(f"==> Processing question: {question['question']}")
 
             # get the question class by looking up the class in question_classes_file
             question_class = None
@@ -58,3 +59,10 @@ class Run:
 
             answer = self.llm.get_answer(question["question"], context)
             logging.info(f"Answer: {answer}")
+
+            # validate the answer based on the question class
+            validation_function = question_class["python_function"]
+            validation = Validate()
+            validation_result = getattr(validation, validation_function)(question, answer)
+
+            logging.info(f"Validation result: {validation_result}")

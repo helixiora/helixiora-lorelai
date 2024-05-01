@@ -11,11 +11,11 @@ OpenAI's embeddings and language models to generate responses based on the retri
 import logging
 from typing import Any, Dict, List, Tuple
 
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import FlashrankRerank
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import FlashrankRerank
 from pinecone import Pinecone
 from pinecone.core.client.model.fetch_response import FetchResponse
 from pinecone.models.index_list import IndexList
@@ -58,7 +58,7 @@ class ContextRetriever:
         Returns:
             tuple: A tuple containing the retrieval result and a list of sources for the context.
         """
-        logging.info(f"Retrieving context for question: {question}")
+        logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
         index_name = pinecone_index_name(
             org=self.org_name,
@@ -84,6 +84,9 @@ class ContextRetriever:
         )
 
         results = compression_retriever.get_relevant_documents(question)
+        logging.info(
+            f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
+        )
 
         docs: List[Document] = []
         sources: List[Dict[str, Any]] = []
@@ -92,14 +95,19 @@ class ContextRetriever:
             docs.append(doc)
             # Create a source entry with title, source, and score (converted to percentage and
             # stringified)
+            logging.debug(f"Doc metadata: {doc.metadata}")
+
+            # TODO: the relevance score is a list with two values, wondering which score we should use
+            score = doc.metadata["relevance_score"][0] * 100
             source_entry = {
                 "title": doc.metadata["title"],
                 "source": doc.metadata["source"],
-                "score": "{:.2f}".format(doc.metadata["relevance_score"] * 100),
+                "score": "{:.2f}".format(score),
                 # "score": f"{score*100:.2f}%",
             }
             sources.append(source_entry)
 
+        logging.debug(f"Context: {docs} Sources: {sources}")
         return docs, sources
 
     def get_all_indexes(self) -> IndexList:

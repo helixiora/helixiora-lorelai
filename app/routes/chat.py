@@ -22,6 +22,8 @@ def chat():
     logging.info("Chat request received: %s", content["message"])
     # Assuming session['email'] and session['organisation'] are set after user authentication
     redis_host = os.getenv("REDIS_URL")
+    if not redis_host:
+        return jsonify({"status": "ERROR", "message": "Redis URL is not set"}), 500
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
     job = queue.enqueue(
