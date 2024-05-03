@@ -16,9 +16,6 @@ from rq import get_current_job, job
 import lorelai.utils
 from lorelai.processor import Processor
 
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-
 # The scopes needed to read documents in Google Drive
 SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]
 
