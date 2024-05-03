@@ -8,6 +8,8 @@ from flask import blueprints, redirect, render_template, request, session, url_f
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
+from lorelai.slack_oauth import SlackOAuth
+
 from app.utils import get_db_connection, is_admin, load_config
 
 auth_bp = blueprints.Blueprint("auth", __name__)
@@ -254,3 +256,13 @@ def process_user(
         conn.commit()
 
     return {"name": username, "email": user_email, "organisation": organisation, "org_id": org_id}
+
+slack_oauth = SlackOAuth()
+
+@auth_bp.route('/auth/slack')
+def slack_auth():
+    return redirect(slack_oauth.get_auth_url())
+
+@auth_bp.route('/auth/slack/callback')
+def slack_callback():
+    return slack_oauth.auth_callback()
