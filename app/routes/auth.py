@@ -9,7 +9,7 @@ from flask import blueprints, redirect, render_template, request, session, url_f
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
-from lorelai.slack_oauth import SlackOAuth
+from lorelai.slack.slack_processor import SlackOAuth
 
 from app.utils import get_db_connection, is_admin, load_config
 
