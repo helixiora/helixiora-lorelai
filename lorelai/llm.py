@@ -49,7 +49,7 @@ class Llm:
 
 
 class OllamaLlama3(Llm):
-    """Class to interact with a locally hosted Llama3 7b model for answering context-based questions."""
+    """Class to interact with a local Llama3 7b model for answering context-based questions."""
 
     def __init__(self):
         super().__init__()

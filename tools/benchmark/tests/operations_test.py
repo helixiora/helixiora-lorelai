@@ -45,7 +45,8 @@ def test_download_nltk_reuters(mocker):
 # def test_google_drive_auth(mocker):
 #     # Ensure correct mocking of external dependencies
 #     mock_flow = Mock()
-#     mocker.patch('google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file', return_value=mock_flow)
+#     mocker.patch('google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file',
+#       return_value=mock_flow)
 #     mock_build = Mock()
 #     mocker.patch('googleapiclient.discovery.build', return_value=mock_build)
 

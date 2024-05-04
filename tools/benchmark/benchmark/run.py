@@ -18,11 +18,11 @@ class Run:
     def benchmark(self, org_name, user_name, question_file, question_classes_file):
         logging.info("Starting benchmarking")
         # {
-        #     "question": "What was the closing price of IBM stock in the article published on July 5, 1987?",
+        #     "question": "What was the closing price of IBM stock on July 5, 1987?",
         #     "class": "fact_retrieval",
         #     "answer": "$125.50",
         #     "context": {
-        #         "excerpt": "On July 5, 1987, the closing price of IBM stock was reported to be $125.50.",
+        #         "excerpt": "On July 5, 1987, the closing price of IBM stock was  $125.50.",
         #         "source": "google drive://stocks/IBM STOCK PRICES JULY 1987"
         #     }
         # },
@@ -32,7 +32,7 @@ class Run:
         # question_classes:
         # - class_name: "fact_retrieval"
         #     description: >
-        #     Questions that require retrieving factual information from a knowledge base or external sources.
+        #     Questions that require retrieving factual information from a knowledge base.
         #     validation_method: >
         #     Check if the retrieved answer matches verified factual sources.
         #     python_function: "validate_fact_retrieval"
@@ -52,7 +52,6 @@ class Run:
             assert (
                 question_class is not None
             ), f"Question class not found for question: {question['question']}"
-            # logging.info(f"Question class: {question_class["class_name"]}: {question_class["description"]}")
 
             context_retriever = ContextRetriever(org_name=org_name, user=user_name)
             context = context_retriever.retrieve_context(question["question"])

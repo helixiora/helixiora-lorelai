@@ -90,7 +90,7 @@ def find_or_create_folder(service, folder_name):
 
 def file_exists(service, name, folder_id):
     """
-    Check if a file or folder with the given name already exists in the specified folder on Google Drive.
+    Check if a file or folder already exists in the specified folder on Google Drive.
 
     Args:
         service: Google Drive service object
@@ -111,7 +111,7 @@ def file_exists(service, name, folder_id):
 
 def upload_files(service, folder_id, directory):
     """
-    Recursively upload files from a directory to a Google Drive folder, checking for existing files and folders.
+    Recursively upload files from a directory to Google Drive, checking for existing files/folders.
 
     Args:
         service: Google Drive service object

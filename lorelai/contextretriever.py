@@ -97,7 +97,7 @@ class ContextRetriever:
             # stringified)
             logging.debug(f"Doc metadata: {doc.metadata}")
 
-            # TODO: the relevance score is a list with two values, wondering which score we should use
+            # TODO: the relevance score is a list with two values, wondering which score to use
             score = doc.metadata["relevance_score"][0] * 100
             source_entry = {
                 "title": doc.metadata["title"],

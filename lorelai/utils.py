@@ -194,17 +194,12 @@ def print_index_stats_diff(index_stats_before, index_stats_after):
     """prints the difference in the index statistics"""
     if index_stats_before and index_stats_after:
         diff = {
-            "num_documents": index_stats_after.num_documents
-            - index_stats_before.num_documents,
-            "num_vectors": index_stats_after.num_vectors
-            - index_stats_before.num_vectors,
-            "num_partitions": index_stats_after.num_partitions
-            - index_stats_before.num_partitions,
-            "num_replicas": index_stats_after.num_replicas
-            - index_stats_before.num_replicas,
+            "num_documents": index_stats_after.num_documents - index_stats_before.num_documents,
+            "num_vectors": index_stats_after.num_vectors - index_stats_before.num_vectors,
+            "num_partitions": index_stats_after.num_partitions - index_stats_before.num_partitions,
+            "num_replicas": index_stats_after.num_replicas - index_stats_before.num_replicas,
             "num_shards": index_stats_after.num_shards - index_stats_before.num_shards,
-            "num_segments": index_stats_after.num_segments
-            - index_stats_before.num_segments,
+            "num_segments": index_stats_after.num_segments - index_stats_before.num_segments,
             "num_unique_segments": index_stats_after.num_unique_segments
             - index_stats_before.num_unique_segments,
             "num_unique_shards": index_stats_after.num_unique_shards
