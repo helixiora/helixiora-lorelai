@@ -1,5 +1,5 @@
 # Getting started with LorelAI
-In order to start working with LorelAI, please make sure you've followed all of the [prerequisites](prerequisites.md). This guide only covers the app specific parts.
+In order to start working with LorelAI, please make sure you've followed all of the [prerequisites](./prerequisites.md). This guide only covers the app specific parts.
 
 There are two ways LorelAI can be deployed/ran:
 
@@ -8,6 +8,7 @@ There are two ways LorelAI can be deployed/ran:
 1. Create a Python virtual environment: `python -m venv .venv`
 2. Activate it with `source .venv/bin/activate`.
 3. Install required dependencies: `pip install -r requirements.txt`.
+4. Get the database up and running, see the [readme in './db'](../db/readme.md)
 4. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
 5. Run an rq worker:
 
