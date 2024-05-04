@@ -1,11 +1,11 @@
 import logging
-import os
 
 from flask import blueprints, jsonify, request, session
 from redis import Redis
 from rq import Queue
 
 from app.tasks import execute_rag_llm
+from app.utils import load_config
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
@@ -21,7 +21,9 @@ def chat():
 
     logging.info("Chat request received: %s", content["message"])
     # Assuming session['email'] and session['organisation'] are set after user authentication
-    redis_host = os.getenv("REDIS_URL")
+    redis = load_config("redis")
+    redis_host = redis["url"]
+
     if not redis_host:
         return jsonify({"status": "ERROR", "message": "Redis URL is not set"}), 500
     redis_conn = Redis.from_url(redis_host)
@@ -46,7 +48,9 @@ def fetch_chat_result():
 
     logging.info("Fetching job result for job ID: %s", job_id)
 
-    redis_host = os.getenv("REDIS_URL")
+    redis = load_config("redis")
+    redis_host = redis["url"]
+
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)

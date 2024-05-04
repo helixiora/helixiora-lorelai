@@ -10,6 +10,7 @@ from rq import Queue
 from app.tasks import run_indexer
 from app.utils import get_db_connection, is_admin
 from lorelai.contextretriever import ContextRetriever
+from lorelai.utils import load_config
 
 admin_bp = blueprints.Blueprint("admin", __name__)
 
@@ -25,7 +26,8 @@ def admin():
 @admin_bp.route("/admin/job-status/<job_id>")
 def job_status(job_id):
     """Return the status of a job given its job_id"""
-    redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis = load_config("redis")
+    redis_host = redis["url"]
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
