@@ -15,7 +15,7 @@ def main() -> None:
     """Implement the main function."""
     # get the orgs from db
     with get_db_connection() as conn:
-        cur = conn.cursor()
+        cur = conn.cursor(dictionary=True)
         cur.execute("SELECT id, name FROM organisations")
         rows = cur.fetchall()
 

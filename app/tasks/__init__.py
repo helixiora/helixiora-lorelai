@@ -3,9 +3,8 @@ This module contains the tasks that are executed asynchronously.
 """
 
 import logging
-from typing import Dict, List, Union
+from typing import List
 
-from mysql.connector.types import RowItemType, RowType
 from rq import get_current_job
 
 # import the indexer
@@ -54,8 +53,8 @@ def execute_rag_llm(
 
 
 def run_indexer(
-    org_row: List[Union[RowType, Dict[str, RowItemType]]],
-    user_rows: List[Union[RowType, Dict[str, RowItemType]]],
+    org_row: List[any],
+    user_rows: List[any],
 ):
     """
     An rq job to run the indexer
@@ -64,7 +63,7 @@ def run_indexer(
     if job is None:
         raise ValueError("Could not get the current job.")
 
-    print(f"Task ID -> Run Indexer: {job.id}")
+    print(f"Task ID -> Run Indexer: {job.id} for {org_row} ")
 
     # Initialize indexer and perform indexing
     indexer = Indexer()

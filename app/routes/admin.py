@@ -74,7 +74,7 @@ def start_indexing():
             if not org_id:
                 return "No organization ID found for the user in the session details", 403
 
-            with connection.cursor() as cur:
+            with connection.cursor(dictionary=True) as cur:
                 # Fetch only the organization related to the logged-in user
                 cur.execute("SELECT id, name FROM organisations WHERE id = %s", (org_id,))
                 org_row = cur.fetchone()
@@ -82,7 +82,10 @@ def start_indexing():
                     return "Organization not found", 404
 
                 # Fetch users belonging to the organization
-                cur.execute("SELECT user_id, email FROM users WHERE org_id = %s", (org_row[0],))
+                cur.execute(
+                    "SELECT user_id, name, email, refresh_token FROM users WHERE org_id = %s",
+                    (org_row["id"],),
+                )
                 user_rows = cur.fetchall()
                 if not user_rows:
                     return "No users found in the organization", 404

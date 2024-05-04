@@ -29,7 +29,7 @@ class Indexer:
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds["api_key"]
 
-    def index_org_drive(self: None, org: list[Any], users: list[list[Any]]) -> None:
+    def index_org_drive(self: None, org: dict[Any], users: dict[Any]) -> None:
         """Process the Google Drive documents for an organisation.
 
         :param org: the organisation to process, a list of org details (org_id, name)
@@ -43,7 +43,7 @@ class Indexer:
         for user in users:
             self.index_user_drive(user, org)
 
-    def index_user_drive(self: None, user: list[Any], org: list[Any]) -> None:
+    def index_user_drive(self: None, user: dict[Any], org: dict[Any]) -> None:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
@@ -55,7 +55,7 @@ class Indexer:
         # 1. Load the Google Drive credentials
         if user:
             print(f"Processing user: {user} from org: {org}")
-            refresh_token = user[4]
+            refresh_token = user["refresh_token"]
 
             credentials = Credentials.from_authorized_user_info(
                 {
@@ -72,12 +72,12 @@ class Indexer:
                 print("Refreshed credentials")
 
         # 2. Get the Google Drive document IDs
-        print(f"Getting Google Drive document IDs for user: {user[2]}")
+        print(f"Getting Google Drive document IDs for user: {user['email']}")
         document_ids = self.get_google_docs_ids(credentials)
 
         # 3. Generate the index name we will use in Pinecone
         index_name = lorelai.utils.pinecone_index_name(
-            org=org[1],
+            org=org["name"],
             datasource="googledrive",
             environment=self.settings["environment"],
             env_name=self.settings["environment_slug"],
@@ -90,12 +90,17 @@ class Indexer:
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        print(f"Processing {len(document_ids)} documents for user: {user[2]}")
+        print(f"Processing {len(document_ids)} documents for user: {user['name']}")
         pinecone_processor = Processor()
-        pinecone_processor.google_docs_to_pinecone_docs(document_ids, credentials, org[1], user[2])
+        pinecone_processor.google_docs_to_pinecone_docs(
+            document_ids=document_ids,
+            credentials=credentials,
+            org_name=org["name"],
+            user_email=user["email"],
+        )
 
         # 6. Get index statistics after the indexing process
-        print(f"Indexing complete for user: {user[2]}")
+        print(f"Indexing complete for user: {user['name']}")
         index_stats_after = lorelai.utils.get_index_stats(index_name)
 
         # 7. Print the index statistics
