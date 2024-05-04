@@ -159,3 +159,4 @@ cython_debug/
 benchmark/credentials.json
 benchmark/test_data
 db/flyway.conf
+benchmark/config.yaml
