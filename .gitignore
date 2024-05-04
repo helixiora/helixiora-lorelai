@@ -156,7 +156,7 @@ cython_debug/
 #.idea/
 
 *.rdb
-benchmark/credentials.json
-benchmark/test_data
+tools/benchmark/credentials.json
+tools/benchmark/test_data
+tools/benchmark/config.yaml
 db/flyway.conf
-benchmark/config.yaml
