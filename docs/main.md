@@ -265,7 +265,7 @@ Retrieves context for a given question using Pinecone and OpenAI.
 **Arguments**:
 
 - `question` _str_ - The question for which context is being retrieved.
-  
+
 
 **Returns**:
 
@@ -298,7 +298,7 @@ Retrieves details for a specified index in Pinecone.
 **Arguments**:
 
 - `index_host` _str_ - The host of the index for which to retrieve details.
-  
+
 
 **Returns**:
 
@@ -340,7 +340,7 @@ Load credentials from OS env vars.
   ---------
 - `service` _str_ - The name of the service (e.g 'openai', 'pinecone')
   for which to load
-  
+
 
 **Returns**:
 
@@ -365,7 +365,7 @@ OS env vars.
   ---------
 - `service` _str_ - The name of the service (e.g 'openai', 'pinecone')
   for which to load credentials.
-  
+
 
 **Returns**:
 
@@ -918,4 +918,3 @@ def run_indexer()
 ```
 
 An rq job to run the indexer
-
