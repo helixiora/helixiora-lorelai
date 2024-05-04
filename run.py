@@ -2,6 +2,7 @@
 
 """the main application file for the OAuth2 flow flask app"""
 
+import logging
 import os
 import sys
 
@@ -12,56 +13,28 @@ from google_auth_oauthlib.flow import Flow
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import get_db_connection, is_admin
+from app.utils import is_admin
 from lorelai.utils import load_config
 
 app = Flask(__name__)
+# Get the log level from the environment variable
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
+
+# Set the log level using the mapping, defaulting to logging.INFO if not found
+app.logger.setLevel(logging.getLevelName(log_level))
+
 app.secret_key = "your_very_secret_and_long_random_string_here"
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 
+# this is a print on purpose (not a logger statement) to show that the app is loading
+print("Loading the app...")
+logging.debug("Loading the app...")
+
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-
-# Load the Google OAuth2 secrets
-secrets = load_config("google")
-# check if all the required creds are present
-e_creds = [
-    "client_id",
-    "project_id",
-    "client_secret",
-    "redirect_uris",
-]
-if not all(i in secrets for i in e_creds):
-    missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
-    msg = "Missing required google credentials: "
-    raise ValueError(msg, missing_creds)
-
-client_config = {
-    "web": {
-        "client_id": secrets["client_id"],
-        "project_id": secrets["project_id"],
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_secret": secrets["client_secret"],
-        "redirect_uris": secrets["redirect_uris"],
-    }
-}
-
-lorelaicreds = load_config("lorelai")
-flow = Flow.from_client_config(
-    client_config=client_config,
-    scopes=[
-        "https://www.googleapis.com/auth/userinfo.profile",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/drive.readonly",
-        "openid",
-    ],
-    redirect_uri=lorelaicreds["redirect_uri"],
-)
 
 
 # Improved index route using render_template
@@ -72,6 +45,44 @@ def index():
     Returns:
         string: the index page
     """
+    # Load the Google OAuth2 secrets
+    secrets = load_config("google")
+    # check if all the required creds are present
+    e_creds = [
+        "client_id",
+        "project_id",
+        "client_secret",
+        "redirect_uris",
+    ]
+    if not all(i in secrets for i in e_creds):
+        missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
+        msg = "Missing required google credentials: "
+        raise ValueError(msg, missing_creds)
+
+    client_config = {
+        "web": {
+            "client_id": secrets["client_id"],
+            "project_id": secrets["project_id"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": secrets["client_secret"],
+            "redirect_uris": secrets["redirect_uris"],
+        }
+    }
+
+    lorelaicreds = load_config("lorelai")
+    flow = Flow.from_client_config(
+        client_config=client_config,
+        scopes=[
+            "https://www.googleapis.com/auth/userinfo.profile",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "openid",
+        ],
+        redirect_uri=lorelaicreds["redirect_uri"],
+    )
+
     if "google_id" in session:
         user_data = {
             # 'user_organization': session['organisation'],
@@ -89,9 +100,7 @@ def index():
         return render_template("index.html", auth_url=authorization_url)
     except RuntimeError as e:
         print(f"Error generating authorization URL: {e}")
-        return render_template(
-            "error.html", error_message="Failed to generate login URL."
-        )
+        return render_template("error.html", error_message="Failed to generate login URL.")
 
 
 @app.route("/js/<script_name>.js")
