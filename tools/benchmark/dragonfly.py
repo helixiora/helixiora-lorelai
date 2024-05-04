@@ -75,7 +75,7 @@ def main():
             sys.exit(1)
 
     elif args.verb == "benchmark":
-        benchmark_run = benchmark.run.Run()
+        benchmark_run = benchmark.run.Run(model_type="OllamaLlama3")
         benchmark_run.benchmark(
             org_name=config["org_name"],
             user_name=config["user_name"],
