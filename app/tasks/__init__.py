@@ -3,10 +3,10 @@ This module contains the tasks that are executed asynchronously.
 """
 
 import logging
+from typing import Dict, List, Union
 
+from mysql.connector.types import RowItemType, RowType
 from rq import get_current_job
-
-from app.utils import get_db_connection
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
@@ -53,7 +53,10 @@ def execute_rag_llm(
     return json_data
 
 
-def run_indexer():
+def run_indexer(
+    org_row: List[Union[RowType, Dict[str, RowItemType]]],
+    user_rows: List[Union[RowType, Dict[str, RowItemType]]],
+):
     """
     An rq job to run the indexer
     """
@@ -63,35 +66,9 @@ def run_indexer():
 
     print(f"Task ID -> Run Indexer: {job.id}")
 
-    conn = get_db_connection()
-    try:
-        # Connect to database
-        cur = conn.cursor()
+    # Initialize indexer and perform indexing
+    indexer = Indexer()
+    indexer.index_org_drive(org_row, user_rows)
 
-        # Fetch organisations
-        cur.execute("SELECT id, name FROM organisations")
-        org_rows = cur.fetchall()
-
-        for org in org_rows:
-            # Fetch user credentials for this org
-            cur.execute(
-                """
-                SELECT user_id, name, email, access_token, refresh_token FROM users
-                WHERE org_id = %s""",
-                (org[0],),
-            )
-            users = cur.fetchall()
-
-            # Initialize indexer and perform indexing
-            indexer = Indexer()
-            indexer.index_org_drive(org, users)
-
-        print("Indexing completed!")
-        return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
-    except Exception as e:  # pylint: disable=broad-except
-        # Handle any other exceptions that occur during the indexing process
-        print(f"An error occurred: {str(e)}")
-        return {"current": 0, "total": 100, "status": "Failed", "result": 0}
-    finally:
-        # Ensure the database connection is closed
-        conn.close()
+    print("Indexing completed!")
+    return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
