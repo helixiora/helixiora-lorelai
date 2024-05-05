@@ -1,5 +1,7 @@
 """This module contains the routes for the admin page."""
 
+import logging
+
 from flask import blueprints, jsonify, render_template, session
 from redis import Redis
 from rq import Queue
@@ -53,7 +55,7 @@ def job_status(job_id):
 def start_indexing():
     """Start indexing the data for the organization of the logged-in user."""
     if "google_id" in session and is_admin(session["google_id"]):
-        print("Posting task to rq worker...")
+        logging.debug("Posting task to rq worker...")
 
         # Load Redis configuration
         redis_config = load_config("redis")
@@ -91,7 +93,13 @@ def start_indexing():
                     return "No users found in the organization", 404
 
                 # Enqueue the job
-                job = queue.enqueue(run_indexer, org_row=org_row, user_rows=user_rows)
+                job = queue.enqueue(
+                    run_indexer,
+                    org_row=org_row,
+                    user_rows=user_rows,
+                    job_timeout=3600,
+                    description=f"Indexing GDrive for ${len(user_rows)} users in ${org_row['name']}",
+                )
                 job_id = job.get_id()
 
         finally:

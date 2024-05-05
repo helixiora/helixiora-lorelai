@@ -98,13 +98,13 @@ class OllamaLlama3(Llm):
 class OpenAILlm(Llm):
     """Class to interact with the OpenAI LLM for answering context-based questions."""
 
-    def __init__(self):
+    def __init__(self: None) -> None:
         super().__init__()
         self.openai_creds = load_config("openai")
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
         self.model = "gpt-3.5-turbo"
 
-    def get_answer(self, question, context):
+    def get_answer(self: None, question: str, context: list[Document]) -> str:
         """Implementation specific to OpenAI models."""
 
         context_doc_text = ""
@@ -131,7 +131,7 @@ class OpenAILlm(Llm):
         )
         return result
 
-    def get_llm_status(self):
-        """Check the current status of the LLM."""
-        model = ChatOpenAI(model=self.model)
-        return model.get_status()
+    def get_llm_status(self: None) -> bool:
+        """Check the current status of the openai api endpoint https://api.openai.com/"""
+        status = requests.get("https://api.openai.com/v1/engines")
+        return status.status_code == 200

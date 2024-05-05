@@ -99,7 +99,7 @@ def index():
         session["state"] = state
         return render_template("index.html", auth_url=authorization_url)
     except RuntimeError as e:
-        print(f"Error generating authorization URL: {e}")
+        logging.debug(f"Error generating authorization URL: {e}")
         return render_template("error.html", error_message="Failed to generate login URL.")
 
 

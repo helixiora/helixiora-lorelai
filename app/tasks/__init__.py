@@ -22,10 +22,9 @@ def execute_rag_llm(
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
-    logger = logging.getLogger(__name__)
 
-    logger.info("Task ID: %s, Message: %s", chat_message, job.id)
-    logger.info("Session: %s, %s", user, organisation)
+    logging.info("Task ID: %s, Message: %s", chat_message, job.id)
+    logging.info("Session: %s, %s", user, organisation)
 
     try:
         # Get the context for the question
@@ -36,15 +35,17 @@ def execute_rag_llm(
             raise ValueError("Failed to retrieve context for the provided chat message.")
 
         llm = Llm.create(model_type=model_type)
+        logging.debug(llm.get_llm_status())
+
         answer = llm.get_answer(question=chat_message, context=context)
 
-        logger.info("Answer: %s", answer)
-        logger.info("Source: %s", source)
+        logging.info("Answer: %s", answer)
+        logging.info("Source: %s", source)
 
         json_data = {"answer": answer, "source": source, "status": "Success"}
 
     except Exception as e:
-        logger.error("Error in execute_rag_llm task: %s", str(e))
+        logging.error("Error in execute_rag_llm task: %s", str(e))
         json_data = {"error": str(e), "status": "Failed"}
         # Optionally, re-raise the exception if you want the task to be marked as failed
         raise e
@@ -63,11 +64,11 @@ def run_indexer(
     if job is None:
         raise ValueError("Could not get the current job.")
 
-    print(f"Task ID -> Run Indexer: {job.id} for {org_row} ")
+    logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row} ")
 
     # Initialize indexer and perform indexing
     indexer = Indexer()
     indexer.index_org_drive(org_row, user_rows)
 
-    print("Indexing completed!")
+    logging.debug("Indexing completed!")
     return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}

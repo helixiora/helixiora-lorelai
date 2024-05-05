@@ -214,7 +214,7 @@ def process_user(
         else:
             raise ValueError(f"Scope must be an iterable, is {type(scope)}: {scope}")
 
-        print(f"Expires in: {expiry}, type: {type(expiry)}")
+        logging.debug(f"Expires in: {expiry}, type: {type(expiry)}")
 
         # Insert/Update User
         cursor.execute("SELECT user_id FROM users WHERE email = %s;", (user_email,))
