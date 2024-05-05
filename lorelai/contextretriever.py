@@ -67,6 +67,7 @@ class ContextRetriever:
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
         )
+
         vec_store = PineconeVectorStore.from_existing_index(
             index_name=index_name, embedding=OpenAIEmbeddings()
         )
@@ -83,7 +84,7 @@ class ContextRetriever:
             base_compressor=compressor, base_retriever=retriever
         )
 
-        results = compression_retriever.get_relevant_documents(question)
+        results = compression_retriever.invoke(question)
         logging.info(
             f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
         )
@@ -97,7 +98,7 @@ class ContextRetriever:
             # stringified)
             logging.debug(f"Doc metadata: {doc.metadata}")
 
-            # TODO: the relevance score is a list with two values, wondering which score to use
+            # TODO: the relevance score is a list with two values, wondering which score we should use
             score = doc.metadata["relevance_score"][0] * 100
             source_entry = {
                 "title": doc.metadata["title"],

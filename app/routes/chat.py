@@ -20,20 +20,25 @@ def chat():
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
     logging.info("Chat request received: %s", content["message"])
-    # Assuming session['email'] and session['organisation'] are set after user authentication
+
     redis = load_config("redis")
     redis_host = redis["url"]
-
     if not redis_host:
         return jsonify({"status": "ERROR", "message": "Redis URL is not set"}), 500
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
+
+    llm_model = "OpenAILlm"
+
     job = queue.enqueue(
         execute_rag_llm,
         content["message"],
         session.get("email"),
         session.get("organisation"),
-        "OpenAILlm",
+        llm_model,
+        job_timeout=10,
+        description=f"Execute RAG+LLM model: {content['message']} for {session.get('email')} \
+            using {llm_model}",
     )
 
     return jsonify({"job": job.get_id()}), 202

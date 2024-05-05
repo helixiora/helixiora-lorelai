@@ -17,7 +17,8 @@ class Llm:
     _allowed = False  # Flag to control constructor access
 
     _prompt_template = """
-        Answer the following question based on the provided context:
+        Answer the following question based on the provided context alone. If you cannot find the
+        answer, please respond with "I can't find the answer in the information available to me.":
         {context_doc_text}
 
         Question: {question}
