@@ -1,31 +1,35 @@
 # Getting started with LorelAI
+
 In order to start working with LorelAI, please make sure you've followed all of the [prerequisites](./prerequisites.md). This guide only covers the app specific parts.
 
 There are two ways LorelAI can be deployed/ran:
 
-### Running in a python venv
+## Running in a python venv
 
 1. Create a Python virtual environment: `python -m venv .venv`
-2. Activate it with `source .venv/bin/activate`.
-3. Install required dependencies: `pip install -r requirements.txt`.
-4. Get the database up and running, see the [readme in './db'](../db/readme.md)
-4. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
-5. Run an rq worker:
+1. Activate it with `source .venv/bin/activate`.
+1. Install required dependencies: `pip install -r requirements.txt`.
+1. Get the database up and running, see the [readme in './db'](../db/readme.md)
+1. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
+1. Run an rq worker:
 
    `.venv/bin/rq worker &`
 
-   ```
+   ```log
     Worker rq:worker:dd2b92d43db1495383d426d5cb44ff79 started with PID 82721, version 1.16.1
     Subscribing to channel rq:pubsub:dd2b92d43db1495383d426d5cb44ff79
     *** Listening on default...
     Cleaning registries for queue: default
 
    ```
-6. Launch the Flask application:
-   ```
+
+1. Launch the Flask application:
+
+   ```bash
    export FLASK_APP=run.py
    flask run
    ```
+
    Note: add an `&` to `flask run` to have it run in the background, or use multiple terminals.
 
 ### Running using docker compose
@@ -42,9 +46,11 @@ There are two ways LorelAI can be deployed/ran:
     - There's a limitation to the length of the index name sot the above string should not exceed 45 characters.
     - Follow the on-screen instructions to log in and authorize access to Google Drive.
 2. Confirm that credentials are stored correctly in the database by querrying the `users` table, e.g:
-    ```
+
+    ```sql
      SELECT * FROM users;
     ```
+
 ### Chat application
 
 Once logged in, you will see the chat interface at [http://127.0.0.1:5000](http://127.0.0.1:5000)
@@ -57,7 +63,7 @@ Very rudimentary admin interface to see what you have stored in pinecone and run
 
 #### From the command line
 
-1. Initiate the document crawling process: `./indexer.py`.
+1. Initiate the document crawling process: `./indexer.py`. The indexer lives in [the tools directory](../tools/readme.md).
 2. Check Pinecone to ensure your documents have been indexed successfully.
 
 #### From the web UI
@@ -67,7 +73,7 @@ Very rudimentary admin interface to see what you have stored in pinecone and run
 
 ### Running Test Queries/CLI tool
 
-You can test your querries using the lorelaicli.py tool.
+You can test your queries using the `lorelaicli.py` tool. It is located in [the tools directory](../tools/readme.md)
 
 ## Remote live deployment
 

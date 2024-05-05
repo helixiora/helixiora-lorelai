@@ -79,3 +79,8 @@ repos:
 
       - id: ruff-format
         # Runs Ruff formatter to enforce a consistent code style in Python files.
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.13.0
+    hooks:
+    - id: markdownlint-cli2
