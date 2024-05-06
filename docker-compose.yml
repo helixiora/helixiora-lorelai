@@ -14,7 +14,7 @@ services:
       - ./key.pem:/app/key.pem
       - ./:/app
     ports:
-      - "127.0.0.1:5000:5000" 
+      - "127.0.0.1:5000:5000"
     depends_on:
       - redis
     restart: on-failure # Ensures the service restarts if it exits due to an error.
@@ -29,6 +29,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  mysql:
+    image: "mysql:5.7"
+    environment:
+      MYSQL_ROOT_PASSWORD: "password"
+      MYSQL_DATABASE: "mydb"
 
   worker:
     build: .
