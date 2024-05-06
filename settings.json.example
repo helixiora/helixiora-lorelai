@@ -8,7 +8,8 @@
         ]
     },
     "pinecone": {
-        "api_key": "pinecone_api_key_here"
+        "api_key": "pinecone_api_key_here",
+        "region": "eu-west-1"
     },
     "openai": {
         "api_key": "openapi_key_here"
@@ -18,7 +19,9 @@
     }
     "lorelai": {
         "environment": "the stage of this environment eg dev/prod/qa",
-        "environment_slug": "a name to recognise this env by"
+        "environment_slug": "a name to recognise this env by",
+        "redirect_uri": "https://127.0.0.1:5000/oauth2callback",
+        "model_type": "OpenAILlm"
     },
     "db": {
         "host": "your_mysql_server",

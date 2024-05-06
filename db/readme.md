@@ -1,20 +1,31 @@
-### README: Database Versioning with Flyway for Lorelai
+# README: Database Versioning with Flyway for Lorelai
 
-#### **Why Flyway?**
+## **Why Flyway?**
+
 Flyway is a version control tool specifically designed for databases. It allows us to track, version, and deploy database changes safely and predictably across development, staging, and production environments. By using Flyway, we can:
 
 - **Automate Database Migrations:** Automatically apply changes to the database schema, making it easier to sync environments.
 - **Track Schema Versions:** Maintain a history of schema changes, enabling easier rollback and understanding of evolution.
 - **Collaborate Efficiently:** Coordinate better among team members, avoiding conflicts in database structures.
 
-#### **Getting Started with Flyway in Lorelai**
+## **Getting Started with Flyway in Lorelai**
 
-##### Prerequisites
+### Prerequisites
 
 - MySQL database
 - Python development environment
 
-##### Initial Setup
+### Initial Setup
+
+1. **Install MySQL**
+
+   On a Mac:
+
+   ```bash
+   brew install mysql
+   ```
+
+   Note: by default the username is root and the password is empty on homebrew. Locally you can use this, although it's better to create a targeted user.
 
 1. **Install Flyway:**
 
@@ -26,11 +37,13 @@ Flyway is a version control tool specifically designed for databases. It allows 
    brew install flyway
    ```
 
-2. **Clone the Repository:**
+   On Linux:
 
-   Ensure you have the latest version of the Lorelai project by cloning the repo from our Git repository.
+   ```bash
+   << add instructions >>
+   ```
 
-3. **Configure Flyway:**
+1. **Configure Flyway:**
 
    Navigate to the Flyway conf file (`db/flyway.conf`) in your project directory and configure it to connect to your local MySQL instance:
 
@@ -42,15 +55,16 @@ Flyway is a version control tool specifically designed for databases. It allows 
 
     Note: a `flyway.conf.example` is included in the project for inspiration and ease of use.
 
-4. **Baseline the Database:**
+1. **Baseline the Database:**
 
    If setting up a new development environment, import the baseline schema:
 
      ```bash
-     mysql -u username -p lorelai < baseline_schema.sql
+     # make sure you are in ./db
+     mysql -u username -p < baseline_schema.sql
      ```
 
-5. **Apply Migrations:**
+1. **Apply Migrations:**
 
    Apply any existing migrations to your local database:
 
@@ -58,7 +72,7 @@ Flyway is a version control tool specifically designed for databases. It allows 
      flyway migrate
      ```
 
-#### **Making Changes to the Database Schema**
+## **Making Changes to the Database Schema**
 
 To make and track changes to the database schema, follow these steps:
 
@@ -79,7 +93,8 @@ To make and track changes to the database schema, follow these steps:
 4. **Track and Discuss:**
    - Use our #engineering channel on Slack to discuss changes and track progress through ClickUp tasks.
 
-#### **Need Help?**
+## **Need Help?**
+
 If you encounter any issues or need assistance with database migrations, please post your queries in the #engineering channel on Slack or create a task in ClickUp.
 
 By following these guidelines, we ensure that all changes to the database schema are managed effectively and consistently across all environments. Happy coding, and let's make Lorelai better together!
