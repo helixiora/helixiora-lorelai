@@ -15,10 +15,6 @@ from app.routes.chat import chat_bp
 from app.utils import get_db_connection, is_admin
 from lorelai.utils import load_config
 
-#logging
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
 app = Flask(__name__)
 app.secret_key = "your_very_secret_and_long_random_string_here"
 
@@ -56,7 +52,6 @@ client_config = {
 }
 
 lorelaicreds = load_config("lorelai")
-redirect_uri = lorelaicreds["redirect_uri"].replace("http://", "https://")
 flow = Flow.from_client_config(
     client_config=client_config,
     scopes=[
