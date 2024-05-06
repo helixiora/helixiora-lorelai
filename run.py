@@ -163,5 +163,5 @@ def internal_server_error(e):
 
 
 if __name__ == "__main__":
-    print("Starting the app...")
+    logging.debug("Starting the app...")
     app.run(ssl_context=("cert.pem", "key.pem"))
