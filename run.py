@@ -26,6 +26,8 @@ log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase t
 
 # Set the log level using the mapping, defaulting to logging.INFO if not found
 app.logger.setLevel(logging.getLevelName(log_level))
+logging_format = "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])"
+logging.basicConfig(format=logging_format)
 
 app.secret_key = "your_very_secret_and_long_random_string_here"
 
