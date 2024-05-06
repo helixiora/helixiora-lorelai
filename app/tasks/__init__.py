@@ -68,7 +68,11 @@ def run_indexer(
 
     # Initialize indexer and perform indexing
     indexer = Indexer()
-    indexer.index_org_drive(org_row, user_rows)
 
-    logging.debug("Indexing completed!")
-    return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
+    success = indexer.index_org_drive(org_row, user_rows)
+    if success:
+        logging.debug("Indexing completed!")
+        return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
+    else:
+        logging.error("Indexing failed!")
+        return {"current": 100, "total": 100, "status": "Task failed!", "result": 0}

@@ -4,14 +4,14 @@ them using langchain and then index them in pinecone"""
 import logging
 import os
 import sys
-from typing import Any
+from typing import Any, Optional
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
 from googleapiclient.discovery import build
-from rq import get_current_job
+from rq import get_current_job, job
 
 import lorelai.utils
 from lorelai.processor import Processor
@@ -31,7 +31,7 @@ class Indexer:
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds["api_key"]
 
-    def index_org_drive(self: None, org: dict[Any], users: dict[Any]) -> None:
+    def index_org_drive(self: None, org: dict[Any], users: dict[Any]) -> bool:
         """Process the Google Drive documents for an organisation.
 
         :param org: the organisation to process, a list of org details (org_id, name)
@@ -51,16 +51,24 @@ class Indexer:
         # 1. Load the Google Drive credentials
         # build a credentials object from the google creds
         for user in users:
-            self.index_user_drive(user, org)
+            if job:
+                job.meta["status"] = f"Indexing Google Drive for user {user['email']}"
+                job.meta["org"] = org
+                job.meta["user"] = user["email"]
+            self.index_user_drive(user, org, job)
+            return True
 
-    def index_user_drive(self: None, user: dict[Any], org: dict[Any]) -> None:
+        # if we haven't returned True by now, something went wrong
+        return False
+
+    def index_user_drive(self: None, user: dict[Any], org: dict[Any], job: Optional["job"]) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
             refresh_token)
         :param org: the organisation to process, a list of org details (org_id, name)
 
-        :return: None
+        :return: bool
         """
         # 1. Load the Google Drive credentials
         if user:
