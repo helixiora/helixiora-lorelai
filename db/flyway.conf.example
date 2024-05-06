@@ -1,0 +1,9 @@
+# Flyway database configuration for MySQL on localhost
+flyway.url=jdbc:mysql://<<hostname>>:3306/lorelai
+flyway.user=<<username>>
+flyway.password=<<password>>
+
+flyway.locations=filesystem:./migrations
+
+flyway.schemas = lorelai
+flyway.table = flyway_schema_history

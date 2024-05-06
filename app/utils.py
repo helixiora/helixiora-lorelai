@@ -1,6 +1,7 @@
 """Utility functions for the application."""
 
 import logging
+
 import mysql.connector
 
 from lorelai.utils import load_config

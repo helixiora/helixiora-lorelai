@@ -4,8 +4,8 @@ import json
 import logging
 import os
 from pathlib import Path
-import mysql.connector
 
+import mysql.connector
 from pinecone import Pinecone
 from pinecone.core.client.exceptions import NotFoundException
 from pinecone.core.client.model.describe_index_stats_response import (
@@ -86,8 +86,8 @@ def load_config(service: str) -> dict[str, str]:
                     os.environ[f"{service.upper()}_API_KEY"] = creds.get("api_key", "")
 
             except ValueError as e:
-                print(f"There was an error in your JSON:\n    {e}")
-                print("Trying to fallbak to env vars...")
+                logging.debug(f"There was an error in your JSON:\n    {e}")
+                logging.debug("Trying to fallbak to env vars...")
                 creds = get_creds_from_os(service)
     else:
         creds = get_creds_from_os(service)
@@ -178,12 +178,12 @@ def get_index_stats(index_name: str) -> DescribeIndexStatsResponse | None:
     try:
         index = pinecone.Index(index_name)
     except NotFoundException:
-        print(f"Index {index_name} not found")
+        logging.debug(f"Index {index_name} not found")
         return None
 
     if index:
         index_stats = index.describe_index_stats()
-    print(f"Index description: ${index_stats}")
+    logging.debug(f"Index description: ${index_stats}")
 
     if index_stats:
         return index_stats
@@ -194,17 +194,12 @@ def print_index_stats_diff(index_stats_before, index_stats_after):
     """prints the difference in the index statistics"""
     if index_stats_before and index_stats_after:
         diff = {
-            "num_documents": index_stats_after.num_documents
-            - index_stats_before.num_documents,
-            "num_vectors": index_stats_after.num_vectors
-            - index_stats_before.num_vectors,
-            "num_partitions": index_stats_after.num_partitions
-            - index_stats_before.num_partitions,
-            "num_replicas": index_stats_after.num_replicas
-            - index_stats_before.num_replicas,
+            "num_documents": index_stats_after.num_documents - index_stats_before.num_documents,
+            "num_vectors": index_stats_after.num_vectors - index_stats_before.num_vectors,
+            "num_partitions": index_stats_after.num_partitions - index_stats_before.num_partitions,
+            "num_replicas": index_stats_after.num_replicas - index_stats_before.num_replicas,
             "num_shards": index_stats_after.num_shards - index_stats_before.num_shards,
-            "num_segments": index_stats_after.num_segments
-            - index_stats_before.num_segments,
+            "num_segments": index_stats_after.num_segments - index_stats_before.num_segments,
             "num_unique_segments": index_stats_after.num_unique_segments
             - index_stats_before.num_unique_segments,
             "num_unique_shards": index_stats_after.num_unique_shards
@@ -214,7 +209,7 @@ def print_index_stats_diff(index_stats_before, index_stats_after):
             "num_unique_partitions": index_stats_after.num_unique_partitions
             - index_stats_before.num_unique_partitions,
         }
-        print("Index statistics difference:")
-        print(diff)
+        logging.debug("Index statistics difference:")
+        logging.debug(diff)
     else:
-        print("No index statistics to compare")
+        logging.debug("No index statistics to compare")

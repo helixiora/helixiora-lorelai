@@ -1,6 +1,8 @@
 """Routes for user authentication."""
 
+import logging
 from collections import namedtuple
+from collections.abc import Iterable
 
 import google.auth.transport.requests
 from flask import blueprints, redirect, render_template, request, session, url_for
@@ -22,9 +24,7 @@ def profile():
             "email": session["email"],
             "org_name": session["organisation"],
         }
-        return render_template(
-            "profile.html", user=user, is_admin=is_admin(session["google_id"])
-        )
+        return render_template("profile.html", user=user, is_admin=is_admin(session["google_id"]))
     return "You are not logged in!"
 
 
@@ -43,25 +43,25 @@ def register():
     # Combine OAuth data with registration form data
     oauth_data = session.pop("oauth_data", {})
 
-    print(f"Registration info: {registration_info}")
-    print(f"OAuth data: {oauth_data}")
+    logging.debug(f"Registration info: {registration_info}")
+    logging.debug(f"OAuth data: {oauth_data}")
 
     username = registration_info["name"]
     user_email = registration_info["email"]
     organisation = registration_info["organisation"]
-
     access_token = session.pop("access_token", None)
     refresh_token = session.pop("refresh_token", None)
-    expires_in = session.pop("expires_in", None)
+    expiry = session.pop("expiry", None)
     token_type = session.pop("token_type", None)
     scope = session.pop("scope", None)
+
     user_info = process_user(
         organisation,
         username,
         user_email,
         access_token,
         refresh_token,
-        expires_in,
+        expiry,
         token_type,
         scope,
     )
@@ -121,15 +121,10 @@ def oauth_callback():
         audience=flow.client_config["client_id"],
     )
 
-    print(f"id_info: {id_info}")
-    print(f"credentials: {credentials}")
+    logging.debug(f"id_info: {id_info}")
+    logging.debug(f"credentials: {credentials}")
 
-    # # Example of processing OAuth callback to get user info
-    # user_info = process_user(id_info, credentials)
-
-    # print(f"user_info: {user_info}")
-
-    # Check if user exists in your database (pseudo code)
+    # Check if user exists in your database
     userid, name, orgid, organisation = check_user_in_database(id_info["email"])
     email = id_info["email"]
 
@@ -138,7 +133,7 @@ def oauth_callback():
 
         session["access_token"] = credentials.token
         session["refresh_token"] = credentials.refresh_token
-        session["expires_in"] = credentials.expiry
+        session["expiry"] = credentials.expiry
         session["token_type"] = "Bearer"
         session["scope"] = credentials.scopes
 
@@ -185,9 +180,7 @@ def check_user_in_database(email: str) -> UserInfo:
         # Very pythonic :)
         user_id, name, org_id, organisation = user if user else (None, None, None, None)
 
-        return UserInfo(
-            user_id=user_id, name=name, org_id=org_id, organisation=organisation
-        )
+        return UserInfo(user_id=user_id, name=name, org_id=org_id, organisation=organisation)
 
 
 def process_user(
@@ -196,7 +189,7 @@ def process_user(
     user_email: str,
     access_token: str,
     refresh_token: str,
-    expires_in: str,
+    expiry: int,
     token_type: str,
     scope: list,
 ) -> dict:
@@ -208,19 +201,20 @@ def process_user(
         # Do this while so I don't repeat the select querry upon creation
         org_id = ""
         while not org_id:
-            cursor.execute(
-                "select id from organisations where name = %s", (organisation,)
-            )
+            cursor.execute("select id from organisations where name = %s", (organisation,))
             res = cursor.fetchone()
             if not res:
-                cursor.execute(
-                    "insert into organisations (name) values (%s)", (organisation,)
-                )
+                cursor.execute("insert into organisations (name) values (%s)", (organisation,))
                 conn.commit()
             else:
                 org_id = res[0]
 
-        scope_str = " ".join(scope)
+        if isinstance(scope, Iterable):
+            scope_str = " ".join(scope)
+        else:
+            raise ValueError(f"Scope must be an iterable, is {type(scope)}: {scope}")
+
+        logging.debug(f"Expires in: {expiry}, type: {type(expiry)}")
 
         # Insert/Update User
         cursor.execute("SELECT user_id FROM users WHERE email = %s;", (user_email,))
@@ -230,7 +224,7 @@ def process_user(
                 """
                 UPDATE users
                 SET org_id = %s, name = %s, access_token = %s,
-                refresh_token = %s, expires_in = %s, token_type = %s,
+                refresh_token = %s, expiry = %s, token_type = %s,
                 scope = %s WHERE email = %s;
                 """,
                 (
@@ -238,7 +232,7 @@ def process_user(
                     username,
                     access_token,
                     refresh_token,
-                    expires_in,
+                    expiry,
                     token_type,
                     scope_str,
                     user_email,
@@ -247,7 +241,7 @@ def process_user(
         else:
             cursor.execute(
                 """
-                INSERT INTO users (org_id, name, email, access_token, refresh_token, expires_in,
+                INSERT INTO users (org_id, name, email, access_token, refresh_token, expiry,
                            token_type, scope)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
             """,
@@ -257,7 +251,7 @@ def process_user(
                     user_email,
                     access_token,
                     refresh_token,
-                    expires_in,
+                    expiry,
                     token_type,
                     scope_str,
                 ),

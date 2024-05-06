@@ -1,19 +1,86 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v4.6.0  # Use version 4.6.0 of the standard pre-commit hooks
     hooks:
-      - id: trailing-whitespace
-      - id: check-yaml
-      - id: end-of-file-fixer
       - id: check-added-large-files
+        args: ['--maxkb=500']
+        # Blocks commits that add large files, helping to keep the repository size manageable.
+
+      - id: check-ast
+        # Ensures Python Abstract Syntax Trees are correct, checking Python syntax validity.
+
+      - id: check-case-conflict
+        # Prevents files that would conflict in case-insensitive filesystems.
+
+      - id: check-docstring-first
+        # Ensures docstrings are at the top of Python files.
+
+      - id: check-executables-have-shebangs
+        # Ensures executable files have a shebang line.
+
+      - id: check-vcs-permalinks
+        # Ensures version control system permalinks are used for links to repos.
+
+      - id: forbid-submodules
+        # Prevents git submodules in repositories.
+
+      - id: name-tests-test
+        # Ensures test files are named correctly, usually 'test_' prefix.
+
+      - id: requirements-txt-fixer
+        # Auto-formats requirements.txt to match a consistent style.
+
+      - id: sort-simple-yaml
+        # Sorts simple YAML files to maintain a consistent order.
+
+      - id: pretty-format-json
+        args: ['--autofix', '--indent=2']
+        # Auto-formats JSON files to be more readable.
+
+      - id: check-builtin-literals
+        # Checks for proper use of builtin type constructors in Python.
+
       - id: check-json
+        # Validates JSON files for proper formatting and syntax.
+
+      - id: check-merge-conflict
+        # Detects merge conflicts that might have been committed.
+
+      - id: check-symlinks
+        # Ensures symlinks point to valid locations.
+
+      - id: check-toml
+        # Validates TOML files for syntax errors.
+
+      - id: check-yaml
+        # Validates YAML files for syntax errors.
+
+      - id: debug-statements
+        # Detects leftover debugging statements in Python code.
+
+      - id: detect-aws-credentials
+        # Helps prevent the accidental commit of AWS credentials.
+
+      - id: detect-private-key
+        # Blocks commits that contain private keys.
+
+      - id: end-of-file-fixer
+        # Ensures files end with a newline.
+
+      - id: trailing-whitespace
+        # Removes unnecessary trailing whitespace.
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
-    rev: v0.3.7
+    rev: v0.4.3
     hooks:
-      # Run the linter.
       - id: ruff
         args: [ --fix ]
-      # Run the formatter.
+        # Runs Ruff linter to catch Python errors and automatically fix them if possible.
+
       - id: ruff-format
+        # Runs Ruff formatter to enforce a consistent code style in Python files.
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.13.0
+    hooks:
+    - id: markdownlint-cli2
