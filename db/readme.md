@@ -9,15 +9,22 @@ Flyway is a version control tool specifically designed for databases. It allows 
 
 #### **Getting Started with Flyway in Lorelai**
 
-##### Prerequisites:
+##### Prerequisites
+
 - MySQL database
 - Python development environment
 
-##### Initial Setup:
+##### Initial Setup
 
 1. **Install Flyway:**
 
-   Download Flyway from [Flyway Official Website](https://flywaydb.org/download/) and follow the installation instructions suitable for your OS.
+   Install the flyway command line utility.
+
+   On a Mac:
+
+   ```bash
+   brew install flyway
+   ```
 
 2. **Clone the Repository:**
 
@@ -25,17 +32,20 @@ Flyway is a version control tool specifically designed for databases. It allows 
 
 3. **Configure Flyway:**
 
-   Navigate to the Flyway conf file (`conf/flyway.conf`) in your project directory and configure it to connect to your local MySQL instance:
-     ```
+   Navigate to the Flyway conf file (`db/flyway.conf`) in your project directory and configure it to connect to your local MySQL instance:
+
+     ```text
      flyway.url=jdbc:mysql://localhost:3306/lorelai
      flyway.user=yourUsername
      flyway.password=yourPassword
      ```
+
     Note: a `flyway.conf.example` is included in the project for inspiration and ease of use.
 
 4. **Baseline the Database:**
 
    If setting up a new development environment, import the baseline schema:
+
      ```bash
      mysql -u username -p lorelai < baseline_schema.sql
      ```
@@ -43,6 +53,7 @@ Flyway is a version control tool specifically designed for databases. It allows 
 5. **Apply Migrations:**
 
    Apply any existing migrations to your local database:
+
      ```bash
      flyway migrate
      ```
@@ -57,6 +68,7 @@ To make and track changes to the database schema, follow these steps:
 
 2. **Test Locally:**
    - Before pushing your changes, make sure to test them locally:
+
      ```bash
      flyway migrate
      ```
