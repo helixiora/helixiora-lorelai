@@ -12,11 +12,12 @@ COPY requirements.txt ./
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Now copy the rest of the application's code into the container
+# Now copy SSL certificates and the rest of the application's code into the container
+COPY cert.pem key.pem ./
 COPY . .
 
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
 
-# Use Gunicorn to serve the Flask application; adjust the number of workers and host/port as necessary
-CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5000", "run:app"]
+# Use Gunicorn to serve the Flask application; adjust the number of workers and host/port as necessary with SSL support
+CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5000", "--certfile=cert.pem", "--keyfile=key.pem", "run:app"]
