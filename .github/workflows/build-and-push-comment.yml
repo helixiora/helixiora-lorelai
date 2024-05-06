@@ -7,7 +7,7 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: contains(github.event.comment.body, '/build') && github.event.issue.pull_request != null && github.event.action == 'created' 
+    if: contains(github.event.comment.body, '/build') && github.event.issue.pull_request != null && github.event.action == 'created'
     permissions:
       contents: read
       packages: write

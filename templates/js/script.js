@@ -180,6 +180,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (result.source && result.source.length > 0) {
             const sourceText = result.source.map(src => `<li><a href="${src.source}">${src.title} (score: ${src.score})</a></li>`).join('');
             addMessage(`<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
+        } else {
+            addMessage('No sources found.', false, false);
         }
     }
 

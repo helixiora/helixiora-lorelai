@@ -1,9 +1,11 @@
-import os
+import logging
 
 from flask import blueprints, jsonify, request, session
 from redis import Redis
 from rq import Queue
+
 from app.tasks import execute_rag_llm
+from app.utils import load_config
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
@@ -12,16 +14,31 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 @chat_bp.route("/chat", methods=["POST"])
 def chat():
     """Endpoint to post chat messages."""
+
     content = request.get_json()
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
-    # Assuming session['email'] and session['organisation'] are set after user authentication
-    redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
+    logging.info("Chat request received: %s", content["message"])
+
+    redis = load_config("redis")
+    redis_host = redis["url"]
+    if not redis_host:
+        return jsonify({"status": "ERROR", "message": "Redis URL is not set"}), 500
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
+
+    llm_model = "OpenAILlm"
+
     job = queue.enqueue(
-        execute_rag_llm, content["message"], session.get("email"), session.get("organisation")
+        execute_rag_llm,
+        content["message"],
+        session.get("email"),
+        session.get("organisation"),
+        llm_model,
+        job_timeout=10,
+        description=f"Execute RAG+LLM model: {content['message']} for {session.get('email')} \
+            using {llm_model}",
     )
 
     return jsonify({"job": job.get_id()}), 202
@@ -34,7 +51,11 @@ def fetch_chat_result():
     if not job_id:
         return jsonify({"status": "ERROR", "message": "Job ID is required"}), 400
 
-    redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
+    logging.info("Fetching job result for job ID: %s", job_id)
+
+    redis = load_config("redis")
+    redis_host = redis["url"]
+
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)

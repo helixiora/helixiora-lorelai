@@ -1,15 +1,17 @@
 """this file creates a class to process google drive documents using the google drive api, chunk
 them using langchain and then index them in pinecone"""
 
+import logging
 import os
 import sys
-from typing import Any
+from typing import Any, Optional
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
 from googleapiclient.discovery import build
+from rq import get_current_job, job
 
 import lorelai.utils
 from lorelai.processor import Processor
@@ -29,7 +31,7 @@ class Indexer:
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds["api_key"]
 
-    def index_org_drive(self: None, org: list[Any], users: list[list[Any]]) -> None:
+    def index_org_drive(self: None, org: dict[Any], users: dict[Any]) -> bool:
         """Process the Google Drive documents for an organisation.
 
         :param org: the organisation to process, a list of org details (org_id, name)
@@ -38,24 +40,40 @@ class Indexer:
 
         :return: None
         """
+        # see if we're running from an rq job
+        job = get_current_job()
+        if job:
+            job.meta["status"] = "Indexing Google Drive"
+            job.meta["org"] = org
+
+            logging.info("Task ID: %s, Message: %s", "Indexing Google Drive", job.id)
+
         # 1. Load the Google Drive credentials
         # build a credentials object from the google creds
         for user in users:
-            self.index_user_drive(user, org)
+            if job:
+                job.meta["status"] = f"Indexing Google Drive for user {user['email']}"
+                job.meta["org"] = org
+                job.meta["user"] = user["email"]
+            self.index_user_drive(user, org, job)
+            return True
 
-    def index_user_drive(self: None, user: list[Any], org: list[Any]) -> None:
+        # if we haven't returned True by now, something went wrong
+        return False
+
+    def index_user_drive(self: None, user: dict[Any], org: dict[Any], job: Optional["job"]) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
             refresh_token)
         :param org: the organisation to process, a list of org details (org_id, name)
 
-        :return: None
+        :return: bool
         """
         # 1. Load the Google Drive credentials
         if user:
-            print(f"Processing user: {user} from org: {org}")
-            refresh_token = user[4]
+            logging.debug(f"Processing user: {user} from org: {org}")
+            refresh_token = user["refresh_token"]
 
             credentials = Credentials.from_authorized_user_info(
                 {
@@ -69,15 +87,15 @@ class Indexer:
             # see if the credentials work and refresh if expired
             if not credentials.valid:
                 credentials.refresh(Request())
-                print("Refreshed credentials")
+                logging.debug("Refreshed credentials")
 
         # 2. Get the Google Drive document IDs
-        print(f"Getting Google Drive document IDs for user: {user[2]}")
+        logging.debug(f"Getting Google Drive document IDs for user: {user['email']}")
         document_ids = self.get_google_docs_ids(credentials)
 
         # 3. Generate the index name we will use in Pinecone
         index_name = lorelai.utils.pinecone_index_name(
-            org=org[1],
+            org=org["name"],
             datasource="googledrive",
             environment=self.settings["environment"],
             env_name=self.settings["environment_slug"],
@@ -90,16 +108,21 @@ class Indexer:
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        print(f"Processing {len(document_ids)} documents for user: {user[2]}")
+        logging.debug(f"Processing {len(document_ids)} documents for user: {user['name']}")
         pinecone_processor = Processor()
-        pinecone_processor.google_docs_to_pinecone_docs(document_ids, credentials, org[1], user[2])
+        pinecone_processor.google_docs_to_pinecone_docs(
+            document_ids=document_ids,
+            credentials=credentials,
+            org_name=org["name"],
+            user_email=user["email"],
+        )
 
         # 6. Get index statistics after the indexing process
-        print(f"Indexing complete for user: {user[2]}")
+        logging.debug(f"Indexing complete for user: {user['name']}")
         index_stats_after = lorelai.utils.get_index_stats(index_name)
 
         # 7. Print the index statistics
-        print("Index statistics before indexing vs after indexing:")
+        logging.debug("Index statistics before indexing vs after indexing:")
         lorelai.utils.print_index_stats_diff(index_stats_before, index_stats_after)
 
     def get_google_docs_ids(self: None, credentials) -> list[str]:
@@ -136,17 +159,13 @@ class Indexer:
 
             # Iterate through the files and add their IDs to the document_ids list
             if not items:
-                print("No files found.")
+                logging.debug("No files found.")
                 break
 
-            print(f"Found {len(items)} files")
+            logging.debug(f"Found {len(items)} files")
             for item in items:
-                print(f"Found file: {item['name']} with ID: {item['id']} ")
+                logging.debug(f"Found file: {item['name']} with ID: {item['id']} ")
                 document_ids.append(item["id"])
-
-            # Go through all docs in pinecone and remove the ones that are not in the google drive
-            # anymore
-            # TODO: Implement this # pylint: disable=fixme
 
             # Check if there are more pages
             page_token = results.get("nextPageToken")

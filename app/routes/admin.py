@@ -1,7 +1,6 @@
 """This module contains the routes for the admin page."""
 
-import os
-from pprint import pprint
+import logging
 
 from flask import blueprints, jsonify, render_template, session
 from redis import Redis
@@ -10,6 +9,7 @@ from rq import Queue
 from app.tasks import run_indexer
 from app.utils import get_db_connection, is_admin
 from lorelai.contextretriever import ContextRetriever
+from lorelai.utils import load_config
 
 admin_bp = blueprints.Blueprint("admin", __name__)
 
@@ -25,7 +25,8 @@ def admin():
 @admin_bp.route("/admin/job-status/<job_id>")
 def job_status(job_id):
     """Return the status of a job given its job_id"""
-    redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis = load_config("redis")
+    redis_host = redis["url"]
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
@@ -52,23 +53,59 @@ def job_status(job_id):
 
 @admin_bp.route("/admin/index", methods=["POST"])
 def start_indexing():
-    """Start indexing the data"""
+    """Start indexing the data for the organization of the logged-in user."""
     if "google_id" in session and is_admin(session["google_id"]):
-        print("Posting task to rq worker...")
-        redis_host = os.getenv("REDIS_URL", "redis://localhost:6379")
+        logging.debug("Posting task to rq worker...")
+
+        # Load Redis configuration
+        redis_config = load_config("redis")
+        redis_host = redis_config["url"]
+        if not redis_host:
+            raise ConnectionError("Failed to connect to the Redis server.")
         redis_conn = Redis.from_url(redis_host)
         queue = Queue(connection=redis_conn)
 
-        db = get_db_connection()
-        db.execute("SELECT id, name FROM organisations")
-        org_rows = db.fetchall()
-        for org_row in org_rows:
-            user_rows = db.execute(
-                "SELECT id, email FROM users WHERE organisation_id = %s", (org_row[0],)
-            ).fetchall()
-            job = queue.enqueue(run_indexer, org_row=org_row, user_rows=user_rows)
+        # Establish database connection
+        try:
+            connection = get_db_connection()
+            if not connection:
+                raise ConnectionError("Failed to connect to the database.")
 
-        job_id = job.get_id()
+            # Assuming the user's org_id is stored in the session
+            org_id = session.get("org_id")
+            if not org_id:
+                return "No organization ID found for the user in the session details", 403
+
+            with connection.cursor(dictionary=True) as cur:
+                # Fetch only the organization related to the logged-in user
+                cur.execute("SELECT id, name FROM organisations WHERE id = %s", (org_id,))
+                org_row = cur.fetchone()
+                if not org_row:
+                    return "Organization not found", 404
+
+                # Fetch users belonging to the organization
+                cur.execute(
+                    "SELECT user_id, name, email, refresh_token FROM users WHERE org_id = %s",
+                    (org_row["id"],),
+                )
+                user_rows = cur.fetchall()
+                if not user_rows:
+                    return "No users found in the organization", 404
+
+                # Enqueue the job
+                job = queue.enqueue(
+                    run_indexer,
+                    org_row=org_row,
+                    user_rows=user_rows,
+                    job_timeout=3600,
+                    description=f"Indexing GDrive for ${len(user_rows)} users in ${org_row['name']}",
+                )
+                job_id = job.get_id()
+
+        finally:
+            if connection:
+                connection.close()
+
         return jsonify({"job": job_id}), 202
 
     else:
@@ -79,13 +116,10 @@ def start_indexing():
 def list_indexes():
     """the list indexes page"""
 
-    enriched_context = ContextRetriever(
-        org_name=session["organisation"], user=session["email"]
-    )
+    enriched_context = ContextRetriever(org_name=session["organisation"], user=session["email"])
 
     indexes = enriched_context.get_all_indexes()
 
-    pprint(indexes)
     # Render a template, passing the indexes and their metadata
     return render_template(
         "admin/pinecone.html", indexes=indexes, is_admin=is_admin(session["google_id"])
@@ -95,14 +129,10 @@ def list_indexes():
 @admin_bp.route("/admin/pinecone/<host_name>")
 def index_details(host_name: str) -> str:
     """the index details page"""
-    enriched_context = ContextRetriever(
-        org_name=session["organisation"], user=session["email"]
-    )
+    enriched_context = ContextRetriever(org_name=session["organisation"], user=session["email"])
 
     # Assume getIndexDetails function exists to fetch metadata for a specific index
     index_metadata = enriched_context.get_index_details(index_host=host_name)
-
-    pprint(index_metadata)
 
     return render_template(
         "admin/index_details.html",

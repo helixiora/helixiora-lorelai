@@ -22,7 +22,7 @@ def main() -> None:
     user_id = get_user_from_organisation(org_id, args.user_name)
     enriched_context = ContextRetriever(org_name=org_name, user=user_id)
     answer, source = enriched_context.retrieve_context(question)
-    llm = Llm()
+    llm = Llm.create(model_type=args.model_type)
     llm_answer = llm.get_answer(question, answer)
     display_results(llm_answer, source)
 
@@ -33,12 +33,11 @@ def setup_arg_parser() -> argparse.ArgumentParser:
     Params: none
     Returns: ArgumentParser object
     """
-    parser = argparse.ArgumentParser(
-        description="Query indexed documents with context."
-    )
+    parser = argparse.ArgumentParser(description="Query indexed documents with context.")
     parser.add_argument("question", help="Question to query")
     parser.add_argument("--org-name", help="Name of the organisation", default=None)
     parser.add_argument("--user-name", help="Name of the user", default=None)
+    parser.add_argument("--model-type", help="Type of the model to use", default="OpenAILlm")
     return parser
 
 
@@ -52,9 +51,7 @@ def get_organisation(org_name: str or None) -> tuple:
     with get_db_connection() as conn:
         cur = conn.cursor()
         if org_name:
-            cur.execute(
-                "SELECT id, name FROM organisations WHERE name = %s", (org_name,)
-            )
+            cur.execute("SELECT id, name FROM organisations WHERE name = %s", (org_name,))
             org = cur.fetchone()
         if org:
             return org
@@ -80,8 +77,7 @@ def select_organisation() -> tuple:
         for index, org in enumerate(organisations, start=1):
             print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{org[1]}")
         choice = (
-            input(f"{Fore.MAGENTA}Organisation ({organisations[0][1]}): ")
-            or organisations[0][0]
+            input(f"{Fore.MAGENTA}Organisation ({organisations[0][1]}): ") or organisations[0][0]
         )
 
     return organisations[int(choice) - 1]
@@ -129,9 +125,7 @@ def select_user_from_organisation(org_id: int) -> int:
     """
     with get_db_connection() as conn:
         cur = conn.cursor()
-        cur.execute(
-            "SELECT user_id, name, email FROM users WHERE org_id = %s", (org_id,)
-        )
+        cur.execute("SELECT user_id, name, email FROM users WHERE org_id = %s", (org_id,))
         users = cur.fetchall()
         print(f"{Fore.CYAN}Select a user:")
         for index, user in enumerate(users, start=1):
