@@ -22,11 +22,16 @@ logging.debug("Loading the app...")
 
 app = Flask(__name__)
 # Get the log level from the environment variable
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
+log_level = os.getenv(
+    "LOG_LEVEL", "INFO"
+).upper()  # Ensure it's in uppercase to match constants
 
 # Set the log level using the mapping, defaulting to logging.INFO if not found
 app.logger.setLevel(logging.getLevelName(log_level))
-logging_format = "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])"
+logging_format = os.getenv(
+    "LOG_FORMAT",
+    "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
+)
 logging.basicConfig(format=logging_format)
 
 app.secret_key = "your_very_secret_and_long_random_string_here"
@@ -109,7 +114,9 @@ def index():
         return render_template("index.html", auth_url=authorization_url)
     except RuntimeError as e:
         logging.debug(f"Error generating authorization URL: {e}")
-        return render_template("error.html", error_message="Failed to generate login URL.")
+        return render_template(
+            "error.html", error_message="Failed to generate login URL."
+        )
 
 
 @app.route("/js/<script_name>.js")
