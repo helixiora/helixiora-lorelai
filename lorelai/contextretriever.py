@@ -77,7 +77,7 @@ class ContextRetriever:
         )
 
         # list of models:https://github.com/PrithivirajDamodaran/FlashRank
-        compressor = FlashrankRerank(top_n=3, model="ms-marco-MultiBERT-L-12")
+        compressor = FlashrankRerank(top_n=3, model="ms-marco-TinyBERT-L-2-v2")
         # Reranker takes the result from base retriever than reranks those retrived.
         # flash reranker is used as its standalone, lighweight. and free and open source
         compression_retriever = ContextualCompressionRetriever(
@@ -97,9 +97,10 @@ class ContextRetriever:
             # Create a source entry with title, source, and score (converted to percentage and
             # stringified)
             logging.debug(f"Doc metadata: {doc.metadata}")
-
             # TODO: the relevance score is a list with two values, wondering which score we should use
-            score = doc.metadata["relevance_score"][0] * 100
+            # some reranker model only provide 1 value instead of 2
+            # score = doc.metadata["relevance_score"][0] * 100
+            score = doc.metadata["relevance_score"] * 100
             source_entry = {
                 "title": doc.metadata["title"],
                 "source": doc.metadata["source"],
@@ -107,7 +108,6 @@ class ContextRetriever:
                 # "score": f"{score*100:.2f}%",
             }
             sources.append(source_entry)
-
         logging.debug(f"Context: {docs} Sources: {sources}")
         return docs, sources
 
