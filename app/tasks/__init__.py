@@ -6,11 +6,18 @@ import logging
 from typing import List
 
 from rq import get_current_job
+import os
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
+
+logging_format = (
+    "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])"
+)
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=log_level, format=logging_format)
 
 
 def execute_rag_llm(
@@ -32,11 +39,12 @@ def execute_rag_llm(
         context, source = enriched_context.retrieve_context(chat_message)
 
         if context is None:
-            raise ValueError("Failed to retrieve context for the provided chat message.")
+            raise ValueError(
+                "Failed to retrieve context for the provided chat message."
+            )
 
         llm = Llm.create(model_type=model_type)
-        logging.debug(llm.get_llm_status())
-
+        logging.info(f"LLM Status: {llm.get_llm_status()}")
         answer = llm.get_answer(question=chat_message, context=context)
 
         logging.info("Answer: %s", answer)
