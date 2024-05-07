@@ -1,14 +1,16 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
+ - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    group:
+    groups:
       name: "all"  # Group name for all updates
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    group:
-      name: "all"  # Same group name used to combine updates
+ - package-ecosystem: "pip"
+   directory: "/"
+   schedule:
+    interval: "weekly"
+   groups:
+    python-packages:
+      patterns:
+        - "*"
