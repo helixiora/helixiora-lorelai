@@ -124,8 +124,8 @@ document.addEventListener('DOMContentLoaded', function() {
      * @returns {number} The delay in milliseconds.
      */
     function calculateDelay(attempt) {
-        if (attempt <= 5) return 500; // 0.5 seconds
-        if (attempt <= 7) return 1000; // 1 second
+        if (attempt <= 5) return 5000; // 5 seconds == 5000
+        if (attempt <= 7) return 10000; // 10 second = 10000
         return 1500; // 1.5 seconds for all further attempts
     }
 
