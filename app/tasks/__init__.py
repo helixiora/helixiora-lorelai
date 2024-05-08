@@ -4,7 +4,7 @@ This module contains the tasks that are executed asynchronously.
 
 import logging
 from typing import List
-
+import time
 from rq import get_current_job
 import os
 
@@ -27,6 +27,7 @@ def execute_rag_llm(
     """
     A task to execute the RAG+LLM model.
     """
+    start_time=time.time()
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
@@ -58,7 +59,8 @@ def execute_rag_llm(
         json_data = {"error": str(e), "status": "Failed"}
         # Optionally, re-raise the exception if you want the task to be marked as failed
         raise e
-
+    end_time=time.time()
+    logging.info(f"Worker Exec time: {end_time-start_time}")
     return json_data
 
 
