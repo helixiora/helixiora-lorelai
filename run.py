@@ -36,7 +36,6 @@ logging.debug("Loading the app...")
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-
 # Improved index route using render_template
 @app.route("/")
 def index():
@@ -72,6 +71,7 @@ def index():
     }
 
     lorelaicreds = load_config("lorelai")
+    redirect_uri = lorelaicreds["redirect_uri"].replace("http://", "https://")
     flow = Flow.from_client_config(
         client_config=client_config,
         scopes=[
