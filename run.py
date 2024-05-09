@@ -71,7 +71,7 @@ def index():
     }
 
     lorelaicreds = load_config("lorelai")
-    #redirect_uri = lorelaicreds["redirect_uri"].replace("http://", "https://")
+
     flow = Flow.from_client_config(
         client_config=client_config,
         scopes=[
@@ -85,7 +85,7 @@ def index():
 
     if "google_id" in session:
         user_data = {
-            # 'user_organization': session['organisation'],
+            'user_organization': session['organisation'],
             "user_email": session["email"],
             "is_admin": is_admin(session["google_id"]),
         }
