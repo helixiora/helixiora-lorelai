@@ -98,7 +98,7 @@ def start_indexing():
                     org_row=org_row,
                     user_rows=user_rows,
                     job_timeout=3600,
-                    description=f"Indexing GDrive for ${len(user_rows)} users in ${org_row['name']}",
+                    description=f"Indexing GDrive: ${len(user_rows)} users in ${org_row['name']}",
                 )
                 job_id = job.get_id()
 
