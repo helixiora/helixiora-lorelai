@@ -160,5 +160,9 @@ tools/benchmark/credentials.json
 tools/benchmark/test_data
 tools/benchmark/config.yaml
 db/flyway.conf
-
+flyway.user.toml
+flyway.toml
+report.html
+report.json
+flyway.conf.original
 node_modules
