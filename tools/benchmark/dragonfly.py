@@ -12,23 +12,29 @@ import time
 
 import benchmark.operations
 import benchmark.run
-import yaml
+
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
+from lorelai.utils import load_config
 
 
 def setup_arg_parser():
     parser = argparse.ArgumentParser(
-        description="Unified Benchmarking Script with Configurable Operations"
+        description="Dragonfly: Unified Benchmarking Script with Configurable Operations"
     )
     parser.add_argument(
-        "verb", choices=["download", "upload", "benchmark"], help="Operation to perform"
+        "verb",
+        choices=["download", "upload", "benchmark"],
+        help="Operation to perform: \
+            download - download NLTK corpus to the location of dragonfly, \
+            upload - upload data to google drive \
+            benchmark - run benchmarking using LaurelAI's validation system",
     )
     parser.add_argument(
-        "--data_source",
-        choices=["drive"],
-        default="drive",
-        help="Destination to upload data",
+        "--config", help="Path to the JSON formatted config file", default="settings.json"
     )
-    parser.add_argument("--config", help="Path to the config file", default="config.yaml")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Perform a dry run of the operation", default=False
+    )
     return parser
 
 
@@ -41,7 +47,7 @@ def validate_config(config, verb):
             "question_file",
             "org_name",
             "user_name",
-            # "evaluator",
+            "question_classes_file",
         ],
     }
     missing_keys = [key for key in necessary_keys[verb] if key not in config]
@@ -61,16 +67,19 @@ def main():
     parser = setup_arg_parser()
     args = parser.parse_args()
 
-    logging.info(f"Reading config from: {args}")
-    logging.info(f"Performing operation: {args.verb}")
+    logging.debug(f"Reading config from: {args}")
+    logging.debug(f"Performing operation: {args.verb}")
 
-    with open(args.config, "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config("dragonfly")
 
     validate_config(config, args.verb)  # Validate config before proceeding
 
     if args.verb == "download":
-        benchmark.operations.download_nltk_reuters(config["nltk_corpus_download_dir"])
+        if args.dry_run:
+            logging.info("Dry run enabled. Skipping download operation.")
+            sys.exit(0)
+        else:
+            benchmark.operations.download_nltk_reuters(config["nltk_corpus_download_dir"])
 
     elif args.verb == "upload":
         if args.data_source == "drive":
