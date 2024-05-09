@@ -28,9 +28,7 @@ def setup_arg_parser():
         default="drive",
         help="Destination to upload data",
     )
-    parser.add_argument(
-        "--config", help="Path to the config file", default="config.yaml"
-    )
+    parser.add_argument("--config", help="Path to the config file", default="config.yaml")
     return parser
 
 
@@ -48,9 +46,7 @@ def validate_config(config, verb):
     }
     missing_keys = [key for key in necessary_keys[verb] if key not in config]
     if missing_keys:
-        logging.error(
-            f"Missing configuration keys for {verb}: {', '.join(missing_keys)}"
-        )
+        logging.error(f"Missing configuration keys for {verb}: {', '.join(missing_keys)}")
         sys.exit(1)
 
 
@@ -79,19 +75,13 @@ def main():
     elif args.verb == "upload":
         if args.data_source == "drive":
             # authenticate with Google Drive
-            service = benchmark.operations.google_drive_auth(
-                config["drive_service_config"]
-            )
+            service = benchmark.operations.google_drive_auth(config["drive_service_config"])
 
             # find or create folder and upload files
-            folder_id = benchmark.operations.find_or_create_folder(
-                service, config["folder_name"]
-            )
+            folder_id = benchmark.operations.find_or_create_folder(service, config["folder_name"])
             benchmark.operations.upload_files(service, folder_id, config["data_dir"])
         else:
-            logging.error(
-                f"Data source {args.data_source} not supported for upload operation."
-            )
+            logging.error(f"Data source {args.data_source} not supported for upload operation.")
             sys.exit(1)
 
     elif args.verb == "benchmark":
