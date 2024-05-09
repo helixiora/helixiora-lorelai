@@ -1,30 +1,67 @@
 version: '3.10'
 
 services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: 'lorelai'
+      MYSQL_ROOT_PASSWORD: 'test123'
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - '3306:3306'
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./db/baseline_schema.sql:/docker-entrypoint-initdb.d/1-baseline_schema.sql
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  flyway:
+    image: flyway/flyway
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:mysql://db:3306/lorelai
+      FLYWAY_USER: root
+      FLYWAY_PASSWORD: test123
+      FLYWAY_SCHEMAS: lorelai
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./db/migrations:/flyway/sql
+    command: migrate
+    restart: on-failure
+
   web:
     build: .
     command: gunicorn -w 4 -k gevent --timeout 300 --certfile=/app/cert.pem --keyfile=/app/key.pem -b 0.0.0.0:5000 run:app
     environment:
       - FLASK_APP=run.py
       - REDIS_URL=redis://redis:6379/0
-      - OAUTHLIB_INSECURE_TRANSPORT=1  # DEV ONLY
-      - OAUTHLIB_RELAX_TOKEN_SCOPE=1   # SCOPE CHANGES in OAuth tokens
+      - OAUTHLIB_INSECURE_TRANSPORT=1
+      - OAUTHLIB_RELAX_TOKEN_SCOPE=1
+      - DATABASE_URL=mysql://root:test123@db:3306/lorelai
     volumes:
       - ./cert.pem:/app/cert.pem
       - ./key.pem:/app/key.pem
       - ./:/app
     ports:
-      - "127.0.0.1:5000:5000" 
+      - "127.0.0.1:5000:5000"
     depends_on:
+      - db
       - redis
-    restart: on-failure # Ensures the service restarts if it exits due to an error.
+    restart: on-failure
 
   redis:
-    image: "redis:alpine"
-    command: redis-server --appendonly yes # Enables AOF persistence for better data durability.
+    image: redis:alpine
+    command: redis-server --appendonly yes
     volumes:
-      - redis-data:/data # Persists Redis data across container restarts.
-    healthcheck: # Health check to ensure Redis is ready before other services start.
+      - redis-data:/data
+    healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
@@ -45,7 +82,8 @@ services:
     restart: on-failure
 
 volumes:
-  redis-data: # Defines the volume for Redis data.
+  redis-data:
+  db-data:
 
 networks:
-  default: # Utilizes the default network, but can be customized for complex applications.
+  default:

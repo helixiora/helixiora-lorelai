@@ -4,6 +4,13 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
+#Run GCC and G++
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only the files needed for pip install to avoid cache busting the layer if unrelated files change.
 COPY requirements.txt ./
 
