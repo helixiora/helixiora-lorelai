@@ -4,13 +4,21 @@ This module contains the tasks that are executed asynchronously.
 
 import logging
 from typing import List
-
+import time
 from rq import get_current_job
+import os
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
+
+logging_format = os.getenv(
+    "LOG_FORMAT",
+    "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
+)
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=log_level, format=logging_format)
 
 
 def execute_rag_llm(
@@ -19,6 +27,7 @@ def execute_rag_llm(
     """
     A task to execute the RAG+LLM model.
     """
+    start_time=time.time()
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
@@ -32,11 +41,12 @@ def execute_rag_llm(
         context, source = enriched_context.retrieve_context(chat_message)
 
         if context is None:
-            raise ValueError("Failed to retrieve context for the provided chat message.")
+            raise ValueError(
+                "Failed to retrieve context for the provided chat message."
+            )
 
         llm = Llm.create(model_type=model_type)
-        logging.debug(llm.get_llm_status())
-
+        logging.info(f"LLM Status: {llm.get_llm_status()}")
         answer = llm.get_answer(question=chat_message, context=context)
 
         logging.info("Answer: %s", answer)
@@ -49,7 +59,8 @@ def execute_rag_llm(
         json_data = {"error": str(e), "status": "Failed"}
         # Optionally, re-raise the exception if you want the task to be marked as failed
         raise e
-
+    end_time=time.time()
+    logging.info(f"Worker Exec time: {end_time-start_time}")
     return json_data
 
 

@@ -8,7 +8,8 @@
         ]
     },
     "pinecone": {
-        "api_key": "pinecone_api_key_here"
+        "api_key": "pinecone_api_key_here",
+        "region": "aws-region-here"
     },
     "openai": {
         "api_key": "openapi_key_here"
