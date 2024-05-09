@@ -5,7 +5,7 @@ import sys
 
 import yaml
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
 from lorelai.contextretriever import ContextRetriever  # noqa E402
 from lorelai.llm import Llm  # noqa E402
 from benchmark.validate import Validate  # noqa E402

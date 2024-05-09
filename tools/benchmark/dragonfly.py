@@ -8,11 +8,11 @@ import argparse
 import logging
 import os
 import sys
-
-import yaml
+import time
 
 import benchmark.operations
 import benchmark.run
+import yaml
 
 
 def setup_arg_parser():
@@ -55,14 +55,17 @@ def validate_config(config, verb):
 
 
 def main():
-    parser = setup_arg_parser()
-    args = parser.parse_args()
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging_format = os.getenv(
         "LOG_FORMAT",
         "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
     )
     logging.basicConfig(level=log_level, format=logging_format)
+
+    parser = setup_arg_parser()
+    args = parser.parse_args()
+
+    logging.info(f"Reading config from: {args}")
     logging.info(f"Performing operation: {args.verb}")
 
     with open(args.config, "r") as f:
@@ -92,6 +95,9 @@ def main():
             sys.exit(1)
 
     elif args.verb == "benchmark":
+        # record the time before benchmarking
+        start = time.time()
+
         benchmark_run = benchmark.run.Run(model_type="OllamaLlama3")
         benchmark_run.benchmark(
             org_name=config["org_name"],
@@ -99,6 +105,10 @@ def main():
             question_file=config["question_file"],
             question_classes_file=config["question_classes_file"],
         )
+
+        end = time.time()
+
+        logging.info(f"Benchmarking completed in {end - start} seconds.")
     else:
         logging.error(f"Invalid operation: {args.verb}")
         sys.exit(1)

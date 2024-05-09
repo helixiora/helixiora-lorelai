@@ -98,8 +98,6 @@ class ContextRetriever:
             # stringified)
             logging.debug(f"Doc metadata: {doc.metadata}")
             # TODO: the relevance score is a list with two values, wondering which score we should use
-            # some reranker model only provide 1 value instead of 2
-            # score = doc.metadata["relevance_score"][0] * 100
             score = doc.metadata["relevance_score"] * 100
             source_entry = {
                 "title": doc.metadata["title"],
