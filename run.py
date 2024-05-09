@@ -13,8 +13,12 @@ from google_auth_oauthlib.flow import Flow
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import is_admin
+from app.utils import is_admin, perform_health_checks
 from lorelai.utils import load_config
+
+# this is a print on purpose (not a logger statement) to show that the app is loading
+print("Loading the app...")
+logging.debug("Loading the app...")
 
 app = Flask(__name__)
 # Get the log level from the environment variable
@@ -29,9 +33,12 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 
-# this is a print on purpose (not a logger statement) to show that the app is loading
-print("Loading the app...")
-logging.debug("Loading the app...")
+# run startup health checks. If there is a dependant service that is not running, we want to
+# know it asap and stop the app from running
+logging.debug("Running startup checks...")
+errors = perform_health_checks()
+if errors:
+    sys.exit(f"Startup checks failed: {errors}")
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -111,6 +118,16 @@ def serve_js(script_name):
         200,
         {"Content-Type": "application/javascript"},
     )
+
+
+# health check route
+@app.route("/health")
+def health():
+    """the health check route"""
+    checks = perform_health_checks()
+    if checks:
+        return checks, 500
+    return "OK", 200
 
 
 # Logout route
