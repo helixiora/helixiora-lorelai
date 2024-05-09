@@ -80,19 +80,23 @@ def load_config(service: str) -> dict[str, str]:
     if Path("./settings.json").is_file():
         with Path("./settings.json").open(encoding="utf-8") as f:
             try:
-                creds = json.load(f).get(service, {})
+                config = json.load(f).get(service, {})
 
                 if service != "google" or service != "lorelai":
-                    os.environ[f"{service.upper()}_API_KEY"] = creds.get("api_key", "")
+                    os.environ[f"{service.upper()}_API_KEY"] = config.get("api_key", "")
 
             except ValueError as e:
                 logging.debug(f"There was an error in your JSON:\n    {e}")
                 logging.debug("Trying to fallbak to env vars...")
-                creds = get_creds_from_os(service)
+                config = get_creds_from_os(service)
     else:
-        creds = get_creds_from_os(service)
+        config = get_creds_from_os(service)
 
-    return creds
+    # if config is {} we need to fail
+    if not config:
+        raise ValueError(f"No config found in settings.json under {service}")
+
+    return config
 
 
 def get_db_connection():
