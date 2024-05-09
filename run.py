@@ -36,7 +36,6 @@ logging.debug("Loading the app...")
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-
 # Improved index route using render_template
 @app.route("/")
 def index():
@@ -72,6 +71,7 @@ def index():
     }
 
     lorelaicreds = load_config("lorelai")
+
     flow = Flow.from_client_config(
         client_config=client_config,
         scopes=[
@@ -85,7 +85,7 @@ def index():
 
     if "google_id" in session:
         user_data = {
-            # 'user_organization': session['organisation'],
+            'user_organization': session['organisation'],
             "user_email": session["email"],
             "is_admin": is_admin(session["google_id"]),
         }
