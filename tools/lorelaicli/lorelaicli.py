@@ -21,8 +21,6 @@ logging_format = os.getenv(
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format=logging_format)
 
-logging.info(f"{Fore.RED}No TTTTTTTTTTTTTTTT")
-
 
 def main() -> None:
     """Retrieve the context, ask a question, and display the results."""
