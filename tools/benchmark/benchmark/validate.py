@@ -1,9 +1,25 @@
+import logging
+
+
 class Validate:
     """Class for validating answers to questions."""
 
     def validate_fact_retrieval(self, question, answer):
         """Validates answers for fact retrieval questions."""
-        return True  # Placeholder for always pass
+        logging.debug("Validating fact retrieval question")
+
+        expected_answer = question["answer"]
+
+        logging.debug(f"Question: {question['question']}")
+        logging.debug(f"Expected answer: {expected_answer}")
+        logging.debug(f"Answer: {answer}")
+
+        if expected_answer in answer:
+            logging.debug("Correct answer!")
+        else:
+            logging.debug("Incorrect answer!")
+
+        return expected_answer in answer
 
     def validate_logical_reasoning(self, question, answer):
         """Validates answers for logical reasoning questions."""

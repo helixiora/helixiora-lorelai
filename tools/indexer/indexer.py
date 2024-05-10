@@ -5,6 +5,7 @@ Crawl the Google Drive and index the documents.
 
 It processes the documents using Pinecone and OpenAI API through langchain
 """
+
 import logging
 import os
 import sys
@@ -34,7 +35,6 @@ def main() -> None:
         # get the user creds for this org from DB
         cur = conn.cursor(dictionary=True)
         for org in rows:
-            print("88888888888", org)
             cur.execute(
                 """
                 SELECT user_id, name, email, access_token, refresh_token
