@@ -1,12 +1,12 @@
 [
   {
-    "answer": "$125.50",
+    "answer": "Federation of Oils Seeds and Fats Associations",
     "class": "fact_retrieval",
     "context": {
-      "excerpt": "On July 5, 1987, the closing price of IBM stock was reported to be $125.50.",
-      "source": "google drive://stocks/IBM STOCK PRICES JULY 1987"
+      "excerpt": "The Federation of Oils Seeds and Fats Associations, FOSFA, in London said it had previously advised traders to adopt the metric system for coconut oil transactions to bring the commodity into line with other vegetable oils.",
+      "source": "google drive://coconut-oil/COCONUT OIL CONTRACT TO CHANGE - DUTCH TRADERS"
     },
-    "question": "What was the closing price of IBM stock in the article published on July 5, 1987?"
+    "question": "What does FOSFA stand for?"
   },
   {
     "answer": "Brazil",

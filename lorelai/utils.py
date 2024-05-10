@@ -99,6 +99,10 @@ def load_config(service: str, config_file: str = "./settings.json") -> dict[str,
     if not config:
         raise ValueError(f"No config found in {config_file} under {service}")
 
+    # if config is {} we need to fail
+    if not config:
+        raise ValueError(f"No config found in {config_file} or OS env var under {service}")
+
     return config
 
 

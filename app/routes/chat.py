@@ -29,6 +29,7 @@ def chat():
     queue = Queue(connection=redis_conn)
 
     llm_model = "OpenAILlm"
+    # llm_model = "OllamaLlama3"
 
     job = queue.enqueue(
         execute_rag_llm,

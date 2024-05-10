@@ -5,7 +5,7 @@ import sys
 
 import yaml
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
 from lorelai.contextretriever import ContextRetriever  # noqa E402
 from lorelai.llm import Llm  # noqa E402
 from benchmark.validate import Validate  # noqa E402
@@ -88,7 +88,12 @@ class Run:
 
             # validate the answer based on the question class
             validation_function = question_class["python_function"]
+            # create an instance of the Validate class
             validation = Validate()
+            # call the validation function based on the question class
             validation_result = getattr(validation, validation_function)(question, answer)
 
-            logging.info(f"Validation result: {validation_result}")
+            if validation_result:
+                logging.info("Correct answer!")
+            else:
+                logging.info(f"Incorrect answer! Expected: {question['answer']}, Actual: {answer}")

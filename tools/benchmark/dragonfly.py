@@ -28,6 +28,9 @@ def main():
     elif args.verb == "template":
         handle_template(args)
 
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
+from lorelai.utils import load_config
+
 
 def setup_arg_parser():
     # Create the main parser and a subparsers container
@@ -67,7 +70,6 @@ def setup_arg_parser():
 
     return parser
 
-
 def setup_data_subparsers(subparsers):
     download_parser = subparsers.add_parser(
         "download", help="download data to the specified location"
@@ -88,7 +90,6 @@ def setup_data_subparsers(subparsers):
     upload_parser.add_argument(
         "--dry-run", action="store_true", help="Perform a dry run of the operation"
     )
-
 
 def setup_benchmark_subparsers(subparsers):
     run_parser = subparsers.add_parser("run", help="execute a benchmark run")

@@ -1,3 +1,4 @@
+import json
 import sys
 from unittest import mock
 
@@ -14,22 +15,35 @@ def test_parser_with_valid_verb():
     for verb in ["download", "upload", "benchmark"]:
         args = parser.parse_args([verb])
         assert args.verb == verb
-        assert args.data_source == "drive"  # default
-        assert args.config == "config.yaml"  # default
+        assert args.config == "settings.json"  # default
 
 
-def test_parser_with_invalid_verb():
+def test_parser_with_no_verbs():
     parser = setup_arg_parser()
     with pytest.raises(SystemExit):  # argparse throws SystemExit on invalid args
         parser.parse_args(["invalid_verb"])
 
 
+def test_parser_with_invalid_verbs(capfd):
+    parser = setup_arg_parser()
+    # expect argparse to throw an ArgumentError since "dostuff" is not a valid verb
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["dostuff"])
+    assert excinfo.type == SystemExit
+
+    # Capture the output to stderr and stdout
+    out, err = capfd.readouterr()
+
+    # Check the stderr output for the expected error message
+    assert "invalid choice" in err
+    assert "dostuff" in err
+
+
 def test_parser_with_optional_arguments():
     parser = setup_arg_parser()
-    args = parser.parse_args(["download", "--data_source", "drive", "--config", "custom.yaml"])
+    args = parser.parse_args(["download", "--config", "settings.json"])
     assert args.verb == "download"
-    assert args.data_source == "drive"
-    assert args.config == "custom.yaml"
+    assert args.config == "settings.json"
 
 
 def test_main_with_no_args():
@@ -51,11 +65,12 @@ def test_main_with_invalid_args():
 
 
 def test_main_with_valid_args():
-    testargs = ["prog", "download", "--config", "custom.yaml"]
+    testargs = ["prog", "download", "--config", "custom.json"]
+    config_data = '{"nltk_corpus_download_dir": "dir"}'
     with mock.patch.object(sys, "argv", testargs):
-        with mock.patch("builtins.open", mock.mock_open(read_data="data")) as mock_file:
-            with mock.patch("yaml.safe_load", return_value={"nltk_corpus_download_dir": "dir"}):
+        with mock.patch("builtins.open", mock.mock_open(read_data=config_data)) as mock_file:
+            with mock.patch("json.load", return_value=json.loads(config_data)):
                 with mock.patch("benchmark.operations.download_nltk_reuters") as mock_download:
                     main()
                     mock_download.assert_called_once_with("dir")
-                    mock_file.assert_called_once_with("custom.yaml", "r")
+                    mock_file.assert_called_once_with("custom.json", "r")

@@ -42,8 +42,16 @@ class ContextRetriever:
             user (str): The user name, potentially used for logging or customization.
         """
         self.pinecone_creds = load_config("pinecone")
+        if not self.pinecone_creds or len(self.pinecone_creds) == 0:
+            raise ValueError("Pinecone credentials not found.")
+
         self.openai_creds = load_config("openai")
+        if not self.openai_creds or len(self.openai_creds) == 0:
+            raise ValueError("Pinecone credentials not found.")
+
         self.lorelai_creds = load_config("lorelai")
+        if not self.lorelai_creds or len(self.lorelai_creds) == 0:
+            raise ValueError("Lorelai credentials not found.")
 
         self.org_name: str = org_name
         self.user: str = user
@@ -71,6 +79,10 @@ class ContextRetriever:
         vec_store = PineconeVectorStore.from_existing_index(
             index_name=index_name, embedding=OpenAIEmbeddings()
         )
+
+        if vec_store is None:
+            raise ValueError(f"Index {index_name} not found.")
+
         retriever = vec_store.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
@@ -96,10 +108,9 @@ class ContextRetriever:
             docs.append(doc)
             # Create a source entry with title, source, and score (converted to percentage and
             # stringified)
+            logging.info(f"Doc: {doc.metadata['title']}")
             logging.debug(f"Doc metadata: {doc.metadata}")
             # TODO: the relevance score is a list with two values, wondering which score we should use
-            # some reranker model only provide 1 value instead of 2
-            # score = doc.metadata["relevance_score"][0] * 100
             score = doc.metadata["relevance_score"] * 100
             source_entry = {
                 "title": doc.metadata["title"],
@@ -120,6 +131,9 @@ class ContextRetriever:
         """
         pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
 
+        if pinecone is None:
+            raise ValueError("Failed to connect to Pinecone.")
+
         return pinecone.list_indexes()
 
     def get_index_details(self, index_host: str) -> List[Dict[str, Any]]:
@@ -134,6 +148,10 @@ class ContextRetriever:
             in the specified index.
         """
         pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
+
+        if pinecone is None:
+            raise ValueError("Failed to connect to Pinecone.")
+
         index = pinecone.Index(host=index_host)
         if index is None:
             raise ValueError(f"Index {index_host} not found.")
