@@ -1,107 +1,169 @@
-#!/usr/bin/env python
-
-"""
-Module to perform benchmarking using LaurelAI's validation system.
-"""
+#!/usr/bin/env python3
 
 import argparse
 import logging
 import os
-import sys
+import time
 
-import yaml
-
-import benchmark.operations
-import benchmark.run
-
-
-def setup_arg_parser():
-    parser = argparse.ArgumentParser(
-        description="Unified Benchmarking Script with Configurable Operations"
-    )
-    parser.add_argument(
-        "verb", choices=["download", "upload", "benchmark"], help="Operation to perform"
-    )
-    parser.add_argument(
-        "--data_source",
-        choices=["drive"],
-        default="drive",
-        help="Destination to upload data",
-    )
-    parser.add_argument(
-        "--config", help="Path to the config file", default="config.yaml"
-    )
-    return parser
-
-
-def validate_config(config, verb):
-    # Define necessary keys for each operation
-    necessary_keys = {
-        "download": ["nltk_corpus_download_dir"],
-        "upload": ["drive_service_config", "folder_name", "data_dir"],
-        "benchmark": [
-            "question_file",
-            "org_name",
-            "user_name",
-            # "evaluator",
-        ],
-    }
-    missing_keys = [key for key in necessary_keys[verb] if key not in config]
-    if missing_keys:
-        logging.error(
-            f"Missing configuration keys for {verb}: {', '.join(missing_keys)}"
-        )
-        sys.exit(1)
+from benchmark.benchmarkmanager import BenchmarkManager
+from benchmark.datamanager import DataManager
+from benchmark.templatemanager import TemplateManager
 
 
 def main():
-    parser = setup_arg_parser()
-    args = parser.parse_args()
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging_format = os.getenv(
         "LOG_FORMAT",
         "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
     )
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(level=log_level, format=logging_format)
-    logging.info(f"Performing operation: {args.verb}")
 
-    with open(args.config, "r") as f:
-        config = yaml.safe_load(f)
+    parser = setup_arg_parser()
+    args = parser.parse_args()
 
-    validate_config(config, args.verb)  # Validate config before proceeding
-
-    if args.verb == "download":
-        benchmark.operations.download_nltk_reuters(config["nltk_corpus_download_dir"])
-
-    elif args.verb == "upload":
-        if args.data_source == "drive":
-            # authenticate with Google Drive
-            service = benchmark.operations.google_drive_auth(
-                config["drive_service_config"]
-            )
-
-            # find or create folder and upload files
-            folder_id = benchmark.operations.find_or_create_folder(
-                service, config["folder_name"]
-            )
-            benchmark.operations.upload_files(service, folder_id, config["data_dir"])
-        else:
-            logging.error(
-                f"Data source {args.data_source} not supported for upload operation."
-            )
-            sys.exit(1)
-
+    if args.verb == "data":
+        handle_data(args)
     elif args.verb == "benchmark":
-        benchmark_run = benchmark.run.Run(model_type="OllamaLlama3")
-        benchmark_run.benchmark(
-            org_name=config["org_name"],
-            user_name=config["user_name"],
-            question_file=config["question_file"],
-            question_classes_file=config["question_classes_file"],
-        )
-    else:
-        logging.error(f"Invalid operation: {args.verb}")
-        sys.exit(1)
+        handle_benchmark(args)
+    elif args.verb == "template":
+        handle_template(args)
+
+
+def setup_arg_parser():
+    # Create the main parser and a subparsers container
+    parser = argparse.ArgumentParser(
+        description="""Dragonfly: Unified Benchmarking Script with Configurable Operations
+        \nUse this script to manage data operations, benchmarking processes, and template management.
+        \nCommands are structured into categories: 'data', 'benchmark', and 'template'.""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="For more information, use the '-h' or '--help' after a sub-command.",
+    )
+    subparsers = parser.add_subparsers(dest="verb", required=True, help="Operation to perform")
+
+    # Data subparser
+    data_parser = subparsers.add_parser(
+        "data", help="manage data operations such as upload and download"
+    )
+    data_subparsers = data_parser.add_subparsers(
+        dest="data_verb", required=True, help="Data operation to perform"
+    )
+    setup_data_subparsers(data_subparsers)
+
+    # Benchmark subparser
+    benchmark_parser = subparsers.add_parser(
+        "benchmark", help="run benchmarking using a configurable system"
+    )
+    benchmark_subparsers = benchmark_parser.add_subparsers(
+        dest="benchmark_verb", required=True, help="Benchmark operation to perform"
+    )
+    setup_benchmark_subparsers(benchmark_subparsers)
+
+    # Template subparser
+    template_parser = subparsers.add_parser("template", help="manage benchmarking templates")
+    template_subparsers = template_parser.add_subparsers(
+        dest="template_verb", required=True, help="Template operation to perform"
+    )
+    setup_template_subparsers(template_subparsers)
+
+    return parser
+
+
+def setup_data_subparsers(subparsers):
+    download_parser = subparsers.add_parser(
+        "download", help="download data to the specified location"
+    )
+    download_parser.add_argument("--path", required=True, help="Local path to download data to")
+    download_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
+    download_parser.add_argument(
+        "--dry-run", action="store_true", help="Perform a dry run of the operation"
+    )
+
+    upload_parser = subparsers.add_parser("upload", help="upload data from a specified location")
+    upload_parser.add_argument("--path", required=True, help="Local path to upload data from")
+    upload_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
+    upload_parser.add_argument(
+        "--dry-run", action="store_true", help="Perform a dry run of the operation"
+    )
+
+
+def setup_benchmark_subparsers(subparsers):
+    run_parser = subparsers.add_parser("run", help="execute a benchmark run")
+    run_parser.add_argument(
+        "--template-name", default=f"Benchmarking Run {time.time()}", help="Template to run"
+    )
+    run_parser.add_argument(
+        "--benchmark-description", default="", help="Description of the benchmarking run"
+    )
+    run_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
+    run_parser.add_argument(
+        "--dry-run", action="store_true", help="Perform a dry run of the operation"
+    )
+
+    results_parser = subparsers.add_parser("results", help="manage the results of benchmark runs")
+    results_parser.add_argument(
+        "--benchmark-id", required=True, help="Specify the ID of the benchmark to manage results"
+    )
+    results_parser.add_argument(
+        "--action",
+        choices=["view", "delete"],
+        required=True,
+        help="Action to perform on the benchmark results",
+    )
+
+
+def setup_template_subparsers(subparsers):
+    subparsers.add_parser("list", help="list all available benchmarking templates")
+
+    create_parser = subparsers.add_parser("create", help="create a new benchmarking template")
+    create_parser.add_argument("--template-name", required=True, help="Name of the new template")
+    create_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
+
+    delete_parser = subparsers.add_parser("delete", help="delete a benchmarking template")
+    delete_parser.add_argument(
+        "--template-name", required=True, help="Specify the template to delete"
+    )
+
+    show_parser = subparsers.add_parser("show", help="show the details of a benchmarking template")
+    show_parser.add_argument("--template-name", required=True, help="Specify the template to show")
+
+
+def handle_data(args):
+    data_manager = DataManager(args.config)
+    if args.data_verb == "download":
+        data_manager.download(args.path)
+    elif args.data_verb == "upload":
+        data_manager.upload(args.path, args.dry_run)
+
+
+def handle_benchmark(args):
+    benchmark_manager = BenchmarkManager(args.config)
+    if args.benchmark_verb == "run":
+        benchmark_manager.run(args.template_name, args.benchmark_description, args.dry_run)
+    elif args.benchmark_verb == "results":
+        if args.action == "view":
+            benchmark_manager.view_results(args.benchmark_id)
+        elif args.action == "delete":
+            benchmark_manager.delete_results(args.benchmark_id)
+
+
+def handle_template(args):
+    template_manager = TemplateManager(args.config)
+    if args.template_verb == "list":
+        template_manager.list_templates()
+    elif args.template_verb == "create":
+        template_manager.create_template(args.template_name)
+    elif args.template_verb == "delete":
+        template_manager.delete_template(args.template_name)
+    elif args.template_verb == "show":
+        template_manager.show_template(args.template_name)
 
 
 if __name__ == "__main__":

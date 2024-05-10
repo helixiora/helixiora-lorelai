@@ -61,9 +61,7 @@ class Indexer:
         # if we haven't returned True by now, something went wrong
         return False
 
-    def index_user_drive(
-        self: None, user: dict[Any], org: dict[Any], job: Optional["job"]
-    ) -> bool:
+    def index_user_drive(self: None, user: dict[Any], org: dict[Any], job: Optional["job"]) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
@@ -109,9 +107,7 @@ class Indexer:
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        logging.debug(
-            f"Processing {len(document_ids)} documents for user: {user['name']}"
-        )
+        logging.debug(f"Processing {len(document_ids)} documents for user: {user['name']}")
         pinecone_processor = Processor()
         pinecone_processor.google_docs_to_pinecone_docs(
             document_ids=document_ids,
@@ -130,6 +126,8 @@ class Indexer:
 
     def get_google_docs_ids(self: None, credentials) -> list[str]:
         """Retrieve all Google Docs document IDs from the user's Google Drive.
+
+        Note: this only includes Google Docs documents, not text files or pdfs.
 
         :param credentials: Google-auth credentials object for the user
         :return: List of document IDs
@@ -153,6 +151,7 @@ class Indexer:
                     pageToken=page_token,
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
+                    corpora="allDrives",
                 )
                 .execute()
             )

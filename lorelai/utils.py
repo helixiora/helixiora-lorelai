@@ -31,7 +31,7 @@ def pinecone_index_name(
     return name
 
 
-def get_creds_from_os(service: str) -> dict[str, str]:
+def get_config_from_os(service: str) -> dict[str, str]:
     """Load credentials from OS env vars.
 
     Arguments:
@@ -44,7 +44,7 @@ def get_creds_from_os(service: str) -> dict[str, str]:
         dict: A dictionary containing the creds for the specified service.
 
     """
-    creds = {}
+    config = {}
     # loop through the env vars
     for k in os.environ:
         # check if the service is in the env var
@@ -54,14 +54,14 @@ def get_creds_from_os(service: str) -> dict[str, str]:
             # eg. GOOGLE_CLIENT_ID -> client_id
             n_k = k.lower().replace(f"{service}_", "")
             if "redirect_uris" in n_k:
-                creds[n_k] = os.environ[k].split("|")
+                config[n_k] = os.environ[k].split("|")
             else:
-                creds[n_k] = os.environ[k]
+                config[n_k] = os.environ[k]
 
-    return creds
+    return config
 
 
-def load_config(service: str) -> dict[str, str]:
+def load_config(service: str, config_file: str = "./settings.json") -> dict[str, str]:
     """Load credentials for a specified service from settings.json.
 
     If file is non-existant or has syntax errors will try to pull from
@@ -72,30 +72,37 @@ def load_config(service: str) -> dict[str, str]:
         service (str): The name of the service (e.g 'openai', 'pinecone')
         for which to load credentials.
 
+        config_file (str): The path to the settings.json file.
+
     Returns:
     -------
         dict: A dictionary containing the creds for the specified service.
 
     """
-    if Path("./settings.json").is_file():
-        with Path("./settings.json").open(encoding="utf-8") as f:
+    logging.debug(f"loading from full file path: {Path(config_file).absolute()}")
+    if Path(config_file).is_file():
+        with Path(config_file).open(encoding="utf-8") as f:
             try:
-                creds = json.load(f).get(service, {})
+                config = json.load(f).get(service, {})
 
                 if service != "google" or service != "lorelai":
-                    os.environ[f"{service.upper()}_API_KEY"] = creds.get("api_key", "")
+                    os.environ[f"{service.upper()}_API_KEY"] = config.get("api_key", "")
 
             except ValueError as e:
                 logging.debug(f"There was an error in your JSON:\n    {e}")
                 logging.debug("Trying to fallbak to env vars...")
-                creds = get_creds_from_os(service)
+                config = get_config_from_os(service)
     else:
-        creds = get_creds_from_os(service)
+        config = get_config_from_os(service)
 
-    return creds
+    # if config is {} we need to fail
+    if not config:
+        raise ValueError(f"No config found in {config_file} under {service}")
+
+    return config
 
 
-def get_db_connection():
+def get_db_connection() -> mysql.connector.connection.MySQLConnection:
     """Get a database connection.
 
     Returns
@@ -117,7 +124,13 @@ def get_db_connection():
         raise
 
 
-def save_google_creds_to_tempfile(refresh_token, token_uri, client_id, client_secret):
+def save_google_creds_to_tempfile(
+    refresh_token: str,
+    token_uri: str,
+    client_id: str,
+    client_secret: str,
+    tempfile: str = ".credentials/token.json",
+) -> None:
     """load the google creds to a tempfile.
     This is needed because the GoogleDriveLoader uses
     the Credentials.from_authorized_user_file method to load the credentials
@@ -127,13 +140,17 @@ def save_google_creds_to_tempfile(refresh_token, token_uri, client_id, client_se
     :param client_id: the client id
     :param client_secret: the client secret
     """
+    tempfile = f"{Path.home()}/{tempfile}"
+
     # create a file: Path.home() / ".credentials" / "token.json" to store the credentials so
     # they can be loaded by GoogleDriveLoader's auth process (this uses
     # Credentials.from_authorized_user_file)
-    if not os.path.exists(Path.home() / ".credentials"):
-        os.makedirs(Path.home() / ".credentials")
+    if not os.path.exists(tempfile):
+        # get the directory
+        dir = os.path.dirname(tempfile)
+        os.makedirs(dir, exist_ok=True)
 
-    with open(Path.home() / ".credentials" / "token.json", "w", encoding="utf-8") as f:
+    with open(tempfile, "w", encoding="utf-8") as f:
         f.write(
             json.dumps(
                 {
@@ -190,7 +207,7 @@ def get_index_stats(index_name: str) -> DescribeIndexStatsResponse | None:
     return None
 
 
-def print_index_stats_diff(index_stats_before, index_stats_after):
+def print_index_stats_diff(index_stats_before, index_stats_after) -> None:
     """prints the difference in the index statistics"""
     if index_stats_before and index_stats_after:
         diff = {
