@@ -152,7 +152,7 @@ class Processor:
     def remove_nolonger_accessed_documents(
         self, formatted_documents, pc_index, embedding_dimension, user_email
     ):
-        """Delete document from pinecone, which user no longer have accessed
+        """Delete document which user no longer has access to from Pinecone
 
         :param formatted_documents: document user currently have access to
         :param pc_index: pinecone index object
@@ -161,7 +161,7 @@ class Processor:
         :return: None
 
         """
-        logging.info("Remove docs that user have no longer access")
+        logging.info("Removing docs which user doesn't have access to.")
         count_updated = 0
         count_deleted = 0
         input_vector = np.random.rand(embedding_dimension).tolist()
@@ -224,7 +224,7 @@ class Processor:
                 delete_vector_title_list.append(db_vector_dict[key]["title"])
 
         logging.info(
-            f"Deleting following document from pinecone :\n{delete_vector_title_list}\nSize:{len(delete_vector_title_list)}\ndeleting as no users have access to these documents"
+            f"Deleting following document from pinecone :\n{delete_vector_title_list}\nSize:{len(delete_vector_title_list)}\n as no users have access to these documents"
         )
         if delete_vector_ids_list:
             pc_index.delete(ids=delete_vector_ids_list)
