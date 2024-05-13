@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import time
+import sys
 
 from benchmark.benchmarkmanager import BenchmarkManager
 from benchmark.datamanager import DataManager
@@ -29,7 +30,6 @@ def main():
         handle_template(args)
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
-from lorelai.utils import load_config
 
 
 def setup_arg_parser():
