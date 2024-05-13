@@ -18,7 +18,6 @@ from lorelai.processor import Processor
 
 # The scopes needed to read documents in Google Drive
 SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]
-DATABASE = "./userdb.sqlite"
 
 
 class Indexer:
