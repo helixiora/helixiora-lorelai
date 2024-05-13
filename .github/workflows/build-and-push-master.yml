@@ -37,7 +37,7 @@ jobs:
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.web.prod
           push: true
           tags: ghcr.io/${{ github.repository }}/web:latest
           platforms: linux/amd64,linux/arm64
@@ -45,7 +45,7 @@ jobs:
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
-          file: ./Dockerfile.worker
+          file: ./Dockerfile.worker.prod
           push: true
           tags: ghcr.io/${{ github.repository }}/worker:latest
           platforms: linux/amd64,linux/arm64
