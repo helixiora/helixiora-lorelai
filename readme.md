@@ -59,6 +59,16 @@ using `pip install pre-commit`
 Now, everytime you commit the hooks in `.pre-commit-config.yaml` will be run and the commit will
 fail if those hooks make a change
 
+### Build and deployment pipelines
+
+Our deployments rely on container images of the application and the worker that talks to redis.
+
+To that end the Dockerfile.web.prod is used to build the web app and Dockerfile.worker.prod builds the worker.
+
+The .prod appendix is used for files that are related to building a package that is deployable on our target infra and that we guarantee will work. Any other Dockerfiles (or other deployment helper files) are to be used for local/dev deployments and we don't ensure they will work on all infrastructure.
+
+These then get published to Github's container registry and are available in the Packages section here.
+
 ## Architecture diagram
 
 Below a schematic of how we could build each of these modules so that we can keep the architecture
