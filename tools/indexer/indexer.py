@@ -20,18 +20,20 @@ logging_format = os.getenv(
     "LOG_FORMAT",
     "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
 )
-log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format=logging_format)
 
 
 def main() -> None:
     """Implement the main function."""
     # get the orgs from db
+    logging.info("indexer_cli started")
     with get_db_connection() as conn:
         cur = conn.cursor(dictionary=True)
         cur.execute("SELECT id, name FROM organisations")
         rows = cur.fetchall()
-
+        if not rows:
+            logging.info("No User found in DB")
         # get the user creds for this org from DB
         cur = conn.cursor(dictionary=True)
         for org in rows:
@@ -46,6 +48,7 @@ def main() -> None:
             users = cur.fetchall()
 
             indexer = Indexer()
+            logging.info(f"List of Org and user found: {org}, {users}")
             indexer.index_org_drive(org, users)
 
 

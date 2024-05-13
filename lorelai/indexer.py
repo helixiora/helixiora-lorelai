@@ -74,7 +74,7 @@ class Indexer:
         """
         # 1. Load the Google Drive credentials
         if user:
-            logging.debug(f"Processing user: {user} from org: {org}")
+            logging.info(f"Processing user: {user} from org: {org}")
             refresh_token = user["refresh_token"]
             credentials = Credentials.from_authorized_user_info(
                 {
