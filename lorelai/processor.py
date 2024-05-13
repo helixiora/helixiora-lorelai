@@ -209,7 +209,7 @@ class Processor:
             if len(db_vector_dict[key]["users"]) >= 2:
                 new_user_list = db_vector_dict[key]["users"]
                 new_user_list.remove(user_email)
-                logging.info(f"Removing access without deleting docs from Pinecone")
+                logging.info("Removing access without deleting docs from Pinecone")
                 for id in db_vector_dict[key]["ids"]:
                     pc_index.update(
                         id=id,
