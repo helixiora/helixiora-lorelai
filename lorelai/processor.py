@@ -224,7 +224,7 @@ class Processor:
                 delete_vector_title_list.append(db_vector_dict[key]["title"])
 
         logging.info(
-            f"Deleting following document from pinecone :\n{delete_vector_title_list}\nSize:{len(delete_vector_title_list)}\nAs No users have access to these documents"
+            f"Deleting following document from pinecone :\n{delete_vector_title_list}\nSize:{len(delete_vector_title_list)}\ndeleting as no users have access to these documents"
         )
         if delete_vector_ids_list:
             pc_index.delete(ids=delete_vector_ids_list)
