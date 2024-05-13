@@ -48,7 +48,7 @@ def main() -> None:
             users = cur.fetchall()
 
             indexer = Indexer()
-            logging.info(f"List of Org and user found: {org}, {users}")
+            logging.debug(f"List of org and user found: {org}, {users}")
             indexer.index_org_drive(org, users)
 
 

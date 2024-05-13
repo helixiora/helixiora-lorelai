@@ -74,7 +74,7 @@ class Indexer:
         """
         # 1. Load the Google Drive credentials
         if user:
-            logging.info(f"Processing user: {user} from org: {org}")
+            logging.debug(f"Processing user: {user} from org: {org}")
             refresh_token = user["refresh_token"]
             credentials = Credentials.from_authorized_user_info(
                 {
@@ -109,8 +109,8 @@ class Indexer:
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        logging.debug(
-            f"Processing {len(document_ids)} documents for user: {user['name']}"
+        logging.info(
+            f"Processing {len(document_ids)} Google documents for user: {user['name']}"
         )
         pinecone_processor = Processor()
         pinecone_processor.google_docs_to_pinecone_docs(
