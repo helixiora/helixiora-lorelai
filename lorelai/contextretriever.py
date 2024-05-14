@@ -75,7 +75,7 @@ class ContextRetriever:
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
         )
-
+        logging.info(f"Using Pinecone index: {index_name}")
         vec_store = PineconeVectorStore.from_existing_index(
             index_name=index_name, embedding=OpenAIEmbeddings()
         )
@@ -89,7 +89,7 @@ class ContextRetriever:
         )
 
         # list of models:https://github.com/PrithivirajDamodaran/FlashRank
-        compressor = FlashrankRerank(top_n=3, model="ms-marco-TinyBERT-L-2-v2")
+        compressor = FlashrankRerank(top_n=3, model="ms-marco-MiniLM-L-12-v2")
         # Reranker takes the result from base retriever than reranks those retrived.
         # flash reranker is used as its standalone, lighweight. and free and open source
         compression_retriever = ContextualCompressionRetriever(
