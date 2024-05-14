@@ -7,11 +7,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 #Run GCC and G++
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    cmake \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y build-essential
 
 # Copy only the files needed for pip install to avoid cache busting the layer if unrelated files change.
 COPY requirements.txt ./
