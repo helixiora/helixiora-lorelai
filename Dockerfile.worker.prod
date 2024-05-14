@@ -4,16 +4,13 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
-#Run GCC and G++
-RUN apt-get update && apt-get install -y build-essential
-
 # Copy only the files needed for pip install to avoid cache busting the layer if unrelated files change.
-COPY requirements.txt ./
+COPY requirements-worker.txt ./
 
 # Install any needed packages specified in requirements.txt
 # Consider using --upgrade pip and a virtual environment for even better practice.
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements-worker.txt
 
 # Now copy the rest of the application's code into the container
 COPY . .

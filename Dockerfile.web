@@ -4,20 +4,13 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
-#Run GCC and G++
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    cmake \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy only the files needed for pip install to avoid cache busting the layer if unrelated files change.
-COPY requirements.txt ./
+COPY requirements-web.txt ./
 
 # Install any needed packages specified in requirements.txt
 # Consider using --upgrade pip and a virtual environment for even better practice.
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements-web.txt
 
 # Now copy SSL certificates and the rest of the application's code into the container
 COPY cert.pem key.pem ./

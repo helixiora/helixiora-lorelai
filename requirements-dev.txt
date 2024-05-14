@@ -1,4 +1,5 @@
 -r requirements.txt
+FlashRank~=0.2.4
 pydoc-markdown~=4.8.2
 pytest~=8.2.0
 pytest-Flask~=1.3.0

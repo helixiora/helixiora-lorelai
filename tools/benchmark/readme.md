@@ -50,6 +50,8 @@ be executed directly which can be called with the following options:
 If the optional args are provided you will see your runs in the Tonic UI, else
 you will get console output which can be piped into whatever is required.
 
+**Please make sure to install the additional dependencies in requirements-dev.txt** 
+
 Example run:
 
 ```bash
