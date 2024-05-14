@@ -13,3 +13,4 @@ langchain-pinecone~=0.1.0
 mysql-connector-python~=8.4.0
 pinecone-client==3.2.2
 python-dotenv~=1.0.1
+redis~=5.0.4
