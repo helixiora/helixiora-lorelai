@@ -1,6 +1,7 @@
 import requests
 from flask import request, redirect, url_for, session
 from lorelai.utils import load_config
+from app.utils import get_db_connection
 
 class SlackOAuth:
     AUTH_URL = "https://slack.com/oauth/v2/authorize"
@@ -40,5 +41,12 @@ class SlackOAuth:
         if access_token:
             print(access_token,"FOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUND")
             session['slack_access_token'] = access_token
-            return redirect(url_for('index'))
+            if session["slack_access_token"] and session["email"]:
+                print("EMAIL",session["email"])
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""UPDATE users SET slack_token = %s,
+                                WHERE email = %s""",
+                                (session["slack_access_token"], session["email"]))
+                return redirect(url_for('index'))
         return "Error", 400

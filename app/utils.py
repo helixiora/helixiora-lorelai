@@ -25,6 +25,7 @@ def get_db_connection():  # -> MySQLConnection.Connection:
     """
     try:
         creds = load_config("db")
+        print(creds["host"],creds["user"],creds["password"],creds["database"])
         conn = mysql.connector.connect(
             host=creds["host"],
             user=creds["user"],
