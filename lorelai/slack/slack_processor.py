@@ -5,7 +5,7 @@ from lorelai.utils import load_config
 class SlackOAuth:
     AUTH_URL = "https://slack.com/oauth/v2/authorize"
     TOKEN_URL = "https://slack.com/api/oauth.v2.access"
-    SCOPES = "channels:read,chat:write"
+    SCOPES = "channels:history,channels:read,chat:write"
 
     def __init__(self):
         self.config = load_config("slack")
@@ -38,6 +38,7 @@ class SlackOAuth:
         code = request.args.get('code')
         access_token = self.get_access_token(code)
         if access_token:
+            print(access_token,"FOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUNDFOUND")
             session['slack_access_token'] = access_token
             return redirect(url_for('index'))
         return "Error", 400

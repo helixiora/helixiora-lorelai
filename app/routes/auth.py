@@ -264,10 +264,11 @@ def process_user(
 
 slack_oauth = SlackOAuth()
 
-@auth_bp.route('/auth/slack')
+@auth_bp.route('/slack/auth')
 def slack_auth():
     return redirect(slack_oauth.get_auth_url())
 
-@auth_bp.route('/auth/slack/callback')
+@auth_bp.route('/slack/auth/callback')
 def slack_callback():
+    print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
     return slack_oauth.auth_callback()
