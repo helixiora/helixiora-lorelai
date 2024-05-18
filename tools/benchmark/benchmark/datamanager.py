@@ -13,9 +13,8 @@ from lorelai.utils import load_config  # noqa E402
 
 
 class DataManager:
-    def __init__(self: None, config_file: str):
+    def __init__(self: None):
         self.config = load_config("dragonfly")
-        self.config_file = config_file
 
     def download(self: None, path: str, dry_run: bool):
         if not dry_run:

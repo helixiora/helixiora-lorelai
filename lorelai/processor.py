@@ -67,14 +67,10 @@ class Processor:
                 # Check if the vector is already in the database
                 if (
                     result["matches"][0]["score"] >= 0.99
-                    and result["matches"][0]["metadata"]["source"]
-                    == doc["metadata"]["source"]
+                    and result["matches"][0]["metadata"]["source"] == doc["metadata"]["source"]
                 ):
                     # Check if doc already tag for this users
-                    if (
-                        doc["metadata"]["users"][0]
-                        in result["matches"][0]["metadata"]["users"]
-                    ):
+                    if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
                         logging.debug(
                             f"Document {doc['metadata']['source']} already exists in Pinecone"
                         )
@@ -85,8 +81,7 @@ class Processor:
                     # to include this user and we remove the doc.
                     else:
                         users_list = (
-                            result["matches"][0]["metadata"]["users"]
-                            + doc["metadata"]["users"]
+                            result["matches"][0]["metadata"]["users"] + doc["metadata"]["users"]
                         )
                         pc_index.update(
                             id=result["matches"][0]["id"],
@@ -198,16 +193,14 @@ class Processor:
         # store ids of doc in db to be delete as user does not have access
         return count_updated, count_deleted
 
-    def store_docs_in_pinecone(
-        self, docs: Iterable[Document], index_name, user_email
-    ) -> None:
+    def store_docs_in_pinecone(self, docs: Iterable[Document], index_name, user_email) -> None:
         """process the documents and index them in Pinecone
 
         :param docs: the documents to process
         :param index_name: name of index
         :param user_email: the user to process
         """
-        logging.debug(f"Processing {len(docs)} documents for user: {user_email}")
+        logging.info(f"Processing {len(docs)} Google documents for user: {user_email}")
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
         # Iterate over documents and split each document's text into chunks
@@ -219,9 +212,7 @@ class Processor:
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
         if embedding_dimension == -1:
-            raise ValueError(
-                f"Could not find embedding dimension for model '{embedding_model}'"
-            )
+            raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
         pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
 
@@ -241,18 +232,14 @@ class Processor:
         else:
             logging.debug(f"Pinecone index {index_name} already exists")
 
-        logging.debug(
-            f"Indexing {len(documents)} documents in Pinecone index {index_name}"
-        )
+        logging.debug(f"Indexing {len(documents)} documents in Pinecone index {index_name}")
 
         pc_index = pc.Index(index_name)
 
         # Format the document for insertion
         formatted_documents = self.pinecone_format_vectors(documents, embedding_model)
         filtered_documents, updated_documents_numbers = (
-            self.pinecone_filter_deduplicate_documents_list(
-                formatted_documents, pc_index
-            )
+            self.pinecone_filter_deduplicate_documents_list(formatted_documents, pc_index)
         )
 
         count_removed_access, count_deleted = self.remove_nolonger_accessed_documents(
@@ -263,12 +250,8 @@ class Processor:
         if filtered_documents:
             pc_index.upsert(filtered_documents)
 
-        logging.debug(
-            f"removed user tag to {count_removed_access} documents in index {index_name}"
-        )
-        logging.debug(
-            f"Deleted {count_deleted} documents in Pinecone index {index_name}"
-        )
+        logging.debug(f"removed user tag to {count_removed_access} documents in index {index_name}")
+        logging.debug(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
         logging.debug(
             f"Added user tag to {updated_documents_numbers} documents in index {index_name}"
         )
@@ -301,20 +284,20 @@ class Processor:
 
         drive_loader = GoogleDriveLoader(document_ids=document_ids)
 
-        logging.debug(f"Processing document: {document_ids} for user: {user_email}")
+        logging.info(f"Processing {len(document_ids)} google documents for user: {user_email}")
         docs = drive_loader.load()
         logging.debug(f"Loaded {len(docs)} documents from Google Drive")
 
         # go through all docs. For each doc, see if the user is already in the metadata. If not,
         # add the user to the metadata
         for doc in docs:
-            logging.debug(f"Processing doc: {doc.metadata['title']}")
+            logging.info(f"Processing doc: {doc.metadata['title']}")
             # check if the user key is in the metadata
             if "users" not in doc.metadata:
                 doc.metadata["users"] = []
             # check if the user is in the metadata
             if user_email not in doc.metadata["users"]:
-                logging.debug(
+                logging.info(
                     f"Adding user {user_email} to doc.metadata['users'] for \
                     metadata.users ${doc.metadata['users']}"
                 )
@@ -330,4 +313,4 @@ class Processor:
         )
 
         self.store_docs_in_pinecone(docs, index_name=index_name, user_email=user_email)
-        logging.debug(f"Processed {len(docs)} documents for user: {user_email}")
+        logging.info(f"Processed {len(docs)} documents for user: {user_email}")
