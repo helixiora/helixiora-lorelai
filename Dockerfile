@@ -23,10 +23,10 @@ CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5
 # Worker Production stage
 FROM base as worker-production
 RUN pip install --no-cache-dir -r requirements-worker.txt
-ENTRYPOINT ["rq", "worker", "--url", "redis://redis:6379/0"]
+ENTRYPOINT exec rq worker --url $REDIS_URL
 
 # Worker Development stage
 FROM worker-production as worker-development
 EXPOSE 22
 RUN pip install --no-cache-dir -r requirements-dev.txt
-ENTRYPOINT ["rq", "worker", "--url", "redis://redis:6379/0"]
+ENTRYPOINT exec rq worker --url $REDIS_URL
