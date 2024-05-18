@@ -7,11 +7,11 @@ There are two ways LorelAI can be deployed/ran:
 ## Running in a python venv
 
 1. Create a Python virtual environment: `python -m venv .venv`
-1. Activate it with `source .venv/bin/activate`.
-1. Install required dependencies: `pip install -r requirements.txt`.
-1. Get the database up and running, see the [readme in './db'](../db/readme.md)
-1. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
-1. Run an rq worker:
+2. Activate it with `source .venv/bin/activate`.
+3. Install required dependencies: `pip install -r requirements.txt`. *N.B* this installs requirements for both the worker and web app. There's an additional requirements file for playing around with the more *experimental* features called requirements-dev.txt. 
+4. Get the database up and running, see the [readme in './db'](../db/readme.md)
+5. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
+6. Run an rq worker:
 
    `.venv/bin/rq worker &`
 

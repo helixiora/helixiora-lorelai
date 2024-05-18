@@ -1,3 +1,5 @@
+# This docker file is used explicitly to build the package version of the flask app itself, hence no SSL.
+# SSL termination should be handled outside of Flask for production.
 # Use an explicit version of Python for consistent builds. Consider using slim variant for reduced size.
 FROM python:3.11-slim
 
@@ -5,17 +7,18 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy only the files needed for pip install to avoid cache busting the layer if unrelated files change.
-COPY requirements-worker.txt ./
+COPY requirements-web.txt ./
 
 # Install any needed packages specified in requirements.txt
 # Consider using --upgrade pip and a virtual environment for even better practice.
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements-worker.txt
+    pip install --no-cache-dir -r requirements-web.txt
 
 # Now copy the rest of the application's code into the container
 COPY . .
+
 # Make port 5000 available to the world outside this container
-# EXPOSE 5000
-# Set the default command to run the RQ worker
-# Assumes that RQ is set up in your Python application and environment variables are managed at runtime
-ENTRYPOINT exec rq worker --url $REDIS_URL
+EXPOSE 5000
+
+# Use Gunicorn to serve the Flask application; adjust the number of workers and host/port.
+CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5000", "run:app"]
