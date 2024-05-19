@@ -61,10 +61,11 @@ echo -e "${BLUE}===> 3. Testing template commands${NC}"
 run_test "3.1 Testing template create" "./dragonfly.py template create --template-name='test_template' --template-description='My first test template'"
 run_test "3.2 Testing template list" "./dragonfly.py template list"
 run_test "3.3 Testing template show with existing ID" "./dragonfly.py template show --template-id='1'"
-run_test "3.4 Testing template delete" "./dragonfly.py template delete --template-id='1'"
-run_test "3.5 Testing template list-parameters" "./dragonfly.py template list-parameters --template-id='1'"
 run_test "3.6 Testing template add-parameter" "./dragonfly.py template add-parameter --template-id='1' --parameter-name='test_param' --parameter-type='string' --parameter-value='test_value'"
+# run_test_fail "3.4 Testing template delete while having parameters" "./dragonfly.py template delete --template-id='1'"
+run_test "3.5 Testing template list-parameters" "./dragonfly.py template list-parameters --template-id='1'"
 run_test "3.7 Testing template delete-parameter" "./dragonfly.py template delete-parameter --template-id='1' --parameter-name='test_param'"
+run_test "3.4 Testing template delete" "./dragonfly.py template delete --template-id='1'"
 
 # Test the benchmark commands
 echo -e "${BLUE}===> 4. Testing benchmark commands${NC}"

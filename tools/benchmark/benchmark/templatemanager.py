@@ -55,7 +55,9 @@ class TemplateManager:
                 logging.error(
                     f"Template {template_id} has {count} parameters and cannot be deleted"
                 )
-                return
+                raise ValueError(
+                    f"Template {template_id} has {count} parameters and cannot be deleted"
+                )
 
             # check if the template has any runs
             cursor.execute(
@@ -65,7 +67,7 @@ class TemplateManager:
             count = cursor.fetchone()[0]
             if count > 0:
                 logging.error(f"Template {template_id} has {count} runs and cannot be deleted")
-                return
+                raise ValueError(f"Template {template_id} has {count} runs and cannot be deleted")
 
             # delete the template
             cursor.execute("DELETE FROM benchmark_template WHERE id = %s", (template_id,))
@@ -140,7 +142,7 @@ class TemplateManager:
             cursor.execute("SELECT id FROM benchmark_template WHERE id = %s", (template_id,))
             if cursor.fetchone() is None:
                 logging.error(f"Template {template_id} not found")
-                return
+                raise ValueError(f"Template {template_id} not found")
             # check if the parameter already exists
             cursor.execute(
                 "SELECT COUNT(*) FROM benchmark_template_parameter WHERE benchmark_template_id = %s AND parameter = %s",
@@ -150,14 +152,21 @@ class TemplateManager:
                 logging.error(
                     f"Parameter {parameter_name} already exists for template {template_id}"
                 )
-                return
+                raise ValueError(
+                    f"Parameter {parameter_name} already exists for template {template_id}"
+                )
             cursor.execute(
                 "INSERT INTO benchmark_template_parameter (benchmark_template_id, parameter, type, value) VALUES (%s, %s, %s, %s)",
                 (template_id, parameter_name, parameter_type, parameter_value),
             )
             db.commit()
 
-    def delete_parameter(self, template_name, parameter_name):
-        print(f"Deleting parameter {parameter_name} from template {template_name}")
-        logging.error("Not implemented")
-        sys.exit(1)
+    def delete_parameter(self, template_id, parameter_name):
+        print(f"Deleting parameter {parameter_name} from template {template_id}")
+        db = get_db_connection()
+        with db.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM benchmark_template_parameter WHERE benchmark_template_id = %s AND parameter = %s",
+                (template_id, parameter_name),
+            )
+            db.commit()

@@ -195,23 +195,27 @@ def handle_benchmark(args):
 
 
 def handle_template(args):
-    template_manager = TemplateManager()
-    if args.template_verb == "list":
-        template_manager.list_templates()
-    elif args.template_verb == "create":
-        template_manager.create_template(args.template_name, args.template_description)
-    elif args.template_verb == "delete":
-        template_manager.delete_template(args.template_id)
-    elif args.template_verb == "show":
-        template_manager.show_template(args.template_id)
-    elif args.template_verb == "list-parameters":
-        template_manager.list_parameters(args.template_id)
-    elif args.template_verb == "add-parameter":
-        template_manager.add_parameter(
-            args.template_id, args.parameter_name, args.parameter_type, args.parameter_value
-        )
-    elif args.template_verb == "delete-parameter":
-        template_manager.delete_parameter(args.template_id, args.parameter_name)
+    try:
+        template_manager = TemplateManager()
+        if args.template_verb == "list":
+            template_manager.list_templates()
+        elif args.template_verb == "create":
+            template_manager.create_template(args.template_name, args.template_description)
+        elif args.template_verb == "delete":
+            template_manager.delete_template(args.template_id)
+        elif args.template_verb == "show":
+            template_manager.show_template(args.template_id)
+        elif args.template_verb == "list-parameters":
+            template_manager.list_parameters(args.template_id)
+        elif args.template_verb == "add-parameter":
+            template_manager.add_parameter(
+                args.template_id, args.parameter_name, args.parameter_type, args.parameter_value
+            )  # noqa E501
+        elif args.template_verb == "delete-parameter":
+            template_manager.delete_parameter(args.template_id, args.parameter_name)
+    except ValueError as e:
+        logging.error(e)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
