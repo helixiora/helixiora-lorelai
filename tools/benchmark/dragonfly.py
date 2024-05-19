@@ -29,6 +29,7 @@ def main():
     elif args.verb == "template":
         handle_template(args)
 
+
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
 
 
@@ -44,71 +45,134 @@ def setup_arg_parser():
     subparsers = parser.add_subparsers(dest="verb", required=True, help="Operation to perform")
 
     # Data subparser
-    data_parser = subparsers.add_parser("data", help="manage data operations such as upload and download")
-    data_subparsers = data_parser.add_subparsers(dest="data_verb", required=True, help="Data operation to perform")
+    data_parser = subparsers.add_parser(
+        "data", help="manage data operations such as upload and download"
+    )
+    data_subparsers = data_parser.add_subparsers(
+        dest="data_verb", required=True, help="Data operation to perform"
+    )
     setup_data_subparsers(data_subparsers)
 
     # Benchmark subparser
-    benchmark_parser = subparsers.add_parser("benchmark", help="run benchmarking using a configurable system")
-    benchmark_subparsers = benchmark_parser.add_subparsers(dest="benchmark_verb", required=True, help="Benchmark operation to perform")
+    benchmark_parser = subparsers.add_parser(
+        "benchmark", help="run benchmarking using a configurable system"
+    )
+    benchmark_subparsers = benchmark_parser.add_subparsers(
+        dest="benchmark_verb", required=True, help="Benchmark operation to perform"
+    )
     setup_benchmark_subparsers(benchmark_subparsers)
 
     # Template subparser
     template_parser = subparsers.add_parser("template", help="manage benchmarking templates")
-    template_subparsers = template_parser.add_subparsers(dest="template_verb", required=True, help="Template operation to perform")
+    template_subparsers = template_parser.add_subparsers(
+        dest="template_verb", required=True, help="Template operation to perform"
+    )
     setup_template_subparsers(template_subparsers)
 
     return parser
 
+
 def setup_data_subparsers(subparsers):
-    download_parser = subparsers.add_parser("download", help="download data to the specified location")
+    download_parser = subparsers.add_parser(
+        "download", help="download data to the specified location"
+    )
     download_parser.add_argument("--path", required=True, help="Local path to download data to")
-    download_parser.add_argument("--config", default="settings.json", help="Path to the JSON formatted config file")
-    download_parser.add_argument("--dry-run", action="store_true", help="Perform a dry run of the operation")
+    download_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
+    download_parser.add_argument(
+        "--dry-run", action="store_true", help="Perform a dry run of the operation"
+    )
 
     upload_parser = subparsers.add_parser("upload", help="upload data from a specified location")
     upload_parser.add_argument("--path", required=True, help="Local path to upload data from")
-    upload_parser.add_argument("--config", default="settings.json", help="Path to the JSON formatted config file")
-    upload_parser.add_argument("--dry-run", action="store_true", help="Perform a dry run of the operation")
+    upload_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
+    upload_parser.add_argument(
+        "--dry-run", action="store_true", help="Perform a dry run of the operation"
+    )
+
 
 def setup_benchmark_subparsers(subparsers):
     run_parser = subparsers.add_parser("run", help="execute a benchmark run")
-    run_parser.add_argument("--template-name", default=f"Benchmarking Run {time.time()}", help="Template to run")
-    run_parser.add_argument("--benchmark-description", default="", help="Description of the benchmarking run")
-    run_parser.add_argument("--config", default="settings.json", help="Path to the JSON formatted config file")
-    run_parser.add_argument("--dry-run", action="store_true", help="Perform a dry run of the operation")
+    run_parser.add_argument(
+        "--template-name", default=f"Benchmarking Run {time.time()}", help="Template to run"
+    )
+    run_parser.add_argument(
+        "--benchmark-description", default="", help="Description of the benchmarking run"
+    )
+    run_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
+    run_parser.add_argument(
+        "--dry-run", action="store_true", help="Perform a dry run of the operation"
+    )
 
     results_parser = subparsers.add_parser("results", help="manage the results of benchmark runs")
-    results_parser.add_argument("--benchmark-id", required=True, help="Specify the ID of the benchmark to manage results")
-    results_parser.add_argument("--action", choices=["view", "delete"], required=True, help="Action to perform on the benchmark results")
+    results_parser.add_argument(
+        "--benchmark-id", required=True, help="Specify the ID of the benchmark to manage results"
+    )
+    results_parser.add_argument(
+        "--action",
+        choices=["view", "delete"],
+        required=True,
+        help="Action to perform on the benchmark results",
+    )
+
 
 def setup_template_subparsers(subparsers):
     subparsers.add_parser("list", help="list all available benchmarking templates")
 
     create_parser = subparsers.add_parser("create", help="create a new benchmarking template")
     create_parser.add_argument("--template-name", required=True, help="Name of the new template")
-    create_parser.add_argument("--template-description", required=True, help="Description of the new template")
-    create_parser.add_argument("--config", default="settings.json", help="Path to the JSON formatted config file")
+    create_parser.add_argument(
+        "--template-description", required=True, help="Description of the new template"
+    )
+    create_parser.add_argument(
+        "--config", default="settings.json", help="Path to the JSON formatted config file"
+    )
 
     delete_parser = subparsers.add_parser("delete", help="delete a benchmarking template")
-    delete_parser.add_argument("--template-id", required=True, help="Specify the template to delete")
+    delete_parser.add_argument(
+        "--template-id", required=True, help="Specify the template to delete"
+    )
 
     show_parser = subparsers.add_parser("show", help="show the details of a benchmarking template")
     show_parser.add_argument("--template-id", required=True, help="Specify the template to show")
 
-    list_parameters_parser = subparsers.add_parser("list-parameters", help="list the parameters of a benchmarking template")
-    list_parameters_parser.add_argument("--template-id", required=True, help="Specify the template to list parameters")
+    list_parameters_parser = subparsers.add_parser(
+        "list-parameters", help="list the parameters of a benchmarking template"
+    )
+    list_parameters_parser.add_argument(
+        "--template-id", required=True, help="Specify the template to list parameters"
+    )
 
-    add_parameter_parser = subparsers.add_parser("add-parameter", help="add a parameter to a benchmarking template")
-    add_parameter_parser.add_argument("--template-id", required=True, help="Specify the template to add a parameter to")
-    add_parameter_parser.add_argument("--parameter-name", required=True, help="Name of the parameter to add")
-    add_parameter_parser.add_argument("--parameter-type", required=True, help="Type of the parameter to add")
-    add_parameter_parser.add_argument("--parameter-value", required=True, help="Value of the parameter to add")
+    add_parameter_parser = subparsers.add_parser(
+        "add-parameter", help="add a parameter to a benchmarking template"
+    )
+    add_parameter_parser.add_argument(
+        "--template-id", required=True, help="Specify the template to add a parameter to"
+    )
+    add_parameter_parser.add_argument(
+        "--parameter-name", required=True, help="Name of the parameter to add"
+    )
+    add_parameter_parser.add_argument(
+        "--parameter-type", required=True, help="Type of the parameter to add"
+    )
+    add_parameter_parser.add_argument(
+        "--parameter-value", required=True, help="Value of the parameter to add"
+    )
 
-    delete_parameter_parser = subparsers.add_parser("delete-parameter", help="delete a parameter from a benchmarking template")
-    delete_parameter_parser.add_argument("--template-id", required=True, help="Specify the template to delete a parameter from")
-    delete_parameter_parser.add_argument("--parameter-name", required=True, help="Name of the parameter to delete")
-
+    delete_parameter_parser = subparsers.add_parser(
+        "delete-parameter", help="delete a parameter from a benchmarking template"
+    )
+    delete_parameter_parser.add_argument(
+        "--template-id", required=True, help="Specify the template to delete a parameter from"
+    )
+    delete_parameter_parser.add_argument(
+        "--parameter-name", required=True, help="Name of the parameter to delete"
+    )
 
 
 def handle_data(args):
@@ -141,11 +205,14 @@ def handle_template(args):
     elif args.template_verb == "show":
         template_manager.show_template(args.template_id)
     elif args.template_verb == "list-parameters":
-        template_manager.list_parameters(args.template_name)
+        template_manager.list_parameters(args.template_id)
     elif args.template_verb == "add-parameter":
-        template_manager.add_parameter(args.template_name, args.parameter_name, args.parameter_type, args.parameter_value)
+        template_manager.add_parameter(
+            args.template_id, args.parameter_name, args.parameter_type, args.parameter_value
+        )
     elif args.template_verb == "delete-parameter":
-        template_manager.delete_parameter(args.template_name, args.parameter_name)
-    
+        template_manager.delete_parameter(args.template_id, args.parameter_name)
+
+
 if __name__ == "__main__":
     main()
