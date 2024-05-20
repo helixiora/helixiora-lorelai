@@ -25,6 +25,9 @@ def get_db_connection():  # -> MySQLConnection.Connection:
     """
     try:
         creds = load_config("db")
+        logging.debug(
+            f"Connecting to MySQL database: {creds['user']}@{creds['host']}/{creds['database']}"
+        )
         conn = mysql.connector.connect(
             host=creds["host"],
             user=creds["user"],
@@ -50,6 +53,7 @@ def check_mysql():
 def check_redis():
     try:
         redis_config = load_config("redis")
+        logging.debug(f"Connecting to Redis: {redis_config['url']}")
         r = redis.Redis.from_url(redis_config["url"])
         r.ping()
         return True, "Redis is reachable."

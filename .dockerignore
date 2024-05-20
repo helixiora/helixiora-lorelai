@@ -21,3 +21,8 @@ var
 *.egg-info
 .installed.cfg
 *.egg
+settings.json
+node_modules
+.vscode
+docs
+tools
