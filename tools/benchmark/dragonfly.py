@@ -4,7 +4,6 @@ import argparse
 import logging
 import os
 import sys
-import time
 
 from benchmark.benchmarkmanager import BenchmarkManager
 from benchmark.datamanager import DataManager
@@ -96,18 +95,27 @@ def setup_data_subparsers(subparsers):
 
 def setup_benchmark_subparsers(subparsers):
     run_parser = subparsers.add_parser("run", help="execute a benchmark run")
-    run_parser.add_argument(
-        "--template-name", default=f"Benchmarking Run {time.time()}", help="Template to run"
-    )
-    run_parser.add_argument(
-        "--benchmark-description", default="", help="Description of the benchmarking run"
-    )
+    run_parser.add_argument("--template-id", help="Template to run")
     run_parser.add_argument(
         "--config", default="settings.json", help="Path to the JSON formatted config file"
     )
     run_parser.add_argument(
         "--dry-run", action="store_true", help="Perform a dry run of the operation"
     )
+
+    prepare_parser = subparsers.add_parser("prepare", help="prepare a benchmark run")
+    prepare_parser.add_argument(
+        "--template-id", required=True, help="Template to prepare for a benchmark run"
+    )
+    prepare_parser.add_argument(
+        "--benchmark-name", required=True, help="Name of the benchmarking run"
+    )
+    prepare_parser.add_argument(
+        "--benchmark-description", default="", help="Description of the benchmarking run"
+    )
+
+    show_parser = subparsers.add_parser("show", help="show the details of a benchmark run")
+    show_parser.add_argument("--benchmark-id", required=True, help="Specify the benchmark to show")
 
     results_parser = subparsers.add_parser("results", help="manage the results of benchmark runs")
     results_parser.add_argument(
@@ -187,6 +195,10 @@ def handle_benchmark(args):
     benchmark_manager = BenchmarkManager()
     if args.benchmark_verb == "run":
         benchmark_manager.run(args.template_name, args.benchmark_description, args.dry_run)
+    elif args.benchmark_verb == "prepare":
+        benchmark_manager.prepare(args.template_id, args.benchmark_name, args.benchmark_description)
+    elif args.benchmark_verb == "show":
+        benchmark_manager.show(args.benchmark_id)
     elif args.benchmark_verb == "results":
         if args.action == "view":
             benchmark_manager.view_results(args.benchmark_id)

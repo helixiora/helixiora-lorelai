@@ -71,6 +71,7 @@ run_test "3.4 Testing template delete" "./dragonfly.py template delete --templat
 echo -e "${BLUE}===> 4. Testing benchmark commands${NC}"
 run_test "4.1 Testing benchmark run" "./dragonfly.py benchmark run --dry-run --template-name='Benchmarking Run Test'"
 run_test "4.2 Testing benchmark results" "./dragonfly.py benchmark results --benchmark-id='test_benchmark_id' --action='view'"
+run_test "4.2 Delete benchmark results" "./dragonfly.py benchmark results --benchmark-id='test_benchmark_id' --action='delete'"
 
 # Additional failure mode tests
 echo -e "${BLUE}==> 5. Testing failure modes${NC}"
