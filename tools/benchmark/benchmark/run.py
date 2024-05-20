@@ -9,13 +9,22 @@ sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
 from lorelai.contextretriever import ContextRetriever  # noqa E402
 from lorelai.llm import Llm  # noqa E402
 from benchmark.validate import Validate  # noqa E402
+from lorelai.utils import get_db_connection  # noqa E402
 
 
 class Run:
     def __init__(self, model_type="OpenAILlm"):
         self.llm = Llm.create(model_type=model_type)
 
-    def benchmark(self, org_name, user_name, question_file, question_classes_file):
+    def benchmark(
+        self,
+        benchmark_name: str,
+        benchmark_description: str,
+        org_name: str,
+        user_name: str,
+        question_file: str,
+        question_classes_file: str,
+    ):
         logging.info("Starting benchmarking")
         # {
         #     "question": "What was the closing price of IBM stock on July 5, 1987?",
@@ -38,6 +47,24 @@ class Run:
         #     python_function: "validate_fact_retrieval"
         with open(question_classes_file, "r") as f:
             question_classes_file = yaml.safe_load(f)
+
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+
+        # insert new benchmark into the database
+        result = cursor.execute(
+            "INSERT into benchmarks (name, desc) VALUES (%s)",
+            (benchmark_name, benchmark_description),
+        )
+        if result == 0:
+            logging.error("Failed to insert benchmark into the database")
+            db.rollback()
+            return
+        else:
+            db.commit()
+
+        # get the benchmark id
+        # benchmark_id = cursor.lastrowid
 
         for question in question_file:
             logging.info(f"==> Processing question: {question['question']}")

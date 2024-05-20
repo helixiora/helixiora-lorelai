@@ -1,3 +1,4 @@
+FlashRank~=0.2.4
 redis~=5.0.4
 rq~=1.16.2
 Flask~=3.0.3
