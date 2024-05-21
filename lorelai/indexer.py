@@ -106,9 +106,7 @@ class Indexer:
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        logging.info(
-            f"Processing {len(document_ids)} Google documents for user: {user['name']}"
-        )
+        logging.info(f"Processing {len(document_ids)} Google documents for user: {user['name']}")
         pinecone_processor = Processor()
         pinecone_processor.google_docs_to_pinecone_docs(
             document_ids=document_ids,
