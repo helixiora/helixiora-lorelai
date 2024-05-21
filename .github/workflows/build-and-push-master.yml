@@ -38,6 +38,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          target: web-production
           push: true
           tags: ghcr.io/${{ github.repository }}/web:latest
           platforms: linux/amd64,linux/arm64
@@ -46,6 +47,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          target: worker-production
           push: true
           tags: ghcr.io/${{ github.repository }}/worker:latest
           platforms: linux/amd64,linux/arm64
