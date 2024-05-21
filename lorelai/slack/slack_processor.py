@@ -102,22 +102,39 @@ class slack_indexer:
             history = response.json()
             #print(history)
             print("*************")
-            #pprint(history['messages'][1])
+            pprint(history['messages'][3])
+            
+            exit()
             thread_list=[]
             for msg in history['messages']:
                 try:
+                    metadata={}
+                    msg_ts=''
+                    
+                    # get all thread msg
                     if 'thread_ts' in msg and 'reply_count' in msg:
                         thread_chats=self.get_thread(msg['thread_ts'],channel_id)
                         thread_list.append(thread_chats)
+                        msg_ts=msg['thread_ts']
+        
+                    # if msg has no thread
                     elif 'text' in msg:
-                        thread_list.append(msg['text'])
+                        message_text=f"{msg['user' ]}: {msg['text']}"
+                        thread_list.append(message_text)
+                        msg_ts=msg['ts']
+                    msg_link=self.get_message_permalink(channel_id,msg_ts)
+                    metadata['source']=msg_link
+                    
+                    print(thread_list)
+                    print("metadata",metadata)
+                    break
                 except Exception as e:
                     pprint(msg)
                     raise(e)
                     
+        
                 
-                
-            #print( history['messages'])
+            print( thread_list)
         
         else:
             print("Failed to retrieve channel history. Error:", response.text)
@@ -146,7 +163,35 @@ class slack_indexer:
                 print(f"{user}: {text}")
             return message_text
         return None
-        
-        
 
+    def get_bot_message(self,message):
+        message_text=''
+        if 'text' in message:
+            message_text=message['text']
+            
+        if 'attachments' in message:
+            for i in message['attachments']:
+                message_text += '\n' + i['fallback']
+        return message_text
+
+
+    def get_message_permalink(self, channel_id, message_ts):
+        url = "https://slack.com/api/chat.getPermalink"
+
+        params = {
+            "channel": channel_id,
+            "message_ts": message_ts
+        }
+        response = requests.get(url, headers=self.headers, params=params)
+        if response.ok:
+            data = response.json()
+            if data["ok"]:
+                return data["permalink"]
+            else:
+                print("Error in response:", data["error"])
+                return None
+        else:
+            print("Failed to get permalink. Error:", response.text)
+            return None
+    
 #1715850407.699219
