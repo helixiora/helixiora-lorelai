@@ -1,4 +1,4 @@
-FlashRank~=0.2.4
+FlashRank~=0.2.5
 Flask~=3.0.3
 gevent~=24.2.1
 gunicorn~=22.0.0
