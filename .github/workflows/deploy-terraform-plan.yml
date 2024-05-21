@@ -62,4 +62,4 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: tfplan
-        path: ./helixiora-terraform/products-lorelai/tfplan
+        path: ./helixiora-terraform/products-lorelai
