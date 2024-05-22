@@ -102,40 +102,35 @@ class slack_indexer:
             history = response.json()
             #print(history)
             print("*************")
-            pprint(history['messages'][3])
+            pprint(history['messages'][5])
             
-            exit()
-            thread_list=[]
+            
+            channel_chat_history=[]
             for msg in history['messages']:
                 try:
-                    metadata={}
                     msg_ts=''
-                    
+                    thread_text=''
                     # get all thread msg
                     if 'thread_ts' in msg and 'reply_count' in msg:
-                        thread_chats=self.get_thread(msg['thread_ts'],channel_id)
-                        thread_list.append(thread_chats)
+                        thread_text=self.get_thread(msg['thread_ts'], channel_id)
+                        channel_chat_history.append(thread_text)
                         msg_ts=msg['thread_ts']
         
                     # if msg has no thread
-                    elif 'text' in msg:
-                        message_text=f"{msg['user' ]}: {msg['text']}"
-                        thread_list.append(message_text)
+                    else:
+                        thread_text=self.get_thread(msg['thread_ts'], channel_id)
+                        channel_chat_history.append(thread_text)
                         msg_ts=msg['ts']
+
                     msg_link=self.get_message_permalink(channel_id,msg_ts)
-                    metadata['source']=msg_link
-                    
-                    print(thread_list)
-                    print("metadata",metadata)
+                    channel_chat_history.append({'text': thread_text, 'source': msg_link})
+                    print(channel_chat_history)
                     break
                 except Exception as e:
                     pprint(msg)
                     raise(e)
-                    
-        
                 
-            print( thread_list)
-        
+            return channel_chat_history
         else:
             print("Failed to retrieve channel history. Error:", response.text)
             
@@ -145,31 +140,31 @@ class slack_indexer:
             "channel": channel_id,
             "ts":thread_id
         }
-        response = requests.get(url, headers=self.headers   , params=params)
+        response = requests.get(url, headers=self.headers, params=params)
+        complete_thread=''
         if response.ok:
-            message_text=''
             history = response.json()
             #pprint(history)
             for i in history['messages']:
-                user=''
-                text=''
-                if 'user' in i:
-                    user=i['user']
-                if 'text' in i:
-                    text=i['text']
-                if text=='':
-                    continue
-                message_text += f"{user}: {text}\n"
-                print(f"{user}: {text}")
-            return message_text
-        return None
+                msg=self.extract_message_text(i)
+                complete_thread+=msg + '\n'
+                print(msg)
 
-    def get_bot_message(self,message):
+        return complete_thread
+
+    def extract_message_text(self, message):
+        '''
+        this function extract msg body and text body of bot message
+        '''
         message_text=''
-        if 'text' in message:
-            message_text=message['text']
+        user=''
+        if 'user' in message:
+            user=message['user']
             
-        if 'attachments' in message:
+        if 'text' in message:
+            message_text=f"{user}:  {message['text']}"
+            
+        if 'attachments' in message and message.get('subtype')=='bot_message':
             for i in message['attachments']:
                 message_text += '\n' + i['fallback']
         return message_text
@@ -192,6 +187,26 @@ class slack_indexer:
                 return None
         else:
             print("Failed to get permalink. Error:", response.text)
+            return None
+        
+    def list_channel_ids(self):
+        url = "https://slack.com/api/conversations.list"
+    
+        params = {
+            "types": "public_channel,private_channel",
+            "limit": 1000  # Adjust the limit if needed
+        }
+        response = requests.get(url, headers=self.headers, params=params)
+        if response.ok:
+            data = response.json()
+            if data["ok"]:
+                channel_ids = [channel["id"] for channel in data["channels"]]
+                return channel_ids
+            else:
+                print("Error in response:", data["error"])
+                return None
+        else:
+            print("Failed to list channels. Error:", response.text)
             return None
     
 #1715850407.699219
