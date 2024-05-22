@@ -15,6 +15,7 @@ logging.basicConfig(level=log_level, format=logging_format)
 
 indexer=slack_indexer("masood@helixiora.com")
 indexer.get_messages()
+
 #indexer.get_thread('1715925282.546629',"C06FBKAN70A")
 #indexer.get_userid_name()
 #https://helixiora.slack.com/archives/C06FBKAN70A
