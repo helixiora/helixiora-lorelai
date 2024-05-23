@@ -41,7 +41,7 @@ jobs:
           target: web-production
           push: true
           tags: ghcr.io/${{ github.repository }}/web:latest
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       - name: Build and push worker image
         uses: docker/build-push-action@v5.3.0
         with:
@@ -50,6 +50,6 @@ jobs:
           target: worker-production
           push: true
           tags: ghcr.io/${{ github.repository }}/worker:latest
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       - name: Logout from Docker
         run: docker logout ghcr.io
