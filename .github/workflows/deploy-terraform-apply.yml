@@ -56,6 +56,6 @@ jobs:
         TF_VAR_lorelai_environment_slug: ${{ secrets.LORELAI_ENVIRONMENT_SLUG }}
         TF_VAR_lorelai_redirect_uri: ${{ secrets.LORELAI_REDIRECT_URI }}
         TF_VAR_db_name: ${{ secrets.DB_NAME }}
-        TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+        TF_VAR_db_user: ${{ secrets.DB_USER }}
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       run: terraform apply -auto-approve tfplan
