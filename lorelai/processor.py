@@ -53,9 +53,7 @@ class Processor:
                 3. (number of document already exist and tagged by current user)
         """
         documents = formatted_documents.copy()
-        logging.info(
-            f"Checking {len(documents)} documents for duplicates in Pinecone index"
-        )
+        logging.info(f"Checking {len(documents)} documents for duplicates in Pinecone index")
         tagged_existing_doc_with_user = 0
         already_exist_and_tagged = 0
         # Check if docs exist in pinecone.
@@ -75,10 +73,7 @@ class Processor:
                     and result["matches"][0]["metadata"]["source"] == doc["metadata"]["source"]
                 ):
                     # Check if doc already tag for this users
-                    if (
-                        doc["metadata"]["users"][0]
-                        in result["matches"][0]["metadata"]["users"]
-                    ):
+                    if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
                         logging.info(
                             f"Document {doc['metadata']['title']} already exists in Pinecone and tagged by {doc['metadata']['users'][0]}"
                         )
@@ -92,12 +87,8 @@ class Processor:
                         users_list = (
                             result["matches"][0]["metadata"]["users"] + doc["metadata"]["users"]
                         )
-                        logging.info(
-                            f"Tagging {doc['metadata']['title']} with {users_list}"
-                        )
-                        logging.info(
-                            f"Tagging {doc['metadata']['title']} with {users_list}"
-                        )
+                        logging.info(f"Tagging {doc['metadata']['title']} with {users_list}")
+                        logging.info(f"Tagging {doc['metadata']['title']} with {users_list}")
                         pc_index.update(
                             id=result["matches"][0]["id"],
                             set_metadata={"users": users_list},
@@ -145,9 +136,7 @@ class Processor:
         if len(formatted_documents) != len(documents):
             logging.error("Formatted Doc not equal documents")
             raise ValueError
-        logging.info(
-            f"Formatted {len(formatted_documents)} documents for pinecone index"
-        )
+        logging.info(f"Formatted {len(formatted_documents)} documents for pinecone index")
         return formatted_documents
 
     def remove_nolonger_accessed_documents(
@@ -203,9 +192,7 @@ class Processor:
         delete_vector_ids_list = []
         delete_vector_title_list = []
         for key in db_vector_dict:
-            logging.info(
-                f'{user_email} does not have access to {db_vector_dict[key]["title"]}'
-            )
+            logging.info(f'{user_email} does not have access to {db_vector_dict[key]["title"]}')
             # if document have 2 users in metadata, then remove only 1 user
             if len(db_vector_dict[key]["users"]) >= 2:
                 new_user_list = db_vector_dict[key]["users"]
@@ -219,9 +206,7 @@ class Processor:
                     count_updated += 1
             # else remove the document it self as no user have access
             else:
-                delete_vector_ids_list = (
-                    delete_vector_ids_list + db_vector_dict[key]["ids"]
-                )
+                delete_vector_ids_list = delete_vector_ids_list + db_vector_dict[key]["ids"]
                 delete_vector_title_list.append(db_vector_dict[key]["title"])
 
         logging.info(
@@ -281,9 +266,7 @@ class Processor:
         # Format the document for insertion
         formatted_documents = self.pinecone_format_vectors(documents, embedding_model)
         filtered_documents, tagged_existing_doc_with_user, already_exist_and_tagged = (
-            self.pinecone_filter_deduplicate_documents_list(
-                formatted_documents, pc_index
-            )
+            self.pinecone_filter_deduplicate_documents_list(formatted_documents, pc_index)
         )
 
         count_removed_access, count_deleted = self.remove_nolonger_accessed_documents(
@@ -301,16 +284,10 @@ class Processor:
         logging.info(
             f"Added user tag to {tagged_existing_doc_with_user} documents which already exist in index {index_name}"
         )
-        logging.info(
-            f"removed user tag to {count_removed_access} documents in index {index_name}"
-        )
-        logging.info(
-            f"Deleted {count_deleted} documents in Pinecone index {index_name}"
-        )
+        logging.info(f"removed user tag to {count_removed_access} documents in index {index_name}")
+        logging.info(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
 
-        logging.info(
-            f"Added {len(filtered_documents)} new documents in index {index_name}"
-        )
+        logging.info(f"Added {len(filtered_documents)} new documents in index {index_name}")
 
     def google_docs_to_pinecone_docs(
         self: None,

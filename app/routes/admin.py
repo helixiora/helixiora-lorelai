@@ -54,7 +54,7 @@ def job_status(job_id):
 @admin_bp.route("/admin/index", methods=["POST"])
 def start_indexing():
     """Start indexing the data for the organization of the logged-in user."""
-    
+
     logging.info("Started indexing")
     if "google_id" in session and is_admin(session["google_id"]):
         logging.debug("Posting task to rq worker...")

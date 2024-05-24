@@ -53,6 +53,7 @@ jobs:
         TF_VAR_lorelai_environment: ${{ secrets.LORELAI_ENVIRONMENT }}
         TF_VAR_lorelai_environment_slug: ${{ secrets.LORELAI_ENVIRONMENT_SLUG }}
         TF_VAR_lorelai_redirect_uri: ${{ secrets.LORELAI_REDIRECT_URI }}
+        TF_VAR_lorelai_chat_task_timeout: 20
         TF_VAR_db_name: ${{ secrets.DB_NAME }}
         TF_VAR_db_user: ${{ secrets.DB_USER }}
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
@@ -90,7 +91,7 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.8.3
-    
+
     - name: Terraform Init
       working-directory: ./helixiora-terraform/products-lorelai
       env:

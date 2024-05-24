@@ -27,7 +27,7 @@ def execute_rag_llm(
     """
     A task to execute the RAG+LLM model.
     """
-    start_time=time.time()
+    start_time = time.time()
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
@@ -41,9 +41,7 @@ def execute_rag_llm(
         context, source = enriched_context.retrieve_context(chat_message)
 
         if context is None:
-            raise ValueError(
-                "Failed to retrieve context for the provided chat message."
-            )
+            raise ValueError("Failed to retrieve context for the provided chat message.")
 
         llm = Llm.create(model_type=model_type)
         logging.info(f"LLM Status: {llm.get_llm_status()}")
@@ -59,7 +57,7 @@ def execute_rag_llm(
         json_data = {"error": str(e), "status": "Failed"}
         # Optionally, re-raise the exception if you want the task to be marked as failed
         raise e
-    end_time=time.time()
+    end_time = time.time()
     logging.info(f"Worker Exec time: {end_time-start_time}")
     return json_data
 

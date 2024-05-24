@@ -22,9 +22,7 @@ logging.debug("Loading the app...")
 
 app = Flask(__name__)
 # Get the log level from the environment variable
-log_level = os.getenv(
-    "LOG_LEVEL", "INFO"
-).upper()  # Ensure it's in uppercase to match constants
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
 
 # Set the log level using the mapping, defaulting to logging.INFO if not found
 app.logger.setLevel(logging.getLevelName(log_level))
@@ -49,6 +47,7 @@ if errors:
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
 
 # Improved index route using render_template
 @app.route("/")
@@ -99,7 +98,7 @@ def index():
 
     if "google_id" in session:
         user_data = {
-            'user_organization': session['organisation'],
+            "user_organization": session["organisation"],
             "user_email": session["email"],
             "is_admin": is_admin(session["google_id"]),
         }
@@ -114,9 +113,7 @@ def index():
         return render_template("index.html", auth_url=authorization_url)
     except RuntimeError as e:
         logging.debug(f"Error generating authorization URL: {e}")
-        return render_template(
-            "error.html", error_message="Failed to generate login URL."
-        )
+        return render_template("error.html", error_message="Failed to generate login URL.")
 
 
 @app.route("/js/<script_name>.js")
