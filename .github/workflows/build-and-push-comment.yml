@@ -12,6 +12,7 @@ jobs:
       contents: read
       packages: write
       actions: read
+      pull-requests: write
     steps:
       - uses: 8398a7/action-slack@v3
         with:
@@ -57,7 +58,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository }}/web:${{ env.IMAGE_TAG }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       - name: Build and push worker image
         uses: docker/build-push-action@v5.3.0
         with:
@@ -65,6 +66,6 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository }}/worker:${{ env.IMAGE_TAG }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       - name: Logout from Docker
         run: docker logout ghcr.io
