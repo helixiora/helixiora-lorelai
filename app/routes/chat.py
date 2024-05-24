@@ -28,6 +28,10 @@ def chat():
     redis_conn = Redis.from_url(redis_host)
     queue = Queue(connection=redis_conn)
 
+    lorelai_config = load_config("lorelai")
+    # set the chat task timeout to 20 seconds if not set
+    chat_task_timeout = lorelai_config["chat_task_timeout"] or 20
+
     llm_model = "OpenAILlm"
     # llm_model = "OllamaLlama3"
 
@@ -37,7 +41,7 @@ def chat():
         session.get("email"),
         session.get("organisation"),
         llm_model,
-        job_timeout=10,
+        job_timeout=chat_task_timeout,
         description=f"Execute RAG+LLM model: {content['message']} for {session.get('email')} \
             using {llm_model}",
     )
