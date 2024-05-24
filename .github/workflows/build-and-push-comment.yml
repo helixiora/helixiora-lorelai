@@ -12,6 +12,7 @@ jobs:
       contents: read
       packages: write
       actions: read
+      pull-requests: write
     steps:
       - uses: 8398a7/action-slack@v3
         with:
@@ -20,17 +21,6 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
         if: always() # Pick up events even if the job fails or is canceled.
-
-      - name: Get PR branch
-        uses: xt0rted/pull-request-comment-branch@v2
-        id: comment-branch
-
-      - name: Set latest commit status as pending
-        uses: myrotvorets/set-commit-status-action@master
-        with:
-          sha: ${{ steps.comment-branch.outputs.head_sha }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          status: pending
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -57,7 +47,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository }}/web:${{ env.IMAGE_TAG }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       - name: Build and push worker image
         uses: docker/build-push-action@v5.3.0
         with:
@@ -65,6 +55,6 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository }}/worker:${{ env.IMAGE_TAG }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
       - name: Logout from Docker
         run: docker logout ghcr.io

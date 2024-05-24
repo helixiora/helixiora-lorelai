@@ -30,7 +30,7 @@ class Indexer:
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds["api_key"]
 
-    def index_org_drive(self: None, org: dict[Any], users: dict[Any]) -> bool:
+    def index_org_drive(self: None, org: dict[Any], users: dict[Any], folder_id: str = "") -> bool:
         """Process the Google Drive documents for an organisation.
 
         :param org: the organisation to process, a list of org details (org_id, name)
@@ -54,13 +54,15 @@ class Indexer:
                 job.meta["status"] = f"Indexing Google Drive for user {user['email']}"
                 job.meta["org"] = org
                 job.meta["user"] = user["email"]
-            self.index_user_drive(user, org, job)
+            self.index_user_drive(user, org, job, folder_id=folder_id)
             return True
 
         # if we haven't returned True by now, something went wrong
         return False
 
-    def index_user_drive(self: None, user: dict[Any], org: dict[Any], job: Optional["job"]) -> bool:
+    def index_user_drive(
+        self: None, user: dict[Any], org: dict[Any], job: Optional["job"], folder_id: str = ""
+    ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
@@ -72,6 +74,10 @@ class Indexer:
         # 1. Load the Google Drive credentials
         if user:
             logging.debug(f"Processing user: {user} from org: {org}")
+            if folder_id:
+                logging.debug(f"Processing folder: {folder_id}")
+            else:
+                logging.debug("Processing all folders")
             refresh_token = user["refresh_token"]
             credentials = Credentials.from_authorized_user_info(
                 {
@@ -89,7 +95,7 @@ class Indexer:
 
         # 2. Get the Google Drive document IDs
         logging.debug(f"Getting Google Drive document IDs for user: {user['email']}")
-        document_ids = self.get_google_docs_ids(credentials)
+        document_ids = self.get_google_docs_ids(credentials, folder_id)
 
         # 3. Generate the index name we will use in Pinecone
         index_name = lorelai.utils.pinecone_index_name(
@@ -123,12 +129,13 @@ class Indexer:
         logging.debug("Index statistics before indexing vs after indexing:")
         lorelai.utils.print_index_stats_diff(index_stats_before, index_stats_after)
 
-    def get_google_docs_ids(self: None, credentials) -> list[str]:
-        """Retrieve all Google Docs document IDs from the user's Google Drive.
+    def get_google_docs_ids(self, credentials, folder_id: str = "") -> list[str]:
+        """Retrieve all Google Docs document IDs from the user's Google Drive or a specific folder.
 
         Note: this only includes Google Docs documents, not text files or pdfs.
 
         :param credentials: Google-auth credentials object for the user
+        :param folder_id: Optional Google Drive folder ID to restrict the search
         :return: List of document IDs
         """
         # Build the Drive v3 API service object
@@ -137,6 +144,14 @@ class Indexer:
         # List to store all document IDs
         document_ids = []
 
+        # Construct the query to filter files by mimeType and optional folder_id
+        if folder_id != "":
+            logging.debug(f"Getting Google Docs from folder: {folder_id}")
+            query = f"mimeType='application/vnd.google-apps.document' and '{folder_id}' in parents"
+        else:
+            logging.debug("Getting all Google Docs")
+            query = "mimeType='application/vnd.google-apps.document'"
+
         # Call the Drive v3 API to get the list of files. We don't use GoogleDriveLoader because
         # we only need the document IDs here.
         page_token = None
@@ -144,7 +159,7 @@ class Indexer:
             results = (
                 service.files()
                 .list(  # pylint: disable=no-member
-                    q="mimeType='application/vnd.google-apps.document'",
+                    q=query,
                     pageSize=100,
                     fields="nextPageToken, files(id, name, parents, spaces)",
                     pageToken=page_token,

@@ -1,4 +1,5 @@
-FlashRank~=0.2.4
 Flask~=3.0.3
 gevent~=24.2.1
 gunicorn~=22.0.0
+redis~=5.0.4
+rq~=1.16.2
