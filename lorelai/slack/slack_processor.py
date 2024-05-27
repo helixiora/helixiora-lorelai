@@ -6,6 +6,7 @@ from pprint import pprint
 import logging
 import os
 from langchain_openai import OpenAIEmbeddings
+import pinecone
 
 class SlackOAuth:
     AUTH_URL = "https://slack.com/oauth/v2/authorize"
@@ -58,7 +59,7 @@ class SlackOAuth:
 
 class slack_indexer:
     
-    def __init__(self, email) -> None:
+    def __init__(self, email, org_name) -> None:
         
         # load API keys
         self.pinecone_settings = load_config("pinecone")
@@ -68,6 +69,7 @@ class slack_indexer:
         
         # init class with required parameters
         self.email=email
+        self.org_name=org_name
         self.access_token=self.retrive_access_token(email)
         self.headers={
             "Authorization": f"Bearer {self.access_token}",
@@ -266,15 +268,9 @@ class slack_indexer:
                 return None
         return channels_dict
     
-    def add_embedding(self, complete_chat_history):
         
-        embedding_model_name = "text-embedding-ada-002"
-        embedding_model = OpenAIEmbeddings(model=embedding_model_name)
-        embedding_dimension = get_embedding_dimension(embedding_model_name)
-        if embedding_dimension == -1:
-            raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
-
-    
+    def add_embedding(self, embedding_model, complete_chat_history):
+        
         try:
             text = [chat['metadata']['text'] for chat in complete_chat_history]
         except Exception as e:
@@ -288,12 +284,34 @@ class slack_indexer:
         for i in range(len(embeds)):
             complete_chat_history[i]['value']=embeds[i]
             
-        for idx,chat in enumerate(complete_chat_history):
-            chat['values']=embeds[idx]
+        '''for idx,chat in enumerate(complete_chat_history):
+            chat['values']=embeds[idx]'''
             
         return complete_chat_history
         
-    
+    def load_to_pinecone(self, embedding_dimension, complete_chat_history):
+        index_name = pinecone_index_name(
+            org=self.org_name,
+            datasource="slack",
+            environment=self.lorelai_settings["environment"],
+            env_name=self.lorelai_settings["environment_slug"],
+            version="v1",
+        )
+        
+        pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
+
+        if index_name not in pc.list_indexes().names():
+            # Create a new index
+            pc.create_index(
+                name=index_name,
+                dimension=embedding_dimension,
+                metric="cosine",
+                spec=pinecone.ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"]),
+            )
+        pc_index = pc.Index(index_name)
+        pc_index.upsert(complete_chat_history)
+        return (len(complete_chat_history))
+        
     
     def process_slack_message(self, channel_id=None):
         channel_ids_dict=self.dict_channel_ids()
@@ -309,8 +327,16 @@ class slack_indexer:
             print(f"Processing {channel_id} {channel_name}")
             #complete_chat_history.extend(self.get_messages(channel_id,channel_name))
             #break
-        complete_chat_history=self.add_embedding(complete_chat_history)
+            
+        embedding_model_name = "text-embedding-ada-002"
+        embedding_model = OpenAIEmbeddings(model=embedding_model_name)
+        embedding_dimension = get_embedding_dimension(embedding_model_name)
+        if embedding_dimension == -1:
+            raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
         
-    
-    
+        complete_chat_history=self.add_embedding(embedding_model, complete_chat_history)
+        self.load_to_pinecone(embedding_dimension, complete_chat_history)
+        
+
+
 #1715850407.699219
