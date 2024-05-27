@@ -1,8 +1,11 @@
 """This module contains the routes for the admin page."""
 
 import logging
+import os
+import subprocess
 
-from flask import blueprints, jsonify, render_template, session
+import mysql.connector
+from flask import app, blueprints, jsonify, render_template, session, url_for
 from redis import Redis
 from rq import Queue
 
@@ -142,3 +145,145 @@ def index_details(host_name: str) -> str:
         metadata=index_metadata,
         is_admin=is_admin(session["google_id"]),
     )
+
+
+def run_flyway_migrations(host, database, user, password):
+    try:
+        flyway_command = [
+            "flyway",
+            f"-url=jdbc:mysql://{host}:3306/{database}?useSSL=false",
+            f"-user={user}",
+            f"-password={password}",
+            "-locations=filesystem:db/migrations",
+            "migrate",
+        ]
+        print("running flyway migrations")
+        result = subprocess.run(flyway_command, capture_output=True, text=True)
+        print(result.stdout)
+        if result.returncode == 0:
+            # return the output of flyway migrations
+            app.config["LORELAI_SETUP"] = False
+            return result.stdout
+        else:
+            return f"Flyway migrations failed: {result.stderr}"
+    except Exception as e:
+        return str(e)
+
+
+@admin_bp.route("/setup", methods=["GET"])
+def setup():
+    """The setup route. Shows the parameters for the database connection,
+    and two buttons to test the connection and run the database creation.
+    Note that it doesn't support changing the database parameters."""
+    db = load_config("db")
+    return render_template(
+        "admin/setup.html",
+        setup_url=url_for("admin.setup_post"),
+        test_connection=url_for("admin.test_connection"),
+        db=db,
+    )
+
+
+@admin_bp.route("/setup", methods=["POST"])
+def setup_post():
+    """Create the database using the .db/baseline_schema.sql file.
+    After the database is created, run the Flyway migrations in ./db/migrations.
+    """
+    msg = "<strong>Creating the database and running Flyway migrations.</strong><br/>"
+    db = None
+    cursor = None
+
+    try:
+        msg += "Connecting to MySQL...<br/>"
+        db = get_db_connection(with_db=False)
+        msg += f"MySQL connection successful.<br/>{db.get_server_info()}<br/>"
+
+        db_name = load_config("db")["database"]
+        dir_path = os.path.dirname(os.path.realpath(__file__ + "/../.."))
+        baseline_schema_path = os.path.join(dir_path, "db", "baseline_schema.sql")
+
+        if not os.path.exists(baseline_schema_path):
+            raise FileNotFoundError(f"Baseline schema file not found at {baseline_schema_path}")
+
+        with open(baseline_schema_path, "r") as file:
+            baseline_schema = file.read()
+
+        msg += "Creating the database...<br/>"
+        msg += f"Baseline schema loaded:<br/>{baseline_schema}<br/>"
+
+        cursor = db.cursor()
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+        cursor.execute(f"USE {db_name}")
+        cursor.execute(baseline_schema)
+
+        msg += "Database created.<br/>"
+
+        # Close cursor and database connection
+        cursor.close()
+        db.close()
+        cursor = None
+        db = None
+
+        # Run Flyway migrations
+        flyway_result = run_flyway_migrations(
+            load_config("db")["host"],
+            db_name,
+            load_config("db")["user"],
+            load_config("db")["password"],
+        )
+        msg += f"Flyway migrations completed. Flyway result:<br/>{flyway_result}<br/>"
+
+        return msg
+
+    except FileNotFoundError as fnf_error:
+        error_message = f"File error: {fnf_error}"
+        logging.error(error_message)
+        return jsonify({"error": error_message}), 500
+    except Exception as e:
+        error_message = f"An error occurred: {e}"
+        logging.error(error_message)
+        return jsonify({"error": error_message}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if db:
+            db.close()
+        logging.info(msg)
+
+
+@admin_bp.route("/test_connection", methods=["POST"])
+def test_connection():
+    """The test connection route"""
+    health = get_db_connection(with_db=False)
+    if health:
+        try:
+            config = load_config("db")
+            db = config["database"]
+            msg = "<strong>Testing MySQL credentials without selecting the database.</strong> </br>"
+            msg += "MySQL connection succesful with user credentials. </br>"
+            msg += "User: " + config["user"] + "</br>"
+            msg += "Host: " + config["host"] + "</br>"
+        except mysql.connector.Error:
+            msg = "MySQL is not up and running. </br>"
+
+        msg += "<br>"
+        msg += "<strong>Testing MySQL credentials with selecting the database.</strong> </br>"
+
+        try:
+            # check if we can connect to the database
+            health.database = db
+            cursor = health.cursor()
+            cursor.execute("SELECT 1")
+            msg += "MySQL database is found and can be connected to. </br>"
+
+        except mysql.connector.Error as e:
+            # get the error class
+            if e.errno == 1049:
+                msg += f"{e.msg} (error {str(e.errno)})</br>"
+            else:
+                raise
+        msg += "Please proceed to press 'Create Database'"
+    else:
+        msg = "MySQL connection failed."
+
+    return msg

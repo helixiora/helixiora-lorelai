@@ -16,14 +16,6 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
--- Current Database: `lorelai`
---
-
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `lorelai` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-
-USE `lorelai`;
-
---
 -- Table structure for table `flyway_schema_history`
 --
 

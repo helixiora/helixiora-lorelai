@@ -14,8 +14,18 @@ def is_admin(google_id: str) -> bool:
     return google_id != ""  # Assuming all users are admins for now
 
 
+# def get_app_version():
+#     # check if we're running in a container
+#     if os.path.exists("/.dockerenv"):
+#         # get the container version
+
+#     # check if we're running a git repo with a tag
+
+#     # return the git commit hash
+
+
 # Helper function for database connections
-def get_db_connection():  # -> MySQLConnection.Connection:
+def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLConnection:
     """Get a database connection.
 
     Returns
@@ -25,15 +35,24 @@ def get_db_connection():  # -> MySQLConnection.Connection:
     """
     try:
         creds = load_config("db")
-        logging.debug(
-            f"Connecting to MySQL database: {creds['user']}@{creds['host']}/{creds['database']}"
-        )
-        conn = mysql.connector.connect(
-            host=creds["host"],
-            user=creds["user"],
-            password=creds["password"],
-            database=creds["database"],
-        )
+        if with_db:
+            logging.debug(
+                f"Connecting to MySQL database: {creds['user']}@{creds['host']}/{creds['database']}"
+            )
+        else:
+            logging.debug(f"Connecting to MySQL server: {creds['user']}@{creds['host']}")
+
+        if with_db:
+            conn = mysql.connector.connect(
+                host=creds["host"],
+                user=creds["user"],
+                password=creds["password"],
+                database=creds["database"],
+            )
+        else:
+            conn = mysql.connector.connect(
+                host=creds["host"], user=creds["user"], password=creds["password"]
+            )
         return conn
     except mysql.connector.Error:
         logging.exception("Database connection failed")
@@ -43,6 +62,7 @@ def get_db_connection():  # -> MySQLConnection.Connection:
 def check_mysql():
     try:
         db = get_db_connection()
+        logging.debug("Checking MySQL connection. DB: " + db.database + " Host: " + db.server_host)
         cursor = db.cursor()
         cursor.execute("SELECT 1")
         return True, "MySQL is up and running."
@@ -68,8 +88,9 @@ def check_flyway():
         cursor = conn.cursor()
         cursor.execute("SELECT MAX(version) FROM flyway_schema_history")
         version = cursor.fetchone()
+        logging.debug(f"Flyway schema version: {version[0]}")
 
-        if version is None:
+        if version is None or version[0] is None:
             return False, "Flyway schema history not found."
 
         # get the migrations from disk
@@ -102,10 +123,14 @@ def perform_health_checks():
     checks = [check_mysql, check_redis, check_flyway]
     errors = []
     for check in checks:
+        # print the name of the check:
+        logging.debug(f"Running check: {check.__name__}")
         success, message = check()
         if not success:
+            logging.debug(f"Something went wrong ({check.__name__}): " + message)
             errors.append(message)
             logging.error(message)
         else:
+            logging.debug("Nothing went wrong: " + message)
             logging.info(message)
     return errors
