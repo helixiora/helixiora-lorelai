@@ -1,9 +1,11 @@
 import requests
 from flask import request, redirect, url_for, session
-from lorelai.utils import load_config
+from lorelai.utils import load_config,get_embedding_dimension,pinecone_index_name
 from app.utils import get_db_connection
 from pprint import pprint
 import logging
+import os
+from langchain_openai import OpenAIEmbeddings
 
 class SlackOAuth:
     AUTH_URL = "https://slack.com/oauth/v2/authorize"
@@ -57,12 +59,22 @@ class SlackOAuth:
 class slack_indexer:
     
     def __init__(self, email) -> None:
+        
+        # load API keys
+        self.pinecone_settings = load_config("pinecone")
+        self.openai_creds = load_config("openai")
+        os.environ["PINECONE_API_KEY"] = self.pinecone_settings["api_key"]
+        os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
+        
+        # init class with required parameters
         self.email=email
         self.access_token=self.retrive_access_token(email)
         self.headers={
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json"
         }
+        self.userid_name_dict=self.get_userid_name()
+        
         print(self.access_token)
     
     def retrive_access_token(self,email):
@@ -78,20 +90,28 @@ class slack_indexer:
                 
                 print("No Slack token found for the specified email.")
                 return None
+            
     def get_userid_name(self):
         url = "https://slack.com/api/users.list"
         response = requests.get(url, headers=self.headers)
         if response.ok:
             users = response.json()['members']
-            print(users[3])
             users_dict={}
             for i in users:
                 users_dict[i['id']]=i['name']
-            print(users_dict)
+            
+            print(f"Loaded user_dict {users_dict}")
             return users_dict
         else:
-            print("Failed to list users. Error:", response.text)
+            print(f"Failed to list users. Error: {response.text}")
             return None
+        
+    def replace_userid_with_name(self, thread_text):
+        for user_id, user_name in self.userid_name_dict:
+            thread_text.replace(user_id,user_name)
+        return thread_text
+        
+        
         
     def get_messages(self, channel_id,channel_name):
         
@@ -131,6 +151,7 @@ class slack_indexer:
                                 msg_ts=msg['ts']#thread_ts
 
                             msg_link=self.get_message_permalink(channel_id,msg_ts)
+                            thread_text=self.replace_userid_with_name(thread_text)
                             metadata={'text': thread_text, 'source': msg_link, 'msg_ts':msg_ts,'channel_name':channel_name,'users':[self.email]}
                             channel_chat_history.append({'values': [], 'metadata': metadata})
                             print(metadata)
@@ -216,7 +237,7 @@ class slack_indexer:
             print("Failed to get permalink. Error:", response.text)
             return None
 
-    def list_channel_ids(self):
+    def dict_channel_ids(self):
         url = "https://slack.com/api/conversations.list"
     
         params = {
@@ -245,19 +266,51 @@ class slack_indexer:
                 return None
         return channels_dict
     
-    def process_slack_message(self, channel_id=None):
-        channel_ids=[]
-        org_chat_list=[]
-        if channel_id is None:
-            channel_ids=self.list_channel_ids()
+    def add_embedding(self, complete_chat_history):
+        
+        embedding_model_name = "text-embedding-ada-002"
+        embedding_model = OpenAIEmbeddings(model=embedding_model_name)
+        embedding_dimension = get_embedding_dimension(embedding_model_name)
+        if embedding_dimension == -1:
+            raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
-        else:
-            channel_ids.append(channel_id)
+    
+        try:
+            text = [chat['metadata']['text'] for chat in complete_chat_history]
+        except Exception as e:
+            raise e
         
+        embeds = embedding_model.embed_documents(text)
+        if len(complete_chat_history) != len(embeds):
+            raise ValueError("Embeds length and document length mismatch")
         
-        for channel_id in channel_ids:
-            org_chat_list.extend(self.get_messages(channel_id))
-            break
+        # will delete one, 2 method does same thing
+        for i in range(len(embeds)):
+            complete_chat_history[i]['value']=embeds[i]
+            
+        for idx,chat in enumerate(complete_chat_history):
+            chat['values']=embeds[idx]
+            
+        return complete_chat_history
         
+    
+    
+    def process_slack_message(self, channel_id=None):
+        channel_ids_dict=self.dict_channel_ids()
+        complete_chat_history = [] 
+        if channel_id is not None:
+            if channel_id in channel_ids_dict:
+                channel_ids_dict = {channel_id: channel_ids_dict[channel_id]}
+            else:
+                print(f"{channel_id} not in slack")
+                return None
+        
+        for channel_id, channel_name in channel_ids_dict.items():
+            print(f"Processing {channel_id} {channel_name}")
+            #complete_chat_history.extend(self.get_messages(channel_id,channel_name))
+            #break
+        complete_chat_history=self.add_embedding(complete_chat_history)
+        
+    
     
 #1715850407.699219
