@@ -16,10 +16,10 @@ logging.basicConfig(level=log_level, format=logging_format)
 start_time=time.time()
 
 indexer=slack_indexer("masood@helixiora.com")
-indexer.get_messages("sdfsdf","sdfsdf")
+#indexer.get_messages("sdfsdf","sdfsdf")
 #print(indexer.list_channel_ids())
 #indexer.get_thread('1715925282.546629',"C06FBKAN70A")
 #indexer.get_userid_name()
-
+indexer.process_slack_message('C06C64XTP2R')
 print(f"Exec Time: {time.time()-start_time}")
 #https://helixiora.slack.com/archives/C06FBKAN70A
