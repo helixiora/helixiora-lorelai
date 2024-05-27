@@ -15,7 +15,7 @@ logging.basicConfig(level=log_level, format=logging_format)
 
 start_time=time.time()
 
-indexer=slack_indexer("masood@helixiora.com")
+indexer=slack_indexer("masood@helixiora.com","helixiora.com")
 #indexer.get_messages("sdfsdf","sdfsdf")
 #print(indexer.list_channel_ids())
 #indexer.get_thread('1715925282.546629',"C06FBKAN70A")
