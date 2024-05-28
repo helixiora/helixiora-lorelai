@@ -9,6 +9,6 @@ langchain-google-community~=1.0.4
 langchain-openai~=0.1.7
 langchain-pinecone~=0.1.1
 mysql-connector-python~=8.4.0
-pinecone-client==4.1.0
+pinecone-client==3.2.2
 redis~=5.0.4
 rq~=1.16.2
