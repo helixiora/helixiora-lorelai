@@ -8,13 +8,11 @@ In order to store user and organisation data we utilize MySQL, though we recomme
 
 ### Setup
 
-Once installed, make sure to create a database, a user with the approapriate grants and import the sql file found [here](../db/baseline_schema.sql)
+Once installed, make sure to create a user with the approapriate grants:
 
-1. Connect to your MySQL instance (default installs allow access from root without password ```your-shell$ sudo mysql```).
-2. Create the database: ```create database lorelai;```.
-3. Create the user ```grant usage on *.* to '$USER'@'$HOST_WHERE_LORELAI_LIVES' identified by '$PASSWORD';```. Here the $HOST_WHERE_LORELAI_LIVES is where you would launch the app, particularly the IP which the MySQL instance will see as the inbound connection. For local installs simply use 'localhost' or '127.0.0.1' here.
-4. Grant the relevant permissions ```grant all on $NAME.* to '$USER'@'$HOST_WHERE_LORELAI_LIVES';```
-5. Follow the instructions in [the db directory](../db/readme.md) to get the latest version of the schema.
+1. Connect to your MySQL instance (default installs allow access from root without password ```$ sudo mysql```).
+1. For development, create a user ```grant all on *.* to '$USER'@'$HOST_WHERE_LORELAI_LIVES' identified by '$PASSWORD';```. Here the $HOST_WHERE_LORELAI_LIVES is where you would launch the app, particularly the IP which the MySQL instance will see as the inbound connection. For local installs simply use 'localhost' or '127.0.0.1' here.
+1. Once this is set up and these credentials are in `settings.json` you can start the web ui. It will automatically redirect you to a page where you can create the database schema.
 
 ## Redis
 
