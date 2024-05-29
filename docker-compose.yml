@@ -29,22 +29,6 @@ services:
       retries: 5
       start_period: 30s
 
-  flyway:
-    image: flyway/flyway
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      - FLYWAY_URL=jdbc:mysql://db:3306/lorelai
-      - FLYWAY_USER=root
-      - FLYWAY_PASSWORD=test123
-      - FLYWAY_SCHEMAS=lorelai
-      - FLYWAY_LOCATIONS=filesystem:/flyway/sql
-    volumes:
-      - ./db/migrations:/flyway/sql
-    command: migrate
-    restart: on-failure
-
   web:
     image: "${WEB_IMAGE:-local/web:latest}"
     build:
