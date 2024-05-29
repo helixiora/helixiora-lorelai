@@ -118,9 +118,9 @@ class slack_indexer:
     def get_messages(self, channel_id,channel_name):
         
         url = "https://slack.com/api/conversations.history"
-        channel_id="C06FBKAN70A"
+        '''channel_id="C06FBKAN70A"
         channel_id="C06C64XTP2R"
-        channel_name='engineering'
+        channel_name='engineering'''
         print(f"Getting Messages for Channel:{channel_name}")
         params = {
             "channel": channel_id
@@ -325,8 +325,8 @@ class slack_indexer:
         
         for channel_id, channel_name in channel_ids_dict.items():
             print(f"Processing {channel_id} {channel_name}")
-            #complete_chat_history.extend(self.get_messages(channel_id,channel_name))
-            #break
+            complete_chat_history.extend(self.get_messages(channel_id,channel_name))
+            #
             
         embedding_model_name = "text-embedding-ada-002"
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
@@ -334,7 +334,7 @@ class slack_indexer:
         if embedding_dimension == -1:
             raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
         
-        complete_chat_history=self.add_embedding(embedding_model, complete_chat_history)
+        complete_chat_history = self.add_embedding(embedding_model, complete_chat_history)
         self.load_to_pinecone(embedding_dimension, complete_chat_history)
         
 
