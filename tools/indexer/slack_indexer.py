@@ -23,4 +23,3 @@ indexer=slack_indexer("masood@helixiora.com","helixiora.com")
 indexer.process_slack_message('C06FBKAN70A')
 print(f"Exec Time: {time.time()-start_time}")
 #https://helixiora.slack.com/archives/C06FBKAN70A
-
