@@ -88,10 +88,7 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
             logging.debug(
                 f"Connecting to MySQL database: {creds['user']}@{creds['host']}/{creds['database']}"
             )
-        else:
-            logging.debug(f"Connecting to MySQL server: {creds['user']}@{creds['host']}")
 
-        if with_db:
             conn = mysql.connector.connect(
                 host=creds["host"],
                 user=creds["user"],
@@ -99,6 +96,8 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
                 database=creds["database"],
             )
         else:
+            logging.debug(f"Connecting to MySQL server: {creds['user']}@{creds['host']}")
+
             conn = mysql.connector.connect(
                 host=creds["host"], user=creds["user"], password=creds["password"]
             )
