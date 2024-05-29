@@ -2,15 +2,14 @@
 
 import logging
 import os
-import subprocess
 
 import mysql.connector
-from flask import app, blueprints, jsonify, render_template, session, url_for
+from flask import blueprints, jsonify, render_template, session, url_for, current_app
 from redis import Redis
 from rq import Queue
 
 from app.tasks import run_indexer
-from app.utils import get_db_connection, is_admin
+from app.utils import get_db_connection, is_admin, run_flyway_migrations
 from lorelai.contextretriever import ContextRetriever
 from lorelai.utils import load_config
 
@@ -19,15 +18,29 @@ admin_bp = blueprints.Blueprint("admin", __name__)
 
 @admin_bp.route("/admin")
 def admin():
-    """The admin page."""
+    """The admin page.
+
+    This page is only accessible to users who are admins.
+    """
     if "google_id" in session and is_admin(session["google_id"]):
         return render_template("admin.html", is_admin=is_admin(session["google_id"]))
     return "You are not logged in!"
 
 
 @admin_bp.route("/admin/job-status/<job_id>")
-def job_status(job_id):
-    """Return the status of a job given its job_id"""
+def job_status(job_id: str) -> str:
+    """Return the status of a job given its job_id
+
+    Parameters
+    ----------
+    job_id : str
+        The job_id of the job to check the status of.
+
+    Returns
+    -------
+    str
+        The status of the job.
+    """
     redis = load_config("redis")
     redis_host = redis["url"]
     redis_conn = Redis.from_url(redis_host)
@@ -55,8 +68,19 @@ def job_status(job_id):
 
 
 @admin_bp.route("/admin/index", methods=["POST"])
-def start_indexing():
-    """Start indexing the data for the organization of the logged-in user."""
+def start_indexing() -> str:
+    """Start indexing the data for the organization of the logged-in user.
+
+    Returns
+    -------
+    str
+        The job_id of the indexing job.
+
+    Raises
+    ------
+    ConnectionError
+        If the connection to the Redis server or the database fails.
+    """
 
     logging.info("Started indexing")
     if "google_id" in session and is_admin(session["google_id"]):
@@ -118,8 +142,14 @@ def start_indexing():
 
 
 @admin_bp.route("/admin/pinecone")
-def list_indexes():
-    """the list indexes page"""
+def list_indexes() -> str:
+    """the list indexes page
+
+    Returns
+    -------
+    str
+        The rendered template of the list indexes page.
+    """
 
     enriched_context = ContextRetriever(org_name=session["organisation"], user=session["email"])
 
@@ -147,34 +177,19 @@ def index_details(host_name: str) -> str:
     )
 
 
-def run_flyway_migrations(host, database, user, password):
-    try:
-        flyway_command = [
-            "flyway",
-            f"-url=jdbc:mysql://{host}:3306/{database}?useSSL=false",
-            f"-user={user}",
-            f"-password={password}",
-            "-locations=filesystem:db/migrations",
-            "migrate",
-        ]
-        print("running flyway migrations")
-        result = subprocess.run(flyway_command, capture_output=True, text=True)
-        print(result.stdout)
-        if result.returncode == 0:
-            # return the output of flyway migrations
-            app.config["LORELAI_SETUP"] = False
-            return result.stdout
-        else:
-            return f"Flyway migrations failed: {result.stderr}"
-    except Exception as e:
-        return str(e)
+@admin_bp.route("/admin/setup", methods=["GET"])
+def setup() -> str:
+    """The setup route.
 
-
-@admin_bp.route("/setup", methods=["GET"])
-def setup():
-    """The setup route. Shows the parameters for the database connection,
+    Shows the parameters for the database connection,
     and two buttons to test the connection and run the database creation.
-    Note that it doesn't support changing the database parameters."""
+    Note that it doesn't support changing the database parameters.
+
+    Returns
+    -------
+    str
+        The rendered template of the setup page.
+    """
     db = load_config("db")
     return render_template(
         "admin/setup.html",
@@ -184,10 +199,22 @@ def setup():
     )
 
 
-@admin_bp.route("/setup", methods=["POST"])
-def setup_post():
+@admin_bp.route("/admin/setup", methods=["POST"])
+def setup_post() -> str:
     """Create the database using the .db/baseline_schema.sql file.
+
     After the database is created, run the Flyway migrations in ./db/migrations.
+
+    Returns
+    -------
+    str
+        A message indicating the result of the setup.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the baseline schema file is not found.
+
     """
     msg = "<strong>Creating the database and running Flyway migrations.</strong><br/>"
     db = None
@@ -225,12 +252,14 @@ def setup_post():
         db = None
 
         # Run Flyway migrations
-        flyway_result = run_flyway_migrations(
+        flyway_success, flyway_result = run_flyway_migrations(
             load_config("db")["host"],
             db_name,
             load_config("db")["user"],
             load_config("db")["password"],
         )
+        if flyway_success:
+            current_app.config["LORELAI_SETUP"] = False
         msg += f"Flyway migrations completed. Flyway result:<br/>{flyway_result}<br/>"
 
         return msg
@@ -251,9 +280,21 @@ def setup_post():
         logging.info(msg)
 
 
-@admin_bp.route("/test_connection", methods=["POST"])
-def test_connection():
-    """The test connection route"""
+@admin_bp.route("/admin/test_connection", methods=["POST"])
+def test_connection() -> str:
+    """The test connection route.
+
+    Test the connection to the MySQL database.
+
+    Returns
+    -------
+    str
+        A message indicating the result of the connection test.
+
+    Raises
+    ------
+    mysql.connector.Error
+        If the connection to the MySQL database fails."""
     health = get_db_connection(with_db=False)
     if health:
         try:
