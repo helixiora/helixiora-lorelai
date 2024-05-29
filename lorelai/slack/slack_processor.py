@@ -109,7 +109,7 @@ class slack_indexer:
             return None
         
     def replace_userid_with_name(self, thread_text):
-        for user_id, user_name in self.userid_name_dict:
+        for user_id, user_name in self.userid_name_dict.items():
             thread_text.replace(user_id,user_name)
         return thread_text
         
