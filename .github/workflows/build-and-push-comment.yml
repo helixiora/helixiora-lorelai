@@ -1,4 +1,4 @@
-name: Build and Push Docker images
+name: Build and Push Docker images using /build comment
 
 on:
   issue_comment:

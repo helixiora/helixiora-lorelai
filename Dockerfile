@@ -12,10 +12,16 @@ FROM base as web-production
 EXPOSE 5000
 # install flyway
 ENV FLYWAY_VERSION=10.13.0
-RUN apt-get install -y --no-install-recommends openjdk-17-jre-headless wget
-RUN wget -qO- https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}-linux-x64.tar.gz | tar xvz -C /usr/local/bin
+# Install Flyway dependencies and Flyway itself
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless wget
+RUN mkdir -p /usr/share/man/man1
+RUN dpkg --print-architecture
+ENV FLYWAY_URL="https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}-linux-x64.tar.gz";
+RUN wget -v -O flyway.tar.gz $FLYWAY_URL
+RUN tar xvz -C /usr/local/bin -f flyway.tar.gz
 RUN ln -s /usr/local/bin/flyway-${FLYWAY_VERSION}/flyway /usr/local/bin/flyway
-RUN chmod +x /usr/local/bin/flyway
+RUN rm flyway.tar.gz
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN flyway -v
 # install gunicorn
 RUN pip install --no-cache-dir -r requirements-web.txt
