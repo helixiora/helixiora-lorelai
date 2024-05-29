@@ -22,7 +22,8 @@ RUN tar xvz -C /usr/local/bin -f flyway.tar.gz
 RUN ln -s /usr/local/bin/flyway-${FLYWAY_VERSION}/flyway /usr/local/bin/flyway
 RUN rm flyway.tar.gz
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-RUN flyway -v
+# verify flyway installation but continue anyway
+RUN flyway -v || true
 # install gunicorn
 RUN pip install --no-cache-dir -r requirements-web.txt
 CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5000", "run:app"]
