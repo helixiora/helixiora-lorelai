@@ -20,6 +20,7 @@ indexer=slack_indexer("masood@helixiora.com","helixiora.com")
 #print(indexer.list_channel_ids())
 #indexer.get_thread('1715925282.546629',"C06FBKAN70A")
 #indexer.get_userid_name()
-indexer.process_slack_message('C06C64XTP2R')
+indexer.process_slack_message('C06FBKAN70A')
 print(f"Exec Time: {time.time()-start_time}")
 #https://helixiora.slack.com/archives/C06FBKAN70A
+
