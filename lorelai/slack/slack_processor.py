@@ -7,6 +7,7 @@ import logging
 import os
 from langchain_openai import OpenAIEmbeddings
 import pinecone
+import uuid
 
 class SlackOAuth:
     AUTH_URL = "https://slack.com/oauth/v2/authorize"
@@ -64,6 +65,7 @@ class slack_indexer:
         # load API keys
         self.pinecone_settings = load_config("pinecone")
         self.openai_creds = load_config("openai")
+        self.lorelai_settings = load_config("lorelai")
         os.environ["PINECONE_API_KEY"] = self.pinecone_settings["api_key"]
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
         
@@ -110,7 +112,7 @@ class slack_indexer:
         
     def replace_userid_with_name(self, thread_text):
         for user_id, user_name in self.userid_name_dict.items():
-            thread_text.replace(user_id,user_name)
+            thread_text=thread_text.replace(user_id,user_name)
         return thread_text
         
         
@@ -155,7 +157,7 @@ class slack_indexer:
                             msg_link=self.get_message_permalink(channel_id,msg_ts)
                             thread_text=self.replace_userid_with_name(thread_text)
                             metadata={'text': thread_text, 'source': msg_link, 'msg_ts':msg_ts,'channel_name':channel_name,'users':[self.email]}
-                            channel_chat_history.append({'values': [], 'metadata': metadata})
+                            channel_chat_history.append({"id": str(uuid.uuid4()), 'values': [], 'metadata': metadata})
                             print(metadata)
                             print("--------------------")
                     
@@ -172,7 +174,7 @@ class slack_indexer:
             else:
                 print("Failed to retrieve channel history. Error:", response.text)
         print('--------------')
-        print(f"Total Messages {len(channel_chat_history)}")
+        print(f"Total Messages in {channel_name}-{len(channel_chat_history)}")
         return channel_chat_history
             
             
@@ -282,7 +284,7 @@ class slack_indexer:
         
         # will delete one, 2 method does same thing
         for i in range(len(embeds)):
-            complete_chat_history[i]['value']=embeds[i]
+            complete_chat_history[i]['values']=embeds[i]
             
         '''for idx,chat in enumerate(complete_chat_history):
             chat['values']=embeds[idx]'''
@@ -298,7 +300,7 @@ class slack_indexer:
             version="v1",
         )
         
-        pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
+        pc = pinecone.Pinecone(api_key=self.pinecone_settings["api_key"])
 
         if index_name not in pc.list_indexes().names():
             # Create a new index
@@ -334,9 +336,18 @@ class slack_indexer:
         if embedding_dimension == -1:
             raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
         
-        complete_chat_history = self.add_embedding(embedding_model, complete_chat_history)
-        self.load_to_pinecone(embedding_dimension, complete_chat_history)
         
+        #complete_chat_history = self.add_embedding(embedding_model, complete_chat_history)
+        #self.load_to_pinecone(embedding_dimension, complete_chat_history)
+        # Process in Batch
+        batch_size=200
+        total_items=len(complete_chat_history)
+        logging.info(f"Getting Embeds and Inserting to DB for {total_items} messages in batches of {batch_size}")
+        for start_idx in range(0, total_items, batch_size):
+            end_idx = min(start_idx + batch_size, total_items)
+            batch = complete_chat_history[start_idx:end_idx]
+            batch=self.add_embedding(embedding_model, batch)
+            self.load_to_pinecone(embedding_dimension, batch)
 
 
 #1715850407.699219
