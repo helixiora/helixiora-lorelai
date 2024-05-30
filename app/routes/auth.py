@@ -15,10 +15,10 @@ from app.utils import get_db_connection, is_admin, load_config
 
 auth_bp = blueprints.Blueprint("auth", __name__)
 
-
 @auth_bp.route("/profile")
 def profile():
     """the profile page"""
+    features = load_config("features")
     if "google_id" in session:
         # Example: Fetch user details from the database
         user = {
@@ -26,7 +26,7 @@ def profile():
             "email": session["email"],
             "org_name": session["organisation"],
         }
-        return render_template("profile.html", user=user, is_admin=is_admin(session["google_id"]))
+        return render_template("profile.html", user=user, is_admin=is_admin(session["google_id"]),features=features)
     return "You are not logged in!"
 
 

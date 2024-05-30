@@ -22,6 +22,7 @@
         <div class="mt-4">
             <h2 class="mb-3" style="color: #000;">Integrations Marketplace</h2>
             <!-- Slack Integration -->
+            {% if features.slack == 1 %}
             <div class="card mb-3">
                 <div class="card-body bg-light">
                     <div class="row">
@@ -37,6 +38,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
             <!-- Additional integrations can be added in similar div blocks -->
         </div>
     </div>
