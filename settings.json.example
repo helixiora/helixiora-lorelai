@@ -26,5 +26,8 @@
         "user": "the_db_user",
         "database": "the_name_of_your_db",
         "password": "the_password_for_your_user"
+    },
+    "features": {
+        "slack":0
     }
 }
