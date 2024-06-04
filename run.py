@@ -7,14 +7,13 @@ import os
 import sys
 import mysql.connector
 
-from flask import Flask, flash, redirect, render_template, session, url_for
-from google_auth_oauthlib.flow import Flow
+from flask import Flask, redirect, render_template, session, url_for
 
 # load blueprints
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import is_admin, perform_health_checks, get_db_connection
+from app.utils import perform_health_checks, get_db_connection
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -33,14 +32,15 @@ logging_format = os.getenv(
 )
 logging.basicConfig(format=logging_format)
 
-app.secret_key = "your_very_secret_and_long_random_string_here"
+lorelai_settings = load_config("lorelai")
+app.secret_key = lorelai_settings["secret_key"]
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 
-lorelaisettings = load_config("db")
-dbname = lorelaisettings["database"]
+db_settings = load_config("db")
+dbname = db_settings["database"]
 # check if the database can be connected to
 db_exists = False
 try:
@@ -64,6 +64,16 @@ if db_exists:
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
+# Flagging success by displaying the app's address
+logging.debug("URL Map: %s", app.url_map)
+logging.debug("App config: %s", app.config)
+logging.info(
+    "Application loaded successfully. Running at %s",
+    app.config.get(
+        "BASE_URL", "http://" + os.getenv("HOST", "localhost") + ":" + os.getenv("PORT", "5000")
+    ),
+)
+
 
 # Improved index route using render_template
 @app.route("/")
@@ -73,67 +83,22 @@ def index():
     Returns:
         string: the index page
     """
+    print("Index route")
+
     if app.config.get("LORELAI_SETUP"):
         # redirect to /admin/setup if the app is not set up
+        logging.info("App is not set up. Redirecting to /admin/setup")
         return redirect(url_for("admin.setup"))
 
-    # Load the Google OAuth2 secrets
+    logging.debug(f"We reached here!! session: {session}")
+
+    if "user_id" in session:
+        return render_template("index_logged_in.html", user_email=session["user_email"])
+
+    logging.debug("We reached here too!!")
+
     secrets = load_config("google")
-    # check if all the required creds are present
-    e_creds = [
-        "client_id",
-        "project_id",
-        "client_secret",
-        "redirect_uris",
-    ]
-    if not all(i in secrets for i in e_creds):
-        missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
-        msg = "Missing required google credentials: "
-        raise ValueError(msg, missing_creds)
-
-    client_config = {
-        "web": {
-            "client_id": secrets["client_id"],
-            "project_id": secrets["project_id"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": secrets["client_secret"],
-            "redirect_uris": secrets["redirect_uris"],
-        }
-    }
-
-    lorelaicreds = load_config("lorelai")
-
-    flow = Flow.from_client_config(
-        client_config=client_config,
-        scopes=[
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/drive.readonly",
-            "openid",
-        ],
-        redirect_uri=lorelaicreds["redirect_uri"],
-    )
-
-    if "google_id" in session:
-        user_data = {
-            "user_organization": session["organisation"],
-            "user_email": session["email"],
-            "is_admin": is_admin(session["google_id"]),
-        }
-
-        return render_template("index_logged_in.html", **user_data)
-
-    try:
-        authorization_url, state = flow.authorization_url(
-            access_type="offline", include_granted_scopes="true", prompt="consent"
-        )
-        session["state"] = state
-        return render_template("index.html", auth_url=authorization_url)
-    except RuntimeError as e:
-        logging.debug(f"Error generating authorization URL: {e}")
-        return render_template("error.html", error_message="Failed to generate login URL.")
+    return render_template("index.html", google_client_id=secrets["client_id"])
 
 
 @app.route("/js/<script_name>.js")
@@ -156,15 +121,6 @@ def health():
     return "OK", 200
 
 
-# Logout route
-@app.route("/logout")
-def logout():
-    """the logout route"""
-    session.clear()
-    flash("You have been logged out.")
-    return redirect(url_for("index"))
-
-
 # Error handler for 404
 @app.errorhandler(404)
 def page_not_found(e):
@@ -184,6 +140,21 @@ def internal_server_error(e):
 
     # Pass the error message to the template
     return render_template("500.html", error_message=error_message), 500
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["Content-Security-Policy"] = (
+        "connect-src 'self' https://accounts.google.com/gsi/; "
+        "frame-src 'self' https://accounts.google.com/gsi/; "
+        "img-src 'self' https://accounts.google.com/gsi/ 'unsafe-inline' data:; "
+        "script-src-elem 'self' https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js https://code.jquery.com/jquery-3.5.1.slim.min.js https://accounts.google.com/gsi/client 'unsafe-inline' https://cdn.tailwindcss.com/; "
+        "script-src 'self' https://accounts.google.com/gsi/; "
+        "style-src 'self' https://accounts.google.com/gsi/style https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css https://fonts.googleapis.com/css 'unsafe-inline'; "
+        "default-src 'self' https://accounts.google.com/gsi/"
+    )
+    return response
 
 
 if __name__ == "__main__":

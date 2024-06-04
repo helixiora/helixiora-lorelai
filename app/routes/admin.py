@@ -114,7 +114,7 @@ def start_indexing() -> str:
 
                 # Fetch users belonging to the organization
                 cur.execute(
-                    "SELECT user_id, name, email, refresh_token FROM users WHERE org_id = %s",
+                    "SELECT user_id, name, email, refresh_token FROM user WHERE org_id = %s",
                     (org_row["id"],),
                 )
                 user_rows = cur.fetchall()
