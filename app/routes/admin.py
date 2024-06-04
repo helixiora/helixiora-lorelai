@@ -217,6 +217,7 @@ def setup_post() -> str:
 
     """
     msg = "<strong>Creating the database and running Flyway migrations.</strong><br/>"
+    msg += "<pre style='font-family: monospace;'>"
     db = None
     cursor = None
 
@@ -239,9 +240,20 @@ def setup_post() -> str:
         msg += f"Baseline schema loaded:<br/>{baseline_schema}<br/>"
 
         cursor = db.cursor()
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
-        cursor.execute(f"USE {db_name}")
-        cursor.execute(baseline_schema)
+
+        # Combine all statements into one multi-statement string
+        full_statement = f"""
+        CREATE DATABASE IF NOT EXISTS {db_name};
+        USE {db_name};
+        {baseline_schema}
+        """
+
+        # Execute the combined statements and echo each one
+        for result in cursor.execute(full_statement, multi=True):
+            if result.statement:
+                msg += f"Executing: {result.statement}<br/>"
+            if result.with_rows:
+                msg += f"Affected {result.rowcount} rows<br/>"
 
         msg += "Database created.<br/>"
 
@@ -262,6 +274,7 @@ def setup_post() -> str:
             current_app.config["LORELAI_SETUP"] = False
         msg += f"Flyway migrations completed. Flyway result:<br/>{flyway_result}<br/>"
 
+        msg += "</pre>"
         return msg
 
     except FileNotFoundError as fnf_error:
