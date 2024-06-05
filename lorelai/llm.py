@@ -136,3 +136,45 @@ class OpenAILlm(Llm):
         """Check the current status of the openai api endpoint https://api.openai.com/"""
         status = requests.get("https://api.openai.com/v1/engines")
         return status.status_code == 200
+    
+    
+class OpenAILlm_direct(Llm):
+    """Class to interact with the OpenAI LLM for answering context-based questions."""
+
+    _prompt_template = template = """question: {question}
+
+                Answer: Let's think step by step."""
+        
+    def __init__(self: None) -> None:
+        super().__init__()
+        self.openai_creds = load_config("openai")
+        os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
+        self.model = "gpt-3.5-turbo"
+
+    def get_answer(self: None, question: str, context: list[Document]) -> str:
+        """Implementation specific to OpenAI models."""
+
+
+        logging.debug("[OpenAILlm.get_answer] Prompt template: %s", self._prompt_template)
+        logging.debug("[OpenAILlm.get_answer] Question: %s", question)
+        #logging.debug("[OpenAILlm.get_answer] Context_doc_text: %s", context_doc_text)
+
+        prompt = PromptTemplate.from_template(
+            template=self._prompt_template, template_format="f-string"
+        )
+        prompt.input_variables = ["context_doc_text", "question"]
+        logging.debug("[OpenAILlm.get_answer] Prompt: %s", prompt)
+
+        # prompt.format(context=context, question=question)
+
+        model = ChatOpenAI(model=self.model)
+        output_parser = StrOutputParser()
+        result = (prompt | model | output_parser).invoke(
+            {"question": question}  
+        )
+        return result
+
+    def get_llm_status(self: None) -> bool:
+        """Check the current status of the openai api endpoint https://api.openai.com/"""
+        status = requests.get("https://api.openai.com/v1/engines")
+        return status.status_code == 200

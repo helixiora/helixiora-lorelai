@@ -22,7 +22,7 @@ logging.basicConfig(level=log_level, format=logging_format)
 
 
 def execute_rag_llm(
-    chat_message: str, user: str, organisation: str, model_type: str = "OpenAILlm"
+    chat_message: str, user: str, organisation: str, datasource: str = "None", model_type: str = "OpenAILlm"
 ) -> dict:
     """
     A task to execute the RAG+LLM model.
