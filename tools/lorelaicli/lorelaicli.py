@@ -35,7 +35,8 @@ def main() -> None:
     print("----------->",org_name,user_id)
     print("SUBCLASS->",ContextRetriever.list_subclasses())
     #enriched_context = ContextRetriever(org_name=org_name, user=user_id)
-    enriched_context=ContextRetriever.create("GoogleDriveContextRetriever", org_name, user_id)
+    #enriched_context=ContextRetriever.create("GoogleDriveContextRetriever", org_name, user_id)
+    enriched_context=ContextRetriever.create("SlackContextRetriever", org_name, user_id)
 
     answer, source = enriched_context.retrieve_context(question)
     print("source",source,"answer",answer)
