@@ -151,7 +151,7 @@ class OpenAILlm_direct(Llm):
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
         self.model = "gpt-3.5-turbo"
 
-    def get_answer(self: None, question: str, context: list[Document]) -> str:
+    def get_answer(self: None, question: str) -> str:
         """Implementation specific to OpenAI models."""
 
 
@@ -162,7 +162,6 @@ class OpenAILlm_direct(Llm):
         prompt = PromptTemplate.from_template(
             template=self._prompt_template, template_format="f-string"
         )
-        prompt.input_variables = ["context_doc_text", "question"]
         logging.debug("[OpenAILlm.get_answer] Prompt: %s", prompt)
 
         # prompt.format(context=context, question=question)

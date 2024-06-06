@@ -22,7 +22,7 @@ logging.basicConfig(level=log_level, format=logging_format)
 
 
 def execute_rag_llm(
-    chat_message: str, user: str, organisation: str, datasource: str = "None", model_type: str = "OpenAILlm"
+    chat_message: str, user: str, organisation: str, model_type: str = "OpenAILlm", datasource: str = None
 ) -> dict:
     """
     A task to execute the RAG+LLM model.
@@ -34,23 +34,29 @@ def execute_rag_llm(
 
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s", user, organisation)
-
+    print("^^^^^^^^^^^^^^^^",datasource)
     try:
-        # Get the context for the question
-        enriched_context = ContextRetriever(org_name=organisation, user=user)
-        context, source = enriched_context.retrieve_context(chat_message)
+        if datasource is None:
+            print("%%%%%%%%%%%%%%%%%%%%%%")
+            llm = Llm.create(model_type="OpenAILlm_direct")
+            answer = llm.get_answer(question=chat_message)
+            json_data = {"answer": answer, "source": [], "status": "Success"}
+        else:
+            # Get the context for the question
+            enriched_context = ContextRetriever(org_name=organisation, user=user)
+            context, source = enriched_context.retrieve_context(chat_message)
 
-        if context is None:
-            raise ValueError("Failed to retrieve context for the provided chat message.")
+            if context is None:
+                raise ValueError("Failed to retrieve context for the provided chat message.")
 
-        llm = Llm.create(model_type=model_type)
-        logging.info(f"LLM Status: {llm.get_llm_status()}")
-        answer = llm.get_answer(question=chat_message, context=context)
+            llm = Llm.create(model_type=model_type)
+            logging.info(f"LLM Status: {llm.get_llm_status()}")
+            answer = llm.get_answer(question=chat_message, context=context)
 
-        logging.info("Answer: %s", answer)
-        logging.info("Source: %s", source)
+            logging.info("Answer: %s", answer)
+            logging.info("Source: %s", source)
 
-        json_data = {"answer": answer, "source": source, "status": "Success"}
+            json_data = {"answer": answer, "source": source, "status": "Success"}
 
     except Exception as e:
         logging.error("Error in execute_rag_llm task: %s", str(e))
