@@ -81,7 +81,7 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light" role="navigation">
         <a class="navbar-brand" href="#">Lorelai</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -102,7 +102,7 @@
                          data-size="large"
                          data-logo_alignment="left">
                     </div>
-                    <div id="signin-status"></div>
+                    <div id="signin-status" aria-live="polite"></div>
                 </li>
             </ul>
         </div>
@@ -156,33 +156,37 @@
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
-        function onGoogleCredentialResponse(response) {
-            const id_token = response.credential.id_token;
+        async function onGoogleCredentialResponse(response) {
+            const id_token = response.credential;
+            const statusElement = document.getElementById('signin-status');
 
-            fetch('/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify( { credential: response.credential })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok: ' + response.status + ' ' + response.statusText);
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ credential: id_token })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Network response was not ok: ' + res.status + ' ' + res.statusText);
                 }
-                return response.json();
-            })
-            .then(data => {
-                // Handle successful response
-                console.log(data);
-                if (data.user) {
-                    document.getElementById('signin-status').innerText = 'Signed in as ' + data.user.name;
+
+                const data = await res.json();
+
+                if (data.message === "User authenticated successfully") {
+                    statusElement.innerText = 'Signed in successfully';
+                    window.location.href = data.redirect_url;
+                } else if (data.message === "Invalid login") {
+                    window.location.href = data.redirect_url + '?email=' + encodeURIComponent(data.email) + '&full_name=' + encodeURIComponent(data.full_name);
+                } else {
+                    throw new Error(data.message);
                 }
-            })
-            .catch(error => {
-                // Handle error
+            } catch (error) {
+                statusElement.innerText = 'Error signing in: ' + error.message;
                 console.error('Error:', error);
-            });
+            }
         }
     </script>
 </body>

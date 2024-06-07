@@ -5,15 +5,15 @@
 import logging
 import os
 import sys
-import mysql.connector
 
+import mysql.connector
 from flask import Flask, redirect, render_template, session, url_for
 
 # load blueprints
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import perform_health_checks, get_db_connection
+from app.utils import get_db_connection, perform_health_checks
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -144,41 +144,61 @@ def internal_server_error(e):
 
 @app.after_request
 def set_security_headers(response):
-    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
-    response.headers["Content-Security-Policy"] = (
-        "connect-src 'self' https://accounts.google.com/gsi/; "
-        "frame-src 'self' https://accounts.google.com/gsi/; "
-        "img-src "
-        "'self' "
-        "https://accounts.google.com/gsi/ "
-        "data: "
-        "'unsafe-inline'; "
-        "script-src-elem "
-        "'self' "
-        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js "
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js "
-        "https://code.jquery.com/jquery-3.5.1.slim.min.js https://accounts.google.com/gsi/client "
-        "https://cdn.tailwindcss.com/ "
-        "'unsafe-inline'; "
-        "font-src "
-        "'self' "
-        "https://accounts.google.com/gsi/ "
-        "https://fonts.gstatic.com/s/ "
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/ "
-        "'unsafe-inline'; "
-        "script-src "
-        "'self' "
-        "https://accounts.google.com/gsi/; "
-        "style-src "
-        "'self' "
-        "https://fonts.googleapis.com/css2"
-        "https://accounts.google.com/gsi/style "
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css "
-        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css https://fonts.googleapis.com/css "
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js "
-        "'unsafe-inline'; "
-        "default-src 'self' https://accounts.google.com/gsi/"
+    cross_origin_opener_policy = "same-origin-allow-popups"
+
+    connect_src = ["'self'", "https://accounts.google.com/gsi/"]
+
+    frame_src = ["'self'", "https://accounts.google.com/gsi/"]
+
+    img_src = ["'self'", "'unsafe-inline'", "data:", "https://accounts.google.com/gsi/"]
+
+    script_src_elem = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/client",
+        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://cdn.tailwindcss.com/",
+        "https://code.jquery.com/jquery-3.5.1.slim.min.js",
+        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js",
+    ]
+
+    font_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/",
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/",
+        "https://fonts.gstatic.com/s/",
+    ]
+
+    script_src = ["'self'", "https://accounts.google.com/gsi/"]
+
+    style_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/style",
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css",
+        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://fonts.googleapis.com/css",
+        "https://fonts.googleapis.com/css2",
+        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css",
+    ]
+
+    default_src = ["'self'", "https://accounts.google.com/gsi/"]
+
+    content_security_policy = (
+        f"connect-src {' '.join(connect_src)}; "
+        f"frame-src {' '.join(frame_src)}; "
+        f"img-src {' '.join(img_src)}; "
+        f"script-src-elem {' '.join(script_src_elem)}; "
+        f"font-src {' '.join(font_src)}; "
+        f"script-src {' '.join(script_src)}; "
+        f"style-src {' '.join(style_src)}; "
+        f"default-src {' '.join(default_src)};"
     )
+
+    response.headers["Cross-Origin-Opener-Policy"] = cross_origin_opener_policy
+    response.headers["Content-Security-Policy"] = content_security_policy
+
     return response
 
 

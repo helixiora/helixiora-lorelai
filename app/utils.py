@@ -1,8 +1,9 @@
 """Utility functions for the application."""
 
 import logging
-import subprocess
 import os
+import subprocess
+from typing import List, Optional, Tuple
 
 import mysql.connector
 import redis
@@ -10,23 +11,24 @@ import redis
 from lorelai.utils import load_config
 
 
-def is_admin(google_id: str) -> bool:
+def is_admin(user_id: int) -> bool:
     """Check if the user is an admin.
 
     Parameters
     ----------
-    google_id : str
-        The Google ID of the user.
+    user_id : int
+        The user ID of the user.
 
     Returns
     -------
     bool
         True if the user is an admin, False otherwise.
     """
-    return google_id != ""  # Assuming all users are admins for now
+    # Implement the actual check logic, assuming user_id == 1 is admin for example
+    return user_id == 1
 
 
-def run_flyway_migrations(host: str, database: str, user: str, password: str) -> tuple[bool, str]:
+def run_flyway_migrations(host: str, database: str, user: str, password: str) -> Tuple[bool, str]:
     """Run Flyway migrations on the database.
 
     Parameters
@@ -42,10 +44,8 @@ def run_flyway_migrations(host: str, database: str, user: str, password: str) ->
 
     Returns
     -------
-    bool
-        True if the migrations were successful, False otherwise.
-    str
-        The output of the migrations.
+    tuple
+        A tuple with a boolean indicating success and a string with the output message.
     """
     try:
         flyway_command = [
@@ -56,19 +56,70 @@ def run_flyway_migrations(host: str, database: str, user: str, password: str) ->
             "-locations=filesystem:db/migrations",
             "migrate",
         ]
-        print("running flyway migrations")
+        logging.info("Running Flyway migrations")
         result = subprocess.run(flyway_command, capture_output=True, text=True)
-        print(result.stdout)
+        logging.info(result.stdout)
         if result.returncode == 0:
-            # return the output of flyway migrations
             return True, result.stdout
         else:
             return False, f"Flyway migrations failed: {result.stderr}"
     except Exception as e:
-        return str(e)
+        logging.exception("Flyway migration failed")
+        return False, str(e)
 
 
-# Helper function for database connections
+def get_db_cursor(with_dict: bool = False) -> mysql.connector.cursor.MySQLCursor:
+    """Get a database cursor.
+
+    Parameters
+    ----------
+    with_dict : bool, optional
+        Whether to return rows as dictionaries.
+
+    Returns
+    -------
+    mysql.connector.cursor.MySQLCursor
+        A cursor to the database.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=with_dict)
+        return cursor
+    except mysql.connector.Error:
+        logging.exception("Database connection failed")
+        raise
+
+
+def get_query_result(
+    query: str, params: tuple = None, fetch_one: bool = False
+) -> Optional[List[dict]]:
+    """Get the result of a query.
+
+    Parameters
+    ----------
+    query : str
+        The query to execute.
+    params : tuple, optional
+        The parameters to pass to the query.
+    fetch_one : bool, optional
+        Whether to fetch one or all results.
+
+    Returns
+    -------
+    list or dict
+        A list of dictionaries containing the results of the query, or a single dictionary.
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(query, params)
+                result = cursor.fetchone() if fetch_one else cursor.fetchall()
+                return result
+    except mysql.connector.Error:
+        logging.exception("Database query failed")
+        raise
+
+
 def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLConnection:
     """Get a database connection.
 
@@ -79,8 +130,8 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
 
     Returns
     -------
-        conn: a connection to the database
-
+    mysql.connector.connection.MySQLConnection
+        A connection to the database.
     """
     try:
         creds = load_config("db")
@@ -88,7 +139,6 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
             logging.debug(
                 f"Connecting to MySQL database: {creds['user']}@{creds['host']}/{creds['database']}"
             )
-
             conn = mysql.connector.connect(
                 host=creds["host"],
                 user=creds["user"],
@@ -97,7 +147,6 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
             )
         else:
             logging.debug(f"Connecting to MySQL server: {creds['user']}@{creds['host']}")
-
             conn = mysql.connector.connect(
                 host=creds["host"], user=creds["user"], password=creds["password"]
             )
@@ -107,35 +156,29 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
         raise
 
 
-def check_mysql() -> tuple[bool, str]:
+def check_mysql() -> Tuple[bool, str]:
     """Check if the MySQL database is up and running.
 
     Returns
     -------
-    bool
-        True if the MySQL database is up and running, False otherwise.
-    str
-        The message to log.
+    tuple
+        A tuple with a boolean indicating success and a string with the message.
     """
     try:
-        db = get_db_connection()
-        logging.debug("Checking MySQL connection. DB: " + db.database + " Host: " + db.server_host)
-        cursor = db.cursor()
-        cursor.execute("SELECT 1")
+        get_query_result("SELECT 1", fetch_one=True)
         return True, "MySQL is up and running."
-    except Exception as e:
+    except mysql.connector.Error as e:
+        logging.exception("MySQL check failed")
         return False, str(e)
 
 
-def check_redis() -> tuple[bool, str]:
+def check_redis() -> Tuple[bool, str]:
     """Check if the Redis server is up and running.
 
     Returns
     -------
-    bool
-        True if the Redis server is up and running, False otherwise.
-    str
-        The message to log.
+    tuple
+        A tuple with a boolean indicating success and a string with the message.
     """
     try:
         redis_config = load_config("redis")
@@ -144,32 +187,28 @@ def check_redis() -> tuple[bool, str]:
         r.ping()
         return True, "Redis is reachable."
     except redis.ConnectionError as e:
+        logging.exception("Redis check failed")
         return False, str(e)
 
 
-def check_flyway() -> tuple[bool, str]:
+def check_flyway() -> Tuple[bool, str]:
     """Check if the Flyway schema version is up to date.
 
     Returns
     -------
-    bool
-        True if the Flyway schema version is up to date, False otherwise.
-    str
-        The message to log.
+    tuple
+        A tuple with a boolean indicating success and a string with the message.
     """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT MAX(version) FROM flyway_schema_history")
-        version = cursor.fetchone()
-        logging.debug(f"Flyway schema version: {version[0]}")
+        version = get_query_result(
+            "SELECT MAX(version) as version FROM flyway_schema_history", fetch_one=True
+        )
+        logging.debug(f"Flyway schema version: {version['version']}")
 
-        if version is None or version[0] is None:
+        if version is None or version["version"] is None:
             return False, "Flyway schema history not found."
 
-        # get the migrations from disk
         migrations_dir = "./db/migrations"
-        # get all the .sql files in the migrations directory in alphabetical order
         migrations = sorted(
             [
                 f
@@ -183,17 +222,19 @@ def check_flyway() -> tuple[bool, str]:
 
         last_migration = migrations[-1]
 
-        # this checks if eg. '1.2' is in 'V1.2__Rename_expires_in_to_expiry.sql'
-        if version[0] in last_migration:
-            return True, f"Flyway schema version: {version[0]}"
+        if version["version"] in last_migration:
+            return True, f"Flyway schema version: {version['version']}"
 
-        return True, f"Flyway schema version: {version[0]}"
-
+        return (
+            False,
+            f"Flyway schema version {version['version']} is not up to date with last migration {last_migration}.",
+        )
     except Exception as e:
+        logging.exception("Flyway check failed")
         return False, str(e)
 
 
-def perform_health_checks() -> list[str]:
+def perform_health_checks() -> List[str]:
     """Perform health checks on the application.
 
     Returns
@@ -204,14 +245,11 @@ def perform_health_checks() -> list[str]:
     checks = [check_mysql, check_redis, check_flyway]
     errors = []
     for check in checks:
-        # print the name of the check:
         logging.debug(f"Running check: {check.__name__}")
         success, message = check()
         if not success:
-            logging.debug(f"Something went wrong ({check.__name__}): " + message)
+            logging.error(f"Health check failed ({check.__name__}): {message}")
             errors.append(message)
-            logging.error(message)
         else:
-            logging.debug("Nothing went wrong: " + message)
-            logging.info(message)
+            logging.info(f"Health check passed ({check.__name__}): {message}")
     return errors
