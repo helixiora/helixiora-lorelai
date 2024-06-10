@@ -253,3 +253,65 @@ def perform_health_checks() -> List[str]:
         else:
             logging.info(f"Health check passed ({check.__name__}): {message}")
     return errors
+
+
+def get_user_id_by_email(email: str) -> int:
+    """
+    Get the user ID by email.
+
+    Parameters
+    ----------
+    email : str
+        The email of the user.
+
+    Returns
+    -------
+    int
+        The user ID.
+    """
+    result = get_query_result("SELECT user_id FROM user WHERE email = %s", (email,), fetch_one=True)
+    return result["user_id"] if result else None
+
+
+def get_organisation_by_org_id(cursor, org_id: int):
+    """Get the organization name by ID."""
+    org_result = get_query_result(
+        "SELECT name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
+    )
+    if org_result:
+        return org_result["name"]
+
+
+def get_org_id_by_userid(cursor, user_id: int):
+    """Get the organization ID for a user."""
+    org_result = get_query_result(
+        "SELECT org_id FROM user WHERE user_id = %s", (user_id,), fetch_one=True
+    )
+
+    if org_result:
+        return org_result["org_id"]
+
+
+def get_org_id_by_organisation(cursor, organisation: str, create_if_not_exists: bool = False):
+    """Get the organization ID, inserting the organization if it does not exist."""
+
+    logging.debug("Getting org ID for organisation: %s", organisation)
+    org_result = get_query_result(
+        "SELECT id FROM organisation WHERE name = %s", (organisation,), fetch_one=True
+    )
+    if org_result:
+        logging.debug("Organisation found: %s", org_result[0])
+        return org_result["id"]
+    elif create_if_not_exists:
+        cursor.execute("INSERT INTO organisation (name) VALUES (%s)", (organisation,))
+        return cursor.lastrowid
+    else:
+        logging.debug("Organisation not found: %s", organisation)
+
+
+def get_user_email_by_id(cursor, user_id: int):
+    """Get the email of a user by ID."""
+    cursor.execute("SELECT email FROM user WHERE user_id = %s", (user_id,))
+    user_result = cursor.fetchone()
+    if user_result:
+        return user_result["email"]
