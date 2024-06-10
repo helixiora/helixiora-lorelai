@@ -13,7 +13,7 @@ from flask import Flask, g, redirect, render_template, session, url_for
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import get_db_connection, perform_health_checks
+from app.utils import get_db_connection, is_admin, perform_health_checks
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -90,12 +90,11 @@ def index():
         logging.info("App is not set up. Redirecting to /admin/setup")
         return redirect(url_for("admin.setup"))
 
-    logging.debug(f"We reached here!! session: {session}")
-
     if "user_id" in session:
-        return render_template("index_logged_in.html", user_email=session["user_email"])
-
-    logging.debug("We reached here too!!")
+        is_admin_status = is_admin(session["user_id"])
+        return render_template(
+            "index_logged_in.html", user_email=session["user_email"], is_admin=is_admin_status
+        )
 
     secrets = load_config("google")
     return render_template("index.html", google_client_id=secrets["client_id"])

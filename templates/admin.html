@@ -24,15 +24,24 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
         function startIndexing() {
-            fetch('/admin/index', {method: 'POST'})
-                .then(response => response.json())
+            fetch('/admin/index', { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Unknown error');
+                        });
+                    }
+                })
                 .then(data => {
                     $('#statusMessage').hide();
                     $('#progressBarContainer').show();
                     $('#progressBar').css('width', '0%').attr('aria-valuenow', 0).text('0%');
                     checkStatus(data.job);
-                }).catch(() => {
-                    $('#statusMessage').show().addClass('alert-danger').text('Failed to start indexing.');
+                })
+                .catch(error => {
+                    $('#statusMessage').show().addClass('alert-danger').text('Failed to start indexing: ' + error.message);
                 });
         }
 

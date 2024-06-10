@@ -90,20 +90,20 @@ def start_indexing() -> str:
         org_id = session.get("org_id")
         if not org_id:
             return jsonify(
-                {"error": "No organization ID found for the user in the session details"}
+                {"error": "No organisation ID found for the user in the session details"}
             ), 403
 
         org_row = get_query_result(
-            "SELECT id, name FROM organisations WHERE id = %s", (org_id,), fetch_one=True
+            "SELECT id, name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
         )
         if not org_row:
-            return jsonify({"error": "Organization not found"}), 404
+            return jsonify({"error": "Organisation not found"}), 404
 
         user_rows = get_query_result(
             "SELECT user_id, name, email FROM user WHERE org_id = %s", (org_row["id"],)
         )
         if not user_rows:
-            return jsonify({"error": "No users found in the organization"}), 404
+            return jsonify({"error": "No users found in the organisation"}), 404
 
         job = queue.enqueue(
             run_indexer,
