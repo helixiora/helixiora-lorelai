@@ -33,7 +33,7 @@ class ContextRetriever:
     language models to generate responses based on the retrieved contexts.
     """
 
-    def __init__(self, org_name: str, user: str):
+    def __init__(self, org_name: str, user_email: str):
         """
         Initializes the ContextRetriever instance.
 
@@ -54,7 +54,7 @@ class ContextRetriever:
             raise ValueError("Lorelai credentials not found.")
 
         self.org_name: str = org_name
-        self.user: str = user
+        self.user: str = user_email
 
     def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
         """

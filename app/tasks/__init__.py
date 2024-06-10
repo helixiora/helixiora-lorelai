@@ -3,10 +3,11 @@ This module contains the tasks that are executed asynchronously.
 """
 
 import logging
-from typing import List
-import time
-from rq import get_current_job
 import os
+import time
+from typing import List
+
+from rq import get_current_job
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
@@ -33,11 +34,14 @@ def execute_rag_llm(
         raise ValueError("Could not get the current job.")
 
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
-    logging.info("Session: %s, %s", user, organisation)
+    logging.info("User email: %s, Org name: %s", user, organisation)
+
+    if user is None or organisation is None:
+        raise ValueError("User and organisation cannot be None.")
 
     try:
         # Get the context for the question
-        enriched_context = ContextRetriever(org_name=organisation, user=user)
+        enriched_context = ContextRetriever(org_name=organisation, user_email=user)
         context, source = enriched_context.retrieve_context(chat_message)
 
         if context is None:

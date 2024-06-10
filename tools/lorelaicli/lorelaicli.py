@@ -3,10 +3,11 @@
 """Query indexed documents in Pinecone using LangChain and OpenAI in the CLI"""
 
 import argparse
-from colorama import Fore, Style, init
 import logging
 import os
 import sys
+
+from colorama import Fore, Style, init
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
 from lorelai.contextretriever import ContextRetriever
@@ -31,7 +32,7 @@ def main() -> None:
     question = args.question
     org_id, org_name = get_organisation(args.org_name)
     user_id = get_user_from_organisation(org_id, args.user_name)
-    enriched_context = ContextRetriever(org_name=org_name, user=user_id)
+    enriched_context = ContextRetriever(org_name=org_name, user_email=user_id)
     answer, source = enriched_context.retrieve_context(question)
     llm = Llm.create(model_type=args.model_type)
     llm_answer = llm.get_answer(question, answer)

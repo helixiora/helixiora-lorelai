@@ -80,7 +80,7 @@ class Run:
                 question_class is not None
             ), f"Question class not found for question: {question['question']}"
 
-            context_retriever = ContextRetriever(org_name=org_name, user=user_name)
+            context_retriever = ContextRetriever(org_name=org_name, user_email=user_name)
             context = context_retriever.retrieve_context(question["question"])
 
             answer = self.llm.get_answer(question["question"], context)
