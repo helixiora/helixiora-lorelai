@@ -19,7 +19,9 @@ def chat():
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
-    logging.info("Chat request received: %s", content["message"])
+    logging.info(
+        "Chat request received: %s from user %s", content["message"], session.get("user_email")
+    )
 
     redis = load_config("redis")
     redis_host = redis["url"]
@@ -38,11 +40,11 @@ def chat():
     job = queue.enqueue(
         execute_rag_llm,
         content["message"],
-        session.get("email"),
-        session.get("organisation"),
+        session.get("user_email"),
+        session.get("org_name"),
         llm_model,
         job_timeout=chat_task_timeout,
-        description=f"Execute RAG+LLM model: {content['message']} for {session.get('email')} \
+        description=f"Execute RAG+LLM model: {content['message']} for {session.get('user_email')} \
             using {llm_model}",
     )
 

@@ -14,10 +14,20 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/profile")
 def profile():
     """The profile page."""
+
+    # only proceed if the user is logged in
     if "user_id" in session:
         is_admin_status = is_admin(session["user_id"])
-        user_email = session["user_email"]
-        return render_template("profile.html", user=user_email, is_admin=is_admin_status)
+        user = {
+            "user_id": session["user_id"],
+            "email": session["user_email"],
+            "username": session["username"],
+            "full_name": session["user_full_name"],
+            "organisation": session.get("organisation", "N/A"),
+        }
+        return render_template(
+            "profile.html", user=user, is_admin=is_admin_status, features=g.features
+        )
     return "You are not logged in!", 403
 
 
@@ -76,8 +86,12 @@ def login():
 
         session["user_id"] = user_id
         session["user_email"] = user_email
-        session["username"] = username
-        session["user_full_name"] = user_full_name
+        session["user_name"] = username
+        session["user_fullname"] = user_full_name
+        session["org_id"] = org_id
+        session["org_name"] = organisation
+
+        logging.debug("Session: %s", session)
 
         return jsonify({"message": "User authenticated successfully", "redirect_url": "/"}), 200
 
