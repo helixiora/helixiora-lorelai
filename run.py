@@ -7,7 +7,7 @@ import os
 import sys
 
 import mysql.connector
-from flask import Flask, redirect, render_template, session, url_for
+from flask import Flask, g, redirect, render_template, session, url_for
 
 # load blueprints
 from app.routes.admin import admin_bp
@@ -140,6 +140,13 @@ def internal_server_error(e):
 
     # Pass the error message to the template
     return render_template("500.html", error_message=error_message), 500
+
+
+@app.before_request
+def before_request():
+    """The before request hook"""
+    logging.debug("Before request")
+    g.features = load_config("features")
 
 
 @app.after_request
