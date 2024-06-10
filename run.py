@@ -151,21 +151,33 @@ def before_request():
 
 @app.after_request
 def set_security_headers(response):
-    cross_origin_opener_policy = "same-origin-allow-popups"
+    cross_origin_opener_policy = "unsafe-none"
 
     connect_src = ["'self'", "https://accounts.google.com/gsi/"]
 
-    frame_src = ["'self'", "https://accounts.google.com/gsi/"]
+    frame_src = ["'self'", "https://accounts.google.com/gsi/", "https://accounts.google.com/"]
 
-    img_src = ["'self'", "'unsafe-inline'", "data:", "https://accounts.google.com/gsi/"]
+    img_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "data:",
+        "https://accounts.google.com/gsi/",
+        "https://csi.gstatic.com/csi",
+    ]
 
     script_src_elem = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/client",
+        "https://code.jquery.com/jquery-3.5.1.min.js",
+        "https://apis.google.com/js/api.js",
         "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_0",
+        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=picker/exm=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_1",
         "https://cdn.tailwindcss.com/",
         "https://code.jquery.com/jquery-3.5.1.slim.min.js",
+        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js",
         "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js",
     ]
 
@@ -177,12 +189,13 @@ def set_security_headers(response):
         "https://fonts.gstatic.com/s/",
     ]
 
-    script_src = ["'self'", "https://accounts.google.com/gsi/"]
+    script_src = ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/"]
 
     style_src = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/style",
+        "https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css",
         "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css",
         "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
         "https://fonts.googleapis.com/css",
