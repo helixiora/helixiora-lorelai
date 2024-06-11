@@ -69,6 +69,7 @@ def execute_rag_llm(
 def run_indexer(
     org_row: List[any],
     user_rows: List[any],
+    user_auth_rows: List[any],
 ):
     """
     An rq job to run the indexer
@@ -80,12 +81,17 @@ def run_indexer(
     logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row} ")
 
     # Initialize indexer and perform indexing
-    indexer = Indexer()
+    indexer = Indexer.create("GoogleDriveIndexer")
+    try:
+        logging.debug("Starting indexing...")
 
-    success = indexer.index_org_drive(org_row, user_rows)
-    if success:
-        logging.debug("Indexing completed!")
-        return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
-    else:
+        success = indexer.index_org(org_row, user_rows, user_auth_rows)
+        if success:
+            logging.debug("Indexing completed!")
+            return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
+
         logging.error("Indexing failed!")
         return {"current": 100, "total": 100, "status": "Task failed!", "result": 0}
+    except Exception as e:
+        logging.error(f"Error in run_indexer task: {str(e)}")
+        return {"current": 100, "total": 100, "status": f"Task failed! {e}", "result": 0}

@@ -23,15 +23,37 @@ SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]
 class Indexer:
     """Used to process the Google Drive documents and index them in Pinecone."""
 
+    _allowed = False  # Flag to control constructor access
+
+    @staticmethod
+    def create(datasource="GoogleDriveIndexer"):
+        """Factory method to create instances of derived classes based on the class name."""
+        Indexer._allowed = True
+        class_ = globals().get(datasource)
+        if class_ is None or not issubclass(class_, Indexer):
+            Indexer._allowed = False
+            raise ValueError(f"Unsupported model type: {datasource}")
+        instance = class_()
+        Indexer._allowed = False
+        return instance
+
     def __init__(self: None):
-        self.google_creds = lorelai.utils.load_config("google")
+        if not self._allowed:
+            raise Exception("This class should be instantiated through a create() factory method.")
+
         self.pinecone_creds = lorelai.utils.load_config("pinecone")
         self.settings = lorelai.utils.load_config("lorelai")
 
         os.environ["PINECONE_API_KEY"] = self.pinecone_creds["api_key"]
 
-    def index_org_drive(self: None, org: dict[Any], users: dict[Any], folder_id: str = "") -> bool:
-        """Process the Google Drive documents for an organisation.
+    def get_indexer_name(self: None) -> str:
+        """Retrieve the name of the indexer."""
+        return self.__class__.__name__
+
+    def index_org(
+        self: None, org_row: dict[Any], user_rows: dict[Any], user_auth_rows: dict[Any]
+    ) -> list[dict]:
+        """Process the organisation, indexing all it's users
 
         :param org: the organisation to process, a list of org details (org_id, name)
         :param users: the users to process, a list of user details (user_id, name, email, token,
@@ -42,26 +64,81 @@ class Indexer:
         # see if we're running from an rq job
         job = get_current_job()
         if job:
-            job.meta["status"] = "Indexing Google Drive"
-            job.meta["org"] = org
+            job.meta["status"] = "Indexing " + self.get_indexer_name()
+            job.meta["org"] = org_row["name"]
 
-            logging.info("Task ID: %s, Message: %s", "Indexing Google Drive", job.id)
+            logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
+            logging.info("Indexing %s: %s", self.get_indexer_name, job.id)
 
-        # 1. Load the Google Drive credentials
-        # build a credentials object from the google creds
-        for user in users:
+        result = []
+        for user_row in user_rows:
             if job:
-                job.meta["status"] = f"Indexing Google Drive for user {user['email']}"
-                job.meta["org"] = org
-                job.meta["user"] = user["email"]
-            self.index_user_drive(user, org, job, folder_id=folder_id)
-            return True
+                job.meta["status"] = (
+                    f"Indexing {self.get_indexer_name} for user {user_row['email']}"
+                )
+                job.meta["org"] = org_row["name"]
+                job.meta["user"] = user_row["email"]
 
-        # if we haven't returned True by now, something went wrong
-        return False
+            # get the user auth rows for this user (there will be many user's auth rows in the
+            # original list)
+            user_auth_rows_filtered = [
+                user_auth_row
+                for user_auth_row in user_auth_rows
+                if user_auth_row["user_id"] == user_row["user_id"]
+            ]
 
-    def index_user_drive(
-        self: None, user: dict[Any], org: dict[Any], job: Optional["job"], folder_id: str = ""
+            # index the user
+            success = self.index_user(
+                user_row=user_row, org_row=org_row, user_auth_rows=user_auth_rows_filtered, job=job
+            )
+
+            logging.info(
+                f"User {user_row['email']} indexing {'succeeded' if success else 'failed'}"
+            )
+
+            result.append(
+                {
+                    "user_id": user_row["user_id"],
+                    "success": success,
+                    "message": "User indexed successfully" if success else "User indexing failed",
+                }
+            )
+
+        logging.debug(f"Indexing complete for org: {org_row['name']}. Results: {result}")
+        return result
+
+    def index_user(
+        self: None,
+        user_row: dict[Any],
+        org_row: dict[Any],
+        user_auth_rows: dict[Any],
+        job: Optional["job"],
+    ) -> bool:
+        """Process the Google Drive documents for a user and index them in Pinecone.
+
+        :param user: the user to process, a list of user details (user_id, name, email, token,
+            refresh_token)
+        :param org: the organisation to process, a list of org details (org_id, name)
+
+        :return: bool
+        """
+        raise NotImplementedError
+
+
+class GoogleDriveIndexer(Indexer):
+    """Used to process the Google Drive documents and index them in Pinecone."""
+
+    def __init__(self: None):
+        super().__init__()
+        self.google_creds = lorelai.utils.load_config("google")
+
+    def index_user(
+        self: None,
+        user_row: dict[Any],
+        org_row: dict[Any],
+        user_auth_rows: dict[Any],
+        job: Optional["job"],
+        folder_id: str = "",
     ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
@@ -72,13 +149,25 @@ class Indexer:
         :return: bool
         """
         # 1. Load the Google Drive credentials
-        if user:
-            logging.debug(f"Processing user: {user} from org: {org}")
+        if user_row:
+            logging.debug(f"Processing user: {user_row['email']} from org: {org_row['name']}")
             if folder_id:
                 logging.debug(f"Processing folder: {folder_id}")
             else:
                 logging.debug("Processing all folders")
-            refresh_token = user["refresh_token"]
+
+            # get the user's refresh token by searhcing through the user_auth_rows where
+            # key = 'refresh_token' and user_id = user_row['user_id']
+            refresh_token = None
+            for user_auth_row in user_auth_rows:
+                if user_auth_row["key"] == "refresh_token":
+                    refresh_token = user_auth_row["value"]
+                    break
+
+            if not refresh_token:
+                logging.error(f"User {user_row['email']} does not have a refresh token")
+                return False
+
             credentials = Credentials.from_authorized_user_info(
                 {
                     "refresh_token": refresh_token,
@@ -94,12 +183,12 @@ class Indexer:
                 logging.debug("Refreshed credentials")
 
         # 2. Get the Google Drive document IDs
-        logging.debug(f"Getting Google Drive document IDs for user: {user['email']}")
+        logging.debug(f"Getting Google Drive document IDs for user: {user_row['email']}")
         document_ids = self.get_google_docs_ids(credentials, folder_id)
 
         # 3. Generate the index name we will use in Pinecone
         index_name = lorelai.utils.pinecone_index_name(
-            org=org["name"],
+            org=org_row["name"],
             datasource="googledrive",
             environment=self.settings["environment"],
             env_name=self.settings["environment_slug"],
@@ -112,24 +201,26 @@ class Indexer:
         index_stats_before = lorelai.utils.get_index_stats(index_name)
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        logging.info(f"Processing {len(document_ids)} Google documents for user: {user['name']}")
+        logging.info(
+            f"Processing {len(document_ids)} Google documents for user: {user_row['email']}"
+        )
         pinecone_processor = Processor()
         pinecone_processor.google_docs_to_pinecone_docs(
             document_ids=document_ids,
             credentials=credentials,
-            org_name=org["name"],
-            user_email=user["email"],
+            org_name=org_row["name"],
+            user_email=user_row["email"],
         )
 
         # 6. Get index statistics after the indexing process
-        logging.debug(f"Indexing complete for user: {user['name']}")
+        logging.debug(f"Indexing complete for user: {user_row['email']}")
         index_stats_after = lorelai.utils.get_index_stats(index_name)
 
         # 7. Print the index statistics
         logging.debug("Index statistics before indexing vs after indexing:")
         lorelai.utils.print_index_stats_diff(index_stats_before, index_stats_after)
 
-    def get_google_docs_ids(self, credentials, folder_id: str = "") -> list[str]:
+    def __get_google_docs_ids(self, credentials, folder_id: str = "") -> list[str]:
         """Retrieve all Google Docs document IDs from the user's Google Drive or a specific folder.
 
         Note: this only includes Google Docs documents, not text files or pdfs.

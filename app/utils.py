@@ -110,6 +110,7 @@ def get_query_result(
         A list of dictionaries containing the results of the query, or a single dictionary.
     """
     try:
+        logging.debug(f"Executing query: {query}")
         with get_db_connection() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(query, params)
