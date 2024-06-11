@@ -151,7 +151,7 @@ def start_indexing(type) -> str:
             for user_row in user_rows:
                 user_auth_rows_for_user = get_query_result(
                     "SELECT user_id, auth_key, auth_value, auth_type FROM user_auth WHERE user_id = %s",
-                    (user_row["id"],),
+                    (user_row["user_id"],),
                 )
                 user_auth_rows.extend(user_auth_rows_for_user)
 
@@ -178,7 +178,7 @@ def start_indexing(type) -> str:
                     for user_row in user_rows:
                         user_auth_rows_for_user = get_query_result(
                             "SELECT user_id, auth_key, auth_value, auth_type FROM user_auth WHERE user_id = %s",
-                            (user_row["id"],),
+                            (user_row["user_id"],),
                         )
                         user_auth_rows.extend(user_auth_rows_for_user)
 

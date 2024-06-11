@@ -160,8 +160,8 @@ class GoogleDriveIndexer(Indexer):
             # key = 'refresh_token' and user_id = user_row['user_id']
             refresh_token = None
             for user_auth_row in user_auth_rows:
-                if user_auth_row["key"] == "refresh_token":
-                    refresh_token = user_auth_row["value"]
+                if user_auth_row["auth_key"] == "refresh_token":
+                    refresh_token = user_auth_row["auth_value"]
                     break
 
             if not refresh_token:
