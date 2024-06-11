@@ -2,11 +2,23 @@
 
 import logging
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+import mysql.connector
+from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
+from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
 
-from app.utils import get_db_connection, get_query_result, is_admin
+from app.utils import (
+    get_db_connection,
+    get_org_id_by_organisation,
+    get_org_id_by_userid,
+    get_organisation_by_org_id,
+    get_query_result,
+    get_user_id_by_email,
+    is_admin,
+    load_config,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -31,10 +43,69 @@ def profile():
     return "You are not logged in!", 403
 
 
-@auth_bp.route("/register")
+@auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     """The registration page."""
-    return render_template("register.html")
+    if request.method == "POST":
+        email = request.form.get("email")
+        full_name = request.form.get("full_name")
+        organisation = request.form.get("organisation")
+
+        if not validate_form(email, full_name, organisation):
+            flash("All fields are required.", "danger")
+            return render_template("register.html", email=email, full_name=full_name)
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+
+            org_id = get_org_id_by_organisation(cursor, organisation, True)
+            user_id = insert_user(cursor, org_id, full_name, email)
+            insert_user_auth(cursor, user_id)
+
+            conn.commit()
+
+            flash("Registration successful!", "success")
+            return redirect(url_for("index"))
+
+        except mysql.connector.Error as err:
+            flash(f"Error: {err}", "danger")
+            return render_template("register.html", email=email, full_name=full_name)
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    email = request.args.get("email", "")
+    full_name = request.args.get("full_name", "")
+    return render_template("register.html", email=email, full_name=full_name)
+
+
+def insert_user(cursor, org_id: int, name: str, email: str, full_name: str):
+    """Insert a new user and return the user ID."""
+    cursor.execute(
+        "INSERT INTO user (org_id, user_name, email, full_name) VALUES (%s, %s, %s, %s)",
+        (org_id, name, email, name),
+    )
+    return cursor.lastrowid
+
+
+def insert_user_auth(cursor, user_id):
+    """Insert user authentication data."""
+    datasource_id = 1  # Assuming a default datasource_id for demonstration
+    auth_key = "default_key"
+    auth_value = "default_value"
+    auth_type = "default_type"
+    cursor.execute(
+        """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (user_id, datasource_id, auth_key, auth_value, auth_type),
+    )
+
+
+def validate_form(email, name, organisation):
+    """Validate form data."""
+    return email and name and organisation
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -43,11 +114,8 @@ def login():
     Login route.
 
     This route is used to authenticate a user using Google's Identity Verification API.
-
     The user sends a POST request with a JSON object containing the ID token received from Google.
-
     The ID token is verified using Google's Identity Verification API and the user is authenticated.
-
     If the user is not registered, they are redirected to the registration page.
 
     Returns:
@@ -63,14 +131,24 @@ def login():
         id_token_received = data.get("credential")
 
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
+
+        if not idinfo:
+            raise exceptions.GoogleAuthError("Invalid token")
+
+        # this function will raise an exception if the token is invalid
         validate_id_token(idinfo)
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
 
         logging.info("Info from token: %s", idinfo)
         user_email = idinfo["email"]
         username = idinfo["name"]
         user_full_name = idinfo["name"]
-
         user_id = get_user_id_by_email(user_email)
+
+        org_id = get_org_id_by_userid(cursor, user_id)
+        organisation = get_organisation_by_org_id(cursor, org_id)
 
         if not user_id:
             return jsonify(
@@ -100,7 +178,13 @@ def login():
         return jsonify({"message": "Error: " + str(e)}), 401
     except Exception as e:
         logging.exception("An error occurred: %s", e)
-        return jsonify({"message": "An error occurred: " + str(e)}), 500
+        return jsonify({"message": "An error occurred: " + str(e)}), 401
+    except google_auth.exceptions.GoogleAuthError as e:
+        logging.error("Google Auth Error: %s", e)
+        return jsonify({"message": "Google Auth Error: " + str(e)}), 401
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def is_username_available(username: str) -> bool:
@@ -136,27 +220,9 @@ def validate_id_token(idinfo: dict):
         If the issuer is wrong or the email is not verified.
     """
     if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
-        raise ValueError("Wrong issuer.")
+        raise exceptions.GoogleAuthError("Wrong issuer.")
     if not idinfo.get("email_verified"):
-        raise ValueError("Email not verified")
-
-
-def get_user_id_by_email(email: str) -> int:
-    """
-    Get the user ID by email.
-
-    Parameters
-    ----------
-    email : str
-        The email of the user.
-
-    Returns
-    -------
-    int
-        The user ID.
-    """
-    result = get_query_result("SELECT user_id FROM user WHERE email = %s", (email,), fetch_one=True)
-    return result["user_id"] if result else None
+        raise exceptions.GoogleAuthError("Email not verified")
 
 
 @auth_bp.route("/logout", methods=["GET"])
@@ -173,7 +239,7 @@ def logout():
     """
     try:
         db_conn = get_db_connection()
-        cursor = db_conn.cursor()
+        cursor = db_conn.cursor(dictionary=True)
         cursor.execute("DELETE FROM user_auth WHERE user_id = %s", (session["user_id"],))
         db_conn.commit()
         cursor.close()
