@@ -14,7 +14,7 @@ from google_auth_oauthlib.flow import Flow
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import is_admin, perform_health_checks, get_db_connection
+from app.utils import is_admin, perform_health_checks, get_db_connection, role_required, get_user_role
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -122,7 +122,7 @@ def index():
             "user_email": session["email"],
             "is_admin": is_admin(session["google_id"]),
         }
-
+        session['role'] = get_user_role(session["email"])
         return render_template("index_logged_in.html", **user_data)
 
     try:
@@ -148,6 +148,7 @@ def serve_js(script_name):
 
 # health check route
 @app.route("/health")
+@role_required(['super_admin','org_admin'])
 def health():
     """the health check route"""
     checks = perform_health_checks()
@@ -164,6 +165,10 @@ def logout():
     flash("You have been logged out.")
     return redirect(url_for("index"))
 
+@app.route('/unauthorized')
+def unauthorized():
+    print(session['role'])
+    return "You are not authorized to access this page."
 
 # Error handler for 404
 @app.errorhandler(404)
