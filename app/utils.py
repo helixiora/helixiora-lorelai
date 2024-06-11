@@ -26,11 +26,12 @@ def is_admin(google_id: str) -> bool:
     """
     return google_id != ""  # Assuming all users are admins for now
 
-def role_required(role_name):
+
+def role_required(role_name_list):
     def wrapper(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            if 'role' not in session or role_name not in session['role']:
+            if 'role' not in session or session['role'] not in role_name_list:
                 return redirect(url_for('unauthorized'))
             return f(*args, **kwargs)
         return decorated_function
@@ -226,3 +227,23 @@ def perform_health_checks() -> list[str]:
             logging.debug("Nothing went wrong: " + message)
             logging.info(message)
     return errors
+
+
+def get_user_role(email):
+    with get_db_connection() as db:
+        try:
+            cursor = db.cursor()
+            query = """
+                SELECT roles.role_name
+                FROM users
+                JOIN user_roles ON users.user_id = user_roles.user_id
+                JOIN roles ON user_roles.role_id = roles.role_id
+                WHERE users.email = %s;
+            """
+            cursor.execute(query, (email,))
+            role_name = cursor.fetchone()[0]
+            return role_name
+        
+        except Exception as e:
+            logging.critical(f"{email} has no role assigned")
+            raise ValueError(f"{email} has no role assigned")
