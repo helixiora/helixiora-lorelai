@@ -8,7 +8,8 @@ import mysql.connector
 import redis
 
 from lorelai.utils import load_config
-
+from flask import session, redirect, url_for
+from functools import wraps
 
 def is_admin(google_id: str) -> bool:
     """Check if the user is an admin.
@@ -24,6 +25,16 @@ def is_admin(google_id: str) -> bool:
         True if the user is an admin, False otherwise.
     """
     return google_id != ""  # Assuming all users are admins for now
+
+def role_required(role_name):
+    def wrapper(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'role' not in session or role_name not in session['role']:
+                return redirect(url_for('unauthorized'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return wrapper
 
 
 def run_flyway_migrations(host: str, database: str, user: str, password: str) -> tuple[bool, str]:
