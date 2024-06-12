@@ -10,8 +10,8 @@ class BenchmarkManager:
     def __init__(self):
         self.config = load_config("dragonfly")
 
-    def run(self, template_name, description, dry_run):
-        print(f"Running benchmark with template {template_name} and description {description}")
+    def run(self, template_id, dry_run):
+        print(f"Running benchmark with template {template_id}")
         logging.error("Not implemented")
         sys.exit(1)
 

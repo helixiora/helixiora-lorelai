@@ -95,7 +95,7 @@ def setup_data_subparsers(subparsers):
 
 def setup_benchmark_subparsers(subparsers):
     run_parser = subparsers.add_parser("run", help="execute a benchmark run")
-    run_parser.add_argument("--template-id", help="Template to run")
+    run_parser.add_argument("--template-id", required=True, help="Template to run")
     run_parser.add_argument(
         "--config", default="settings.json", help="Path to the JSON formatted config file"
     )
@@ -194,7 +194,7 @@ def handle_data(args):
 def handle_benchmark(args):
     benchmark_manager = BenchmarkManager()
     if args.benchmark_verb == "run":
-        benchmark_manager.run(args.template_name, args.benchmark_description, args.dry_run)
+        benchmark_manager.run(template_id=args.template_id, dry_run=args.dry_run)
     elif args.benchmark_verb == "prepare":
         benchmark_manager.prepare(args.template_id, args.benchmark_name, args.benchmark_description)
     elif args.benchmark_verb == "show":
