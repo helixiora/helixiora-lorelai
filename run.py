@@ -5,6 +5,7 @@
 import logging
 import os
 import sys
+import mysql.connector
 
 from flask import Flask, flash, redirect, render_template, session, url_for
 from google_auth_oauthlib.flow import Flow
@@ -13,7 +14,7 @@ from google_auth_oauthlib.flow import Flow
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import is_admin, perform_health_checks
+from app.utils import is_admin, perform_health_checks, get_db_connection
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -22,9 +23,7 @@ logging.debug("Loading the app...")
 
 app = Flask(__name__)
 # Get the log level from the environment variable
-log_level = os.getenv(
-    "LOG_LEVEL", "INFO"
-).upper()  # Ensure it's in uppercase to match constants
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
 
 # Set the log level using the mapping, defaulting to logging.INFO if not found
 app.logger.setLevel(logging.getLevelName(log_level))
@@ -40,15 +39,31 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 
-# run startup health checks. If there is a dependant service that is not running, we want to
-# know it asap and stop the app from running
-logging.debug("Running startup checks...")
-errors = perform_health_checks()
-if errors:
-    sys.exit(f"Startup checks failed: {errors}")
+lorelaisettings = load_config("db")
+dbname = lorelaisettings["database"]
+# check if the database can be connected to
+db_exists = False
+try:
+    db = get_db_connection()
+    db_exists = True
+except mysql.connector.Error as e:
+    if e.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
+        print(f"Database does not exist: {e}")
+        app.config["LORELAI_SETUP"] = True
+    else:
+        raise
+
+if db_exists:
+    # run startup health checks. If there is a dependent service that is not running, we want to
+    # know it asap and stop the app from running
+    logging.debug("Running startup checks...")
+    errors = perform_health_checks()
+    if errors:
+        sys.exit(f"Startup checks failed: {errors}")
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
 
 # Improved index route using render_template
 @app.route("/")
@@ -58,6 +73,10 @@ def index():
     Returns:
         string: the index page
     """
+    if app.config.get("LORELAI_SETUP"):
+        # redirect to /admin/setup if the app is not set up
+        return redirect(url_for("admin.setup"))
+
     # Load the Google OAuth2 secrets
     secrets = load_config("google")
     # check if all the required creds are present
@@ -99,7 +118,7 @@ def index():
 
     if "google_id" in session:
         user_data = {
-            'user_organization': session['organisation'],
+            "user_organization": session["organisation"],
             "user_email": session["email"],
             "is_admin": is_admin(session["google_id"]),
         }
@@ -114,9 +133,7 @@ def index():
         return render_template("index.html", auth_url=authorization_url)
     except RuntimeError as e:
         logging.debug(f"Error generating authorization URL: {e}")
-        return render_template(
-            "error.html", error_message="Failed to generate login URL."
-        )
+        return render_template("error.html", error_message="Failed to generate login URL.")
 
 
 @app.route("/js/<script_name>.js")

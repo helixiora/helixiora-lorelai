@@ -94,11 +94,13 @@ class GoogleDriveContextRetriever(ContextRetriever):
             version="v1",
         )
         logging.info(f"Using Pinecone index: {index_name}")
-        vec_store = PineconeVectorStore.from_existing_index(
-            index_name=index_name, embedding=OpenAIEmbeddings()
-        )
+        try:
+            vec_store = PineconeVectorStore.from_existing_index(
+                index_name=index_name, embedding=OpenAIEmbeddings()
+            )
 
-        if vec_store is None:
+        except ValueError as e:
+            logging.error(f"Failed to connect to Pinecone: {e}")
             raise ValueError(f"Index {index_name} not found.")
 
         retriever = vec_store.as_retriever(
