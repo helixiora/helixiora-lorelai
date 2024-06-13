@@ -22,7 +22,11 @@ logging.basicConfig(level=log_level, format=logging_format)
 
 
 def execute_rag_llm(
-    chat_message: str, user: str, organisation: str, model_type: str = "OpenAILlm", datasource: str = None
+    chat_message: str,
+    user: str,
+    organisation: str,
+    model_type: str = "OpenAILlm",
+    datasource: str = None,
 ) -> dict:
     """
     A task to execute the RAG+LLM model.
@@ -47,7 +51,9 @@ def execute_rag_llm(
             context, source = enriched_context.retrieve_context(chat_message)
 
             if context is None:
-                raise ValueError("Failed to retrieve context for the provided chat message.")
+                raise ValueError(
+                    "Failed to retrieve context for the provided chat message."
+                )
 
             llm = Llm.create(model_type=model_type)
             logging.info(f"LLM Status: {llm.get_llm_status()}")
