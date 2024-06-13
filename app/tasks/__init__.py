@@ -34,15 +34,15 @@ def execute_rag_llm(
 
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s", user, organisation)
-    print("^^^^^^^^^^^^^^^^",datasource)
+
     try:
+        # Get the context for the question
         if datasource is None:
-            print("%%%%%%%%%%%%%%%%%%%%%%")
-            llm = Llm.create(model_type="OpenAILlm_direct")
-            answer = llm.get_answer(question=chat_message)
-            json_data = {"answer": answer, "source": [], "status": "Success"}
+            llm = Llm.create(model_type=model_type)
+            logging.info(f"LLM Status: {llm.get_llm_status()}")
+            answer = llm.get_answer_direct(question=chat_message)
+            source = None
         else:
-            # Get the context for the question
             enriched_context = ContextRetriever(org_name=organisation, user=user)
             context, source = enriched_context.retrieve_context(chat_message)
 
@@ -53,10 +53,10 @@ def execute_rag_llm(
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer(question=chat_message, context=context)
 
-            logging.info("Answer: %s", answer)
-            logging.info("Source: %s", source)
+        logging.info("Answer: %s", answer)
+        logging.info("Source: %s", source)
 
-            json_data = {"answer": answer, "source": source, "status": "Success"}
+        json_data = {"answer": answer, "source": source, "status": "Success"}
 
     except Exception as e:
         logging.error("Error in execute_rag_llm task: %s", str(e))
