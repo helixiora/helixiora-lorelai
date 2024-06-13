@@ -1,15 +1,16 @@
 """Utility functions for the application."""
 
 import logging
-import subprocess
 import os
+import subprocess
+from functools import wraps
 
 import mysql.connector
 import redis
+from flask import redirect, session, url_for
 
 from lorelai.utils import load_config
-from flask import session, redirect, url_for
-from functools import wraps
+
 
 def is_admin(google_id: str) -> bool:
     """Check if the user is an admin.
@@ -31,10 +32,12 @@ def role_required(role_name_list):
     def wrapper(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            if 'role' not in session or session['role'] not in role_name_list:
-                return redirect(url_for('unauthorized'))
+            if "role" not in session or session["role"] not in role_name_list:
+                return redirect(url_for("unauthorized"))
             return f(*args, **kwargs)
+
         return decorated_function
+
     return wrapper
 
 
@@ -243,7 +246,7 @@ def get_user_role(email):
             cursor.execute(query, (email,))
             role_name = cursor.fetchone()[0]
             return role_name
-        
-        except Exception as e:
+
+        except Exception:
             logging.critical(f"{email} has no role assigned")
             raise ValueError(f"{email} has no role assigned")

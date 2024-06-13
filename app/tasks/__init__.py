@@ -3,10 +3,11 @@ This module contains the tasks that are executed asynchronously.
 """
 
 import logging
-from typing import List
-import time
-from rq import get_current_job
 import os
+import time
+from typing import List
+
+from rq import get_current_job
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
@@ -51,9 +52,7 @@ def execute_rag_llm(
             context, source = enriched_context.retrieve_context(chat_message)
 
             if context is None:
-                raise ValueError(
-                    "Failed to retrieve context for the provided chat message."
-                )
+                raise ValueError("Failed to retrieve context for the provided chat message.")
 
             llm = Llm.create(model_type=model_type)
             logging.info(f"LLM Status: {llm.get_llm_status()}")

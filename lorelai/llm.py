@@ -23,7 +23,6 @@ class Llm:
         Question: {question}
         """
 
-    # If you cannot find the answer, please respond with "I can't find the answer in the information available to me.
     @staticmethod
     def create(model_type="OpenAILlm"):
         """Factory method to create instances of derived classes based on the class name."""
@@ -38,9 +37,7 @@ class Llm:
 
     def __init__(self):
         if not self._allowed:
-            raise Exception(
-                "This class should be instantiated through a create() factory method."
-            )
+            raise Exception("This class should be instantiated through a create() factory method.")
 
     def get_answer(self, question, context):
         """Retrieve an answer to a given question based on provided context."""
@@ -74,13 +71,9 @@ class OllamaLlama3(Llm):
             if isinstance(context_doc, Document):
                 context_doc_text += context_doc.page_content
 
-        logging.debug(
-            "[OllamaLlama3.get_answer] Prompt template: %s", self._prompt_template
-        )
+        logging.debug("[OllamaLlama3.get_answer] Prompt template: %s", self._prompt_template)
         logging.debug("[OllamaLlama3.get_answer] Question: %s", question)
-        logging.debug(
-            "[OllamaLlama3.get_answer] Context_doc_text: %s", context_doc_text
-        )
+        logging.debug("[OllamaLlama3.get_answer] Context_doc_text: %s", context_doc_text)
 
         prompt = PromptTemplate.from_template(
             template=self._prompt_template, template_format="f-string"
@@ -128,9 +121,7 @@ class OpenAILlm(Llm):
             if isinstance(context_doc, Document):
                 context_doc_text += context_doc.page_content
 
-        logging.debug(
-            "[OpenAILlm.get_answer] Prompt template: %s", self._prompt_template
-        )
+        logging.debug("[OpenAILlm.get_answer] Prompt template: %s", self._prompt_template)
         logging.debug("[OpenAILlm.get_answer] Question: %s", question)
         logging.debug("[OpenAILlm.get_answer] Context_doc_text: %s", context_doc_text)
 
@@ -170,4 +161,3 @@ class OpenAILlm(Llm):
         """Check the current status of the openai api endpoint https://api.openai.com/"""
         status = requests.get("https://api.openai.com/v1/engines")
         return status.status_code == 200
-
