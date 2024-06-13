@@ -17,8 +17,8 @@ from app.utils import (
     get_query_result,
     get_user_id_by_email,
     is_admin,
-    load_config,
 )
+from lorelai.utils import load_config
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -33,8 +33,8 @@ def profile():
         user = {
             "user_id": session["user_id"],
             "email": session["user_email"],
-            "username": session["username"],
-            "full_name": session["user_full_name"],
+            "username": session["user_name"],
+            "full_name": session["user_fullname"],
             "organisation": session.get("organisation", "N/A"),
         }
         return render_template(
@@ -245,5 +245,93 @@ def logout():
         cursor.close()
     finally:
         session.clear()
+
+    return redirect(url_for("index"))
+
+
+@auth_bp.route("/google/auth", methods=["POST"])
+def google_auth():
+    """Handle Google authentication."""
+    # Load the Google OAuth2 secrets
+    secrets = load_config("google")
+    e_creds = ["client_id", "project_id", "client_secret", "redirect_uris"]
+    if not all(i in secrets for i in e_creds):
+        missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
+        msg = "Missing required google credentials: "
+        raise ValueError(msg, missing_creds)
+
+    client_config = {
+        "web": {
+            "client_id": secrets["client_id"],
+            "project_id": secrets["project_id"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": secrets["client_secret"],
+            "redirect_uris": secrets["redirect_uris"],
+        }
+    }
+
+    lorelaicreds = load_config("lorelai")
+
+    flow = Flow.from_client_config(
+        client_config=client_config,
+        scopes=["https://www.googleapis.com/auth/drive.readonly"],
+        redirect_uri=lorelaicreds["redirect_uri"],
+    )
+
+    if "user_id" in session:
+        user_data = {
+            "user_organization": session["organisation"],
+            "user_email": session["email"],
+            "is_admin": is_admin(session["user_id"]),
+        }
+
+        return render_template("index_logged_in.html", **user_data)
+
+    try:
+        authorization_url, state = flow.authorization_url(
+            access_type="offline", include_granted_scopes="true", prompt="consent"
+        )
+        session["state"] = state
+
+    except RuntimeError as e:
+        logging.debug(f"Error generating authorization URL: {e}")
+        return render_template("error.html", error_message="Failed to generate login URL.")
+
+
+@auth_bp.route("/google/auth/callback", methods=["GET"])
+def auth_callback():
+    """Callback route for Google OAuth2 authentication.
+    This route is called by Google after the user has authenticated.
+    The route verifies the state and exchanges the authorization code for an access token.
+    Returns:
+        string: The index page.
+    """
+    lorelaicreds = load_config("lorelai")
+
+    state = request.args.get("state")
+    if state != session["state"]:
+        return render_template("error.html", error_message="Invalid state parameter.")
+
+    flow = Flow.from_client_config(
+        client_config={
+            "web": {
+                "client_id": lorelaicreds["client_id"],
+                "project_id": lorelaicreds["project_id"],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                "client_secret": lorelaicreds["client_secret"],
+                "redirect_uris": lorelaicreds["redirect_uris"],
+            }
+        },
+        scopes=["https://www.googleapis.com/auth/drive.readonly"],
+        redirect_uri=lorelaicreds["redirect_uri"],
+    )
+
+    flow.fetch_token(authorization_response=request.url)
+
+    session["credentials"] = flow.credentials.to_json()
 
     return redirect(url_for("index"))
