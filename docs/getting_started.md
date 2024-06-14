@@ -7,11 +7,11 @@ There are two ways LorelAI can be deployed/ran:
 ## Running in a python venv
 
 1. Create a Python virtual environment: `python -m venv .venv`
-2. Activate it with `source .venv/bin/activate`.
-3. Install required dependencies: `pip install -r requirements.txt`. *N.B* this installs requirements for both the worker and web app. There's an additional requirements file for playing around with the more *experimental* features called requirements-dev.txt. 
-4. Get the database up and running, see the [readme in './db'](../db/readme.md)
-5. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
-6. Run an rq worker:
+1. Activate it with `source .venv/bin/activate`.
+1. Install required dependencies: `pip install -r requirements.txt`. *N.B* this installs requirements for both the worker and web app. There's an additional requirements file for playing around with the more *experimental* features called requirements-dev.txt.
+1. Get the database up and running, see the [readme in './db'](../db/readme.md)
+1. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
+1. Run an rq worker:
 
    `.venv/bin/rq worker &`
 
@@ -45,7 +45,7 @@ There are two ways LorelAI can be deployed/ran:
     - Note that this organization name will be the index name of the vector database folowing this structure: $env_name-$slug-$whatever_you_put_in_org_name
     - There's a limitation to the length of the index name sot the above string should not exceed 45 characters.
     - Follow the on-screen instructions to log in and authorize access to Google Drive.
-2. Confirm that credentials are stored correctly in the database by querrying the `users` table, e.g:
+1. Confirm that credentials are stored correctly in the database by querrying the `users` table, e.g:
 
     ```sql
      SELECT * FROM users;
@@ -59,17 +59,17 @@ Once logged in, you will see the chat interface at [http://127.0.0.1:5000](http:
 
 Very rudimentary admin interface to see what you have stored in pinecone and run the indexer, accessible from [http://127.0.0.1:5000/admin](http://127.0.0.1:5000/admin)
 
-### Executing the Crawler
+### Executing the Indexer
 
 #### From the command line
 
 1. Initiate the document crawling process: `./indexer.py`. The indexer lives in [the tools directory](../tools/readme.md).
-2. Check Pinecone to ensure your documents have been indexed successfully.
+1. Check Pinecone to ensure your documents have been indexed successfully.
 
 #### From the web UI
 
 1. Go to [https://127.0.0.1:5000/admin](https://127.0.0.1:5000/admin) and press the indexer button
-2. Check the rq worker logs in case something goes wrong
+1. Check the rq worker logs in case something goes wrong
 
 ### Running Test Queries/CLI tool
 
@@ -77,5 +77,5 @@ You can test your queries using the `lorelaicli.py` tool. It is located in [the 
 
 ## Remote live deployment
 
-For deploying to any actual "production"-like environment we can see that obviously it won't work on the localhost URL. Also make sure to check the [prequesites](prerequisites.md#non-local-deploy)
+For deploying to any actual "production"-like environment we can see that obviously it won't work on the localhost URL. Also make sure to check the [prerequisites](prerequisites.md#non-local-deploy)
 Otherwise the steps are the same for the time being.

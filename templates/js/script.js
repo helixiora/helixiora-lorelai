@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (data.status === 'FAILED') {
                 console.error('Operation failed:', data.error);
                 displayErrorMessage('Operation failed. Please try again later.');
-            } else if (attempt < 9) {
+            } else if (attempt < 20) {
                 console.log('Operation still in progress. Retrying...');
                 pollForResponse(jobId, attempt + 1);
             } else {
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             console.error('Fetch error:', error);
-            if (attempt < 9) {
+            if (attempt < 20) {
                 pollForResponse(jobId, attempt + 1);
             } else {
                 displayErrorMessage('Error: Unable to retrieve response.');

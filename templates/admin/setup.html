@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lorelai Setup</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .content {
+            max-width: 600px;
+            margin: auto;
+            padding: 2rem;
+            background: #f9f9f9;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .results {
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-radius: .25rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="content">
+            <h1 class="text-center">Welcome to Lorelai</h1>
+            <p class="text-center">Let's get you set up to use Lorelai. We'll start by configuring your database.</p>
+            <div class="alert alert-warning" role="alert">
+                <strong>Warning:</strong> This will create the database schema and erase all existing data. Please ensure you have a backup before proceeding.
+            </div>
+            <h3>Database Configuration</h3>
+            <p>The following database connection parameters were detected in your configuration. Please review them before proceeding.</p>
+            <div class="form-group row">
+                <label for="host" class="col-sm-4 col-form-label">Host</label>
+                <div class="col-sm-8">
+                    <input type="text" readonly class="form-control-plaintext" id="host" value="{{ db.host }}">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label for="port" class="col-sm-4 col-form-label">Port</label>
+                <div class="col-sm-8">
+                    <input type="text" readonly class="form-control-plaintext" id="port" value="{{ db.port }}">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label for="database" class="col-sm-4 col-form-label">Database</label>
+                <div class="col-sm-8">
+                    <input type="text" readonly class="form-control-plaintext" id="database" value="{{ db.database }}">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label for="user" class="col-sm-4 col-form-label">User</label>
+                <div class="col-sm-8">
+                    <input type="text" readonly class="form-control-plaintext" id="user" value="{{ db.user }}">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label for="password" class="col-sm-4 col-form-label">Password</label>
+                <div class="col-sm-8">
+                    <input type="text" readonly class="form-control-plaintext" id="password" value="{{ db.password }}">
+                </div>
+            </div>
+            <div class="text-center mt-4">
+                <button type="button" class="btn btn-primary" onclick="createDatabase()">Create Database</button>
+                <button type="button" class="btn btn-secondary" onclick="testConnection()">Test Connection</button>
+                <button type="button" class="btn btn-secondary" onclick="clearResults()">Clear</button>
+            </div>
+            <!-- Area where the results will be displayed -->
+            <div class="results" id="results"></div>
+        </div>
+    </div>
+    <script>
+        function testConnection() {
+            fetch("{{ test_connection }}", {
+                method: 'POST'
+            }).then(response => response.text())
+            .then(data => {
+                document.getElementById('results').innerHTML += `<p>${data}</p>`;
+            });
+        }
+
+        function createDatabase() {
+            fetch("{{ create_database }}", {
+                method: 'POST'
+            }).then(response => response.text())
+            .then(data => {
+                document.getElementById('results').innerHTML += `<p>${data}</p>`;
+            });
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+    </script>
+</body>
+</html>

@@ -22,7 +22,8 @@ class Llm:
 
         Question: {question}
         """
-# If you cannot find the answer, please respond with "I can't find the answer in the information available to me.
+
+    # If you cannot find the answer, please respond with "I can't find the answer in the information available to me.
     @staticmethod
     def create(model_type="OpenAILlm"):
         """Factory method to create instances of derived classes based on the class name."""
