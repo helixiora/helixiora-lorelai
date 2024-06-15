@@ -4,14 +4,14 @@ them using langchain and then index them in pinecone"""
 import logging
 import os
 import sys
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 # langchain_community.vectorstores.pinecone.Pinecone is deprecated
 from googleapiclient.discovery import build
-from rq import get_current_job, job
+from rq import job
 
 import lorelai.utils
 from lorelai.processor import Processor
@@ -51,7 +51,11 @@ class Indexer:
         return self.__class__.__name__
 
     def index_org(
-        self: None, org_row: dict[Any], user_rows: dict[Any], user_auth_rows: dict[Any]
+        self: None,
+        org_row: dict[Any],
+        user_rows: dict[Any],
+        user_auth_rows: dict[Any],
+        job: Optional["job"] = None,
     ) -> list[dict]:
         """Process the organisation, indexing all it's users
 
@@ -61,11 +65,14 @@ class Indexer:
 
         :return: None
         """
-        # see if we're running from an rq job
-        job = get_current_job()
+
+        logging.debug(f"Indexing org: {org_row}")
+        logging.debug(f"Users: {user_rows}")
+        logging.debug(f"User auths: {user_auth_rows}")
+
         if job:
             job.meta["status"] = "Indexing " + self.get_indexer_name()
-            job.meta["org"] = org_row["name"]
+            job.save_meta()
 
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
             logging.info("Indexing %s: %s", self.get_indexer_name, job.id)
@@ -78,6 +85,7 @@ class Indexer:
                 )
                 job.meta["org"] = org_row["name"]
                 job.meta["user"] = user_row["email"]
+                job.save_meta()
 
             # get the user auth rows for this user (there will be many user's auth rows in the
             # original list)
@@ -88,19 +96,32 @@ class Indexer:
             ]
 
             # index the user
-            success = self.index_user(
+            success, message = self.index_user(
                 user_row=user_row, org_row=org_row, user_auth_rows=user_auth_rows_filtered, job=job
             )
 
             logging.info(
-                f"User {user_row['email']} indexing {'succeeded' if success else 'failed'}"
+                f"User {user_row['email']} indexing \
+                    {'succeeded' if success else 'failed'}: {message}"
             )
+
+            if job:
+                job.meta[
+                    "status"
+                ] = f"Indexing {self.get_indexer_name} for user {user_row['email']}: \
+                        {'succeeded' if success else 'failed'}"
+                job.meta["org"] = org_row["name"]
+                job.meta["user"] = user_row["email"]
+                job.save_meta()
 
             result.append(
                 {
+                    "job_id": job.id if job else "",
                     "user_id": user_row["user_id"],
                     "success": success,
-                    "message": "User indexed successfully" if success else "User indexing failed",
+                    "message": "User indexed successfully"
+                    if success
+                    else f"User indexing failed: {message}",
                 }
             )
 
@@ -113,7 +134,7 @@ class Indexer:
         org_row: dict[Any],
         user_auth_rows: dict[Any],
         job: Optional["job"],
-    ) -> bool:
+    ) -> Tuple[bool, str]:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
@@ -165,8 +186,9 @@ class GoogleDriveIndexer(Indexer):
                     break
 
             if not refresh_token:
-                logging.error(f"User {user_row['email']} does not have a refresh token")
-                return False
+                msg = f"User {user_row['email']} does not have a refresh token"
+                logging.error(msg)
+                return False, msg
 
             credentials = Credentials.from_authorized_user_info(
                 {

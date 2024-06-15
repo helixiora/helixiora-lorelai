@@ -53,20 +53,31 @@ def job_status(job_id: str) -> str:
 
     if job is None:
         logging.error(f"Job {job_id} not found")
-        response = {"state": "unknown", "status": "unknown"}
+        response = {"job_id": job_id, "state": "unknown", "status": "unknown"}
     elif job.is_finished:
         logging.info(f"Job {job_id} finished")
-        response = {"state": "done", "status": "done"}
+        response = {"job_id": job_id, "state": "done", "metadata": job.meta, "result": job.result}
     elif job.is_failed:
         logging.error(f"Job {job_id} failed")
-        response = {"state": "failed", "status": "failed"}
+        response = {"job_id": job_id, "state": "failed", "metadata": job.meta, "result": job.result}
     elif job.is_started:
         logging.info(f"Job {job_id} started")
-        response = {"state": "running", "status": "running"}
+        response = {
+            "job_id": job_id,
+            "state": "running",
+            "metadata": job.meta,
+            "result": job.result,
+        }
     else:
         logging.info(f"Job {job_id} unknown state")
-        response = {"state": "unknown", "status": "unknown"}
+        response = {
+            "job_id": job_id,
+            "state": job._status,
+            "metadata": job.meta,
+            "result": job.result,
+        }
 
+    logging.debug(f"Job id: {job_id}, status: {response}")
     return jsonify(response)
 
 
@@ -84,14 +95,12 @@ def start_indexing(type) -> str:
     ConnectionError
         If the connection to the Redis server or the database fails.
     """
-    logging.info("Started indexing")
+    logging.info("Started indexing (type: %s)", type)
     if "user_id" not in session or not is_admin(session["user_id"]):
         return jsonify({"error": "Unauthorized"}), 403
 
     if type not in ["user", "organisation", "all"]:
         return jsonify({"error": "Invalid type"}), 400
-
-    logging.debug("Posting task to rq worker...")
 
     try:
         redis_config = load_config("redis")
@@ -105,83 +114,54 @@ def start_indexing(type) -> str:
                 {"error": "No organisation ID found for the user in the session details"}
             ), 403
 
-        if type == "user":
-            org_row = get_query_result(
-                "SELECT name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
+        jobs = []
+
+        # First we get the org_rows. If the type is user or organisation, we only need the current org
+        if type in ["user", "organisation"]:
+            org_rows = get_query_result(
+                "SELECT id, name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
             )
-            if not org_row:
+            if not org_rows:
                 return jsonify({"error": "Organisation not found"}), 404
-
-            user_row = get_query_result(
-                "SELECT email FROM user WHERE user_id = %s AND org_id = %s",
-                (user_id, org_id),
-                fetch_one=True,
-            )
-            if not user_row:
-                return jsonify({"error": "User not found in the organisation"}), 404
-
-            user_auth_rows = get_query_result(
-                "SELECT user_id, auth_key, auth_value, auth_type FROM user_auth WHERE user_id = %s",
-                (user_id,),
-            )
-
-            job = queue.enqueue(
-                run_indexer,
-                org_row=org_row,
-                user_rows=[user_row],
-                user_auth_rows=user_auth_rows,
-                job_timeout=3600,
-                description=f"Indexing GDrive: User {user_row['email']}",
-            )
-
-        elif type == "organisation":
-            org_row = get_query_result(
-                "SELECT name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
-            )
-            if not org_row:
-                return jsonify({"error": "Organisation not found"}), 404
-
-            user_rows = get_query_result(
-                "SELECT user_id, email FROM user WHERE org_id = %s", (org_id,)
-            )
-            if not user_rows:
-                return jsonify({"error": "No users found in the organisation"}), 404
-
-            user_auth_rows = []
-            for user_row in user_rows:
-                user_auth_rows_for_user = get_query_result(
-                    "SELECT user_id, auth_key, auth_value, auth_type FROM user_auth WHERE user_id = %s",
-                    (user_row["user_id"],),
-                )
-                user_auth_rows.extend(user_auth_rows_for_user)
-
-            job = queue.enqueue(
-                run_indexer,
-                org_row=org_row,
-                user_rows=user_rows,
-                user_auth_rows=user_auth_rows,
-                job_timeout=3600,
-                description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']}",
-            )
-
+            org_rows = [org_rows]  # Ensure it's a list for consistent handling
+        # If the type is all, we get all organisations
         elif type == "all":
             org_rows = get_query_result("SELECT id, name FROM organisation")
             if not org_rows:
                 return jsonify({"error": "No organisations found"}), 404
 
-            for org_row in org_rows:
+        logging.debug(
+            f"Starting indexing for {len(org_rows)} organisations (type: {type}, user_id: {user_id}, org_id: {org_id})"
+        )
+
+        # Go through all org_rows and start indexing
+        for org_row in org_rows:
+            # If the type is organisation or all, we get all users in the organisation
+            if type in ["organisation", "all"]:
                 user_rows = get_query_result(
                     "SELECT user_id, email FROM user WHERE org_id = %s", (org_row["id"],)
                 )
-                if user_rows:
-                    user_auth_rows = []
-                    for user_row in user_rows:
-                        user_auth_rows_for_user = get_query_result(
-                            "SELECT user_id, auth_key, auth_value, auth_type FROM user_auth WHERE user_id = %s",
-                            (user_row["user_id"],),
-                        )
-                        user_auth_rows.extend(user_auth_rows_for_user)
+            # If the type is user, we only get the current user
+            elif type == "user":
+                user_rows = get_query_result(
+                    "SELECT user_id, email FROM user WHERE user_id = %s AND org_id = %s",
+                    (user_id, org_id),
+                )
 
+            # Only continue if we have users
+            if user_rows:
+                user_auth_rows = []
+                for user_row in user_rows:
+                    # Get the user auth rows for the user
+                    user_auth_rows_for_user = get_query_result(
+                        "SELECT user_id, auth_key, auth_value, auth_type FROM user_auth WHERE user_id = %s",
+                        (user_row["user_id"],),
+                    )
+                    user_auth_rows.extend(user_auth_rows_for_user)
+
+                    logging.debug(
+                        f"Starting indexing for user {user_row['email']} in org {org_row['name']}"
+                    )
                     job = queue.enqueue(
                         run_indexer,
                         org_row=org_row,
@@ -191,8 +171,12 @@ def start_indexing(type) -> str:
                         description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']}",
                     )
 
-        job_id = job.get_id()
-        return jsonify({"job": job_id}), 202
+                    # Add the job to the list of started jobs
+                    job_id = job.get_id()
+                    jobs.append(job_id)
+
+        logging.info("Started indexing for %s jobs", len(jobs))
+        return jsonify({"jobs": jobs}), 202
 
     except Exception as e:
         logging.error(f"Error starting indexing: {e}")

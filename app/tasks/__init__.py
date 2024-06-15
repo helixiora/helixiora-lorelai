@@ -4,7 +4,7 @@ This module contains the tasks that are executed asynchronously.
 
 import logging
 import os
-import time
+from datetime import time
 from typing import List
 
 from rq import get_current_job
@@ -72,26 +72,54 @@ def run_indexer(
     user_auth_rows: List[any],
 ):
     """
-    An rq job to run the indexer
+    An rq job to run the indexer.
+
+    Parameters:
+    org_row (List[any]): Organization data.
+    user_rows (List[any]): List of user data.
+    user_auth_rows (List[any]): List of user authentication data.
+
+    Returns:
+    dict: A dictionary containing the progress and result of the job.
     """
+    # Get the current job instance
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
 
-    logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row} ")
+    logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row}")
 
-    # Initialize indexer and perform indexing
+    # Initialize indexer
     indexer = Indexer.create("GoogleDriveIndexer")
+
+    # Initialize job meta with logs
+    job.meta["progress"] = {"current": 0, "total": 100, "status": "Initializing indexing..."}
+    job.meta["logs"] = []
+    job.save_meta()
+
     try:
         logging.debug("Starting indexing...")
+        job.meta["logs"].append("Starting indexing...")
+        job.save_meta()
 
-        success = indexer.index_org(org_row, user_rows, user_auth_rows)
-        if success:
-            logging.debug("Indexing completed!")
-            return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
+        # Perform indexing
+        results = indexer.index_org(org_row, user_rows, user_auth_rows, job)
 
-        logging.error("Indexing failed!")
-        return {"current": 100, "total": 100, "status": "Task failed!", "result": 0}
+        for result in results:
+            logging.debug(result)
+            job.meta["logs"].append(result)
+            job.save_meta()
+
+        logging.debug("Indexing completed!")
     except Exception as e:
         logging.error(f"Error in run_indexer task: {str(e)}")
-        return {"current": 100, "total": 100, "status": f"Task failed! {e}", "result": 0}
+        job.meta["logs"].append(f"Error in run_indexer task: {str(e)}")
+        job.meta["progress"] = {
+            "current": 100,
+            "total": 100,
+            "status": f"Task failed! {e}",
+            "result": 0,
+        }
+        job.save_meta()
+        job.set_status("failed")
+        return job.meta["progress"]
