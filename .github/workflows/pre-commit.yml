@@ -47,5 +47,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh auth login --with-token <<< $GITHUB_TOKEN
           gh pr create --title "Upgrade pre-commit dependencies" --body "This PR updates the pre-commit dependencies to their latest versions." --base main --head upgrade/pre-commit
