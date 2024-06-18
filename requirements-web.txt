@@ -1,5 +1,5 @@
 Flask~=3.0.3
 gevent~=24.2.1
 gunicorn~=22.0.0
-redis~=5.0.5
+redis~=5.0.6
 rq~=1.16.2
