@@ -39,6 +39,7 @@ jobs:
       - name: Commit and push
         run: |
           git checkout -b upgrade/pre-commit || git checkout upgrade/pre-commit
+          git pull origin upgrade/pre-commit --rebase
           git add .pre-commit-config.yaml
           git commit -m "Upgrade pre-commit dependencies" || echo "No changes to commit"
           git push origin upgrade/pre-commit || git push --set-upstream origin upgrade/pre-commit
@@ -47,4 +48,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh auth login --with-token <<< $GITHUB_TOKEN
           gh pr create --title "Upgrade pre-commit dependencies" --body "This PR updates the pre-commit dependencies to their latest versions." --base main --head upgrade/pre-commit
