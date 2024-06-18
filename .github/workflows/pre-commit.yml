@@ -38,11 +38,10 @@ jobs:
 
       - name: Commit and push
         run: |
-          git checkout -b upgrade/pre-commit || git checkout upgrade/pre-commit
-          git pull origin upgrade/pre-commit --rebase
+          git checkout -b upgrade/pre-commit
           git add .pre-commit-config.yaml
-          git commit -m "Upgrade pre-commit dependencies" || echo "No changes to commit"
-          git push origin upgrade/pre-commit || git push --set-upstream origin upgrade/pre-commit
+          git commit -m "Upgrade pre-commit dependencies"
+          git push origin upgrade/pre-commit
 
       - name: Create Pull Request
         env:
