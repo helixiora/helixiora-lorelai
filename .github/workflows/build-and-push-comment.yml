@@ -41,7 +41,7 @@ jobs:
             BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g; s/#//g')
             echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
       - name: Build and push web image
-        uses: docker/build-push-action@v5.4.0
+        uses: docker/build-push-action@v6.0.0
         with:
           context: .
           file: ./Dockerfile
@@ -49,7 +49,7 @@ jobs:
           tags: ghcr.io/${{ github.repository }}/web:${{ env.IMAGE_TAG }}
           platforms: linux/amd64
       - name: Build and push worker image
-        uses: docker/build-push-action@v5.4.0
+        uses: docker/build-push-action@v6.0.0
         with:
           context: .
           file: ./Dockerfile
