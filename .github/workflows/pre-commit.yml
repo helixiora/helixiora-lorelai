@@ -36,7 +36,13 @@ jobs:
       - name: Run autoupdate
         run: pre-commit autoupdate
 
+      - name: Check for changes
+        id: git_diff
+        run: |
+          git diff --exit-code .pre-commit-config.yaml || echo "Changes detected"
+
       - name: Commit and push
+        if: steps.git_diff.outputs.stdout != ''
         run: |
           git checkout -b upgrade/pre-commit
           git add .pre-commit-config.yaml
@@ -44,7 +50,7 @@ jobs:
           git push origin upgrade/pre-commit
 
       - name: Create Pull Request
+        if: steps.git_diff.outputs.stdout != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          gh pr create --fill
+        run: gh pr create --fill
