@@ -1,6 +1,4 @@
-"""
-This module contains the ContextRetriever class, which is responsible for retrieving context
-for a given question from Pinecone.
+"""Contains the ContextRetriever class, responsible for retrieving context for a question.
 
 The ContextRetriever class manages the
 integration with Pinecone and OpenAI services, facilitating the retrieval of relevant document
@@ -9,7 +7,7 @@ OpenAI's embeddings and language models to generate responses based on the retri
 """
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import FlashrankRerank
@@ -35,9 +33,10 @@ class ContextRetriever:
 
     def __init__(self, org_name: str, user_email: str):
         """
-        Initializes the ContextRetriever instance.
+        Initialize the ContextRetriever instance.
 
-        Parameters:
+        Parameters
+        ----------
             org_name (str): The organization name, used for Pinecone index naming.
             user (str): The user name, potentially used for logging or customization.
         """
@@ -56,14 +55,16 @@ class ContextRetriever:
         self.org_name: str = org_name
         self.user: str = user_email
 
-    def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
+    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, Any]]]:
         """
-        Retrieves context for a given question using Pinecone and OpenAI.
+        Retrieve context for a given question using Pinecone and OpenAI.
 
-        Parameters:
+        Parameters
+        ----------
             question (str): The question for which context is being retrieved.
 
-        Returns:
+        Returns
+        -------
             tuple: A tuple containing the retrieval result and a list of sources for the context.
         """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
@@ -83,7 +84,7 @@ class ContextRetriever:
 
         except ValueError as e:
             logging.error(f"Failed to connect to Pinecone: {e}")
-            raise ValueError(f"Index {index_name} not found.")
+            raise ValueError(f"Index {index_name} not found.") from e
 
         retriever = vec_store.as_retriever(
             search_type="similarity",
@@ -92,8 +93,8 @@ class ContextRetriever:
 
         # list of models:https://github.com/PrithivirajDamodaran/FlashRank
         compressor = FlashrankRerank(top_n=3, model="ms-marco-MiniLM-L-12-v2")
-        # Reranker takes the result from base retriever than reranks those retrived.
-        # flash reranker is used as its standalone, lighweight. and free and open source
+        # Reranker takes the result from base retriever than reranks those retrieved.
+        # flash reranker is used as its standalone, lightweight. and free and open source
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
@@ -103,8 +104,8 @@ class ContextRetriever:
             f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
         )
 
-        docs: List[Document] = []
-        sources: List[Dict[str, Any]] = []
+        docs: list[Document] = []
+        sources: list[dict[str, Any]] = []
         for doc in results:
             # Append the whole document object if needed
             docs.append(doc)
@@ -112,13 +113,11 @@ class ContextRetriever:
             # stringified)
             logging.info(f"Doc: {doc.metadata['title']}")
             logging.debug(f"Doc metadata: {doc.metadata}")
-            # TODO: the relevance score is a list with two values, wondering which score we should use
             score = doc.metadata["relevance_score"] * 100
             source_entry = {
                 "title": doc.metadata["title"],
                 "source": doc.metadata["source"],
-                "score": "{:.2f}".format(score),
-                # "score": f"{score*100:.2f}%",
+                "score": f"{score:.2f}",
             }
             sources.append(source_entry)
         logging.debug(f"Context: {docs} Sources: {sources}")
@@ -126,9 +125,10 @@ class ContextRetriever:
 
     def get_all_indexes(self) -> IndexList:
         """
-        Retrieves all indexes in Pinecone along with their metadata.
+        Retrieve all indexes in Pinecone along with their metadata.
 
-        Returns:
+        Returns
+        -------
             list: A list of dictionaries containing the metadata for each index.
         """
         pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
@@ -138,14 +138,16 @@ class ContextRetriever:
 
         return pinecone.list_indexes()
 
-    def get_index_details(self, index_host: str) -> List[Dict[str, Any]]:
+    def get_index_details(self, index_host: str) -> list[dict[str, Any]]:
         """
-        Retrieves details for a specified index in Pinecone.
+        Retrieve details for a specified index in Pinecone.
 
-        Parameters:
+        Parameters
+        ----------
             index_host (str): The host of the index for which to retrieve details.
 
-        Returns:
+        Returns
+        -------
             List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
             in the specified index.
         """
