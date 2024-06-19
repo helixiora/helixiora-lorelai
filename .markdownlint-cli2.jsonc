@@ -1,0 +1,9 @@
+{
+    "config": {
+        "default": true,
+        "MD013": {
+        "line_length": 100
+        }
+    },
+    "ignores": ["node_modules", "**/node_modules/**", "docs/main.md"]
+}
