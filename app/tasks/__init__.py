@@ -39,22 +39,24 @@ def execute_rag_llm(
 
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s", user, organisation)
-
+    print("data sorce", datasource)
     try:
+        # create model
+        llm = Llm.create(model_type=model_type)
+
         # Get the context for the question
-        if datasource is None:
-            llm = Llm.create(model_type=model_type)
+        if datasource == "direct":
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer_direct(question=chat_message)
-            source = None
+            source = "OpenAI"
         else:
+            #enriched_context = ContextRetriever.create()
             enriched_context = ContextRetriever(org_name=organisation, user=user)
             context, source = enriched_context.retrieve_context(chat_message)
 
             if context is None:
                 raise ValueError("Failed to retrieve context for the provided chat message.")
 
-            llm = Llm.create(model_type=model_type)
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer(question=chat_message, context=context)
 

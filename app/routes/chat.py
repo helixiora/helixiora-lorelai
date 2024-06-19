@@ -42,6 +42,7 @@ def chat():
         session.get("email"),
         session.get("organisation"),
         llm_model,
+        datasource=content["datasource"],
         job_timeout=chat_task_timeout,
         description=f"Execute RAG+LLM model: {content['message']} for {session.get('email')} \
             using {llm_model}",

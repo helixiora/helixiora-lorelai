@@ -148,7 +148,7 @@ class OpenAILlm(Llm):
         logging.debug("[OpenAILlm.get_answer_direct] Question: %s", question)
 
         prompt = PromptTemplate.from_template(
-            template=self._prompt_template, template_format="f-string"
+            template=self._prompt_template_direct, template_format="f-string"
         )
         logging.debug("[OpenAILlm.get_answer_direct] Prompt: %s", prompt)
 
