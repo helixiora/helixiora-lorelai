@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""the main application file for the OAuth2 flow flask app"""
+"""Main application file for the OAuth2 flow flask app."""
 
 import logging
 import os
@@ -9,10 +9,12 @@ import sys
 import mysql.connector
 from flask import Flask, g, redirect, render_template, session, url_for
 
-# load blueprints
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
+
+# load blueprints
+from app.routes.google.auth import googledrive_bp
 from app.utils import get_db_connection, is_admin, perform_health_checks
 from lorelai.utils import load_config
 
@@ -35,6 +37,7 @@ logging.basicConfig(format=logging_format)
 lorelai_settings = load_config("lorelai")
 app.secret_key = lorelai_settings["secret_key"]
 
+app.register_blueprint(googledrive_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
@@ -78,9 +81,10 @@ logging.info(
 # Improved index route using render_template
 @app.route("/")
 def index():
-    """the index page
+    """Return the index page.
 
-    Returns:
+    Returns
+    -------
         string: the index page
     """
     print("Index route")
@@ -102,7 +106,17 @@ def index():
 
 @app.route("/js/<script_name>.js")
 def serve_js(script_name):
-    """the javascript endpoint"""
+    """Return the javascript file dynamically.
+
+    Parameters
+    ----------
+    script_name : str
+        The name of the script to serve
+
+    Returns
+    -------
+        tuple: the javascript file, the status code, and the content type
+    """
     return (
         render_template(f"js/{script_name}.js"),
         200,
@@ -113,7 +127,12 @@ def serve_js(script_name):
 # health check route
 @app.route("/health")
 def health():
-    """the health check route"""
+    """Serve the health check route.
+
+    Returns
+    -------
+        string: the health check status
+    """
     checks = perform_health_checks()
     if checks:
         return checks, 500
@@ -123,14 +142,14 @@ def health():
 # Error handler for 404
 @app.errorhandler(404)
 def page_not_found(e):
-    """the error handler for 404 errors"""
+    """Handle 404 errors."""
     return render_template("404.html", e=e), 404
 
 
 # Error handler for 500
 @app.errorhandler(500)
 def internal_server_error(e):
-    """the error handler for 500 errors"""
+    """Handle 500 errors."""
     error_info = sys.exc_info()
     if error_info:
         error_message = str(error_info[1])  # Get the exception message
@@ -143,13 +162,14 @@ def internal_server_error(e):
 
 @app.before_request
 def before_request():
-    """The before request hook"""
+    """Load the features before every request."""
     logging.debug("Before request")
     g.features = load_config("features")
 
 
 @app.after_request
 def set_security_headers(response):
+    """Set the security headers for the response."""
     cross_origin_opener_policy = "unsafe-none"
 
     connect_src = ["'self'", "https://accounts.google.com/gsi/"]

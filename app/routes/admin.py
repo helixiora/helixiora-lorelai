@@ -1,4 +1,4 @@
-"""This module contains the routes for the admin page."""
+"""Contains the routes for the admin page."""
 
 import logging
 import os
@@ -23,7 +23,7 @@ admin_bp = Blueprint("admin", __name__)
 
 @admin_bp.route("/admin")
 def admin():
-    """The admin page.
+    """Return the admin page.
 
     This page is only accessible to users who are admins.
     """
@@ -34,7 +34,7 @@ def admin():
 
 @admin_bp.route("/admin/job-status/<job_id>")
 def job_status(job_id: str) -> str:
-    """Return the status of a job given its job_id
+    """Return the status of a job given its job_id.
 
     Parameters
     ----------
@@ -116,7 +116,8 @@ def start_indexing(type) -> str:
 
         jobs = []
 
-        # First we get the org_rows. If the type is user or organisation, we only need the current org
+        # First we get the org_rows. If the type is user or organisation,
+        # we only need the current org
         if type in ["user", "organisation"]:
             org_rows = get_query_result(
                 "SELECT id, name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
@@ -131,7 +132,8 @@ def start_indexing(type) -> str:
                 return jsonify({"error": "No organisations found"}), 404
 
         logging.debug(
-            f"Starting indexing for {len(org_rows)} organisations (type: {type}, user_id: {user_id}, org_id: {org_id})"
+            f"Starting indexing for {len(org_rows)} organisations (type: {type}, \
+                user_id: {user_id}, org_id: {org_id})"
         )
 
         # Go through all org_rows and start indexing
@@ -154,7 +156,9 @@ def start_indexing(type) -> str:
                 for user_row in user_rows:
                     # Get the user auth rows for the user
                     user_auth_rows_for_user = get_query_result(
-                        "SELECT user_id, auth_key, auth_value, auth_type FROM user_auth WHERE user_id = %s",
+                        "SELECT user_id, auth_key, auth_value, auth_type \
+                            FROM user_auth \
+                                WHERE user_id = %s",
                         (user_row["user_id"],),
                     )
                     user_auth_rows.extend(user_auth_rows_for_user)
@@ -185,7 +189,7 @@ def start_indexing(type) -> str:
 
 @admin_bp.route("/admin/pinecone")
 def list_indexes() -> str:
-    """The list indexes page
+    """Return the list indexes page.
 
     Returns
     -------
@@ -204,7 +208,7 @@ def list_indexes() -> str:
 
 @admin_bp.route("/admin/pinecone/<host_name>")
 def index_details(host_name: str) -> str:
-    """The index details page"""
+    """Return the index details page."""
     enriched_context = ContextRetriever(
         org_name=session["org_name"], user_email=session["user_email"]
     )
@@ -220,7 +224,7 @@ def index_details(host_name: str) -> str:
 
 @admin_bp.route("/admin/setup", methods=["GET"])
 def setup() -> str:
-    """The setup route.
+    """Return the lorelai setup page.
 
     Shows the parameters for the database connection,
     and two buttons to test the connection and run the database creation.
@@ -274,7 +278,7 @@ def setup_post() -> str:
         if not os.path.exists(baseline_schema_path):
             raise FileNotFoundError(f"Baseline schema file not found at {baseline_schema_path}")
 
-        with open(baseline_schema_path, "r") as file:
+        with open(baseline_schema_path) as file:
             baseline_schema = file.read()
 
         msg += "Creating the database...<br/>"

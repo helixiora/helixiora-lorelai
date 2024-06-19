@@ -1,11 +1,8 @@
-"""
-This module contains the tasks that are executed asynchronously.
-"""
+"""Contains the tasks that are executed asynchronously."""
 
 import logging
 import os
 from datetime import time
-from typing import List
 
 from rq import get_current_job
 
@@ -25,8 +22,28 @@ logging.basicConfig(level=log_level, format=logging_format)
 def execute_rag_llm(
     chat_message: str, user: str, organisation: str, model_type: str = "OpenAILlm"
 ) -> dict:
-    """
-    A task to execute the RAG+LLM model.
+    """Execute the RAG+LLM model.
+
+    Arguments
+    ---------
+    chat_message : str
+        The chat message.
+    user : str
+        The user email.
+    organisation : str
+        The organisation name.
+    model_type : str, optional
+        The model type to use. Default is "OpenAILlm".
+
+    Returns
+    -------
+    dict
+        The answer and source of the answer.
+
+    Raises
+    ------
+    ValueError
+        If the user or organisation is None.
     """
     start_time = time.time()
     job = get_current_job()
@@ -67,19 +84,21 @@ def execute_rag_llm(
 
 
 def run_indexer(
-    org_row: List[any],
-    user_rows: List[any],
-    user_auth_rows: List[any],
+    org_row: list[any],
+    user_rows: list[any],
+    user_auth_rows: list[any],
 ):
     """
-    An rq job to run the indexer.
+    Run the indexer. Should be called from an rq job.
 
-    Parameters:
+    Arguments
+    ---------
     org_row (List[any]): Organization data.
     user_rows (List[any]): List of user data.
     user_auth_rows (List[any]): List of user authentication data.
 
-    Returns:
+    Returns
+    -------
     dict: A dictionary containing the progress and result of the job.
     """
     # Get the current job instance

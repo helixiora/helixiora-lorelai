@@ -3,7 +3,6 @@
 import logging
 import os
 import subprocess
-from typing import List, Optional, Tuple
 
 import mysql.connector
 import redis
@@ -28,7 +27,7 @@ def is_admin(user_id: int) -> bool:
     return user_id == 1
 
 
-def run_flyway_migrations(host: str, database: str, user: str, password: str) -> Tuple[bool, str]:
+def run_flyway_migrations(host: str, database: str, user: str, password: str) -> tuple[bool, str]:
     """Run Flyway migrations on the database.
 
     Parameters
@@ -92,7 +91,7 @@ def get_db_cursor(with_dict: bool = False) -> mysql.connector.cursor.MySQLCursor
 
 def get_query_result(
     query: str, params: tuple = None, fetch_one: bool = False
-) -> Optional[List[dict]]:
+) -> list[dict] | None:
     """Get the result of a query.
 
     Parameters
@@ -157,7 +156,7 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
         raise
 
 
-def check_mysql() -> Tuple[bool, str]:
+def check_mysql() -> tuple[bool, str]:
     """Check if the MySQL database is up and running.
 
     Returns
@@ -173,7 +172,7 @@ def check_mysql() -> Tuple[bool, str]:
         return False, str(e)
 
 
-def check_redis() -> Tuple[bool, str]:
+def check_redis() -> tuple[bool, str]:
     """Check if the Redis server is up and running.
 
     Returns
@@ -192,7 +191,7 @@ def check_redis() -> Tuple[bool, str]:
         return False, str(e)
 
 
-def check_flyway() -> Tuple[bool, str]:
+def check_flyway() -> tuple[bool, str]:
     """Check if the Flyway schema version is up to date.
 
     Returns
@@ -228,14 +227,15 @@ def check_flyway() -> Tuple[bool, str]:
 
         return (
             False,
-            f"Flyway schema version {version['version']} is not up to date with last migration {last_migration}.",
+            f"Flyway schema version {version['version']} is not up to date with last \
+                migration {last_migration}.",
         )
     except Exception as e:
         logging.exception("Flyway check failed")
         return False, str(e)
 
 
-def perform_health_checks() -> List[str]:
+def perform_health_checks() -> list[str]:
     """Perform health checks on the application.
 
     Returns
@@ -294,8 +294,22 @@ def get_org_id_by_userid(cursor, user_id: int):
 
 
 def get_org_id_by_organisation(cursor, organisation: str, create_if_not_exists: bool = False):
-    """Get the organization ID, inserting the organization if it does not exist."""
+    """Get the organization ID, inserting the organization if it does not exist.
 
+    Arguments
+    ---------
+    cursor : mysql.connector.cursor.MySQLCursor
+        The database cursor.
+    organisation : str
+        The name of the organisation.
+    create_if_not_exists : bool, optional
+        Whether to create the organisation if it does not exist.
+
+    Returns
+    -------
+    int
+        The organisation ID.
+    """
     logging.debug("Getting org ID for organisation: %s", organisation)
     org_result = get_query_result(
         "SELECT id FROM organisation WHERE name = %s", (organisation,), fetch_one=True

@@ -1,3 +1,5 @@
+"""Routes for the chat page."""
+
 import logging
 
 from flask import blueprints, jsonify, request, session
@@ -13,8 +15,7 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 # a get and post route for the chat page
 @chat_bp.route("/chat", methods=["POST"])
 def chat():
-    """Endpoint to post chat messages."""
-
+    """Post messages to rq to process."""
     content = request.get_json()
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
