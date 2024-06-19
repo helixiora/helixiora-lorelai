@@ -31,8 +31,16 @@ def main() -> None:
     question = args.question
     org_id, org_name = get_organisation(args.org_name)
     user_id = get_user_from_organisation(org_id, args.user_name)
-    enriched_context = ContextRetriever(org_name=org_name, user=user_id)
+    user_id="masood@helixiora.com"
+    print("----------->",org_name,user_id)
+    print("SUBCLASS->",ContextRetriever.list_subclasses())
+    #enriched_context = ContextRetriever(org_name=org_name, user=user_id)
+    #enriched_context=ContextRetriever.create("GoogleDriveContextRetriever", org_name, user_id)
+    enriched_context=ContextRetriever.create("SlackContextRetriever", org_name, user_id)
+
     answer, source = enriched_context.retrieve_context(question)
+    print("source",source,"answer",answer)
+    exit()
     llm = Llm.create(model_type=args.model_type)
     llm_answer = llm.get_answer(question, answer)
     display_results(llm_answer, source)

@@ -117,6 +117,15 @@
                     </a>
                 </div>
             </div>
+            
+            <!-- Datasource Select Dropdown -->
+            <div class="pl-4 pt-2">
+                <select id="datasourceSelect" class="bg-white border rounded p-2">
+                    {% for source in datasource_list %}
+                        <option value="{{ source }}">{{ source }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
             <!-- Chat Message Area -->
             <div id="messages" class="flex-grow rounded-lg p-4 mb-4 overflow-y-auto">

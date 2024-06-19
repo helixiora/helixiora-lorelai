@@ -16,6 +16,7 @@ def chat():
     """Endpoint to post chat messages."""
 
     content = request.get_json()
+    print("$$$$$$$$$$",content)
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
