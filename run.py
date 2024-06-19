@@ -121,6 +121,7 @@ def index():
             "user_organization": session["organisation"],
             "user_email": session["email"],
             "is_admin": is_admin(session["google_id"]),
+            "datasource_list": ["Gdrive","Slack","Direct"],# will have env variable for this
         }
 
         return render_template("index_logged_in.html", **user_data)
