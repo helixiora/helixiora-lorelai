@@ -29,16 +29,7 @@
                         <h5 class="card-title font-weight-bold">Enhance your experience</h5>
                         <h6 class="card-title">Google Drive Integration</h6>
                         <p class="card-text">Start feeding your business data to the hungry LLM!</p>
-                        <button class="btn btn-primary" onclick="authorize()">Start Integration</button>
-                        <button class="btn btn-secondary" onclick="revoke()">Revoke Integration</button>
-                        <button class="btn btn-success" onclick="createPicker()">Choose Files</button>
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-md-12">
-                        <h5>Selected Drive Files</h5>
-                        <ul id="files" class="list-group"></ul>
-                        <button class="btn btn-primary mt-2" onclick="saveConfiguration()">Save Configuration</button>
+                        <a class="btn btn-primary" href="{{ google_auth_url }}">Authorize</a>
                     </div>
                 </div>
             </div>
@@ -47,109 +38,4 @@
     </div>
 </div>
 
-<script async defer src="https://apis.google.com/js/api.js"></script>
-<script async defer src="https://accounts.google.com/gsi/client"></script>
-<script>
-    let developerKey = 'AIzaSyBS3VWEmt4x4eDZLTcoM1qnz_ynT_UeDbM';
-    let clientId = '188814832124-jic1ovt2a8vued9je3pdcg71imrdp67c.apps.googleusercontent.com';
-    let appId = 'lorelai-non-prod';
-    let scope = [
-        'https://www.googleapis.com/auth/drive.file',
-    ];
-
-    let oauthToken;
-
-    function onApiLoad() {
-        gapi.load('auth', {'callback': onAuthApiLoad});
-        gapi.load('picker', {'callback': onPickerApiLoad});
-    }
-
-    function gisLoaded() {
-        // TODO: Replace with your client ID and required scopes.
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: scope,
-            callback: '', // defined later
-        });
-        gisInited = true;
-    }
-
-    function onAuthApiLoad() {
-        window.gapi.auth.authorize({
-            'client_id': clientId,
-            'scope': scope,
-            'immediate': false
-        }, handleAuthResult);
-    }
-
-    function onPickerApiLoad() {
-        pickerApiLoaded = true;
-    }
-
-    function handleAuthResult(authResult) {
-        if (authResult && !authResult.error) {
-            oauthToken = authResult.access_token;
-            createPicker();
-        }
-    }
-
-    function createPicker() {
-        if (pickerApiLoaded && oauthToken) {
-            let view = new google.picker.View(google.picker.ViewId.DOCS);
-            let picker = new google.picker.PickerBuilder()
-                .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-                .setOAuthToken(oauthToken)
-                .addView(view)
-                .setDeveloperKey(developerKey)
-                .setCallback(pickerCallback)
-                .build();
-            picker.setVisible(true);
-        }
-    }
-
-    function pickerCallback(data) {
-        if (data.action == google.picker.Action.PICKED) {
-            let files = data.docs;
-            const filesList = document.getElementById('files');
-            filesList.innerHTML = '';
-            files.forEach(file => {
-                const li = document.createElement('li');
-                li.className = 'list-group-item';
-                li.innerHTML = `<input type="checkbox" name="files" value="${file.id}"> ${file.name}`;
-                filesList.appendChild(li);
-            });
-        }
-    }
-
-    async function saveConfiguration() {
-        const selectedFiles = [];
-        document.querySelectorAll('input[name="files"]:checked').forEach(checkbox => {
-            selectedFiles.push(checkbox.value);
-        });
-        const config = {
-            includedFiles: selectedFiles,
-        };
-        const response = await fetch('/google/drive/save_configuration', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(config)
-        });
-        const data = await response.text();
-        alert(data);
-    }
-
-    async function authorize() {
-        window.location.href = '/authorize';
-    }
-
-    async function revoke() {
-        const response = await fetch('/revoke');
-        const data = await response.text();
-        alert(data);
-    }
-
-    document.addEventListener('DOMContentLoaded', onApiLoad);
-</script>
 {% endblock %}
