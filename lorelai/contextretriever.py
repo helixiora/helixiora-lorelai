@@ -7,7 +7,6 @@ OpenAI's embeddings and language models to generate responses based on the retri
 """
 
 import logging
-from typing import Any
 
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import FlashrankRerank
@@ -55,7 +54,7 @@ class ContextRetriever:
         self.org_name: str = org_name
         self.user: str = user_email
 
-    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, Any]]]:
+    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
         """
         Retrieve context for a given question using Pinecone and OpenAI.
 
@@ -105,7 +104,7 @@ class ContextRetriever:
         )
 
         docs: list[Document] = []
-        sources: list[dict[str, Any]] = []
+        sources: list[dict[str, any]] = []
         for doc in results:
             # Append the whole document object if needed
             docs.append(doc)
@@ -138,7 +137,7 @@ class ContextRetriever:
 
         return pinecone.list_indexes()
 
-    def get_index_details(self, index_host: str) -> list[dict[str, Any]]:
+    def get_index_details(self, index_host: str) -> list[dict[str, any]]:
         """
         Retrieve details for a specified index in Pinecone.
 
@@ -148,7 +147,7 @@ class ContextRetriever:
 
         Returns
         -------
-            List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
+            List[Dict[str, any]]: A list of dictionaries, each containing metadata for vectors
             in the specified index.
         """
         pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])

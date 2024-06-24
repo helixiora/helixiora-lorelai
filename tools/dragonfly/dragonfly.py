@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+"""Dragonfly: Unified Benchmarking Script with Configurable Operations."""
+
 import argparse
 import logging
 import os
@@ -11,6 +13,7 @@ from benchmark.templatemanager import TemplateManager
 
 
 def main():
+    """Dragongly: Unified Benchmarking Script with Configurable Operations."""
     logging_format = os.getenv(
         "LOG_FORMAT",
         "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
@@ -33,10 +36,16 @@ sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../../.."))
 
 
 def setup_arg_parser():
-    # Create the main parser and a subparsers container
+    """Set up the argument parser with subcommands for data, benchmark, and template operations.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Configured argument parser.
+    """
     parser = argparse.ArgumentParser(
         description="""Dragonfly: Unified Benchmarking Script with Configurable Operations
-        \nUse this script to manage data operations, benchmarking processes, and template management.
+        \nUse this script to manage data operations, benchmarking processes, and templates.
         \nCommands are structured into categories: 'data', 'benchmark', and 'template'.""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="For more information, use the '-h' or '--help' after a sub-command.",
@@ -72,6 +81,13 @@ def setup_arg_parser():
 
 
 def setup_data_subparsers(subparsers):
+    """Set up the subparsers for data operations.
+
+    Arguments
+    ---------
+    subparsers : argparse._SubParsersAction
+        Subparsers object to add the data operation subcommands.
+    """
     download_parser = subparsers.add_parser(
         "download", help="download data to the specified location"
     )
@@ -94,6 +110,13 @@ def setup_data_subparsers(subparsers):
 
 
 def setup_benchmark_subparsers(subparsers):
+    """Set up the subparsers for benchmark operations.
+
+    Arguments
+    ---------
+    subparsers : argparse._SubParsersAction
+        Subparsers object to add the benchmark operation subcommands.
+    """
     run_parser = subparsers.add_parser("run", help="execute a benchmark run")
     run_parser.add_argument("--template-id", required=True, help="Template to run")
     run_parser.add_argument(
@@ -130,6 +153,13 @@ def setup_benchmark_subparsers(subparsers):
 
 
 def setup_template_subparsers(subparsers):
+    """Set up the subparsers for template operations.
+
+    Arguments
+    ---------
+    subparsers : argparse._SubParsersAction
+        Subparsers object to add the template operation subcommands.
+    """
     subparsers.add_parser("list", help="list all available benchmarking templates")
 
     create_parser = subparsers.add_parser("create", help="create a new benchmarking template")
@@ -184,6 +214,13 @@ def setup_template_subparsers(subparsers):
 
 
 def handle_data(args):
+    """Handle the data-related subcommands.
+
+    Arguments
+    ---------
+    args : argparse.Namespace
+        Parsed command-line arguments.
+    """
     data_manager = DataManager()
     if args.data_verb == "download":
         data_manager.download(args.path, args.dry_run)
@@ -192,6 +229,13 @@ def handle_data(args):
 
 
 def handle_benchmark(args):
+    """Handle the benchmark-related subcommands.
+
+    Arguments
+    ---------
+    args : argparse.Namespace
+        Parsed command-line arguments.
+    """
     benchmark_manager = BenchmarkManager()
     if args.benchmark_verb == "run":
         benchmark_manager.run(template_id=args.template_id, dry_run=args.dry_run)
@@ -207,6 +251,13 @@ def handle_benchmark(args):
 
 
 def handle_template(args):
+    """Handle the template-related subcommands.
+
+    Arguments
+    ---------
+    args : argparse.Namespace
+        Parsed command-line arguments.
+    """
     try:
         template_manager = TemplateManager()
         if args.template_verb == "list":

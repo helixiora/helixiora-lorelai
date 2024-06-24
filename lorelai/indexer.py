@@ -1,10 +1,11 @@
-"""this file creates a class to process google drive documents using the google drive api, chunk
-them using langchain and then index them in pinecone"""
+"""Creates a class to process google drive documents using the google drive api.
+
+chunk them using langchain and then index them in pinecone
+"""
 
 import logging
 import os
 import sys
-from typing import Any, Optional, Tuple
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -27,7 +28,7 @@ class Indexer:
 
     @staticmethod
     def create(datasource="GoogleDriveIndexer"):
-        """Factory method to create instances of derived classes based on the class name."""
+        """Create instances of derived classes based on the class name."""
         Indexer._allowed = True
         class_ = globals().get(datasource)
         if class_ is None or not issubclass(class_, Indexer):
@@ -52,20 +53,30 @@ class Indexer:
 
     def index_org(
         self: None,
-        org_row: dict[Any],
-        user_rows: dict[Any],
-        user_auth_rows: dict[Any],
-        job: Optional["job"] = None,
+        org_row: dict[any],
+        user_rows: dict[any],
+        user_auth_rows: dict[any],
+        job: job | None = None,
     ) -> list[dict]:
-        """Process the organisation, indexing all it's users
+        """Process the organisation, indexing all it's users.
 
-        :param org: the organisation to process, a list of org details (org_id, name)
-        :param users: the users to process, a list of user details (user_id, name, email, token,
+        Arguments
+        ---------
+        org_row: dict[any]
+            The organisation to process, a list of org details (org_id, name)
+        user_rows: dict[any]
+            The users to process, a list of user details (user_id, name, email, token,
             refresh_token)
+        user_auth_rows: dict[any]
+            The user auth rows for all users, a list of user auth details (user_id, auth_key,
+            auth_value)
+        job: job
+            The job object for the current task
 
+        Returns
+        -------
         :return: None
         """
-
         logging.debug(f"Indexing org: {org_row}")
         logging.debug(f"Users: {user_rows}")
         logging.debug(f"User auths: {user_auth_rows}")
@@ -130,11 +141,11 @@ class Indexer:
 
     def index_user(
         self: None,
-        user_row: dict[Any],
-        org_row: dict[Any],
-        user_auth_rows: dict[Any],
-        job: Optional["job"],
-    ) -> Tuple[bool, str]:
+        user_row: dict[any],
+        org_row: dict[any],
+        user_auth_rows: dict[any],
+        job: job | None,
+    ) -> tuple[bool, str]:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         :param user: the user to process, a list of user details (user_id, name, email, token,
@@ -155,10 +166,10 @@ class GoogleDriveIndexer(Indexer):
 
     def index_user(
         self: None,
-        user_row: dict[Any],
-        org_row: dict[Any],
-        user_auth_rows: dict[Any],
-        job: Optional["job"],
+        user_row: dict[any],
+        org_row: dict[any],
+        user_auth_rows: dict[any],
+        job: job | None,
         folder_id: str = "",
     ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.

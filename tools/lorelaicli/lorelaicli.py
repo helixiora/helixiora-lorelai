@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Query indexed documents in Pinecone using LangChain and OpenAI in the CLI"""
+"""Query indexed documents in Pinecone using LangChain and OpenAI in the CLI."""
 
 import argparse
 import logging
@@ -40,8 +40,8 @@ def main() -> None:
 
 
 def setup_arg_parser() -> argparse.ArgumentParser:
-    """
-    Set up argument parser for command-line options.
+    """Set up argument parser for command-line options.
+
     Params: none
     Returns: ArgumentParser object
     """
@@ -54,8 +54,8 @@ def setup_arg_parser() -> argparse.ArgumentParser:
 
 
 def get_organisation(org_name: str or None) -> tuple:
-    """
-    Retrieve or select an organisation.
+    """Retrieve or select an organisation.
+
     Params: org_name: str, name of the organisation
     Returns: tuple with org ID as the 0 object or select_organisation
     function
@@ -76,8 +76,8 @@ def get_organisation(org_name: str or None) -> tuple:
 
 
 def select_organisation() -> tuple:
-    """
-    Interactively select an organisation from a list.
+    """Interactively select an organisation from a list.
+
     Params: none
     Returns: tuple with the org ID and name
     """
@@ -96,8 +96,8 @@ def select_organisation() -> tuple:
 
 
 def get_user_from_organisation(org_id: int, user_name: str or None = None) -> int:
-    """
-    Retrieve or select a user from a specific organisation.
+    """Retrieve or select a user from a specific organisation.
+
     Params:
         org_id, int, the organisation ID
         user_name, str, the user name
@@ -128,8 +128,8 @@ def get_user_from_organisation(org_id: int, user_name: str or None = None) -> in
 
 
 def select_user_from_organisation(org_id: int) -> int:
-    """
-    Interactively select a user from a list.
+    """Interactively select a user from a list.
+
     Params:
             org_id: int, the ID of the organisation
     Returns:
