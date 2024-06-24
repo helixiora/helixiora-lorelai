@@ -50,7 +50,11 @@ def execute_rag_llm(
             answer = llm.get_answer_direct(question=chat_message)
             source = "OpenAI"
         else:
-            #enriched_context = ContextRetriever.create()
+            enriched_context = ContextRetriever.create(
+                model_type="GoogleDriveContextRetriever",
+                org_name=organisation,
+                user=user,
+            )
             enriched_context = ContextRetriever(org_name=organisation, user=user)
             context, source = enriched_context.retrieve_context(chat_message)
 
