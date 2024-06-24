@@ -51,31 +51,42 @@ def job_status(job_id: str) -> str:
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
-    if job is None:
-        logging.error(f"Job {job_id} not found")
-        response = {"job_id": job_id, "state": "unknown", "status": "unknown"}
-    elif job.is_finished:
-        logging.info(f"Job {job_id} finished")
-        response = {"job_id": job_id, "state": "done", "metadata": job.meta, "result": job.result}
-    elif job.is_failed:
-        logging.error(f"Job {job_id} failed")
-        response = {"job_id": job_id, "state": "failed", "metadata": job.meta, "result": job.result}
-    elif job.is_started:
-        logging.info(f"Job {job_id} started")
-        response = {
-            "job_id": job_id,
-            "state": "running",
-            "metadata": job.meta,
-            "result": job.result,
-        }
-    else:
-        logging.info(f"Job {job_id} unknown state")
-        response = {
-            "job_id": job_id,
-            "state": job._status,
-            "metadata": job.meta,
-            "result": job.result,
-        }
+    match job:
+        case None:
+            logging.error(f"Job {job_id} not found")
+            response = {"job_id": job_id, "state": "unknown", "status": "unknown"}
+        case job.is_finished:
+            logging.info(f"Job {job_id} finished")
+            response = {
+                "job_id": job_id,
+                "state": "done",
+                "metadata": job.meta,
+                "result": job.result,
+            }
+        case job.is_failed:
+            logging.error(f"Job {job_id} failed")
+            response = {
+                "job_id": job_id,
+                "state": "failed",
+                "metadata": job.meta,
+                "result": job.result,
+            }
+        case job.is_started:
+            logging.info(f"Job {job_id} started")
+            response = {
+                "job_id": job_id,
+                "state": "running",
+                "metadata": job.meta,
+                "result": job.result,
+            }
+        case _:
+            logging.info(f"Job {job_id} unknown state")
+            response = {
+                "job_id": job_id,
+                "state": job._status,
+                "metadata": job.meta,
+                "result": job.result,
+            }
 
     logging.debug(f"Job id: {job_id}, status: {response}")
     return jsonify(response)

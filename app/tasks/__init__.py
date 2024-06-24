@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import time
+import time
 
 from rq import get_current_job
 
