@@ -7,8 +7,8 @@ from flask import Blueprint, flash, g, jsonify, redirect, render_template, reque
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from google_auth_oauthlib.flow import Flow
 
+from app.routes.google.auth import google_auth_url
 from app.utils import (
     get_db_connection,
     get_org_id_by_organisation,
@@ -18,15 +18,18 @@ from app.utils import (
     get_user_id_by_email,
     is_admin,
 )
-from lorelai.utils import load_config
 
 auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.route("/profile")
 def profile():
-    """The profile page."""
+    """Return the profile page.
 
+    Returns
+    -------
+        str: The profile page.
+    """
     # only proceed if the user is logged in
     if "user_id" in session:
         is_admin_status = is_admin(session["user_id"])
@@ -35,17 +38,32 @@ def profile():
             "email": session["user_email"],
             "username": session["user_name"],
             "full_name": session["user_fullname"],
-            "organisation": session.get("organisation", "N/A"),
+            "organisation": session.get("org_name", "N/A"),
         }
         return render_template(
-            "profile.html", user=user, is_admin=is_admin_status, features=g.features
+            "profile.html",
+            user=user,
+            is_admin=is_admin_status,
+            features=g.features,
+            google_auth_url=google_auth_url(),
         )
     return "You are not logged in!", 403
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
-    """The registration page."""
+    """Return the registration page.
+
+    If the request method is POST, the user data is validated and inserted into the database.
+    If the user is already registered, they are redirected to the index page.
+
+    If the request method is GET, the registration page is rendered with the user's email and
+    full name.
+
+    Returns
+    -------
+        str: The registration page.
+    """
     if request.method == "POST":
         email = request.form.get("email")
         full_name = request.form.get("full_name")
@@ -118,8 +136,10 @@ def login():
     The ID token is verified using Google's Identity Verification API and the user is authenticated.
     If the user is not registered, they are redirected to the registration page.
 
-    Returns:
-        JSON: A JSON object with a message indicating whether the user was authenticated successfully.
+    Returns
+    -------
+        JSON: A JSON object with a message indicating whether the user was authenticated
+        successfully.
     """
     try:
         if request.content_type != "application/json":
@@ -145,6 +165,7 @@ def login():
         user_email = idinfo["email"]
         username = idinfo["name"]
         user_full_name = idinfo["name"]
+        google_id = idinfo["sub"]
         user_id = get_user_id_by_email(user_email)
 
         org_id = get_org_id_by_userid(cursor, user_id)
@@ -161,6 +182,19 @@ def login():
             ), 200
 
         logging.info("User logging in: %s", user_email)
+
+        # update the user in the database
+        cursor.execute(
+            "UPDATE user SET google_id = %s WHERE user_id = %s",
+            (google_id, user_id),
+        )
+        # update user_auth
+        cursor.execute(
+            "INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type) \
+                VALUES (%s, %s, %s, %s, %s)",
+            (user_id, 1, "google_id", google_id, "oauth"),
+        )
+        conn.commit()
 
         session["user_id"] = user_id
         session["user_email"] = user_email
@@ -179,7 +213,7 @@ def login():
     except Exception as e:
         logging.exception("An error occurred: %s", e)
         return jsonify({"message": "An error occurred: " + str(e)}), 401
-    except google_auth.exceptions.GoogleAuthError as e:
+    except exceptions.GoogleAuthError as e:
         logging.error("Google Auth Error: %s", e)
         return jsonify({"message": "Google Auth Error: " + str(e)}), 401
     finally:
@@ -245,93 +279,5 @@ def logout():
         cursor.close()
     finally:
         session.clear()
-
-    return redirect(url_for("index"))
-
-
-@auth_bp.route("/google/auth", methods=["POST"])
-def google_auth():
-    """Handle Google authentication."""
-    # Load the Google OAuth2 secrets
-    secrets = load_config("google")
-    e_creds = ["client_id", "project_id", "client_secret", "redirect_uris"]
-    if not all(i in secrets for i in e_creds):
-        missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
-        msg = "Missing required google credentials: "
-        raise ValueError(msg, missing_creds)
-
-    client_config = {
-        "web": {
-            "client_id": secrets["client_id"],
-            "project_id": secrets["project_id"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": secrets["client_secret"],
-            "redirect_uris": secrets["redirect_uris"],
-        }
-    }
-
-    lorelaicreds = load_config("lorelai")
-
-    flow = Flow.from_client_config(
-        client_config=client_config,
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
-        redirect_uri=lorelaicreds["redirect_uri"],
-    )
-
-    if "user_id" in session:
-        user_data = {
-            "user_organization": session["organisation"],
-            "user_email": session["email"],
-            "is_admin": is_admin(session["user_id"]),
-        }
-
-        return render_template("index_logged_in.html", **user_data)
-
-    try:
-        authorization_url, state = flow.authorization_url(
-            access_type="offline", include_granted_scopes="true", prompt="consent"
-        )
-        session["state"] = state
-
-    except RuntimeError as e:
-        logging.debug(f"Error generating authorization URL: {e}")
-        return render_template("error.html", error_message="Failed to generate login URL.")
-
-
-@auth_bp.route("/google/auth/callback", methods=["GET"])
-def auth_callback():
-    """Callback route for Google OAuth2 authentication.
-    This route is called by Google after the user has authenticated.
-    The route verifies the state and exchanges the authorization code for an access token.
-    Returns:
-        string: The index page.
-    """
-    lorelaicreds = load_config("lorelai")
-
-    state = request.args.get("state")
-    if state != session["state"]:
-        return render_template("error.html", error_message="Invalid state parameter.")
-
-    flow = Flow.from_client_config(
-        client_config={
-            "web": {
-                "client_id": lorelaicreds["client_id"],
-                "project_id": lorelaicreds["project_id"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_secret": lorelaicreds["client_secret"],
-                "redirect_uris": lorelaicreds["redirect_uris"],
-            }
-        },
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
-        redirect_uri=lorelaicreds["redirect_uri"],
-    )
-
-    flow.fetch_token(authorization_response=request.url)
-
-    session["credentials"] = flow.credentials.to_json()
 
     return redirect(url_for("index"))
