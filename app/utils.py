@@ -30,7 +30,11 @@ def is_admin(user_id: int) -> bool:
 
 
 def role_required(role_name_list):
+    """Check if the user has the required role."""
+
     def wrapper(f):
+        """Define the wrapper function. This is the actual decorator."""
+
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if "role" not in session or session["role"] not in role_name_list:
@@ -270,7 +274,9 @@ def perform_health_checks() -> list[str]:
             logging.info(f"Health check passed ({check.__name__}): {message}")
     return errors
 
+
 def get_user_role(email: str):
+    """Get the role of a user by email."""
     with get_db_connection() as db:
         try:
             cursor = db.cursor()
@@ -287,7 +293,8 @@ def get_user_role(email: str):
 
         except Exception:
             logging.critical(f"{email} has no role assigned")
-            raise ValueError(f"{email} has no role assigned")
+            raise ValueError(f"{email} has no role assigned") from None
+
 
 def user_is_logged_in(session) -> bool:
     """Check if the user is logged in.
@@ -305,6 +312,7 @@ def user_is_logged_in(session) -> bool:
         True if the user is logged in, False otherwise.
     """
     return "user_id" in session
+
 
 def get_user_id_by_email(email: str) -> int:
     """

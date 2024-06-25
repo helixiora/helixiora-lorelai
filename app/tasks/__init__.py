@@ -37,7 +37,9 @@ def execute_rag_llm(
     organisation : str
         The organisation name.
     model_type : str, optional
-        The model type to use. Default is "OpenAILlm".
+        The model type to use (OpenAI, Llama3, etc). Default is "OpenAILlm".
+    datasource : str, optional
+        The datasource to use (Slack, Google Drive, Direct, etc). Default is None.
 
     Returns
     -------
@@ -77,7 +79,6 @@ def execute_rag_llm(
                 org_name=organisation,
                 user=user,
             )
-            enriched_context = ContextRetriever(org_name=organisation, user=user)
             context, source = enriched_context.retrieve_context(chat_message)
 
             if context is None:

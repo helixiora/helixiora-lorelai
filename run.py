@@ -7,23 +7,19 @@ import os
 import sys
 
 import mysql.connector
-from google_auth_oauthlib.flow import Flow
-from flask import Flask, g, redirect, render_template, session, url_for, flash, request
+from flask import Flask, g, redirect, render_template, request, session, url_for
 
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
+from app.routes.google.auth import googledrive_bp
 from app.utils import (
     get_db_connection,
-    get_user_role,
     is_admin,
     perform_health_checks,
     role_required,
+    user_is_logged_in,
 )
-
-# load blueprints
-from app.routes.google.auth import googledrive_bp
-from app.utils import get_db_connection, is_admin, perform_health_checks, user_is_logged_in
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -153,6 +149,7 @@ def health():
     if checks:
         return checks, 500
     return "OK", 200
+
 
 # Error handler for 404
 @app.errorhandler(404)
