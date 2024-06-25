@@ -18,7 +18,17 @@ from pinecone.models.index_list import IndexList
 
 from lorelai.utils import load_config, pinecone_index_name
 
+
 class ContextRetriever:
+    """
+    Manage the integration with Pinecone and OpenAI services to retrieve relevant document contexts.
+
+    or specified questions.
+
+    The ContextRetriever class leverages Pinecone's vector search capabilities alongside
+    OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
+    """
+
     _allowed = False  # Flag to control constructor access
 
     def __init__(self, org_name: str, user_email: str):
@@ -50,7 +60,23 @@ class ContextRetriever:
 
     @staticmethod
     def create(indexer_type="GoogleDriveContextRetriever", org_name="", user=""):
-        """Factory method to create instances of derived classes based on the class name."""
+        """
+        Create instance of derived class based on the class name.
+
+        Parameters
+        ----------
+        indexer_type : str
+            The type of the indexer, used to instantiate the appropriate subclass.
+        org_name : str
+            The organization name, used for Pinecone index naming.
+        user : str
+            The user name, potentially used for logging or customization.
+
+        Returns
+        -------
+        ContextRetriever
+            An instance of the specified ContextRetriever subclass.
+        """
         ContextRetriever._allowed = True
         class_ = globals().get(indexer_type)
         if class_ is None or not issubclass(class_, ContextRetriever):
@@ -64,7 +90,7 @@ class ContextRetriever:
         """List all subclasses of ContextRetriever."""
         return ContextRetriever.__subclasses__()
 
-    def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
+    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
         """
         Retrieve context for a given question using Pinecone and OpenAI.
 
@@ -78,14 +104,12 @@ class ContextRetriever:
         """
         raise NotImplementedError
 
-    def get_index_details(self, index_host: str) -> List[Dict[str, Any]]:
-        raise NotImplementedError
-
     def get_all_indexes(self) -> IndexList:
         """
-        Retrieves all indexes in Pinecone along with their metadata.
+        Retrieve all indexes in Pinecone along with their metadata.
 
-        Returns:
+        Returns
+        -------
             list: A list of dictionaries containing the metadata for each index.
         """
         pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
@@ -95,7 +119,20 @@ class ContextRetriever:
 
         return pinecone.list_indexes()
 
-    def get_index_details(self, index_host: str) -> List[Dict[str, Any]]:
+    def get_index_details(self, index_host: str) -> list[dict[str, any]]:
+        """
+        Get details of a specific index.
+
+        Parameters
+        ----------
+        index_host : str
+            The host name of the index.
+
+        Returns
+        -------
+        list[dict[str, any]]
+            A list of dictionaries containing the metadata for each vector in the index.
+        """
         pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
 
         if pinecone is None:
@@ -109,7 +146,7 @@ class ContextRetriever:
 
         try:
             for ident in index.list():
-                vectors: FetchResponse = index.fetch(ids=ident)
+                vectors: FetchResponse = index.fetch(ids=ident)  # noqa: F821
 
                 for vector_id, vector_data in vectors.vectors.items():
                     if isinstance(vector_data.metadata, dict):
@@ -127,12 +164,38 @@ class ContextRetriever:
             raise ValueError(f"Failed to fetch index details: {e}") from e
 
         return result
-      
+
+
 class GoogleDriveContextRetriever(ContextRetriever):
+    """Context retriever which retrieves context ie vectors stored in Google drive index."""
+
     def __init__(self, org_name: str, user: str):
+        """
+        Initialize the GoogleDriveContextRetriever instance.
+
+        Parameters
+        ----------
+        org_name : str
+            The organization name, used for Pinecone index naming.
+        user : str
+            The user name, potentially used for logging or customization.
+        """
         super().__init__(org_name, user)
 
-    def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
+    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
+        """
+        Retrieve context for a given question from Google Drive using Pinecone and OpenAI.
+
+        Parameters
+        ----------
+        question : str
+            The question for which context is being retrieved.
+
+        Returns
+        -------
+        tuple[list[Document], list[dict[str, any]]]
+            A tuple containing the retrieval result and a list of sources for the context.
+        """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
         index_name = pinecone_index_name(
@@ -183,17 +246,43 @@ class GoogleDriveContextRetriever(ContextRetriever):
             source_entry = {
                 "title": doc.metadata["title"],
                 "source": doc.metadata["source"],
-                "score": "{:.2f}".format(score),
+                "score": f"{score:.2f}",
             }
             sources.append(source_entry)
         logging.debug(f"Context: {docs} Sources: {sources}")
         return docs, sources
 
+
 class SlackContextRetriever(ContextRetriever):
+    """Context retriever which retrieves context ie vectors stored in Slack index."""
+
     def __init__(self, org_name: str, user: str):
+        """
+        Initialize the SlackContextRetriever instance.
+
+        Parameters
+        ----------
+        org_name : str
+            The organization name, used for Pinecone index naming.
+        user : str
+            The user name, potentially used for logging or customization.
+        """
         super().__init__(org_name, user)
 
-    def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
+    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
+        """
+        Retrieve context for a given question from Slack using Pinecone and OpenAI.
+
+        Parameters
+        ----------
+        question : str
+            The question for which context is being retrieved.
+
+        Returns
+        -------
+        tuple[list[Document], list[dict[str, any]]]
+            A tuple containing the retrieval result and a list of sources for the context.
+        """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
         index_name = pinecone_index_name(
@@ -226,15 +315,15 @@ class SlackContextRetriever(ContextRetriever):
             f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
         )
 
-        docs: List[Document] = []
-        sources: List[Dict[str, Any]] = []
+        docs: list[Document] = []
+        sources: list[dict[str, any]] = []
         for doc in results:
             docs.append(doc)
             score = doc.metadata["relevance_score"] * 100
             source_entry = {
                 "title": doc.metadata["channel_name"],
                 "source": doc.metadata["source"],
-                "score": "{:.2f}".format(score),
+                "score": f"{score:.2f}",
             }
             sources.append(source_entry)
         logging.debug(f"Context: {docs} Sources: {sources}")

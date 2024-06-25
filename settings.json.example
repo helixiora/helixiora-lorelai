@@ -19,7 +19,9 @@
     }
     "lorelai": {
         "environment": "the stage of this environment eg dev/prod/qa",
-        "environment_slug": "a name to recognise this env by"
+        "environment_slug": "a name to recognise this env by",
+        "redirect_uri":"http://127.0.0.1:5000/oauth2callback",
+        "data_sources":["GoogleDrive","Slack","Direct"]
     },
     "db": {
         "host": "your_mysql_server",

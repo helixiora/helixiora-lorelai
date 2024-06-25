@@ -1,38 +1,67 @@
-import requests
-from flask import request, redirect, url_for, session
-from lorelai.utils import load_config, get_embedding_dimension, pinecone_index_name
-from app.utils import get_db_connection
-from pprint import pprint
+"""
+Module provides classes for integrating and processing Slack messages with Pinecone and OpenAI.
+
+It includes OAuth handling, message retrieval, embedding generation, and loading data into Pinecone.
+
+Classes:
+    SlackOAuth: Handles OAuth authentication with Slack.
+    SlackIndexer: Retrieves, processes, and loads Slack messages into Pinecone.
+"""
+
 import logging
 import os
-from langchain_openai import OpenAIEmbeddings
-import pinecone
 import uuid
+
+import pinecone
+import requests
+from flask import redirect, request, session, url_for
+from langchain_openai import OpenAIEmbeddings
+
+from app.utils import get_db_connection
+from lorelai.utils import get_embedding_dimension, load_config, pinecone_index_name
 
 
 class SlackOAuth:
+    """Handles OAuth authentication with Slack."""
+
     AUTH_URL = "https://slack.com/oauth/v2/authorize"
     TOKEN_URL = "https://slack.com/api/oauth.v2.access"
     SCOPES = "channels:history,channels:read,chat:write"
 
     def __init__(self):
+        """Initialize the SlackOAuth class with configuration settings."""
         self.config = load_config("slack")
         self.client_id = self.config["client_id"]
         self.client_secret = self.config["client_secret"]
         self.redirect_uri = self.config["redirect_uri"]
 
     def get_auth_url(self):
+        """
+        Generate and return the Slack OAuth authorization URL.
+
+        Returns
+        -------
+            str: The authorization URL.
+        """
         params = {
             "client_id": self.client_id,
             "scope": self.SCOPES,
             "redirect_uri": self.redirect_uri,
         }
-        request_url = (
-            requests.Request("GET", self.AUTH_URL, params=params).prepare().url
-        )
+        request_url = requests.Request("GET", self.AUTH_URL, params=params).prepare().url
         return request_url
 
     def get_access_token(self, code):
+        """
+        Exchange the authorization code for an access token.
+
+        Args:
+            code (str): The authorization code received from Slack.
+
+        Returns
+        -------
+            str or None: The access token if successful, otherwise None.
+        """
         payload = {
             "client_id": self.client_id,
             "client_secret": self.client_secret,
@@ -45,6 +74,15 @@ class SlackOAuth:
         return None
 
     def auth_callback(self):
+        """
+        Handle the OAuth callback, exchange code for token.
+
+        and update the user's Slack token in the database.
+
+        Returns
+        -------
+            Response: A redirect response to the index page or an error message.
+        """
         code = request.args.get("code")
         access_token = self.get_access_token(code)
         if access_token:
@@ -52,7 +90,7 @@ class SlackOAuth:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    """UPDATE users 
+                    """UPDATE users
                 SET slack_token = %s
                 WHERE email = %s""",
                     (session["slack_access_token"], session["email"]),
@@ -63,10 +101,17 @@ class SlackOAuth:
         return "Error", 400
 
 
-class slack_indexer:
+class SlackIndexer:
+    """Retrieves, processes, and loads Slack messages into Pinecone."""
 
     def __init__(self, email, org_name) -> None:
+        """
+        Initialize the SlackIndexer class with required parameters and API keys.
 
+        Args:
+            email (str): The user's email.
+            org_name (str): The organization name.
+        """
         # load API keys
         self.pinecone_settings = load_config("pinecone")
         self.openai_creds = load_config("openai")
@@ -87,6 +132,16 @@ class slack_indexer:
         print(self.access_token)
 
     def retrive_access_token(self, email):
+        """
+        Retrieve the Slack access token from the database for the given email.
+
+        Args:
+            email (str): The user's email.
+
+        Returns
+        -------
+            str or None: The Slack access token if found, otherwise None.
+        """
         with get_db_connection() as conn:
             cursor = conn.cursor()
             sql_query = "SELECT slack_token FROM users WHERE email = %s;"
@@ -101,6 +156,13 @@ class slack_indexer:
             return None
 
     def get_userid_name(self):
+        """
+        Retrieve and return a dictionary mapping user IDs to user names from Slack.
+
+        Returns
+        -------
+            dict: A dictionary mapping user IDs to user names.
+        """
         url = "https://slack.com/api/users.list"
         response = requests.get(url, headers=self.headers)
         if response.ok:
@@ -116,13 +178,34 @@ class slack_indexer:
             return None
 
     def replace_userid_with_name(self, thread_text):
+        """
+        Replace user IDs with user names in the given text.
+
+        Args:
+            thread_text (str): The text containing user IDs.
+
+        Returns
+        -------
+            str: The text with user IDs replaced by user names.
+        """
         for user_id, user_name in self.userid_name_dict.items():
             thread_text = thread_text.replace(user_id, user_name)
         return thread_text
 
     def get_messages(self, channel_id, channel_name):
+        """
+        Retrieve messages from a Slack channel and return them as a list of chat history records.
 
+        Args:
+            channel_id (str): The ID of the Slack channel.
+            channel_name (str): The name of the Slack channel.
+
+        Returns
+        -------
+            list: A list of chat history records.
+        """
         url = "https://slack.com/api/conversations.history"
+        # WIll remove below comments, its there for overriding and testing
         """channel_id="C06FBKAN70A"
         channel_id="C06C64XTP2R"
         channel_name='engineering"""
@@ -193,6 +276,17 @@ class slack_indexer:
         return channel_chat_history
 
     def get_thread(self, thread_id, channel_id):
+        """
+        Retrieve and return the complete thread of messages from Slack.
+
+        Args:
+            thread_id (str): The ID of the thread.
+            channel_id (str): The ID of the Slack channel.
+
+        Returns
+        -------
+            str: The complete thread of messages as a single string.
+        """
         url = "https://slack.com/api/conversations.replies"
         params = {"channel": channel_id, "ts": thread_id, "limit": 200}
         print(f"Getting message of thread: {thread_id}")
@@ -216,7 +310,14 @@ class slack_indexer:
 
     def extract_message_text(self, message):
         """
-        this function extract msg body and text body of bot message
+        Extract the text body content from a Slack message.
+
+        Args:
+            message (dict): The Slack message.
+
+        Returns
+        -------
+            str: The extracted message text.
         """
         message_text = ""
         user = ""
@@ -232,6 +333,17 @@ class slack_indexer:
         return message_text
 
     def get_message_permalink(self, channel_id, message_ts):
+        """
+        Retrieve and return the permalink for a specific Slack message.
+
+        Args:
+            channel_id (str): The ID of the Slack channel.
+            message_ts (str): The timestamp of the message.
+
+        Returns
+        -------
+            str or None: The permalink if successful, otherwise None.
+        """
         url = "https://slack.com/api/chat.getPermalink"
 
         params = {"channel": channel_id, "message_ts": message_ts}
@@ -248,6 +360,13 @@ class slack_indexer:
             return None
 
     def dict_channel_ids(self):
+        """
+        Retrieve and return a dictionary mapping channel IDs to channel names from Slack.
+
+        Returns
+        -------
+            dict: A dictionary mapping channel IDs to channel names.
+        """
         url = "https://slack.com/api/conversations.list"
 
         params = {
@@ -276,27 +395,50 @@ class slack_indexer:
                 return None
         return channels_dict
 
-    def add_embedding(self, embedding_model, complete_chat_history):
+    def add_embedding(self, embedding_model, chat_history):
+        """
+        Add embeddings to the complete chat history using the specified embedding model.
 
+        Args:
+            embedding_model (OpenAIEmbeddings): The embedding model to use.
+            chat_history (list): chat history.
+
+        Returns
+        -------
+            list: The chat history with embeddings added.
+
+        Raises
+        ------
+            Exception: If there is an error during embedding.
+            ValueError: If the length of embeddings and chat history do not match.
+        """
         try:
-            text = [chat["metadata"]["text"] for chat in complete_chat_history]
+            text = [chat["metadata"]["text"] for chat in chat_history]
         except Exception as e:
             raise e
 
         embeds = embedding_model.embed_documents(text)
-        if len(complete_chat_history) != len(embeds):
+        if len(chat_history) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
 
         # will delete one, 2 method does same thing
         for i in range(len(embeds)):
-            complete_chat_history[i]["values"] = embeds[i]
+            chat_history[i]["values"] = embeds[i]
 
-        """for idx,chat in enumerate(complete_chat_history):
-            chat['values']=embeds[idx]"""
-
-        return complete_chat_history
+        return chat_history
 
     def load_to_pinecone(self, embedding_dimension, complete_chat_history):
+        """
+        Load the complete chat history with embeddings into Pinecone.
+
+        Args:
+            embedding_dimension (int): The dimension of the embeddings.
+            complete_chat_history (list): The complete chat history with embeddings.
+
+        Returns
+        -------
+            int: The number of records loaded into Pinecone.
+        """
         index_name = pinecone_index_name(
             org=self.org_name,
             datasource="slack",
@@ -313,15 +455,20 @@ class slack_indexer:
                 name=index_name,
                 dimension=embedding_dimension,
                 metric="cosine",
-                spec=pinecone.ServerlessSpec(
-                    cloud="aws", region=self.pinecone_settings["region"]
-                ),
+                spec=pinecone.ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"]),
             )
         pc_index = pc.Index(index_name)
         pc_index.upsert(complete_chat_history)
         return len(complete_chat_history)
 
     def process_slack_message(self, channel_id=None):
+        """
+        Process Slack messages, generate embeddings, and load them into Pinecone.
+
+        Args:
+            channel_id (str, optional): The ID of a specific Slack channel to process.
+            Defaults to None.
+        """
         channel_ids_dict = self.dict_channel_ids()
         complete_chat_history = []
         if channel_id is not None:
@@ -340,15 +487,14 @@ class slack_indexer:
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
         if embedding_dimension == -1:
-            raise ValueError(
-                f"Could not find embedding dimension for model '{embedding_model}'"
-            )
+            raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
         # Process in Batch
         batch_size = 200
         total_items = len(complete_chat_history)
         logging.info(
-            f"Getting Embeds and Inserting to DB for {total_items} messages in batches of {batch_size}"
+            f"Getting Embeds and Inserting to DB for {total_items} \
+                messages in batches of {batch_size}"
         )
         for start_idx in range(0, total_items, batch_size):
             end_idx = min(start_idx + batch_size, total_items)
