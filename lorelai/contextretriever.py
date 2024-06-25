@@ -1,6 +1,4 @@
-"""
-This module contains the ContextRetriever class, which is responsible for retrieving context
-for a given question from Pinecone.
+"""Contains the ContextRetriever class, responsible for retrieving context for a question.
 
 The ContextRetriever class manages the
 integration with Pinecone and OpenAI services, facilitating the retrieval of relevant document
@@ -9,7 +7,6 @@ OpenAI's embeddings and language models to generate responses based on the retri
 """
 
 import logging
-from typing import Any, Dict, List, Tuple
 
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import FlashrankRerank
@@ -24,7 +21,15 @@ from lorelai.utils import load_config, pinecone_index_name
 class ContextRetriever:
     _allowed = False  # Flag to control constructor access
 
-    def __init__(self, org_name: str, user: str):
+    def __init__(self, org_name: str, user_email: str):
+        """
+        Initialize the ContextRetriever instance.
+
+        Parameters
+        ----------
+            org_name (str): The organization name, used for Pinecone index naming.
+            user (str): The user name, potentially used for logging or customization.
+        """
         if not self._allowed:
             raise Exception("This class should be instantiated through a create() factory method.")
 
@@ -41,7 +46,7 @@ class ContextRetriever:
             raise ValueError("Lorelai credentials not found.")
 
         self.org_name: str = org_name
-        self.user: str = user
+        self.user: str = user_email
 
     @staticmethod
     def create(indexer_type="GoogleDriveContextRetriever", org_name="", user=""):
@@ -60,6 +65,17 @@ class ContextRetriever:
         return ContextRetriever.__subclasses__()
 
     def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
+        """
+        Retrieve context for a given question using Pinecone and OpenAI.
+
+        Parameters
+        ----------
+            question (str): The question for which context is being retrieved.
+
+        Returns
+        -------
+            tuple: A tuple containing the retrieval result and a list of sources for the context.
+        """
         raise NotImplementedError
 
     def get_index_details(self, index_host: str) -> List[Dict[str, Any]]:
@@ -111,6 +127,7 @@ class ContextRetriever:
             raise ValueError(f"Failed to fetch index details: {e}") from e
 
         return result
+      
 class GoogleDriveContextRetriever(ContextRetriever):
     def __init__(self, org_name: str, user: str):
         super().__init__(org_name, user)
@@ -133,14 +150,17 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         except ValueError as e:
             logging.error(f"Failed to connect to Pinecone: {e}")
-            raise ValueError(f"Index {index_name} not found.")
+            raise ValueError(f"Index {index_name} not found.") from e
 
         retriever = vec_store.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
         )
 
+        # Reranker takes the result from base retriever than reranks those retrieved.
+        # flash reranker is used as its standalone, lightweight. and free and open source
         compressor = FlashrankRerank(top_n=3, model="ms-marco-MiniLM-L-12-v2")
+
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
@@ -150,10 +170,15 @@ class GoogleDriveContextRetriever(ContextRetriever):
             f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
         )
 
-        docs: List[Document] = []
-        sources: List[Dict[str, Any]] = []
+        docs: list[Document] = []
+        sources: list[dict[str, any]] = []
         for doc in results:
             docs.append(doc)
+            # Create a source entry with title, source, and score (converted to percentage and
+            # stringified)
+            logging.info(f"Doc: {doc.metadata['title']}")
+            logging.debug(f"Doc metadata: {doc.metadata}")
+
             score = doc.metadata["relevance_score"] * 100
             source_entry = {
                 "title": doc.metadata["title"],

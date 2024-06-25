@@ -6,7 +6,7 @@ The rq jobs that are executed asynchronously.
 
 <a id="tasks.execute_rag_llm"></a>
 
-#### execute\_rag\_llm
+#### execute_rag_llm
 
 ```python
 def execute_rag_llm(chat_message, user, organisation)
@@ -16,7 +16,7 @@ An rq job to execute the RAG+LLM model.
 
 <a id="tasks.run_indexer"></a>
 
-#### run\_indexer
+#### run_indexer
 
 ```python
 def run_indexer(org_row: list[Any], user_rows: list[list[Any]])
@@ -42,79 +42,69 @@ Retrieve the context, ask a question, and display the results.
 
 <a id="lorelaicli.setup_arg_parser"></a>
 
-#### setup\_arg\_parser
+#### setup_arg_parser
 
 ```python
 def setup_arg_parser() -> argparse.ArgumentParser
 ```
 
-Set up argument parser for command-line options.
-Params: none
-Returns: ArgumentParser object
+Set up argument parser for command-line options. Params: none Returns: ArgumentParser object
 
 <a id="lorelaicli.get_organisation"></a>
 
-#### get\_organisation
+#### get_organisation
 
 ```python
 def get_organisation(org_name: str or None) -> tuple
 ```
 
-Retrieve or select an organisation.
-Params: org_name: str, name of the organisation
-Returns: tuple with org ID as the 0 object or select_organisation
-function
+Retrieve or select an organisation. Params: org_name: str, name of the organisation Returns: tuple
+with org ID as the 0 object or select_organisation function
 
 <a id="lorelaicli.select_organisation"></a>
 
-#### select\_organisation
+#### select_organisation
 
 ```python
 def select_organisation() -> tuple
 ```
 
-Interactively select an organisation from a list.
-Params: none
-Returns: tuple with the org ID and name
+Interactively select an organisation from a list. Params: none Returns: tuple with the org ID and
+name
 
 <a id="lorelaicli.get_user_from_organisation"></a>
 
-#### get\_user\_from\_organisation
+#### get_user_from_organisation
 
 ```python
 def get_user_from_organisation(org_id: int,
                                user_name: str or None = None) -> int
 ```
 
-Retrieve or select a user from a specific organisation.
-Params:
-org_id, int, the organisation ID
+Retrieve or select a user from a specific organisation. Params: org_id, int, the organisation ID
 user_name, str, the user name
 
 **Returns**:
 
-  user ID int or
-  results from select_user_from_organisation function
+user ID int or results from select_user_from_organisation function
 
 <a id="lorelaicli.select_user_from_organisation"></a>
 
-#### select\_user\_from\_organisation
+#### select_user_from_organisation
 
 ```python
 def select_user_from_organisation(org_id: int) -> int
 ```
 
-Interactively select a user from a list.
-Params:
-org_id: int, the ID of the organisation
+Interactively select a user from a list. Params: org_id: int, the ID of the organisation
 
 **Returns**:
 
-  user id: int
+user id: int
 
 <a id="lorelaicli.display_results"></a>
 
-#### display\_results
+#### display_results
 
 ```python
 def display_results(answer: str, sources: dict) -> None
@@ -145,7 +135,7 @@ the index page
 
 <a id="run.serve_js"></a>
 
-#### serve\_js
+#### serve_js
 
 ```python
 @app.route("/js/<script_name>.js")
@@ -167,7 +157,7 @@ the logout route
 
 <a id="run.page_not_found"></a>
 
-#### page\_not\_found
+#### page_not_found
 
 ```python
 @app.errorhandler(404)
@@ -178,7 +168,7 @@ the error handler for 404 errors
 
 <a id="run.internal_server_error"></a>
 
-#### internal\_server\_error
+#### internal_server_error
 
 ```python
 @app.errorhandler(500)
@@ -213,13 +203,13 @@ Implement the main function.
 
 # lorelai.contextretriever
 
-This module contains the ContextRetriever class, which is responsible for retrieving context
-for a given question from Pinecone.
+This module contains the ContextRetriever class, which is responsible for retrieving context for a
+given question from Pinecone.
 
-The ContextRetriever class manages the
-integration with Pinecone and OpenAI services, facilitating the retrieval of relevant document
-contexts for specified questions. It leverages Pinecone's vector search capabilities alongside
-OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
+The ContextRetriever class manages the integration with Pinecone and OpenAI services, facilitating
+the retrieval of relevant document contexts for specified questions. It leverages Pinecone's vector
+search capabilities alongside OpenAI's embeddings and language models to generate responses based on
+the retrieved contexts.
 
 <a id="lorelai.contextretriever.ContextRetriever"></a>
 
@@ -231,10 +221,10 @@ class ContextRetriever()
 
 A class to retrieve context for a given question from Pinecone.
 
-This class manages the integration with Pinecone and OpenAI services,
-facilitating the retrieval of relevant document contexts for specified questions.
-It leverages Pinecone's vector search capabilities alongside OpenAI's embeddings and
-language models to generate responses based on the retrieved contexts.
+This class manages the integration with Pinecone and OpenAI services, facilitating the retrieval of
+relevant document contexts for specified questions. It leverages Pinecone's vector search
+capabilities alongside OpenAI's embeddings and language models to generate responses based on the
+retrieved contexts.
 
 <a id="lorelai.contextretriever.ContextRetriever.__init__"></a>
 
@@ -253,7 +243,7 @@ Initializes the ContextRetriever instance.
 
 <a id="lorelai.contextretriever.ContextRetriever.retrieve_context"></a>
 
-#### retrieve\_context
+#### retrieve_context
 
 ```python
 def retrieve_context(
@@ -266,14 +256,13 @@ Retrieves context for a given question using Pinecone and OpenAI.
 
 - `question` _str_ - The question for which context is being retrieved.
 
-
 **Returns**:
 
 - `tuple` - A tuple containing the retrieval result and a list of sources for the context.
 
 <a id="lorelai.contextretriever.ContextRetriever.get_all_indexes"></a>
 
-#### get\_all\_indexes
+#### get_all_indexes
 
 ```python
 def get_all_indexes() -> IndexList
@@ -287,7 +276,7 @@ Retrieves all indexes in Pinecone along with their metadata.
 
 <a id="lorelai.contextretriever.ContextRetriever.get_index_details"></a>
 
-#### get\_index\_details
+#### get_index_details
 
 ```python
 def get_index_details(index_host: str) -> List[Dict[str, Any]]
@@ -299,11 +288,10 @@ Retrieves details for a specified index in Pinecone.
 
 - `index_host` _str_ - The host of the index for which to retrieve details.
 
-
 **Returns**:
 
-  List[Dict[str, Any]]: A list of dictionaries, each containing metadata for vectors
-  in the specified index.
+List\[Dict\[str, Any\]\]: A list of dictionaries, each containing metadata for vectors in the
+specified index.
 
 <a id="lorelai.utils"></a>
 
@@ -313,7 +301,7 @@ This module contains utility functions for the Lorelai package.
 
 <a id="lorelai.utils.pinecone_index_name"></a>
 
-#### pinecone\_index\_name
+#### pinecone_index_name
 
 ```python
 def pinecone_index_name(org: str,
@@ -327,7 +315,7 @@ Return the pinecone index name for the org.
 
 <a id="lorelai.utils.get_creds_from_os"></a>
 
-#### get\_creds\_from\_os
+#### get_creds_from_os
 
 ```python
 def get_creds_from_os(service: str) -> dict[str, str]
@@ -337,19 +325,19 @@ Load credentials from OS env vars.
 
 **Arguments**:
 
-  ---------
-- `service` _str_ - The name of the service (e.g 'openai', 'pinecone')
-  for which to load
+______________________________________________________________________
 
+- `service` _str_ - The name of the service (e.g 'openai', 'pinecone') for which to load
 
 **Returns**:
 
-  -------
+______________________________________________________________________
+
 - `dict` - A dictionary containing the creds for the specified service.
 
 <a id="lorelai.utils.load_config"></a>
 
-#### load\_config
+#### load_config
 
 ```python
 def load_config(service: str) -> dict[str, str]
@@ -357,24 +345,24 @@ def load_config(service: str) -> dict[str, str]
 
 Load credentials for a specified service from settings.json.
 
-If file is non-existant or has syntax errors will try to pull from
-OS env vars.
+If file is non-existent or has syntax errors will try to pull from OS env vars.
 
 **Arguments**:
 
-  ---------
-- `service` _str_ - The name of the service (e.g 'openai', 'pinecone')
-  for which to load credentials.
+______________________________________________________________________
 
+- `service` _str_ - The name of the service (e.g 'openai', 'pinecone') for which to load
+  credentials.
 
 **Returns**:
 
-  -------
+______________________________________________________________________
+
 - `dict` - A dictionary containing the creds for the specified service.
 
 <a id="lorelai.utils.get_db_connection"></a>
 
-#### get\_db\_connection
+#### get_db_connection
 
 ```python
 def get_db_connection()
@@ -382,13 +370,15 @@ def get_db_connection()
 
 Get a database connection.
 
-Returns
--------
-    conn: a connection to the database
+## Returns
+
+```
+conn: a connection to the database
+```
 
 <a id="lorelai.utils.save_google_creds_to_tempfile"></a>
 
-#### save\_google\_creds\_to\_tempfile
+#### save_google_creds_to_tempfile
 
 ```python
 def save_google_creds_to_tempfile(refresh_token, token_uri, client_id,
@@ -397,8 +387,8 @@ def save_google_creds_to_tempfile(refresh_token, token_uri, client_id,
 
 load the google creds to a tempfile.
 
-This is needed because the GoogleDriveLoader uses
-the Credentials.from_authorized_user_file method to load the credentials
+This is needed because the GoogleDriveLoader uses the Credentials.from_authorized_user_file method
+to load the credentials
 
 **Arguments**:
 
@@ -409,7 +399,7 @@ the Credentials.from_authorized_user_file method to load the credentials
 
 <a id="lorelai.utils.get_embedding_dimension"></a>
 
-#### get\_embedding\_dimension
+#### get_embedding_dimension
 
 ```python
 def get_embedding_dimension(model_name) -> int
@@ -417,9 +407,8 @@ def get_embedding_dimension(model_name) -> int
 
 Returns the dimension of embeddings for a given model name.
 
-This function currently uses a hardcoded mapping based on documentation,
-as there's no API endpoint to retrieve this programmatically.
-See: https://platform.openai.com/docs/models/embeddings
+This function currently uses a hardcoded mapping based on documentation, as there's no API endpoint
+to retrieve this programmatically. See: https://platform.openai.com/docs/models/embeddings
 
 **Arguments**:
 
@@ -427,7 +416,7 @@ See: https://platform.openai.com/docs/models/embeddings
 
 <a id="lorelai.utils.get_index_stats"></a>
 
-#### get\_index\_stats
+#### get_index_stats
 
 ```python
 def get_index_stats(index_name: str) -> DescribeIndexStatsResponse | None
@@ -445,7 +434,7 @@ a list of dictionaries containing the metadata for the specified index
 
 <a id="lorelai.utils.print_index_stats_diff"></a>
 
-#### print\_index\_stats\_diff
+#### print_index_stats_diff
 
 ```python
 def print_index_stats_diff(index_stats_before, index_stats_after)
@@ -471,22 +460,20 @@ A class to interact with the OpenAI llm for answering questions based on context
 
 <a id="lorelai.llm.Llm.get_answer"></a>
 
-#### get\_answer
+#### get_answer
 
 ```python
 def get_answer(question, context)
 ```
 
-Get the answer to a question based on the provided context using the OpenAI language
-model.
+Get the answer to a question based on the provided context using the OpenAI language model.
 
-parameters:
-    question (str): The question to be answered.
-    context (str): The context in which the question is asked.
+parameters: question (str): The question to be answered. context (str): The context in which the
+question is asked.
 
 <a id="lorelai.llm.Llm.get_llm_status"></a>
 
-#### get\_llm\_status
+#### get_llm_status
 
 ```python
 def get_llm_status()
@@ -522,7 +509,7 @@ Initialize the Processor class.
 
 <a id="lorelai.processor.Processor.pinecone_filter_deduplicate_documents_list"></a>
 
-#### pinecone\_filter\_deduplicate\_documents\_list
+#### pinecone_filter_deduplicate_documents_list
 
 ```python
 def pinecone_filter_deduplicate_documents_list(documents: Iterable[Document],
@@ -541,11 +528,11 @@ Also tag doc metadata with new user
 **Returns**:
 
 1. (list of documents deduplicated and filtered , ready to be inserted in pinecone)
-2. (number of documents updated)
+1. (number of documents updated)
 
 <a id="lorelai.processor.Processor.pinecone_format_vectors"></a>
 
-#### pinecone\_format\_vectors
+#### pinecone_format_vectors
 
 ```python
 def pinecone_format_vectors(documents: Iterable[Document],
@@ -565,7 +552,7 @@ list of documents ready to be inserted in pinecone
 
 <a id="lorelai.processor.Processor.remove_nolonger_accessed_documents"></a>
 
-#### remove\_nolonger\_accessed\_documents
+#### remove_nolonger_accessed_documents
 
 ```python
 def remove_nolonger_accessed_documents(formatted_documents, pc_index,
@@ -586,7 +573,7 @@ None
 
 <a id="lorelai.processor.Processor.store_docs_in_pinecone"></a>
 
-#### store\_docs\_in\_pinecone
+#### store_docs_in_pinecone
 
 ```python
 def store_docs_in_pinecone(docs: Iterable[Document], index_name,
@@ -603,7 +590,7 @@ process the documents and index them in Pinecone
 
 <a id="lorelai.processor.Processor.google_docs_to_pinecone_docs"></a>
 
-#### google\_docs\_to\_pinecone\_docs
+#### google_docs_to_pinecone_docs
 
 ```python
 def google_docs_to_pinecone_docs(document_ids: list[str],
@@ -628,8 +615,8 @@ None
 
 # lorelai.indexer
 
-this file creates a class to process google drive documents using the google drive api, chunk
-them using langchain and then index them in pinecone
+this file creates a class to process google drive documents using the google drive api, chunk them
+using langchain and then index them in pinecone
 
 <a id="lorelai.indexer.Indexer"></a>
 
@@ -643,7 +630,7 @@ Used to process the Google Drive documents and index them in Pinecone.
 
 <a id="lorelai.indexer.Indexer.index_org_drive"></a>
 
-#### index\_org\_drive
+#### index_org_drive
 
 ```python
 def index_org_drive(org: list[Any], users: list[list[Any]]) -> None
@@ -654,8 +641,7 @@ Process the Google Drive documents for an organisation.
 **Arguments**:
 
 - `org`: the organisation to process, a list of org details (org_id, name)
-- `users`: the users to process, a list of user details (user_id, name, email, token,
-refresh_token)
+- `users`: the users to process, a list of user details (user_id, name, email, token, refresh_token)
 
 **Returns**:
 
@@ -663,7 +649,7 @@ None
 
 <a id="lorelai.indexer.Indexer.index_user_drive"></a>
 
-#### index\_user\_drive
+#### index_user_drive
 
 ```python
 def index_user_drive(user: list[Any], org: list[Any]) -> None
@@ -673,8 +659,7 @@ Process the Google Drive documents for a user and index them in Pinecone.
 
 **Arguments**:
 
-- `user`: the user to process, a list of user details (user_id, name, email, token,
-refresh_token)
+- `user`: the user to process, a list of user details (user_id, name, email, token, refresh_token)
 - `org`: the organisation to process, a list of org details (org_id, name)
 
 **Returns**:
@@ -683,7 +668,7 @@ None
 
 <a id="lorelai.indexer.Indexer.get_google_docs_ids"></a>
 
-#### get\_google\_docs\_ids
+#### get_google_docs_ids
 
 ```python
 def get_google_docs_ids(credentials) -> list[str]
@@ -713,7 +698,7 @@ Utility functions for the application.
 
 <a id="app.utils.is_admin"></a>
 
-#### is\_admin
+#### is_admin
 
 ```python
 def is_admin(google_id: str) -> bool
@@ -723,7 +708,7 @@ Check if the user is an admin.
 
 <a id="app.utils.get_db_connection"></a>
 
-#### get\_db\_connection
+#### get_db_connection
 
 ```python
 def get_db_connection()
@@ -731,9 +716,11 @@ def get_db_connection()
 
 Get a database connection.
 
-Returns
--------
-    conn: a connection to the database
+## Returns
+
+```
+conn: a connection to the database
+```
 
 <a id="app.routes.auth"></a>
 
@@ -765,7 +752,7 @@ Register a new user.
 
 <a id="app.routes.auth.oauth_callback"></a>
 
-#### oauth\_callback
+#### oauth_callback
 
 ```python
 @auth_bp.route("/oauth2callback")
@@ -776,7 +763,7 @@ OAuth2 callback route.
 
 <a id="app.routes.auth.login_user"></a>
 
-#### login\_user
+#### login_user
 
 ```python
 def login_user(name: str, email: str, org_id: int, organisation: str) -> None
@@ -786,7 +773,7 @@ Log the user in by setting the session variables.
 
 <a id="app.routes.auth.check_user_in_database"></a>
 
-#### check\_user\_in\_database
+#### check_user_in_database
 
 ```python
 def check_user_in_database(email: str) -> UserInfo
@@ -796,7 +783,7 @@ Check if the user exists in the database.""
 
 <a id="app.routes.auth.process_user"></a>
 
-#### process\_user
+#### process_user
 
 ```python
 def process_user(organisation: str, username: str, user_email: str,
@@ -825,7 +812,7 @@ The admin page.
 
 <a id="app.routes.admin.job_status"></a>
 
-#### job\_status
+#### job_status
 
 ```python
 @admin_bp.route("/admin/job-status/<job_id>")
@@ -836,7 +823,7 @@ Return the status of a job given its job_id
 
 <a id="app.routes.admin.start_indexing"></a>
 
-#### start\_indexing
+#### start_indexing
 
 ```python
 @admin_bp.route("/admin/index", methods=["POST"])
@@ -847,7 +834,7 @@ Start indexing the data
 
 <a id="app.routes.admin.list_indexes"></a>
 
-#### list\_indexes
+#### list_indexes
 
 ```python
 @admin_bp.route("/admin/pinecone")
@@ -858,7 +845,7 @@ the list indexes page
 
 <a id="app.routes.admin.index_details"></a>
 
-#### index\_details
+#### index_details
 
 ```python
 @admin_bp.route("/admin/pinecone/<host_name>")
@@ -884,7 +871,7 @@ Endpoint to post chat messages.
 
 <a id="app.routes.chat.fetch_chat_result"></a>
 
-#### fetch\_chat\_result
+#### fetch_chat_result
 
 ```python
 @chat_bp.route("/chat", methods=["GET"])
@@ -901,7 +888,7 @@ This module contains the tasks that are executed asynchronously.
 
 <a id="app.tasks.execute_rag_llm"></a>
 
-#### execute\_rag\_llm
+#### execute_rag_llm
 
 ```python
 def execute_rag_llm(chat_message: str, user: str, organisation: str) -> dict
@@ -911,7 +898,7 @@ A task to execute the RAG+LLM model.
 
 <a id="app.tasks.run_indexer"></a>
 
-#### run\_indexer
+#### run_indexer
 
 ```python
 def run_indexer()

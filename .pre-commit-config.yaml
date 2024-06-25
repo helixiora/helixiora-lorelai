@@ -71,7 +71,7 @@ repos:
         # Removes unnecessary trailing whitespace.
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.4.9
     hooks:
       - id: ruff
         args: [ --fix ]
@@ -84,3 +84,13 @@ repos:
     rev: v0.13.0
     hooks:
     - id: markdownlint-cli2
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
+    hooks:
+      - id: codespell
+
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17 # Use the desired version
+    hooks:
+      - id: mdformat

@@ -1,12 +1,8 @@
-"""
-This module contains the tasks that are executed asynchronously.
-"""
+"""Contains the tasks that are executed asynchronously."""
 
 import logging
 import os
 import time
-from typing import List
-
 from rq import get_current_job
 
 # import the indexer
@@ -29,8 +25,28 @@ def execute_rag_llm(
     model_type: str = "OpenAILlm",
     datasource: str = None,
 ) -> dict:
-    """
-    A task to execute the RAG+LLM model.
+    """Execute the RAG+LLM model.
+
+    Arguments
+    ---------
+    chat_message : str
+        The chat message.
+    user : str
+        The user email.
+    organisation : str
+        The organisation name.
+    model_type : str, optional
+        The model type to use. Default is "OpenAILlm".
+
+    Returns
+    -------
+    dict
+        The answer and source of the answer.
+
+    Raises
+    ------
+    ValueError
+        If the user or organisation is None.
     """
     start_time = time.time()
     job = get_current_job()
@@ -42,6 +58,11 @@ def execute_rag_llm(
     print("data sorce", datasource)
     try:
         # create model
+        logging.info("User email: %s, Org name: %s", user, organisation)
+
+        if user is None or organisation is None:
+            raise ValueError("User and organisation cannot be None.")
+
         llm = Llm.create(model_type=model_type)
 
         # Get the context for the question
@@ -80,25 +101,61 @@ def execute_rag_llm(
 
 
 def run_indexer(
-    org_row: List[any],
-    user_rows: List[any],
+    org_row: list[any],
+    user_rows: list[any],
+    user_auth_rows: list[any],
 ):
     """
-    An rq job to run the indexer
+    Run the indexer. Should be called from an rq job.
+
+    Arguments
+    ---------
+    org_row (List[any]): Organization data.
+    user_rows (List[any]): List of user data.
+    user_auth_rows (List[any]): List of user authentication data.
+
+    Returns
+    -------
+    dict: A dictionary containing the progress and result of the job.
     """
+    # Get the current job instance
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
 
-    logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row} ")
+    logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row}")
 
-    # Initialize indexer and perform indexing
-    indexer = Indexer()
+    # Initialize indexer
+    indexer = Indexer.create("GoogleDriveIndexer")
 
-    success = indexer.index_org_drive(org_row, user_rows)
-    if success:
+    # Initialize job meta with logs
+    job.meta["progress"] = {"current": 0, "total": 100, "status": "Initializing indexing..."}
+    job.meta["logs"] = []
+    job.save_meta()
+
+    try:
+        logging.debug("Starting indexing...")
+        job.meta["logs"].append("Starting indexing...")
+        job.save_meta()
+
+        # Perform indexing
+        results = indexer.index_org(org_row, user_rows, user_auth_rows, job)
+
+        for result in results:
+            logging.debug(result)
+            job.meta["logs"].append(result)
+            job.save_meta()
+
         logging.debug("Indexing completed!")
-        return {"current": 100, "total": 100, "status": "Task completed!", "result": 42}
-    else:
-        logging.error("Indexing failed!")
-        return {"current": 100, "total": 100, "status": "Task failed!", "result": 0}
+    except Exception as e:
+        logging.error(f"Error in run_indexer task: {str(e)}")
+        job.meta["logs"].append(f"Error in run_indexer task: {str(e)}")
+        job.meta["progress"] = {
+            "current": 100,
+            "total": 100,
+            "status": f"Task failed! {e}",
+            "result": 0,
+        }
+        job.save_meta()
+        job.set_status("failed")
+        return job.meta["progress"]

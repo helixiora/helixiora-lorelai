@@ -1,21 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container mt-5">
-        <h1>User Profile</h1>
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Welcome, {{ user.name }}!</h5>
-                <h6 class="card-subtitle mb-2 text-muted">{{ user.email }}</h6>
-                <p class="card-text">Here are some details about your current session:</p>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item">Email: {{ user.email }}</li>
-                    <li class="list-group-item">Organisation: {{ user.org_name }}</li>
-                    <!-- Add other credential details here -->
-                </ul>
-                <a href="/" class="card-link">Home</a>
-                <a href="/logout" class="card-link">Logout</a>
-            </div>
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Welcome, {{ user.full_name }}!</h5>
+            <p class="card-text">Here are some details about your current session:</p>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">Email: {{ user.email }}</li>
+                <li class="list-group-item">Organisation: {{ user.organisation }}</li>
+            </ul>
         </div>
         
         <!-- Marketplace Integration Section -->
@@ -42,4 +36,30 @@
             <!-- Additional integrations can be added in similar div blocks -->
         </div>
     </div>
+
+    <!-- Marketplace Integration Section -->
+    <div class="mt-4">
+        <h1 class="mb-3 strong" style="color: #000;">Integrations</h1>
+
+        <!-- Google Drive Integration -->
+        {% if features.google_drive %}
+        <div class="card mb-3">
+            <div class="card-body bg-light">
+                <div class="row">
+                    <div class="col-md-4">
+                        <img class="card-img-top" src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration">
+                    </div>
+                    <div class="col-md-8">
+                        <h5 class="card-title font-weight-bold">Enhance your experience</h5>
+                        <h6 class="card-title">Google Drive Integration</h6>
+                        <p class="card-text">Start feeding your business data to the hungry LLM!</p>
+                        <a class="btn btn-primary" href="{{ google_auth_url }}">Authorize</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 {% endblock %}
