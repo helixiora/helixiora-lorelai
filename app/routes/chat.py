@@ -17,6 +17,7 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 def chat():
     """Post messages to rq to process."""
     content = request.get_json()
+    print("$$$$$$$$$$",content)
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
@@ -44,6 +45,7 @@ def chat():
         session.get("user_email"),
         session.get("org_name"),
         llm_model,
+        datasource=content["datasource"],
         job_timeout=chat_task_timeout,
         description=f"Execute RAG+LLM model: {content['message']} for {session.get('user_email')} \
             using {llm_model}",

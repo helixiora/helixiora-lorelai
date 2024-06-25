@@ -25,8 +25,6 @@ class Llm:
         Question: {question}
         """
 
-    # If you cannot find the answer, please respond with "I can't find the answer in the
-    # information available to me.
     @staticmethod
     def create(model_type="OpenAILlm"):
         """Create instances of derived classes based on the class name."""
@@ -44,6 +42,10 @@ class Llm:
             raise Exception("This class should be instantiated through a create() factory method.")
 
     def get_answer(self, question, context):
+        """Retrieve an answer to a given question based on provided context."""
+        raise NotImplementedError
+
+    def get_answer_direct(self, question, context):
         """Retrieve an answer to a given question based on provided context."""
         raise NotImplementedError
 
@@ -101,6 +103,11 @@ class OllamaLlama3(Llm):
 class OpenAILlm(Llm):
     """Class to interact with the OpenAI LLM for answering context-based questions."""
 
+    _prompt_template_direct = """
+                You are a helpful, respectful and honest assistant.
+                question: {question}
+                """
+
     def __init__(self: None) -> None:
         super().__init__()
         self.openai_creds = load_config("openai")
@@ -131,6 +138,23 @@ class OpenAILlm(Llm):
         result = (prompt | model | output_parser).invoke(
             {"context_doc_text": context_doc_text, "question": question}
         )
+        return result
+
+    def get_answer_direct(self, question):
+        logging.debug(
+            "[OpenAILlm.get_answer_direct] Prompt template: %s",
+            self._prompt_template_direct,
+        )
+        logging.debug("[OpenAILlm.get_answer_direct] Question: %s", question)
+
+        prompt = PromptTemplate.from_template(
+            template=self._prompt_template_direct, template_format="f-string"
+        )
+        logging.debug("[OpenAILlm.get_answer_direct] Prompt: %s", prompt)
+
+        model = ChatOpenAI(model=self.model)
+        output_parser = StrOutputParser()
+        result = (prompt | model | output_parser).invoke({"question": question})
         return result
 
     def get_llm_status(self: None) -> bool:

@@ -11,6 +11,30 @@
                 <li class="list-group-item">Organisation: {{ user.organisation }}</li>
             </ul>
         </div>
+        
+        <!-- Marketplace Integration Section -->
+        <div class="mt-4">
+            <h2 class="mb-3" style="color: #000;">Integrations Marketplace</h2>
+            <!-- Slack Integration -->
+            {% if features.slack == 1 %}
+            <div class="card mb-3">
+                <div class="card-body bg-light">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <img class="card-img-top" src="{{ url_for('static', filename='img/slack.jpg') }}" alt="Slack Integration">
+                        </div>
+                        <div class="col-md-8">
+                            <h5 class="card-title font-weight-bold">Enhance your experience</h5>
+                            <h6 class="card-title">Slack Integration</h6>
+                            <p class="card-text">Start feeding your business data to the hungry LLM!</p>
+                            <a href="/slack/auth" class="btn btn-primary">Start Integration</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            <!-- Additional integrations can be added in similar div blocks -->
+        </div>
     </div>
 
     <!-- Marketplace Integration Section -->

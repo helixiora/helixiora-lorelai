@@ -7,11 +7,19 @@ import os
 import sys
 
 import mysql.connector
-from flask import Flask, g, redirect, render_template, request, session, url_for
+from google_auth_oauthlib.flow import Flow
+from flask import Flask, g, redirect, render_template, session, url_for, flash, request
 
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
+from app.utils import (
+    get_db_connection,
+    get_user_role,
+    is_admin,
+    perform_health_checks,
+    role_required,
+)
 
 # load blueprints
 from app.routes.google.auth import googledrive_bp
@@ -133,6 +141,7 @@ def serve_js(script_name):
 
 # health check route
 @app.route("/health")
+@role_required(["super_admin", "org_admin"])
 def health():
     """Serve the health check route.
 
@@ -144,7 +153,6 @@ def health():
     if checks:
         return checks, 500
     return "OK", 200
-
 
 # Error handler for 404
 @app.errorhandler(404)

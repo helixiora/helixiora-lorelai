@@ -3,9 +3,11 @@
 import logging
 import os
 import subprocess
+from functools import wraps
 
 import mysql.connector
 import redis
+from flask import redirect, session, url_for
 
 from lorelai.utils import load_config
 
@@ -25,6 +27,19 @@ def is_admin(user_id: int) -> bool:
     """
     # Implement the actual check logic, assuming user_id == 1 is admin for example
     return user_id == 1
+
+
+def role_required(role_name_list):
+    def wrapper(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if "role" not in session or session["role"] not in role_name_list:
+                return redirect(url_for("unauthorized"))
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return wrapper
 
 
 def run_flyway_migrations(host: str, database: str, user: str, password: str) -> tuple[bool, str]:
@@ -255,6 +270,24 @@ def perform_health_checks() -> list[str]:
             logging.info(f"Health check passed ({check.__name__}): {message}")
     return errors
 
+def get_user_role(email: str):
+    with get_db_connection() as db:
+        try:
+            cursor = db.cursor()
+            query = """
+                SELECT roles.role_name
+                FROM users
+                JOIN user_roles ON users.user_id = user_roles.user_id
+                JOIN roles ON user_roles.role_id = roles.role_id
+                WHERE users.email = %s;
+            """
+            cursor.execute(query, (email,))
+            role_name = cursor.fetchone()[0]
+            return role_name
+
+        except Exception:
+            logging.critical(f"{email} has no role assigned")
+            raise ValueError(f"{email} has no role assigned")
 
 def user_is_logged_in(session) -> bool:
     """Check if the user is logged in.
@@ -272,7 +305,6 @@ def user_is_logged_in(session) -> bool:
         True if the user is logged in, False otherwise.
     """
     return "user_id" in session
-
 
 def get_user_id_by_email(email: str) -> int:
     """

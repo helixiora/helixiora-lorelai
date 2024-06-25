@@ -22,6 +22,8 @@ from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
+from lorelai.slack.slack_processor import SlackOAuth
+
 from app.routes.google.auth import google_auth_url
 from app.utils import (
     get_db_connection,
@@ -31,11 +33,11 @@ from app.utils import (
     get_query_result,
     get_user_id_by_email,
     is_admin,
+    load_config
     user_is_logged_in,
 )
 
 auth_bp = Blueprint("auth", __name__)
-
 
 @auth_bp.route("/profile")
 def profile():
@@ -63,7 +65,6 @@ def profile():
             google_auth_url=google_auth_url(),
         )
     return "You are not logged in!", 403
-
 
 @auth_bp.route("/register", methods=["GET"])
 def register_get():
@@ -352,6 +353,16 @@ def validate_id_token(idinfo: dict):
         raise exceptions.GoogleAuthError("Wrong issuer.")
     if not idinfo.get("email_verified"):
         raise exceptions.GoogleAuthError("Email not verified")
+
+slack_oauth = SlackOAuth()
+
+@auth_bp.route('/slack/auth')
+def slack_auth():
+    return redirect(slack_oauth.get_auth_url())
+
+@auth_bp.route('/slack/auth/callback')
+def slack_callback():
+    return slack_oauth.auth_callback()
 
 
 @auth_bp.route("/logout", methods=["GET"])

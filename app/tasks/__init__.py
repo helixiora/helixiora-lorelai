@@ -3,7 +3,6 @@
 import logging
 import os
 import time
-
 from rq import get_current_job
 
 # import the indexer
@@ -20,7 +19,11 @@ logging.basicConfig(level=log_level, format=logging_format)
 
 
 def execute_rag_llm(
-    chat_message: str, user: str, organisation: str, model_type: str = "OpenAILlm"
+    chat_message: str,
+    user: str,
+    organisation: str,
+    model_type: str = "OpenAILlm",
+    datasource: str = None,
 ) -> dict:
     """Execute the RAG+LLM model.
 
@@ -51,22 +54,36 @@ def execute_rag_llm(
         raise ValueError("Could not get the current job.")
 
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
-    logging.info("User email: %s, Org name: %s", user, organisation)
-
-    if user is None or organisation is None:
-        raise ValueError("User and organisation cannot be None.")
-
+    logging.info("Session: %s, %s", user, organisation)
+    print("data sorce", datasource)
     try:
-        # Get the context for the question
-        enriched_context = ContextRetriever(org_name=organisation, user_email=user)
-        context, source = enriched_context.retrieve_context(chat_message)
+        # create model
+        logging.info("User email: %s, Org name: %s", user, organisation)
 
-        if context is None:
-            raise ValueError("Failed to retrieve context for the provided chat message.")
+        if user is None or organisation is None:
+            raise ValueError("User and organisation cannot be None.")
 
         llm = Llm.create(model_type=model_type)
-        logging.info(f"LLM Status: {llm.get_llm_status()}")
-        answer = llm.get_answer(question=chat_message, context=context)
+
+        # Get the context for the question
+        if datasource == "Direct":
+            logging.info(f"LLM Status: {llm.get_llm_status()}")
+            answer = llm.get_answer_direct(question=chat_message)
+            source = "OpenAI"
+        else:
+            enriched_context = ContextRetriever.create(
+                indexer_type="GoogleDriveContextRetriever",
+                org_name=organisation,
+                user=user,
+            )
+            enriched_context = ContextRetriever(org_name=organisation, user=user)
+            context, source = enriched_context.retrieve_context(chat_message)
+
+            if context is None:
+                raise ValueError("Failed to retrieve context for the provided chat message.")
+
+            logging.info(f"LLM Status: {llm.get_llm_status()}")
+            answer = llm.get_answer(question=chat_message, context=context)
 
         logging.info("Answer: %s", answer)
         logging.info("Source: %s", source)
