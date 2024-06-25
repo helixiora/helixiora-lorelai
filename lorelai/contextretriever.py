@@ -27,7 +27,7 @@ class ContextRetriever:
     def __init__(self, org_name: str, user: str):
         if not self._allowed:
             raise Exception("This class should be instantiated through a create() factory method.")
-        
+
         self.pinecone_creds = load_config("pinecone")
         if not self.pinecone_creds or len(self.pinecone_creds) == 0:
             raise ValueError("Pinecone credentials not found.")
@@ -44,24 +44,24 @@ class ContextRetriever:
         self.user: str = user
 
     @staticmethod
-    def create(model_type="GoogleDriveContextRetriever", org_name="", user=""):
+    def create(indexer_type="GoogleDriveContextRetriever", org_name="", user=""):
         """Factory method to create instances of derived classes based on the class name."""
         ContextRetriever._allowed = True
-        class_ = globals().get(model_type)
+        class_ = globals().get(indexer_type)
         if class_ is None or not issubclass(class_, ContextRetriever):
             ContextRetriever._allowed = False
-            raise ValueError(f"Unsupported model type: {model_type}")
+            raise ValueError(f"Unsupported model type: {indexer_type}")
         instance = class_(org_name, user)
         ContextRetriever._allowed = False
         return instance
-    
+
     def list_subclasses():
         """List all subclasses of ContextRetriever."""
         return ContextRetriever.__subclasses__()
 
     def retrieve_context(self, question: str) -> Tuple[List[Document], List[Dict[str, Any]]]:
         raise NotImplementedError
-    
+
     def get_index_details(self, index_host: str) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
@@ -214,4 +214,3 @@ class SlackContextRetriever(ContextRetriever):
             sources.append(source_entry)
         logging.debug(f"Context: {docs} Sources: {sources}")
         return docs, sources
-

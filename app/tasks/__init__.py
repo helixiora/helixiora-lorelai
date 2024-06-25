@@ -45,13 +45,13 @@ def execute_rag_llm(
         llm = Llm.create(model_type=model_type)
 
         # Get the context for the question
-        if datasource == "direct":
+        if datasource == "Direct":
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer_direct(question=chat_message)
             source = "OpenAI"
         else:
             enriched_context = ContextRetriever.create(
-                model_type="GoogleDriveContextRetriever",
+                indexer_type="GoogleDriveContextRetriever",
                 org_name=organisation,
                 user=user,
             )
