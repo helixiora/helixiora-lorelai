@@ -13,13 +13,7 @@ from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.google.auth import googledrive_bp
-from app.utils import (
-    get_db_connection,
-    is_admin,
-    perform_health_checks,
-    role_required,
-    user_is_logged_in,
-)
+from app.utils import get_db_connection, is_admin, perform_health_checks, user_is_logged_in
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -137,7 +131,6 @@ def serve_js(script_name):
 
 # health check route
 @app.route("/health")
-@role_required(["super_admin", "org_admin"])
 def health():
     """Serve the health check route.
 

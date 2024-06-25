@@ -368,7 +368,6 @@ def get_org_id_by_organisation(cursor, organisation: str, create_if_not_exists: 
     int
         The organisation ID.
     """
-    logging.debug("Getting org ID for organisation: %s", organisation)
     org_result = get_query_result(
         "SELECT id FROM organisation WHERE name = %s", (organisation,), fetch_one=True
     )
@@ -376,6 +375,7 @@ def get_org_id_by_organisation(cursor, organisation: str, create_if_not_exists: 
         logging.debug("Organisation found: %s", org_result[0])
         return org_result["id"]
     elif create_if_not_exists:
+        logging.debug("Creating organisation: %s", organisation)
         cursor.execute("INSERT INTO organisation (name) VALUES (%s)", (organisation,))
         return cursor.lastrowid
     else:

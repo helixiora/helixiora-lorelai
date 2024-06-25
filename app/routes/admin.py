@@ -13,6 +13,7 @@ from app.utils import (
     get_db_connection,
     get_query_result,
     is_admin,
+    role_required,
     run_flyway_migrations,
     user_is_logged_in,
 )
@@ -22,6 +23,7 @@ from lorelai.utils import load_config
 admin_bp = Blueprint("admin", __name__)
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin")
 def admin():
     """Return the admin page.
@@ -33,6 +35,7 @@ def admin():
     return "You are not logged in!"
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/job-status/<job_id>")
 def job_status(job_id: str) -> str:
     """Return the status of a job given its job_id.
@@ -93,6 +96,7 @@ def job_status(job_id: str) -> str:
     return jsonify(response)
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/index/<type>", methods=["POST"])
 def start_indexing(type) -> str:
     """Start indexing the data for the organization of the logged-in user.
@@ -199,6 +203,7 @@ def start_indexing(type) -> str:
         return jsonify({"error": "Failed to start indexing"}), 500
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/pinecone")
 def list_indexes() -> str:
     """Return the list indexes page.
@@ -218,6 +223,7 @@ def list_indexes() -> str:
     )
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/pinecone/<host_name>")
 def index_details(host_name: str) -> str:
     """Return the index details page."""
@@ -234,6 +240,7 @@ def index_details(host_name: str) -> str:
     )
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/setup", methods=["GET"])
 def setup() -> str:
     """Return the lorelai setup page.
@@ -256,6 +263,7 @@ def setup() -> str:
     )
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/setup", methods=["POST"])
 def setup_post() -> str:
     """Create the database using the .db/baseline_schema.sql file.
@@ -335,6 +343,7 @@ def setup_post() -> str:
             conn.close()
 
 
+@role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/test_connection", methods=["POST"])
 def test_connection() -> str:
     """The test connection route.
