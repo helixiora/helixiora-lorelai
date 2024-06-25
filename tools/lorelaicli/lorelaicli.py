@@ -32,10 +32,10 @@ def main() -> None:
     question = args.question
     org_id, org_name = get_organisation(args.org_name)
     user_id = get_user_from_organisation(org_id, args.user_name)
-    enriched_context=ContextRetriever.create("SlackContextRetriever", org_name, user_id)
+    enriched_context = ContextRetriever.create("SlackContextRetriever", org_name, user_id)
 
     answer, source = enriched_context.retrieve_context(question)
-    print("source",source,"answer",answer)
+    print("source", source, "answer", answer)
     exit()
     llm = Llm.create(model_type=args.model_type)
     llm_answer = llm.get_answer(question, answer)
