@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
-"""Query indexed documents in Pinecone using LangChain and OpenAI in the CLI"""
+"""Query indexed documents in Pinecone using LangChain and OpenAI in the CLI."""
 
 import argparse
-from colorama import Fore, Style, init
 import logging
 import os
 import sys
+
+from colorama import Fore, Style, init
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
 from lorelai.contextretriever import ContextRetriever
@@ -31,11 +32,6 @@ def main() -> None:
     question = args.question
     org_id, org_name = get_organisation(args.org_name)
     user_id = get_user_from_organisation(org_id, args.user_name)
-    user_id="masood@helixiora.com"
-    print("----------->",org_name,user_id)
-    print("SUBCLASS->",ContextRetriever.list_subclasses())
-    #enriched_context = ContextRetriever(org_name=org_name, user=user_id)
-    #enriched_context=ContextRetriever.create("GoogleDriveContextRetriever", org_name, user_id)
     enriched_context=ContextRetriever.create("SlackContextRetriever", org_name, user_id)
 
     answer, source = enriched_context.retrieve_context(question)
@@ -47,8 +43,8 @@ def main() -> None:
 
 
 def setup_arg_parser() -> argparse.ArgumentParser:
-    """
-    Set up argument parser for command-line options.
+    """Set up argument parser for command-line options.
+
     Params: none
     Returns: ArgumentParser object
     """
@@ -61,8 +57,8 @@ def setup_arg_parser() -> argparse.ArgumentParser:
 
 
 def get_organisation(org_name: str or None) -> tuple:
-    """
-    Retrieve or select an organisation.
+    """Retrieve or select an organisation.
+
     Params: org_name: str, name of the organisation
     Returns: tuple with org ID as the 0 object or select_organisation
     function
@@ -83,8 +79,8 @@ def get_organisation(org_name: str or None) -> tuple:
 
 
 def select_organisation() -> tuple:
-    """
-    Interactively select an organisation from a list.
+    """Interactively select an organisation from a list.
+
     Params: none
     Returns: tuple with the org ID and name
     """
@@ -103,8 +99,8 @@ def select_organisation() -> tuple:
 
 
 def get_user_from_organisation(org_id: int, user_name: str or None = None) -> int:
-    """
-    Retrieve or select a user from a specific organisation.
+    """Retrieve or select a user from a specific organisation.
+
     Params:
         org_id, int, the organisation ID
         user_name, str, the user name
@@ -135,8 +131,8 @@ def get_user_from_organisation(org_id: int, user_name: str or None = None) -> in
 
 
 def select_user_from_organisation(org_id: int) -> int:
-    """
-    Interactively select a user from a list.
+    """Interactively select a user from a list.
+
     Params:
             org_id: int, the ID of the organisation
     Returns:

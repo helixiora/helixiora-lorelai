@@ -1,3 +1,5 @@
+"""Unit tests for benchmarking including NLTK Reuters download and GDrive folder management."""
+
 import os
 from unittest.mock import MagicMock, Mock
 
@@ -10,14 +12,15 @@ from benchmark import operations
 
 
 class MockMediaFileUpload(MagicMock):
+    """Mock class for MediaFileUpload to bypass file handling in tests."""
+
     def __init__(self, *args, **kwargs):
-        # Avoid calling the superclass constructor to bypass file handling
         pass
 
 
 @pytest.fixture
 def mock_service():
-    # Mock Google Drive service
+    """Fixture to mock Google Drive service."""
     service_mock = Mock()
     files_mock = Mock()
     service_mock.files.return_value = files_mock
@@ -25,7 +28,17 @@ def mock_service():
 
 
 def test_download_nltk_reuters(mocker):
-    # Mock os.path.exists, os.makedirs, and nltk.download
+    """Test the download_nltk_reuters function, mocking necessary file operations and NLTK download.
+
+    Arguments
+    ---------
+    mocker : pytest_mock.plugin.MockerFixture
+        The mocker fixture provided by pytest-mock to mock objects.
+
+    Asserts
+    -------
+    Checks if the necessary directories are created and the NLTK Reuters corpus is downloaded.
+    """
     mocker.patch("os.path.exists", return_value=False)
     mocker.patch("os.makedirs")
     mocker.patch("nltk.data.find", side_effect=LookupError)
@@ -42,37 +55,19 @@ def test_download_nltk_reuters(mocker):
     nltk.download.assert_called_with("reuters")
 
 
-# def test_google_drive_auth(mocker):
-#     # Ensure correct mocking of external dependencies
-#     mock_flow = Mock()
-#     mocker.patch('google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file',
-#       return_value=mock_flow)
-#     mock_build = Mock()
-#     mocker.patch('googleapiclient.discovery.build', return_value=mock_build)
-
-#     # Call the function
-#     service = operations.google_drive_auth("credentials.json")
-
-#     # Check if the returned service is indeed the mock build
-#     assert service == mock_build, "The returned service should be the mock build"
-
-# def test_upload_files(mock_service, mocker):
-#     mocker.patch("os.listdir", return_value=["file1.txt", "file2.txt"])
-#     mocker.patch("os.path.join", side_effect=lambda *args: "/".join(args))
-#     mocker.patch("builtins.open", mocker.mock_open())
-
-#     # Use the new MockMediaFileUpload for the patch
-#     mocker.patch("googleapiclient.http.MediaFileUpload", new=MockMediaFileUpload)
-
-#     # Call the function
-#     operations.upload_files(mock_service, "folder_id", "directory")
-
-#     # Verify that Google Drive's create method was called correctly
-#     assert mock_service.files().create.call_count == 2
-
-
 def test_find_or_create_folder(mock_service):
-    # Setup response for the Google Drive list API
+    """Test the find_or_create_folder function for both existing and new folder scenarios.
+
+    Arguments
+    ---------
+    mock_service : Mock
+        Mock object for Google Drive service.
+
+    Asserts
+    -------
+    Checks if the function correctly identifies an existing folder or creates a new one if it
+    doesn't exist.
+    """
     mock_service.files().list().execute.return_value = {"files": [{"id": "123"}]}
 
     folder_id = operations.find_or_create_folder(mock_service, "TestFolder")

@@ -1,3 +1,5 @@
+"""Provides the DataManager class, responsible for downloading and uploading data."""
+
 import logging
 import os
 import sys
@@ -13,16 +15,45 @@ from lorelai.utils import load_config  # noqa E402
 
 
 class DataManager:
-    def __init__(self: None):
+    """Class to manage data downloading and uploading."""
+
+    def __init__(self):
+        """Initialize the DataManager with configuration settings."""
         self.config = load_config("dragonfly")
 
-    def download(self: None, path: str, dry_run: bool):
+    def download(self, path: str, dry_run: bool):
+        """Download the NLTK Reuters corpus to a specified path.
+
+        Arguments
+        ---------
+        path : str
+            The path where the corpus should be downloaded.
+        dry_run : bool
+            Whether to perform a dry run or not.
+
+        Returns
+        -------
+        None
+        """
         if not dry_run:
             self._download_nltk_reuters(path)
         else:
             logging.info(f"Would download NLTK Reuters corpus to '{path}'")
 
-    def upload(self: None, path: str, dry_run: bool):
+    def upload(self, path: str, dry_run: bool):
+        """Upload files to Google Drive from a specified path.
+
+        Arguments
+        ---------
+        path : str
+            The path of the files to be uploaded.
+        dry_run : bool
+            Whether to perform a dry run or not.
+
+        Returns
+        -------
+        None
+        """
         if not dry_run:
             service = self._google_drive_auth()
             folder_id = self._find_or_create_folder(service, self.config["folder_name"])
@@ -30,8 +61,18 @@ class DataManager:
         else:
             logging.info(f"Would upload '{path}' to GDrive folder '{self.config['folder_name']}'")
 
-    def _download_nltk_reuters(self: None, extract_to: str):
-        # Check if NLTK Reuters corpus is available, and download if not
+    def _download_nltk_reuters(self, extract_to: str):
+        """Download the NLTK Reuters corpus and extract it to a specified directory.
+
+        Arguments
+        ---------
+        extract_to : str
+            The directory where the corpus should be extracted.
+
+        Returns
+        -------
+        None
+        """
         try:
             nltk.data.find("corpora/reuters.zip")
         except LookupError:
@@ -73,11 +114,15 @@ class DataManager:
 
         logging.info(f"Downloaded NLTK Reuters corpus to '{extract_to}' as JSON files")
 
-    def _google_drive_auth(self: None) -> object:
-        """
-        Authenticate with Google Drive using the provided credentials file.
+    def _google_drive_auth(self) -> object:
+        """Authenticate with Google Drive using the provided credentials file.
 
         Note that this method will open a browser window to authenticate the user.
+
+        Returns
+        -------
+        service : object
+            Google Drive service object.
         """
         google_config = load_config("google")
 
@@ -108,7 +153,21 @@ class DataManager:
             logging.error(f"Failed to create Google Drive service: {e}")
             raise
 
-    def _find_or_create_folder(self: None, service, folder_name):
+    def _find_or_create_folder(self, service, folder_name: str) -> str:
+        """Find or create a folder in Google Drive.
+
+        Arguments
+        ---------
+        service : object
+            Google Drive service object.
+        folder_name : str
+            The name of the folder to find or create.
+
+        Returns
+        -------
+        folder_id : str
+            The ID of the found or created folder.
+        """
         logging.info(f"Finding or creating Google Drive folder '{folder_name}'")
         query = f"mimeType='application/vnd.google-apps.folder' and name='{folder_name}'"
         response = service.files().list(q=query).execute()
@@ -123,16 +182,21 @@ class DataManager:
         logging.info(f"Found Google Drive folder '{folder_name}' with ID '{folders[0]['id']}'")
         return folders[0]["id"]
 
-    def _file_exists(self: None, service, name, folder_id):
-        """
-        Check if a file or folder already exists in the specified folder on Google Drive.
+    def _file_exists(self, service, name: str, folder_id: str) -> str:
+        """Check if a file or folder already exists in the specified folder on Google Drive.
 
-        Args:
-            service: Google Drive service object
-            name: Name of the file or folder to check
-            folder_id: ID of the folder where to look for the file or folder
+        Arguments
+        ---------
+        service : object
+            Google Drive service object.
+        name : str
+            Name of the file or folder to check.
+        folder_id : str
+            ID of the folder where to look for the file or folder.
 
-        Returns:
+        Returns
+        -------
+        file_id : str or None
             The ID of the existing file or folder if found, otherwise None.
         """
         logging.info(f"Checking if file '{name}' exists in Google Drive folder '{folder_id}'")
@@ -143,14 +207,23 @@ class DataManager:
             return files[0]["id"]
         return None
 
-    def _upload_files(self: None, service, folder_id, directory):
-        """
-        Recursively upload files from a directory to GDrive, checks for existing files/folders.
+    def _upload_files(self, service, folder_id: str, directory: str):
+        """Recursively upload files from a directory to Google Drive.
 
-        Args:
-            service: Google Drive service object
-            folder_id: Google Drive folder ID
-            directory: Path to the directory containing files to upload
+        checking for existing files/folders.
+
+        Arguments
+        ---------
+        service : object
+            Google Drive service object.
+        folder_id : str
+            Google Drive folder ID.
+        directory : str
+            Path to the directory containing files to upload.
+
+        Returns
+        -------
+        None
         """
         logging.info(f"Uploading contents of '{directory}' to Google Drive folder '{folder_id}'")
 
@@ -178,7 +251,7 @@ class DataManager:
             # if the item is a file, upload it
             elif os.path.isfile(file_path):
                 # Get the first line of the file to use as the file name
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     first_line = f.readline().strip()
                     first_line = first_line.replace("'", "\\'")
                 file_name = first_line if first_line else item

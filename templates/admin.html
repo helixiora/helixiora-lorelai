@@ -2,19 +2,57 @@
 
 {% block content %}
     <div class="container mx-auto mt-8">
+        <h1 class="h1 mb-4">Admin Dashboard</h1>
 
-        <h1>Admin Dashboard</h1>
-        <p>Click the button below to start indexing the documents.</p>
-        <div class="alert" id="statusMessage" role="alert" style="display: none;"></div>
-        <button class="btn btn-primary" onclick="startIndexing()">Run Indexer</button>
-        <div id="progressBarContainer" class="mt-3">
-            <div class="progress">
-                <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+        <!-- Lorelai Indexer Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="h2">Document Indexer</h2>
+            </div>
+            <div class="card-body">
+                <p>Select an option below to start the document indexing process:</p>
+
+                <div class="d-flex align-items-center mb-2">
+                    <button class="btn btn-primary btn-block me-2" style="flex: 0.5;" onclick="startIndexing('user')">Current User</button>
+                    <div style="flex: 2;">Indexes all the data sources for the current user.</div>
+                </div>
+
+                <div class="d-flex align-items-center mb-2">
+                    <button class="btn btn-primary btn-block me-2" style="flex: 0.5;" onclick="startIndexing('organisation')">Current Organisation</button>
+                    <div style="flex: 2;">Indexes all the data sources for the current organisation.</div>
+                </div>
+
+                <div class="d-flex align-items-center mb-2">
+                    <button class="btn btn-primary btn-block me-2" style="flex: 0.5;" onclick="startIndexing('all')">All Users</button>
+                    <div style="flex: 2;">Indexes all the data sources for all users. <strong>Warning:</strong> This could be a lengthy process.</div>
+                </div>
+
+                <div class="mt-4">
+                    <h3 class="h3">Indexing Status</h3>
+                    <div class="alert" id="statusMessage" role="alert" style="display: none;"></div>
+                    <div id="progressBarContainer" class="mt-3" style="display: none;">
+                        <div class="progress" style="height: 30px;">
+                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <h4 class="h4">Indexing Log</h4>
+                        <textarea id="logArea" class="form-control" style="font-family: monospace;" rows="5" readonly></textarea>
+                    </div>
+                </div>
             </div>
         </div>
-        <!-- Go to pinecone admin pages -->
-        <p class="mt-3">Once indexing is complete, you can view the indexed documents in the Pinecone Admin.</p>
-        <a href="/admin/pinecone" class="btn btn-primary mt-3">Go to Pinecone Admin</a>
+
+        <!-- Pinecone Admin Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="h2">Pinecone Administration</h2>
+            </div>
+            <div class="card-body">
+                <p>Visit the Pinecone Administration page to view and manage Pinecone settings and data.</p>
+                <a href="/admin/pinecone" class="btn btn-primary mt-3">Go to Pinecone Admin</a>
+            </div>
+        </div>
     </div>
 
     <!-- Optional JavaScript -->
@@ -23,43 +61,120 @@
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
-        function startIndexing() {
-            fetch('/admin/index', {method: 'POST'})
-                .then(response => response.json())
+        function startIndexing(type) {
+            $('#statusMessage').hide().removeClass('alert-danger alert-success').addClass('alert-info').text(`Starting ${type} indexing...`).show();
+            $('#progressBarContainer').hide();
+            $('#logArea').val('');
+            logMessage(`==> 1. Starting indexing for ${type}...`);
+
+            fetch(`/admin/index/${type}`, { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Unknown error');
+                        });
+                    }
+                })
                 .then(data => {
-                    $('#statusMessage').hide();
+                    $('#statusMessage').text(`${capitalize(type)} indexing is in progress...`);
                     $('#progressBarContainer').show();
                     $('#progressBar').css('width', '0%').attr('aria-valuenow', 0).text('0%');
-                    checkStatus(data.job);
-                }).catch(() => {
-                    $('#statusMessage').show().addClass('alert-danger').text('Failed to start indexing.');
+                    logMessage(`===> ${capitalize(type)} indexing started.`);
+
+                    // Initialize job statuses
+                    let jobStatuses = data.jobs.map(job => ({ jobId: job, state: 'pending' }));
+
+                    // Check the status of each job returned
+                    jobStatuses.forEach(jobStatus => {
+                        checkStatus(jobStatus, type, jobStatuses);
+                    });
+                })
+                .catch(error => {
+                    $('#statusMessage').removeClass('alert-info').addClass('alert-danger').text(`Failed to start ${type} indexing: ` + error.message);
+                    logMessage(`Failed to start ${type} indexing: ${error.message}`);
                 });
         }
 
-        function checkStatus(job) {
-            fetch(`/admin/job-status/${job}`)
+        function checkStatus(jobStatus, type, jobStatuses) {
+            fetch(`/admin/job-status/${jobStatus.jobId}`)
                 .then(response => response.json())
                 .then(data => {
-                    switch(data.state) {
+                    logMessage('==> 2. checkStatus job: ' + jobStatus.jobId + ', type: ' + type + ', state: ' + data.state);
+
+                    jobStatus.state = data.state;
+
+                    switch (data.state) {
                         case 'running':
-                            $('#statusMessage').show().removeClass('alert-danger').addClass('alert-info').text('Indexing is in progress...');
-                            let percent = (data.current / data.total) * 100;
-                            $('#progressBar').css('width', percent+'%').attr('aria-valuenow', percent).text(Math.round(percent) + '%');
-                            setTimeout(() => checkStatus(job), 1000);
+                            $('#statusMessage').removeClass('alert-danger alert-success').addClass('alert-info').text(`${capitalize(type)} indexing is in progress...`);
+
+                            let current = data.current || 0;
+                            let total = data.total || 1; // Default to 1 to avoid division by zero
+                            let percent = (current / total) * 100;
+
+                            $('#progressBar').css('width', percent + '%').attr('aria-valuenow', percent).text(Math.round(percent) + '%');
+
+                            setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
+                            break;
+                        case 'queued':
+                            $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${capitalize(type)} indexing is queued for job ${jobStatus.jobId}.`);
+
+                            setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
                             break;
                         case 'done':
-                            $('#statusMessage').show().removeClass('alert-danger').addClass('alert-success').text('Indexing completed successfully.');
-                            $('#progressBar').css('width', '100%').attr('aria-valuenow', 100).text('100%');
+                            logMessage(`===> Job logs`);
+                            updateLogs(data.metadata.logs);
+                            logMessage(`===> /Job logs`);
+
+                            logMessage(`${capitalize(type)} indexing completed successfully for job ${jobStatus.jobId}.`);
                             break;
                         case 'failed':
-                            $('#statusMessage').show().addClass('alert-danger').text('Indexing failed.');
+                        case 'unknown':
+                            logMessage(`===> Job logs`);
+                            updateLogs(data.metadata.logs);
+                            logMessage(`===> /Job logs`);
+
+                            $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${capitalize(type)} indexing ${data.state} for job ${jobStatus.jobId}.`);
                             break;
                         default:
-                            $('#statusMessage').show().addClass('alert-danger').text('Unknown error occurred.');
+                            $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`Unknown error occurred: data.state: ${data.state}.`);
                     }
-                }).catch(() => {
-                    $('#statusMessage').show().addClass('alert-danger').text('Error checking task status.');
+
+                    // Check if all jobs are finished
+                    if (jobStatuses.every(job => job.state === 'done' || job.state === 'failed')) {
+                        $('#statusMessage').removeClass('alert-info').addClass('alert-success').text(`${capitalize(type)} indexing completed.`);
+                        $('#progressBar').css('width', '100%').attr('aria-valuenow', 100).text('100%');
+                    }
+                }).catch(error => {
+                    $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text('Error checking task status.');
+                    logMessage('Error checking task status: ' + error.message);
                 });
+        }
+
+        function updateLogs(logs) {
+            logs = logs || [];
+            logs.forEach(log => logMessage(typeof log === 'object' ? JSON.stringify(log, null, 2) : log));
+        }
+
+        function logMessage(message) {
+            let logArea = $('#logArea');
+            let formattedMessage;
+
+            if (typeof message === 'object') {
+                // If the message is an object, format it as a pretty-printed JSON string
+                formattedMessage = 'log (JSON):' + JSON.stringify(message, null, 2);
+            } else {
+                // Otherwise, treat the message as a plain string
+                formattedMessage = 'log:' + message;
+            }
+
+            logArea.val(logArea.val() + formattedMessage + '\n');
+            logArea.scrollTop(logArea[0].scrollHeight);
+        }
+
+        function capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
         }
     </script>
 {% endblock %}

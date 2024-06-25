@@ -1,3 +1,5 @@
+"""Module to handle interaction with different language model APIs."""
+
 import logging
 import os
 
@@ -25,7 +27,7 @@ class Llm:
 
     @staticmethod
     def create(model_type="OpenAILlm"):
-        """Factory method to create instances of derived classes based on the class name."""
+        """Create instances of derived classes based on the class name."""
         Llm._allowed = True
         class_ = globals().get(model_type)
         if class_ is None or not issubclass(class_, Llm):
@@ -64,8 +66,7 @@ class OllamaLlama3(Llm):
         self.model = "llama3-7b"  # Model identifier
 
     def get_answer(self, question, context):
-        """Implementation specific to local Llama3 7b model."""
-
+        """Get an answer from local Llama3 7b model."""
         context_doc_text = ""
         for context_doc in context:
             if isinstance(context_doc, Document):
@@ -114,8 +115,7 @@ class OpenAILlm(Llm):
         self.model = "gpt-3.5-turbo"
 
     def get_answer(self: None, question: str, context: list[Document]) -> str:
-        """Implementation specific to OpenAI models."""
-
+        """Get an answer specifically from the OpenAI models."""
         context_doc_text = ""
         for context_doc in context:
             if isinstance(context_doc, Document):
@@ -158,6 +158,6 @@ class OpenAILlm(Llm):
         return result
 
     def get_llm_status(self: None) -> bool:
-        """Check the current status of the openai api endpoint https://api.openai.com/"""
+        """Check the current status of the openai api endpoint https://api.openai.com/."""
         status = requests.get("https://api.openai.com/v1/engines")
         return status.status_code == 200

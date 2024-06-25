@@ -1,3 +1,5 @@
+"""Unit tests for the Dragonfly benchmarking script."""
+
 import json
 import sys
 from unittest import mock
@@ -10,6 +12,7 @@ from dragonfly import (  # Make sure to import correctly from your actual script
 
 
 def test_parser_with_valid_verb():
+    """Test the argument parser with valid verbs."""
     parser = setup_arg_parser()
     # Test with each valid verb
     for verb in ["download", "upload", "benchmark"]:
@@ -19,12 +22,14 @@ def test_parser_with_valid_verb():
 
 
 def test_parser_with_no_verbs():
+    """Test the argument parser with no verbs, expecting a SystemExit."""
     parser = setup_arg_parser()
     with pytest.raises(SystemExit):  # argparse throws SystemExit on invalid args
         parser.parse_args(["invalid_verb"])
 
 
 def test_parser_with_invalid_verbs(capfd):
+    """Test the argument parser with invalid verbs, expecting an error message."""
     parser = setup_arg_parser()
     # expect argparse to throw an ArgumentError since "dostuff" is not a valid verb
     with pytest.raises(SystemExit) as excinfo:
@@ -40,6 +45,7 @@ def test_parser_with_invalid_verbs(capfd):
 
 
 def test_parser_with_optional_arguments():
+    """Test the argument parser with optional arguments."""
     parser = setup_arg_parser()
     args = parser.parse_args(["download", "--config", "settings.json"])
     assert args.verb == "download"
@@ -47,6 +53,7 @@ def test_parser_with_optional_arguments():
 
 
 def test_main_with_no_args():
+    """Test the main function with no arguments, expecting a SystemExit."""
     testargs = ["prog"]
     with mock.patch.object(sys, "argv", testargs):
         with pytest.raises(SystemExit) as excinfo:
@@ -56,6 +63,7 @@ def test_main_with_no_args():
 
 
 def test_main_with_invalid_args():
+    """Test the main function with invalid arguments, expecting a SystemExit."""
     testargs = ["prog", "invalid_verb"]
     with mock.patch.object(sys, "argv", testargs):
         with pytest.raises(SystemExit) as excinfo:
@@ -65,6 +73,7 @@ def test_main_with_invalid_args():
 
 
 def test_main_with_valid_args():
+    """Test the main function with valid arguments, mocking file operations and function calls."""
     testargs = ["prog", "download", "--config", "custom.json"]
     config_data = '{"nltk_corpus_download_dir": "dir"}'
     with mock.patch.object(sys, "argv", testargs):

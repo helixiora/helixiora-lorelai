@@ -1,3 +1,5 @@
+"""Provides the Run class, responsible for running benchmarks."""
+
 import json
 import logging
 import os
@@ -13,7 +15,16 @@ from lorelai.utils import get_db_connection  # noqa E402
 
 
 class Run:
+    """Class to manage running benchmarks."""
+
     def __init__(self, model_type="OpenAILlm"):
+        """Initialize the Run class with a specified model type.
+
+        Arguments
+        ---------
+        model_type : str
+            The type of model to use for the LLM.
+        """
         self.llm = Llm.create(model_type=model_type)
 
     def benchmark(
@@ -25,6 +36,27 @@ class Run:
         question_file: str,
         question_classes_file: str,
     ):
+        """Run a benchmark with specified parameters.
+
+        Arguments
+        ---------
+        benchmark_name : str
+            The name of the benchmark.
+        benchmark_description : str
+            The description of the benchmark.
+        org_name : str
+            The name of the organization.
+        user_name : str
+            The name of the user.
+        question_file : str
+            The path to the JSON file containing questions.
+        question_classes_file : str
+            The path to the YAML file containing question classes.
+
+        Returns
+        -------
+        None
+        """
         logging.info("Starting benchmarking")
         # {
         #     "question": "What was the closing price of IBM stock on July 5, 1987?",
@@ -35,7 +67,8 @@ class Run:
         #         "source": "google drive://stocks/IBM STOCK PRICES JULY 1987"
         #     }
         # },
-        with open(question_file, "r") as f:
+
+        with open(question_file) as f:
             question_file = json.load(f)
 
         # question_classes:
@@ -45,7 +78,7 @@ class Run:
         #     validation_method: >
         #     Check if the retrieved answer matches verified factual sources.
         #     python_function: "validate_fact_retrieval"
-        with open(question_classes_file, "r") as f:
+        with open(question_classes_file) as f:
             question_classes_file = yaml.safe_load(f)
 
         db = get_db_connection()
@@ -80,7 +113,7 @@ class Run:
                 question_class is not None
             ), f"Question class not found for question: {question['question']}"
 
-            context_retriever = ContextRetriever(org_name=org_name, user=user_name)
+            context_retriever = ContextRetriever(org_name=org_name, user_email=user_name)
             context = context_retriever.retrieve_context(question["question"])
 
             answer = self.llm.get_answer(question["question"], context)
