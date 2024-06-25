@@ -272,13 +272,7 @@ def logout():
     str
         Redirects to the index page.
     """
-    try:
-        db_conn = get_db_connection()
-        cursor = db_conn.cursor(dictionary=True)
-        cursor.execute("DELETE FROM user_auth WHERE user_id = %s", (session["user_id"],))
-        db_conn.commit()
-        cursor.close()
-    finally:
-        session.clear()
+    session.clear()
+    flash("You have been logged out.")
 
     return redirect(url_for("index"))
