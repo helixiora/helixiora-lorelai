@@ -7,7 +7,7 @@ import os
 import sys
 
 import mysql.connector
-from flask import Flask, g, redirect, render_template, session, url_for
+from flask import Flask, g, redirect, render_template, request, session, url_for
 
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
@@ -15,7 +15,7 @@ from app.routes.chat import chat_bp
 
 # load blueprints
 from app.routes.google.auth import googledrive_bp
-from app.utils import get_db_connection, is_admin, perform_health_checks
+from app.utils import get_db_connection, is_admin, perform_health_checks, user_is_logged_in
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -87,19 +87,26 @@ def index():
     -------
         string: the index page
     """
-    print("Index route")
+    logging.info("Index route")
 
     if app.config.get("LORELAI_SETUP"):
         # redirect to /admin/setup if the app is not set up
         logging.info("App is not set up. Redirecting to /admin/setup")
         return redirect(url_for("admin.setup"))
 
-    if "user_id" in session:
+    # if the user_id is in the session, the user is logged in
+    # render the index_logged_in page
+    if user_is_logged_in(session):
         is_admin_status = is_admin(session["user_id"])
         return render_template(
             "index_logged_in.html", user_email=session["user_email"], is_admin=is_admin_status
         )
 
+    # if we're still here, there was no user_id in the session meaning we are not logged in
+    # render the front page with the google client id
+    # if the user clicks login from that page, the javascript function `onGoogleCredentialResponse`
+    # will handle the login using the /login route in auth.py.
+    # Depending on the output of that route, it's redirecting to /register if need be
     secrets = load_config("google")
     return render_template("index.html", google_client_id=secrets["client_id"])
 
@@ -163,7 +170,7 @@ def internal_server_error(e):
 @app.before_request
 def before_request():
     """Load the features before every request."""
-    logging.debug("Before request")
+    logging.debug("Before request: " + request.url)
     g.features = load_config("features")
 
 

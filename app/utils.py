@@ -256,6 +256,24 @@ def perform_health_checks() -> list[str]:
     return errors
 
 
+def user_is_logged_in(session) -> bool:
+    """Check if the user is logged in.
+
+    Yhis is very simple now but might be more complex later. Using a function for maintainability
+
+    Parameters
+    ----------
+    session : dict
+        The session object.
+
+    Returns
+    -------
+    bool
+        True if the user is logged in, False otherwise.
+    """
+    return "user_id" in session
+
+
 def get_user_id_by_email(email: str) -> int:
     """
     Get the user ID by email.

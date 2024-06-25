@@ -17,6 +17,7 @@ from app.utils import (
     get_query_result,
     get_user_id_by_email,
     is_admin,
+    user_is_logged_in,
 )
 
 auth_bp = Blueprint("auth", __name__)
@@ -31,7 +32,7 @@ def profile():
         str: The profile page.
     """
     # only proceed if the user is logged in
-    if "user_id" in session:
+    if user_is_logged_in(session):
         is_admin_status = is_admin(session["user_id"])
         user = {
             "user_id": session["user_id"],

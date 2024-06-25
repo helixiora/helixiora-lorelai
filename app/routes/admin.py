@@ -14,6 +14,7 @@ from app.utils import (
     get_query_result,
     is_admin,
     run_flyway_migrations,
+    user_is_logged_in,
 )
 from lorelai.contextretriever import ContextRetriever
 from lorelai.utils import load_config
@@ -27,7 +28,7 @@ def admin():
 
     This page is only accessible to users who are admins.
     """
-    if "user_id" in session and is_admin(session["user_id"]):
+    if user_is_logged_in(session) and is_admin(session["user_id"]):
         return render_template("admin.html", is_admin=True)
     return "You are not logged in!"
 
@@ -107,7 +108,7 @@ def start_indexing(type) -> str:
         If the connection to the Redis server or the database fails.
     """
     logging.info("Started indexing (type: %s)", type)
-    if "user_id" not in session or not is_admin(session["user_id"]):
+    if not user_is_logged_in(session) or not is_admin(session["user_id"]):
         return jsonify({"error": "Unauthorized"}), 403
 
     if type not in ["user", "organisation", "all"]:
