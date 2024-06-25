@@ -59,6 +59,7 @@ repos:
         # Detects leftover debugging statements in Python code.
 
       - id: detect-aws-credentials
+        args: [--allow-missing-credentials]
         # Helps prevent the accidental commit of AWS credentials.
 
       - id: detect-private-key
