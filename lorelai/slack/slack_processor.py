@@ -96,7 +96,7 @@ class SlackOAuth:
                     (session["slack_access_token"], session["email"]),
                 )
                 conn.commit()
-                print(access_token)
+                logging.debug(access_token)
                 return redirect(url_for("index"))
         return "Error", 400
 
@@ -129,7 +129,7 @@ class SlackIndexer:
         }
         self.userid_name_dict = self.get_userid_name()
 
-        print(self.access_token)
+        logging.debug(self.access_token)
 
     def retrive_access_token(self, email):
         """
@@ -149,10 +149,10 @@ class SlackIndexer:
             result = cursor.fetchone()
             if result:
                 slack_token = result[0]
-                print("Slack Token:", slack_token)
+                logging.debug("Slack Token:", slack_token)
                 return slack_token
 
-            print("No Slack token found for the specified email.")
+            logging.debug("No Slack token found for the specified email.")
             return None
 
     def get_userid_name(self):
@@ -171,10 +171,10 @@ class SlackIndexer:
             for i in users:
                 users_dict[i["id"]] = i["name"]
 
-            print(f"Loaded user_dict {users_dict}")
+            logging.debug(f"Loaded user_dict {users_dict}")
             return users_dict
         else:
-            print(f"Failed to list users. Error: {response.text}")
+            logging.debug(f"Failed to list users. Error: {response.text}")
             return None
 
     def replace_userid_with_name(self, thread_text):
@@ -205,19 +205,13 @@ class SlackIndexer:
             list: A list of chat history records.
         """
         url = "https://slack.com/api/conversations.history"
-        # WIll remove below comments, its there for overriding and testing
-        """channel_id="C06FBKAN70A"
-        channel_id="C06C64XTP2R"
-        channel_name='engineering"""
-        print(f"Getting Messages for Channel:{channel_name}")
+        logging.debug(f"Getting Messages for Channel: {channel_name}")
         params = {"channel": channel_id}
         channel_chat_history = []
         while True:
             response = requests.get(url, headers=self.headers, params=params)
             if response.ok:
                 history = response.json()
-                # print(history)
-                # pprint(history['messages'][5])
                 if "error" in history:
                     logging.warning(
                         f"Error: {history['error']} - Channel: {channel_name} id: {channel_id} "
@@ -256,8 +250,8 @@ class SlackIndexer:
                                     "metadata": metadata,
                                 }
                             )
-                            print(metadata)
-                            print("--------------------")
+                            logging.debug(metadata)
+                            logging.debug("--------------------")
 
                         except Exception as e:
                             logging.fatal(msg)
@@ -265,14 +259,14 @@ class SlackIndexer:
 
                 if history.get("response_metadata", {}).get("next_cursor"):
                     params["cursor"] = history["response_metadata"]["next_cursor"]
-                    print(f"Next Page cursor: {params['cursor']}")
+                    logging.debug(f"Next Page cursor: {params['cursor']}")
                 else:
                     break
 
             else:
-                print("Failed to retrieve channel history. Error:", response.text)
-        print("--------------")
-        print(f"Total Messages in {channel_name}-{len(channel_chat_history)}")
+                logging.debug("Failed to retrieve channel history. Error:", response.text)
+        logging.debug("--------------")
+        logging.debug(f"Total Messages in {channel_name}-{len(channel_chat_history)}")
         return channel_chat_history
 
     def get_thread(self, thread_id, channel_id):
@@ -289,14 +283,14 @@ class SlackIndexer:
         """
         url = "https://slack.com/api/conversations.replies"
         params = {"channel": channel_id, "ts": thread_id, "limit": 200}
-        print(f"Getting message of thread: {thread_id}")
+        logging.debug(f"Getting message of thread: {thread_id}")
         complete_thread = ""
         while True:
             response = requests.get(url, headers=self.headers, params=params)
 
             if response.ok:
                 history = response.json()
-                # pprint(history)
+                # plogging.debug(history)
                 if "messages" in history:
                     for msg in history["messages"]:
                         msg_text = self.extract_message_text(msg)
@@ -353,10 +347,10 @@ class SlackIndexer:
             if data["ok"]:
                 return data["permalink"]
             else:
-                print("Error in response:", data["error"])
+                logging.debug("Error in response:", data["error"])
                 return None
         else:
-            print("Failed to get permalink. Error:", response.text)
+            logging.debug("Failed to get permalink. Error:", response.text)
             return None
 
     def dict_channel_ids(self):
@@ -388,10 +382,10 @@ class SlackIndexer:
                     else:
                         break
                 else:
-                    print("Error in response:", data["error"])
+                    logging.debug("Error in response:", data["error"])
                     return None
             else:
-                print("Failed to list channels. Error:", response.text)
+                logging.debug("Failed to list channels. Error:", response.text)
                 return None
         return channels_dict
 
@@ -475,11 +469,11 @@ class SlackIndexer:
             if channel_id in channel_ids_dict:
                 channel_ids_dict = {channel_id: channel_ids_dict[channel_id]}
             else:
-                print(f"{channel_id} not in slack")
+                logging.debug(f"{channel_id} not in slack")
                 return None
 
         for channel_id, channel_name in channel_ids_dict.items():
-            print(f"Processing {channel_id} {channel_name}")
+            logging.debug(f"Processing {channel_id} {channel_name}")
             complete_chat_history.extend(self.get_messages(channel_id, channel_name))
             #
 

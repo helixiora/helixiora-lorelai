@@ -17,7 +17,6 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 def chat():
     """Post messages to rq to process."""
     content = request.get_json()
-    print("$$$$$$$$$$",content)
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 

@@ -3,6 +3,7 @@
 import logging
 import os
 import time
+
 from rq import get_current_job
 
 # import the indexer
@@ -55,7 +56,7 @@ def execute_rag_llm(
 
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s", user, organisation)
-    print("data sorce", datasource)
+    logging.debug("datasource", datasource)
     try:
         # create model
         logging.info("User email: %s, Org name: %s", user, organisation)
