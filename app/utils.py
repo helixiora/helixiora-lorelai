@@ -270,7 +270,6 @@ def perform_health_checks() -> list[str]:
             logging.info(f"Health check passed ({check.__name__}): {message}")
     return errors
 
-
 def get_user_role(email: str):
     with get_db_connection() as db:
         try:
@@ -289,6 +288,23 @@ def get_user_role(email: str):
         except Exception:
             logging.critical(f"{email} has no role assigned")
             raise ValueError(f"{email} has no role assigned")
+
+def user_is_logged_in(session) -> bool:
+    """Check if the user is logged in.
+
+    Yhis is very simple now but might be more complex later. Using a function for maintainability
+
+    Parameters
+    ----------
+    session : dict
+        The session object.
+
+    Returns
+    -------
+    bool
+        True if the user is logged in, False otherwise.
+    """
+    return "user_id" in session
 
 def get_user_id_by_email(email: str) -> int:
     """
