@@ -1,11 +1,11 @@
--- Version: 1.4
+-- Version: 1.6
 -- Description: Move user auth
 
 -- Check if the 'datasource' table exists and create it if it does not
 CREATE TABLE IF NOT EXISTS datasource (
-  datasource_id int NOT NULL AUTO_INCREMENT,
-  datasource_name varchar(255) NOT NULL,
-  datasource_type varchar(255) NOT NULL,
+  datasource_id INT NOT NULL AUTO_INCREMENT,
+  datasource_name VARCHAR(255) NOT NULL,
+  datasource_type VARCHAR(255) NOT NULL,
   PRIMARY KEY (datasource_id),
   UNIQUE KEY datasource_name (datasource_name)
 );
@@ -18,12 +18,12 @@ INSERT IGNORE INTO datasource (datasource_name, datasource_type) VALUES ('Slack'
 
 -- Check if the 'user_auth' table exists and create it if it does not
 CREATE TABLE IF NOT EXISTS user_auth (
-  user_auth_id int NOT NULL AUTO_INCREMENT,
-  user_id int NOT NULL,
-  datasource_id int NOT NULL,
-  auth_key varchar(255) NOT NULL,
-  auth_value text NOT NULL,
-  auth_type varchar(255) NOT NULL,
+  user_auth_id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  datasource_id INT NOT NULL,
+  auth_key VARCHAR(255) NOT NULL,
+  auth_value TEXT NOT NULL,
+  auth_type VARCHAR(255) NOT NULL,
   PRIMARY KEY (user_auth_id),
   UNIQUE KEY user_id_datasource_id_key (user_id, datasource_id, auth_key)
 );
@@ -52,6 +52,5 @@ ALTER TABLE users DROP COLUMN token_type;
 ALTER TABLE users DROP COLUMN scope;
 
 -- Rename tables only if they exist
-RENAME TABLE IF EXISTS datasources TO datasource;
-RENAME TABLE IF EXISTS users TO user;
-RENAME TABLE IF EXISTS organisations TO organisation;
+RENAME TABLE users TO user;
+RENAME TABLE organisations TO organisation;

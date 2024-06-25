@@ -55,7 +55,7 @@ production environments. By using Flyway, we can:
    If setting up a new development environment, import the baseline schema:
 
    ```bash
-   mysql -u username -p lorelai < baseline_schema.sql
+   mysql -uyourUsername -p -Dlorelai < baseline_schema.sql
    ```
 
 1. **Apply Migrations:**
