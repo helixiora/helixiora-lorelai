@@ -141,6 +141,7 @@ class OpenAILlm(Llm):
         return result
 
     def get_answer_direct(self, question):
+        """Get an answer directly from the OpenAI model."""
         logging.debug(
             "[OpenAILlm.get_answer_direct] Prompt template: %s",
             self._prompt_template_direct,
