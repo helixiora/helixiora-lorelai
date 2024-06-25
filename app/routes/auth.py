@@ -16,7 +16,6 @@ The flow for authentication is:
 
 import logging
 
-import mysql.connector
 from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
 from google.auth import exceptions
 from google.auth.transport import requests
@@ -81,8 +80,24 @@ def register_get():
     """
     email = request.args.get("email", "")
     full_name = request.args.get("full_name", "")
-    token = request.args.get("token", "")
-    return render_template("register.html", email=email, full_name=full_name, token=token)
+    google_token = request.args.get("google_token", "")
+    google_id = request.args.get("google_id", "")
+
+    logging.debug(
+        "Received email: %s, full_name: %s, google_id: %s, token: %s",
+        email,
+        full_name,
+        google_id,
+        google_token,
+    )
+
+    return render_template(
+        "register.html",
+        email=email,
+        full_name=full_name,
+        google_id=google_id,
+        google_token=google_token,
+    )
 
 
 @auth_bp.route("/register", methods=["POST"])
@@ -100,46 +115,129 @@ def register_post():
     full_name = request.form.get("full_name")
     organisation = request.form.get("organisation")
 
-    if not validate_form(email, full_name, organisation):
-        flash("All fields are required.", "danger")
-        return render_template("register.html", email=email, full_name=full_name)
+    google_id = request.form.get("google_id")
+    google_token = request.form.get("google_token")
+
+    missing = validate_form(email=email, name=full_name, organisation=organisation)
+
+    if missing:
+        flash("All fields are required. Missing: " + missing, "danger")
+        return render_template(
+            "register.html",
+            email=email,
+            full_name=full_name,
+            organisation=organisation,
+            google_id=google_id,
+            google_token=google_token,
+        )
+
+    # register the user
+    success, message, user_id = register_user_to_org(
+        email, full_name, organisation, google_id, google_token
+    )
+
+    flash("Registration successful!", "success")
+    return redirect(url_for("index"))
+
+
+def register_user_to_org(
+    email: str, full_name: str, organisation: str, google_id: str, google_token: str
+) -> (bool, str, int):
+    """
+    Register a user to an organisation.
+
+    Parameters
+    ----------
+    email : str
+        The user's email.
+    full_name : str
+        The user's full name.
+    organisation : str
+        The organisation name.
+    google_id : str
+        The Google ID.
+    google_token : str
+        The Google Oauth token.
+
+    Returns
+    -------
+    tuple
+        A tuple containing a boolean indicating success, a message, and the user ID.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
 
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        org_id = get_org_id_by_organisation(cursor, organisation, True)
-        user_id = insert_user(
-            cursor=cursor, org_id=org_id, full_name=full_name, email=email, name=email
+        # check if the organisation exists
+        org_id, created = get_org_id_by_organisation(
+            cursor=cursor, organisation=organisation, create_if_not_exists=True
         )
-        session["user_id"] = user_id
+
+        # if created = True, this is the first user of the org so make them an org_admin by
+        # inserting a record in the user_roles table
+        if created:
+            # get the role_id of the org_admin role
+            cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
+            role_id = cursor.fetchone()["role_id"]
+
+            cursor.execute(
+                "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
+                (session["user_id"], role_id),
+            )
+
+        # insert the user
+        user_id = insert_user(cursor, org_id, full_name, email, full_name, google_id)
 
         conn.commit()
 
-        flash("Registration successful!", "success")
-        return redirect(url_for("login"))
+        return True, "Registration successful!", user_id
 
-    except mysql.connector.Error as err:
-        flash(f"Error: {err}", "danger")
-        return render_template("register.html", email=email, full_name=full_name)
+    except Exception as e:
+        conn.rollback()
+        return False, f"An error occurred: {e}", -1
 
     finally:
         cursor.close()
         conn.close()
 
 
-def insert_user(cursor, org_id: int, name: str, email: str, full_name: str):
+def insert_user(cursor, org_id: int, name: str, email: str, full_name: str, google_id: str):
     """Insert a new user and return the user ID."""
     cursor.execute(
-        "INSERT INTO user (org_id, user_name, email, full_name) VALUES (%s, %s, %s, %s)",
-        (org_id, name, email, name),
+        "INSERT INTO user (org_id, user_name, email, full_name, google_id) \
+            VALUES (%s, %s, %s, %s, %s)",
+        (org_id, name, email, full_name, google_id),
     )
     return cursor.lastrowid
 
 
-def validate_form(email, name, organisation):
-    """Validate form data."""
-    return email and name and organisation
+def validate_form(email: str, name: str, organisation: str):
+    """Validate the registration form.
+
+    Parameters
+    ----------
+    email : str
+        The user's email.
+    name : str
+        The user's name.
+    organisation : str
+        The user's organisation.
+
+    Returns
+    -------
+    list
+        A list of missing fields.
+    """
+    missing_fields = []
+
+    if not email:
+        missing_fields.append("email")
+    if not name:
+        missing_fields.append("name")
+    if not organisation:
+        missing_fields.append("organisation")
+
+    return missing_fields
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -196,6 +294,7 @@ def login():
                     "email": user_email,
                     "full_name": user_full_name,
                     "google_id": google_id,
+                    "google_token": id_token_received,
                     "redirect_url": url_for("auth.register_get"),
                 }
             ), 200

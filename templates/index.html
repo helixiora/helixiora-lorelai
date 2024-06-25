@@ -158,6 +158,7 @@
     <script>
         async function onGoogleCredentialResponse(response) {
             const id_token = response.credential;
+            const google_id = response.googleId;
             const statusElement = document.getElementById('signin-status');
 
             try {
@@ -179,7 +180,12 @@
                     statusElement.innerText = 'Signed in successfully';
                     window.location.href = data.redirect_url;
                 } else if (data.message === "Invalid login") {
-                    window.location.href = data.redirect_url + '?email=' + encodeURIComponent(data.email) + '&full_name=' + encodeURIComponent(data.full_name);
+                    // Redirect to /register
+                    window.location.href = data.redirect_url +
+                        '?email=' + encodeURIComponent(data.email) +
+                        '&full_name=' + encodeURIComponent(data.full_name) +
+                        '&google_id=' + encodeURIComponent(data.google_id) +
+                        '&google_token=' + encodeURIComponent(data.google_token);
                 } else {
                     throw new Error(data.message);
                 }

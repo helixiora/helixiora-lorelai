@@ -340,6 +340,8 @@ def get_organisation_by_org_id(cursor, org_id: int):
     if org_result:
         return org_result["name"]
 
+    return None
+
 
 def get_org_id_by_userid(cursor, user_id: int):
     """Get the organization ID for a user."""
@@ -350,36 +352,54 @@ def get_org_id_by_userid(cursor, user_id: int):
     if org_result:
         return org_result["org_id"]
 
+    return None
 
-def get_org_id_by_organisation(cursor, organisation: str, create_if_not_exists: bool = False):
-    """Get the organization ID, inserting the organization if it does not exist.
 
-    Arguments
-    ---------
+def get_org_id_by_organisation(
+    cursor, organisation: str, create_if_not_exists: bool = False
+) -> (int, bool):
+    """
+    Get the organization ID, inserting the organization if it does not exist.
+
+    Parameters
+    ----------
     cursor : mysql.connector.cursor.MySQLCursor
-        The database cursor.
+        The database cursor with dictionary=True.
     organisation : str
         The name of the organisation.
     create_if_not_exists : bool, optional
-        Whether to create the organisation if it does not exist.
+        Whether to create the organisation if it does not exist (default is False).
 
     Returns
     -------
-    int
-        The organisation ID.
+    tuple
+        A tuple containing:
+        - int: The organisation ID.
+        - bool: Whether the organisation was created.
     """
-    org_result = get_query_result(
-        "SELECT id FROM organisation WHERE name = %s", (organisation,), fetch_one=True
-    )
-    if org_result:
-        logging.debug("Organisation found: %s", org_result[0])
-        return org_result["id"]
-    elif create_if_not_exists:
-        logging.debug("Creating organisation: %s", organisation)
-        cursor.execute("INSERT INTO organisation (name) VALUES (%s)", (organisation,))
-        return cursor.lastrowid
-    else:
-        logging.debug("Organisation not found: %s", organisation)
+    try:
+        # Query to find the organization by name
+        query = "SELECT id FROM organisation WHERE name = %s"
+        cursor.execute(query, (organisation,))
+        org_result = cursor.fetchone()
+
+        if org_result:
+            logging.debug("Organisation found: %s", org_result["id"])
+            return org_result["id"], False
+
+        if create_if_not_exists:
+            logging.debug("Creating organisation: %s", organisation)
+            insert_query = "INSERT INTO organisation (name) VALUES (%s)"
+            cursor.execute(insert_query, (organisation,))
+            cursor.connection.commit()
+            return cursor.lastrowid, True
+
+        logging.debug("Organisation not found and not created: %s", organisation)
+        return None, False
+
+    except Exception as e:
+        logging.error("Error occurred while getting or creating organisation: %s", e)
+        raise
 
 
 def get_user_email_by_id(cursor, user_id: int):
