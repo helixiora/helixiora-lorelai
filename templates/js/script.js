@@ -145,12 +145,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(`/chat?job_id=${jobId}`);
             const data = await response.json();
 
+            console.log('Response:', data);
+
             if (data.status === 'SUCCESS') {
                 console.log('Operation completed successfully.');
                 displaySuccessMessage(data.result);
             } else if (data.status === 'FAILED') {
                 console.error('Operation failed:', data.error);
-                displayErrorMessage('Operation failed. Please try again later.');
+                if (data.error.error == 'Index not found. Please index something first.') {
+                    displayErrorMessage('It looks like you haven\'t indexed any data yet. \
+                        Please index some data first and try again, or use the direct-to-LLM \
+                        option to get answers directly from the LLM model');
+                } else {
+                    displayErrorMessage('Operation failed. Please try again later.');
+                }
             } else if (attempt < 20) {
                 console.log('Operation still in progress. Retrying...');
                 pollForResponse(jobId, attempt + 1);

@@ -70,11 +70,15 @@ def fetch_chat_result():
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
+    logging.debug("Job status: %s", job.get_status())
     if job is None:
         return jsonify({"status": "ERROR", "message": "Job not found"}), 404
     elif job.is_failed:
         return jsonify({"status": "FAILED", "error": str(job.exc_info)}), 500
-    elif job.result is not None:
+    elif job.is_finished:
+        logging.info("Job result: %s", job.result)
+        if job.result["status"] == "Failed":
+            return jsonify({"status": "FAILED", "error": job.result}), 500
         return jsonify({"status": "SUCCESS", "result": job.result})
     else:
         # Job is either queued or started but not yet finished

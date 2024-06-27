@@ -83,10 +83,18 @@ def execute_rag_llm(
                 org_name=organisation,
                 user=user,
             )
-            context, source = enriched_context.retrieve_context(chat_message)
-
-            if context is None:
-                raise ValueError("Failed to retrieve context for the provided chat message.")
+            try:
+                context, source = enriched_context.retrieve_context(chat_message)
+                if context is None:
+                    raise ValueError("Failed to retrieve context for the provided chat message.")
+            except ValueError as e:
+                logging.error("(ValueError): Error in retrieving context: %s", str(e))
+                if "Index not found: " in str(e):
+                    raise ValueError("Index not found. Please index something first.") from e
+                raise  # Re-raise the ValueError to be caught by the outer except block
+            except Exception as e:
+                logging.error(f"Error in retrieving context: {str(e)}")
+                raise Exception("Something went wrong") from e
 
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer(question=chat_message, context=context)
@@ -96,13 +104,18 @@ def execute_rag_llm(
 
         json_data = {"answer": answer, "source": source, "status": "Success"}
 
+    except ValueError as e:
+        logging.error("ValueError in execute_rag_llm task: %s", str(e))
+        json_data = {"error": str(e), "status": "Failed"}
+        return json_data
     except Exception as e:
         logging.error("Error in execute_rag_llm task: %s", str(e))
         json_data = {"error": str(e), "status": "Failed"}
-        # Optionally, re-raise the exception if you want the task to be marked as failed
-        raise e
-    end_time = time.time()
-    logging.info(f"Worker Exec time: {end_time-start_time}")
+        return json_data
+    finally:
+        end_time = time.time()
+        logging.info(f"Worker Exec time: {end_time - start_time}")
+
     return json_data
 
 
