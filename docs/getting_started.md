@@ -96,3 +96,91 @@ You can test your queries using the `lorelaicli.py` tool. It is located in
 For deploying to any actual "production"-like environment we can see that obviously it won't work on
 the localhost URL. Also make sure to check the [prerequisites](prerequisites.md#non-local-deploy)
 Otherwise the steps are the same for the time being.
+
+## debugging with VS code
+
+Use the below settings to create configurations so you can debug from VS code:
+
+```json
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Configuration to run the RQ worker
+      "name": "RQ Worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "rq.cli",
+      "env": {
+        // Specify the Redis URL
+        "RQ_REDIS_URL": "redis://localhost:6379/0",
+        // log level
+        "LOG_LEVEL": "DEBUG"
+      },
+      "args": [
+        "worker" // Run the RQ worker
+      ],
+      // Specify where the program output goes
+      "console": "internalConsole"
+    },
+    {
+      // Configuration name
+      "name": "Flask",
+
+      // Type of configuration - use debugpy for Python
+      "type": "debugpy",
+
+      // Request type - launch the Flask module
+      "request": "launch",
+
+      // The Python module to launch
+      "module": "flask",
+
+      // Environment variables
+      "env": {
+        // Specify the entry point of the Flask application
+        "FLASK_APP": "run.py",
+        // Enable Flask debug mode
+        "FLASK_DEBUG": "1",
+        "LOG_LEVEL": "DEBUG"
+      },
+
+      // Arguments passed to the Flask application
+      "args": [
+        "run", // Run the Flask application
+        "--no-debugger", // Disable the Flask debugger
+        "--no-reload", // Disable the reloader
+        "--cert",
+        "./cert.pem", // Path to the SSL certificate
+        "--key",
+        "key.pem" // Path to the SSL key
+      ],
+
+      // Enable Jinja templating
+      "jinja": true,
+
+      // Common Parameters
+      // Specify the working directory for the Flask application
+      "cwd": "${workspaceFolder}",
+
+      // Debug only user-written code, ignoring library files
+      "justMyCode": true,
+
+      // Specify where the program output goes
+      "console": "internalConsole",
+
+      // Redirect logs to a specific file (optional)
+      "logToFile": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Compound",
+      "configurations": ["Flask", "RQ Worker"]
+    }
+  ]
+}
+```
