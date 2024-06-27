@@ -187,7 +187,7 @@ def register_user_to_org(
 
             cursor.execute(
                 "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
-                (session["user_id"], role_id),
+                (user_id, role_id),
             )
 
         conn.commit()
@@ -195,6 +195,7 @@ def register_user_to_org(
         return True, "Registration successful!", user_id
 
     except Exception as e:
+        logging.error("An error occurred: %s", e)
         conn.rollback()
         return False, f"An error occurred: {e}", -1
 
