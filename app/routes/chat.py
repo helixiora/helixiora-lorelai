@@ -23,6 +23,7 @@ def chat():
     logging.info(
         "Chat request received: %s from user %s", content["message"], session.get("user_email")
     )
+    logging.info("Datasource: %s", content["datasource"])
 
     redis = load_config("redis")
     redis_host = redis["url"]

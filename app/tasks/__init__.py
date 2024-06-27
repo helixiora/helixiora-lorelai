@@ -58,7 +58,11 @@ def execute_rag_llm(
 
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s", user, organisation)
-    logging.debug("datasource", datasource)
+    logging.debug("Datasource %s", datasource)
+
+    if datasource not in ["Direct", "Google Drive"]:
+        raise ValueError(f"Invalid datasource provided. Received: {datasource}")
+
     try:
         # create model
         logging.info("User email: %s, Org name: %s", user, organisation)
@@ -72,7 +76,7 @@ def execute_rag_llm(
         if datasource == "Direct":
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer_direct(question=chat_message)
-            source = "OpenAI"
+            source = "Direct"
         else:
             enriched_context = ContextRetriever.create(
                 indexer_type="GoogleDriveContextRetriever",
