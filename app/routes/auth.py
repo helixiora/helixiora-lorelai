@@ -382,32 +382,6 @@ def login_user(
             (google_id, user_id),
         )
 
-        # Check if user_auth entry exists
-        cursor.execute(
-            "SELECT 1 FROM user_auth WHERE user_id = %s AND datasource_id = %s",
-            (user_id, 1),
-        )
-        user_auth_entry = cursor.fetchone()
-
-        if user_auth_entry:
-            # Update user_auth entry if it exists
-            cursor.execute(
-                """
-                UPDATE user_auth SET auth_value = %s, auth_type = %s
-                WHERE user_id = %s AND datasource_id = %s AND auth_key = %s
-                """,
-                (google_id, "oauth", user_id, 1, "google_id"),
-            )
-        else:
-            # Insert a new user_auth entry if it does not exist
-            cursor.execute(
-                """
-                INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (user_id, 1, "google_id", google_id, "oauth"),
-            )
-
         conn.commit()
 
     except Exception as e:
