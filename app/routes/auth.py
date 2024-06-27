@@ -51,9 +51,9 @@ def profile():
         user = {
             "user_id": session["user_id"],
             "email": session["user_email"],
-            "username": session["user_name"],
+            "username": session["user_username"],
             "full_name": session["user_fullname"],
-            "organisation": session.get("org_name", "N/A"),
+            "organisation": session.get("org_name"),
         }
         return render_template(
             "profile.html",
@@ -419,8 +419,8 @@ def login_user(
     # Setup the session
     session["user_id"] = user_id
     session["user_email"] = user_email
-    session["username"] = username
-    session["full_name"] = full_name
+    session["user_username"] = username
+    session["user_fullname"] = full_name
     session["org_id"] = org_id
     session["org_name"] = org_name
 
