@@ -169,13 +169,18 @@ def register_user_to_org(
 
     try:
         # check if the organisation exists
-        org_id, created = get_org_id_by_organisation(
-            cursor=cursor, organisation=organisation, create_if_not_exists=True
+        org_id, created_new_org = get_org_id_by_organisation(
+            conn=conn, organisation=organisation, create_if_not_exists=True
+        )
+
+        # insert the user
+        user_id, user_created_success = insert_user(
+            cursor, org_id, full_name, email, full_name, google_id
         )
 
         # if created = True, this is the first user of the org so make them an org_admin by
         # inserting a record in the user_roles table
-        if created:
+        if user_created_success and created_new_org:
             # get the role_id of the org_admin role
             cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
             role_id = cursor.fetchone()["role_id"]
@@ -184,9 +189,6 @@ def register_user_to_org(
                 "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
                 (session["user_id"], role_id),
             )
-
-        # insert the user
-        user_id = insert_user(cursor, org_id, full_name, email, full_name, google_id)
 
         conn.commit()
 
@@ -201,14 +203,21 @@ def register_user_to_org(
         conn.close()
 
 
-def insert_user(cursor, org_id: int, name: str, email: str, full_name: str, google_id: str):
+def insert_user(
+    cursor, org_id: int, name: str, email: str, full_name: str, google_id: str
+) -> (int, bool):
     """Insert a new user and return the user ID."""
     cursor.execute(
         "INSERT INTO user (org_id, user_name, email, full_name, google_id) \
             VALUES (%s, %s, %s, %s, %s)",
         (org_id, name, email, full_name, google_id),
     )
-    return cursor.lastrowid
+
+    # return lastrowid if the insert was successful
+    user_id = cursor.lastrowid
+    if user_id:
+        return user_id, True
+    return -1, False
 
 
 def validate_form(email: str, name: str, organisation: str):

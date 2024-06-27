@@ -356,15 +356,17 @@ def get_org_id_by_userid(cursor, user_id: int):
 
 
 def get_org_id_by_organisation(
-    cursor, organisation: str, create_if_not_exists: bool = False
+    conn: mysql.connector.connection.MySQLConnection,
+    organisation: str,
+    create_if_not_exists: bool = False,
 ) -> (int, bool):
     """
     Get the organization ID, inserting the organization if it does not exist.
 
     Parameters
     ----------
-    cursor : mysql.connector.cursor.MySQLCursor
-        The database cursor with dictionary=True.
+    conn : mysql.connector.connection.MySQLConnection
+        The connection to the database.
     organisation : str
         The name of the organisation.
     create_if_not_exists : bool, optional
@@ -378,6 +380,7 @@ def get_org_id_by_organisation(
         - bool: Whether the organisation was created.
     """
     try:
+        cursor = conn.cursor(dictionary=True)
         # Query to find the organization by name
         query = "SELECT id FROM organisation WHERE name = %s"
         cursor.execute(query, (organisation,))
@@ -389,9 +392,10 @@ def get_org_id_by_organisation(
 
         if create_if_not_exists:
             logging.debug("Creating organisation: %s", organisation)
+            cursor = conn.cursor(dictionary=False)
             insert_query = "INSERT INTO organisation (name) VALUES (%s)"
             cursor.execute(insert_query, (organisation,))
-            cursor.connection.commit()
+            conn.commit()
             return cursor.lastrowid, True
 
         logging.debug("Organisation not found and not created: %s", organisation)
