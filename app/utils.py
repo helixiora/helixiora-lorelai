@@ -420,3 +420,22 @@ def get_user_email_by_id(cursor, user_id: int):
     user_result = cursor.fetchone()
     if user_result:
         return user_result["email"]
+
+
+def get_datasources_name():
+    """Get the list of datasources from datasource table."""
+    with get_db_connection() as db:
+        try:
+            cursor = db.cursor()
+            query = """
+                SELECT datasource.datasource_name
+                FROM datasource;
+            """
+            cursor.execute(query)
+            datasources = cursor.fetchall()
+            datasources = [source[0] for source in datasources]
+            return datasources
+
+        except Exception:
+            logging.critical("No datasources in datasources table")
+            raise ValueError("No datasources in datasources table") from None

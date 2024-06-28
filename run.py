@@ -18,6 +18,7 @@ from app.utils import (
     is_admin,
     perform_health_checks,
     user_is_logged_in,
+    get_datasources_name,
 )
 from lorelai.utils import load_config
 
@@ -100,8 +101,7 @@ def index():
     # if the user_id is in the session, the user is logged in
     # render the index_logged_in page
     if user_is_logged_in(session):
-        lorelai_settings = load_config("lorelai")
-        datasources = lorelai_settings["data_sources"]
+        datasources = get_datasources_name()
 
         is_admin_status = is_admin(session["user_id"])
         # session["role"] = get_user_role(session["email"])
