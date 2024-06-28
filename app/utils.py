@@ -26,7 +26,10 @@ def is_admin(user_id: int) -> bool:
         True if the user is an admin, False otherwise.
     """
     # Implement the actual check logic, assuming user_id == 1 is admin for example
-    return user_id == 1
+    admin_roles = ["org_admin", "super_admin"]
+    if any(admin_roles) in session["user_roles"]:
+        return True
+    return False
 
 
 def role_required(role_name_list):
@@ -38,11 +41,11 @@ def role_required(role_name_list):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             # Check if "role" is in session and is a list
-            if "role" not in session or not isinstance(session["role"], list):
+            if "user_roles" not in session or not isinstance(session["user_roles"], list):
                 return redirect(url_for("unauthorized"))
 
             # Check if any role in session['role'] is in role_name_list
-            if not any(role in role_name_list for role in session["role"]):
+            if not any(role in role_name_list for role in session["user_roles"]):
                 return redirect(url_for("unauthorized"))
 
             return f(*args, **kwargs)

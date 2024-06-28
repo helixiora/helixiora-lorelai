@@ -6,6 +6,7 @@ CREATE TABLE roles (
 
 INSERT INTO roles (role_name) VALUES ('super_admin');
 INSERT INTO roles (role_name) VALUES ('org_admin');
+INSERT INTO roles (role_name) VALUES ('user');
 
 
 -- Create the user_roles table
