@@ -142,6 +142,7 @@ def start_indexing(type) -> str:
 
         # First we get the org_rows. If the type is user or organisation,
         # we only need the current org
+
         if type in ["user", "organisation"]:
             org_rows = get_query_result(
                 "SELECT id, name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
@@ -173,7 +174,6 @@ def start_indexing(type) -> str:
                     "SELECT user_id, email FROM user WHERE user_id = %s AND org_id = %s",
                     (user_id, org_id),
                 )
-
             # Only continue if we have users
             if user_rows:
                 user_auth_rows = []

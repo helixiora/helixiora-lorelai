@@ -27,7 +27,7 @@ def is_admin(user_id: int) -> bool:
     """
     # Implement the actual check logic, assuming user_id == 1 is admin for example
     admin_roles = ["org_admin", "super_admin"]
-    if any(admin_roles) in session["user_roles"]:
+    if any(role in admin_roles for role in session["user_roles"]):
         return True
     return False
 

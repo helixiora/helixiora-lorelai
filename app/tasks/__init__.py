@@ -60,7 +60,7 @@ def execute_rag_llm(
     logging.info("Session: %s, %s", user, organisation)
     logging.debug("Datasource %s", datasource)
 
-    if datasource not in ["Direct", "Google Drive"]:
+    if datasource not in ["Direct", "Google"]:
         raise ValueError(f"Invalid datasource provided. Received: {datasource}")
 
     try:
@@ -78,8 +78,9 @@ def execute_rag_llm(
             answer = llm.get_answer_direct(question=chat_message)
             source = "Direct"
         else:
+            # have to change Retriever type based on data source.
             enriched_context = ContextRetriever.create(
-                indexer_type="GoogleDriveContextRetriever",
+                retriever_type="GoogleDriveContextRetriever",
                 org_name=organisation,
                 user=user,
             )

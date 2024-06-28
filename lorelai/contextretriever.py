@@ -59,14 +59,14 @@ class ContextRetriever:
         self.user: str = user_email
 
     @staticmethod
-    def create(indexer_type="GoogleDriveContextRetriever", org_name="", user=""):
+    def create(retriever_type="GoogleDriveContextRetriever", org_name="", user=""):
         """
         Create instance of derived class based on the class name.
 
         Parameters
         ----------
-        indexer_type : str
-            The type of the indexer, used to instantiate the appropriate subclass.
+        retriever_type : str
+            The type of the Retriever, used to instantiate the appropriate subclass.
         org_name : str
             The organization name, used for Pinecone index naming.
         user : str
@@ -78,10 +78,10 @@ class ContextRetriever:
             An instance of the specified ContextRetriever subclass.
         """
         ContextRetriever._allowed = True
-        class_ = globals().get(indexer_type)
+        class_ = globals().get(retriever_type)
         if class_ is None or not issubclass(class_, ContextRetriever):
             ContextRetriever._allowed = False
-            raise ValueError(f"Unsupported model type: {indexer_type}")
+            raise ValueError(f"Unsupported model type: {retriever_type}")
         instance = class_(org_name, user)
         ContextRetriever._allowed = False
         return instance
