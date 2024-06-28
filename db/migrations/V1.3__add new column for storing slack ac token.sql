@@ -1,2 +1,0 @@
-ALTER TABLE users
-ADD COLUMN slack_token VARCHAR(255);

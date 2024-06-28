@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS datasource (
 );
 
 -- Insert 'Google Drive' datasource if it does not exist
+INSERT IGNORE INTO datasource (datasource_name, datasource_type) VALUES ('Direct', 'NA');
+
+-- Insert 'Google Drive' datasource if it does not exist
 INSERT IGNORE INTO datasource (datasource_name, datasource_type) VALUES ('Google', 'oauth2');
 
 -- Insert 'Slack' datasource if it does not exist
