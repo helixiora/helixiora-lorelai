@@ -41,7 +41,15 @@ jobs:
         id: prep
         run: |
             BRANCH_NAME=$(echo "${{ github.event.issue.pull_request.head.ref }}" | sed 's/\//-/g; s/#//g')
+            echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
             echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
+        env:
+          GITHUB_HEAD_REF: ${{ github.event.issue.pull_request.head.ref }}
+
+      - name: Debug environment variables
+        run: |
+          echo "Branch Name: $BRANCH_NAME"
+          echo "Image Tag: $IMAGE_TAG"
 
       - name: Build and push web image
         uses: docker/build-push-action@v6.1.0
