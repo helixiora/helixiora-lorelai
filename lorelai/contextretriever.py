@@ -222,7 +222,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         # Reranker takes the result from base retriever than reranks those retrieved.
         # flash reranker is used as its standalone, lightweight. and free and open source
-        compressor = FlashrankRerank(top_n=3, model="ms-marco-MiniLM-L-12-v2")
+        compressor = FlashrankRerank(top_n=3, model="ms-marco-TinyBERT-L-2-v2")
 
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever

@@ -13,7 +13,12 @@ from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.google.auth import googledrive_bp
-from app.utils import get_db_connection, is_admin, perform_health_checks, user_is_logged_in
+from app.utils import (
+    get_db_connection,
+    is_admin,
+    perform_health_checks,
+    user_is_logged_in,
+)
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -96,8 +101,13 @@ def index():
     # render the index_logged_in page
     if user_is_logged_in(session):
         is_admin_status = is_admin(session["user_id"])
+        data_sources_list = lorelai_settings["data_sources"]
+        # session["role"] = get_user_role(session["email"])
         return render_template(
-            "index_logged_in.html", user_email=session["user_email"], is_admin=is_admin_status
+            "index_logged_in.html",
+            user_email=session["user_email"],
+            is_admin=is_admin_status,
+            datasource_list=data_sources_list,
         )
 
     # if we're still here, there was no user_id in the session meaning we are not logged in
