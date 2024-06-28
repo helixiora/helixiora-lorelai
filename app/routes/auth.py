@@ -31,6 +31,7 @@ from app.utils import (
     get_user_id_by_email,
     is_admin,
     user_is_logged_in,
+    get_user_role_by_id,
 )
 from lorelai.slack.slack_processor import SlackOAuth
 
@@ -180,6 +181,7 @@ def register_user_to_org(
 
         # if created = True, this is the first user of the org so make them an org_admin by
         # inserting a record in the user_roles table
+        print("^^^^^^^^^^^^^^^^^^", user_created_success, created_new_org)
         if user_created_success and created_new_org:
             # get the role_id of the org_admin role
             cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
@@ -328,12 +330,12 @@ def login():
     except ValueError as e:
         logging.error("Invalid token: %s", e)
         return jsonify({"message": "Error: " + str(e)}), 401
-    except Exception as e:
-        logging.exception("An error occurred: %s", e)
-        return jsonify({"message": "An error occurred: " + str(e)}), 401
     except exceptions.GoogleAuthError as e:
         logging.error("Google Auth Error: %s", e)
         return jsonify({"message": "Google Auth Error: " + str(e)}), 401
+    except Exception as e:
+        logging.exception("An error occurred: %s", e)
+        return jsonify({"message": "An error occurred: " + str(e)}), 401
     finally:
         cursor.close()
         conn.close()
@@ -391,6 +393,7 @@ def login_user(
         cursor.close()
         conn.close()
 
+    user_roles = get_user_role_by_id(user_id)
     # Setup the session
     session["user_id"] = user_id
     session["user_email"] = user_email
@@ -398,6 +401,7 @@ def login_user(
     session["user_fullname"] = full_name
     session["org_id"] = org_id
     session["org_name"] = org_name
+    session["user_roles"] = user_roles
 
 
 def is_username_available(username: str) -> bool:

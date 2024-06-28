@@ -37,8 +37,14 @@ def role_required(role_name_list):
 
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            if "role" not in session or session["role"] not in role_name_list:
+            # Check if "role" is in session and is a list
+            if "role" not in session or not isinstance(session["role"], list):
                 return redirect(url_for("unauthorized"))
+
+            # Check if any role in session['role'] is in role_name_list
+            if not any(role in role_name_list for role in session["role"]):
+                return redirect(url_for("unauthorized"))
+
             return f(*args, **kwargs)
 
         return decorated_function
@@ -275,25 +281,27 @@ def perform_health_checks() -> list[str]:
     return errors
 
 
-def get_user_role(email: str):
+def get_user_role_by_id(user_id: str):
     """Get the role of a user by email."""
     with get_db_connection() as db:
         try:
             cursor = db.cursor()
             query = """
                 SELECT roles.role_name
-                FROM users
-                JOIN user_roles ON users.user_id = user_roles.user_id
+                FROM user
+                JOIN user_roles ON user.user_id = user_roles.user_id
                 JOIN roles ON user_roles.role_id = roles.role_id
-                WHERE users.email = %s;
+                WHERE user.user_id = %s;
             """
-            cursor.execute(query, (email,))
-            role_name = cursor.fetchone()[0]
-            return role_name
+            cursor.execute(query, (user_id,))
+            roles = cursor.fetchall()
+            role_names = [role[0] for role in roles]
+            print(role_names)
+            return role_names
 
         except Exception:
-            logging.critical(f"{email} has no role assigned")
-            raise ValueError(f"{email} has no role assigned") from None
+            logging.critical(f"{user_id} has no role assigned")
+            raise ValueError(f"{user_id} has no role assigned") from None
 
 
 def user_is_logged_in(session) -> bool:
