@@ -55,15 +55,23 @@ def job_status(job_id: str) -> str:
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
+    print(job._status)
     match job:
         case None:
             logging.error(f"Job {job_id} not found")
             response = {"job_id": job_id, "state": "unknown", "status": "unknown"}
+        case job.is_queued:
+            logging.info(f"Job {job_id} queued")
+            response = {
+                "job_id": job_id,
+                "state": "queued",
+                "metadata": job.meta,
+            }
         case job.is_finished:
             logging.info(f"Job {job_id} finished")
             response = {
                 "job_id": job_id,
-                "state": "done",
+                "state": "finished",
                 "metadata": job.meta,
                 "result": job.result,
             }
@@ -79,7 +87,7 @@ def job_status(job_id: str) -> str:
             logging.info(f"Job {job_id} started")
             response = {
                 "job_id": job_id,
-                "state": "running",
+                "state": "started",
                 "metadata": job.meta,
                 "result": job.result,
             }

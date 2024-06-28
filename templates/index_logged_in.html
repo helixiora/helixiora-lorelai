@@ -92,45 +92,35 @@
             <div class="text-left p-2">
                 <!-- Example of a user message
                 <p class="inline-block bg-white rounded-lg p-4">Hi there, how can I help you?</p>-->
-            </div>            
-            <!-- Chat Message Area -->
-            <div id="messages" class="flex-grow rounded-lg p-4 mb-4 overflow-y-auto">
-                <!-- User messages will go here -->
-                <div class="text-left p-2">
-                    <!-- Example of a user message
-                    <p class="inline-block bg-white rounded-lg p-4">Hi there, how can I help you?</p>-->
-                </div>
-                <!-- Placeholder for the bot's message with loading indicator -->
-                <div id="botMessageContainer" class="text-right p-2">
-                    <!-- Initially, the loading indicator is hidden -->
-                    <div id="loading" class="hidden">
-                        <div class="dot-pulse"></div>
-                    </div>
-                    <!-- Bot messages will be added here dynamically -->
-                    <!-- Existing bot messages, if any, can be placed here too -->
+            </div>
+            <!-- Placeholder for the bot's message with loading indicator -->
+            <div id="botMessageContainer" class="text-right p-2">
+                <!-- Initially, the loading indicator is hidden -->
+                <div id="loading" class="hidden">
+                    <div class="dot-pulse"></div>
                 </div>
                 <!-- Bot messages will be added here dynamically -->
                 <!-- Existing bot messages, if any, can be placed here too -->
             </div>
-            <!-- Input Box and Send Button -->
-            <div class="pb-4 mx-auto w-full pl-8 pr-8">
-                <div class="flex items-center bg-white rounded-md shadow-sm border">
-                    <input id="messageInput" type="text" placeholder="Type something to discover awesome stuff!" class="flex-grow p-4 rounded-l-md focus:outline-none">
-                    <button id="sendButton" class="bg-[#4b9feb] text-white rounded-r-md p-4 focus:outline-none">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                <!-- Datasource Select Dropdown -->
-                    <div class="pl-4 pt-2">
-                        <select id="datasourceSelect" class="bg-white border rounded p-2">
-                            {% for source in datasource_list %}
-                                <option value="{{ source }}">{{ source }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                <span class="text-center text-gray-800 text-sm block mt-2">Chatbot may display inaccurate info, including about people, so double-check its responses.</span>
-            </div>
             <!-- More messages will be added here dynamically -->
+        </div>
+        <!-- Input Box and Send Button -->
+        <div class="pb-4 mx-auto w-full pl-8 pr-8">
+            <div class="flex items-center bg-white rounded-md shadow-sm border">
+                <input id="messageInput" type="text" placeholder="Type something to discover awesome stuff!" class="flex-grow p-4 rounded-l-md focus:outline-none">
+                <!-- Datasource Select Dropdown -->
+                <div class="pl-4 p-2">
+                    <select id="datasourceSelect" class="bg-white border rounded pr-2">
+                        {% for source in datasource_list %}
+                            <option value="{{ source }}">{{ source }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button id="sendButton" class="bg-[#4b9feb] text-white rounded-r-md p-4 focus:outline-none">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <span class="text-center text-gray-800 text-sm block mt-2">Chatbot may display inaccurate info, including about people, so double-check its responses.</span>
         </div>
     </div>
 

@@ -51,9 +51,9 @@ def profile():
         user = {
             "user_id": session["user_id"],
             "email": session["user_email"],
-            "username": session["user_name"],
+            "username": session["user_username"],
             "full_name": session["user_fullname"],
-            "organisation": session.get("org_name", "N/A"),
+            "organisation": session.get("org_name"),
         }
         return render_template(
             "profile.html",
@@ -187,7 +187,7 @@ def register_user_to_org(
 
             cursor.execute(
                 "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
-                (session["user_id"], role_id),
+                (user_id, role_id),
             )
 
         conn.commit()
@@ -195,6 +195,7 @@ def register_user_to_org(
         return True, "Registration successful!", user_id
 
     except Exception as e:
+        logging.error("An error occurred: %s", e)
         conn.rollback()
         return False, f"An error occurred: {e}", -1
 
@@ -381,32 +382,6 @@ def login_user(
             (google_id, user_id),
         )
 
-        # Check if user_auth entry exists
-        cursor.execute(
-            "SELECT 1 FROM user_auth WHERE user_id = %s AND datasource_id = %s",
-            (user_id, 1),
-        )
-        user_auth_entry = cursor.fetchone()
-
-        if user_auth_entry:
-            # Update user_auth entry if it exists
-            cursor.execute(
-                """
-                UPDATE user_auth SET auth_value = %s, auth_type = %s
-                WHERE user_id = %s AND datasource_id = %s AND auth_key = %s
-                """,
-                (google_id, "oauth", user_id, 1, "google_id"),
-            )
-        else:
-            # Insert a new user_auth entry if it does not exist
-            cursor.execute(
-                """
-                INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (user_id, 1, "google_id", google_id, "oauth"),
-            )
-
         conn.commit()
 
     except Exception as e:
@@ -419,8 +394,8 @@ def login_user(
     # Setup the session
     session["user_id"] = user_id
     session["user_email"] = user_email
-    session["username"] = username
-    session["full_name"] = full_name
+    session["user_username"] = username
+    session["user_fullname"] = full_name
     session["org_id"] = org_id
     session["org_name"] = org_name
 

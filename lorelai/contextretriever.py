@@ -213,7 +213,9 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         except ValueError as e:
             logging.error(f"Failed to connect to Pinecone: {e}")
-            raise ValueError(f"Index {index_name} not found.") from e
+            if "not found in your Pinecone project. Did you mean one of the following" in str(e):
+                raise ValueError("Index not found. Please index something first.") from e
+            raise ValueError("Failed to retrieve context for the provided chat message.") from e
 
         retriever = vec_store.as_retriever(
             search_type="similarity",

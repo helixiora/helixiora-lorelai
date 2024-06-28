@@ -100,14 +100,16 @@ def index():
     # if the user_id is in the session, the user is logged in
     # render the index_logged_in page
     if user_is_logged_in(session):
+        lorelai_settings = load_config("lorelai")
+        datasources = lorelai_settings["data_sources"]
+
         is_admin_status = is_admin(session["user_id"])
-        data_sources_list = lorelai_settings["data_sources"]
         # session["role"] = get_user_role(session["email"])
         return render_template(
             "index_logged_in.html",
             user_email=session["user_email"],
             is_admin=is_admin_status,
-            datasource_list=data_sources_list,
+            datasource_list=datasources,
         )
 
     # if we're still here, there was no user_id in the session meaning we are not logged in
