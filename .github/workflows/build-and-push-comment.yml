@@ -25,10 +25,8 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            return {
-              branch: pullRequest.data.head.ref,
-              issue_number: context.issue.number
-            };
+            core.setOutput("branch", pullRequest.data.head.ref);
+            core.setOutput("issue_number", context.issue.number);
 
       - name: Set branch and issue number
         run: |
