@@ -14,22 +14,7 @@ jobs:
       actions: read
       pull-requests: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.issue.pull_request.head.ref }}
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.3.0
-
-      - name: Get PR branch name
+      - name: Get PR branch name and issue number
         uses: actions/github-script@v7
         id: get-branch
         with:
@@ -40,37 +25,31 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            core.setOutput("branch", pullRequest.data.head.ref);
-            core.setOutput("issue_number", context.issue.number);
+            return {
+              branch: pullRequest.data.head.ref,
+              issue_number: context.issue.number
+            };
 
-      - name: Extract branch name
-        id: prep
+      - name: Set branch and issue number
         run: |
-          BRANCH_NAME=$(echo "${{ steps.get-branch.outputs.branch }}" | sed 's/\//-/g; s/#//g')
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "BRANCH_NAME=$(echo '${{ steps.get-branch.outputs.branch }}' | sed 's/\\//-/g; s/#//g')" >> $GITHUB_ENV
           echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
           echo "ISSUE_NUMBER=${{ steps.get-branch.outputs.issue_number }}" >> $GITHUB_ENV
 
-      - name: Debug environment variables
-        run: |
-          echo "Branch Name: $BRANCH_NAME"
-          echo "Image Tag: $IMAGE_TAG"
-          echo "Issue Number: $ISSUE_NUMBER"
-          echo "GITHUB_REF: $GITHUB_REF"
-          echo "GITHUB_SHA: $GITHUB_SHA"
-          echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
-          echo "GITHUB_ACTOR: $GITHUB_ACTOR"
-          echo "GITHUB_WORKFLOW: $GITHUB_WORKFLOW"
-          echo "GITHUB_HEAD_REF: $GITHUB_HEAD_REF"
-          echo "GITHUB_BASE_REF: $GITHUB_BASE_REF"
-          echo "GITHUB_EVENT_NAME: $GITHUB_EVENT_NAME"
-          echo "GITHUB_EVENT_PATH: $GITHUB_EVENT_PATH"
-          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-          echo "GITHUB_RUN_ID: $GITHUB_RUN_ID"
-          echo "GITHUB_RUN_NUMBER: $GITHUB_RUN_NUMBER"
-          echo "GITHUB_JOB: $GITHUB_JOB"
-          echo "GITHUB_ACTION: $GITHUB_ACTION"
-          cat $GITHUB_EVENT_PATH
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.get-branch.outputs.branch }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.3.0
 
       - name: Build and push web image
         uses: docker/build-push-action@v6.1.0
@@ -102,13 +81,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const status = context.job === 'success' ? 'succeeded' : 'failed';
-            const issueComment = context.payload.comment;
             const runId = process.env.GITHUB_RUN_ID;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const buildLogUrl = `${repoUrl}/actions/runs/${runId}`;
             const webImageUrl = `ghcr.io/${context.repo.owner}/${context.repo.repo}/web:${process.env.IMAGE_TAG}`;
             const workerImageUrl = `ghcr.io/${context.repo.owner}/${context.repo.repo}/worker:${process.env.IMAGE_TAG}`;
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: process.env.ISSUE_NUMBER,
               owner: context.repo.owner,
               repo: context.repo.repo,
