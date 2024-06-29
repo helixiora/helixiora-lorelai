@@ -40,19 +40,22 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            return pullRequest.data.head.ref;
+            core.setOutput("branch", pullRequest.data.head.ref);
+            core.setOutput("issue_number", context.issue.number);
 
       - name: Extract branch name
         id: prep
         run: |
-          BRANCH_NAME=$(echo "${{ steps.get-branch.outputs.result }}" | sed 's/\//-/g; s/#//g')
+          BRANCH_NAME=$(echo "${{ steps.get-branch.outputs.branch }}" | sed 's/\//-/g; s/#//g')
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "ISSUE_NUMBER=${{ steps.get-branch.outputs.issue_number }}" >> $GITHUB_ENV
 
       - name: Debug environment variables
         run: |
           echo "Branch Name: $BRANCH_NAME"
           echo "Image Tag: $IMAGE_TAG"
+          echo "Issue Number: $ISSUE_NUMBER"
           echo "GITHUB_REF: $GITHUB_REF"
           echo "GITHUB_SHA: $GITHUB_SHA"
           echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
@@ -96,6 +99,7 @@ jobs:
         if: always() # Ensure this step runs regardless of job success or failure
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const status = context.job === 'success' ? 'succeeded' : 'failed';
             const issueComment = context.payload.comment;
@@ -105,7 +109,7 @@ jobs:
             const webImageUrl = `ghcr.io/${context.repo.owner}/${context.repo.repo}/web:${process.env.IMAGE_TAG}`;
             const workerImageUrl = `ghcr.io/${context.repo.owner}/${context.repo.repo}/worker:${process.env.IMAGE_TAG}`;
             github.rest.issues.createComment({
-              issue_number: issueComment.issue_number,
+              issue_number: process.env.ISSUE_NUMBER,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `The build for this branch has ${status}.
