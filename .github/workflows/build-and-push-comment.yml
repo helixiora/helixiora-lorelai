@@ -30,9 +30,17 @@ jobs:
 
       - name: Set branch and issue number
         run: |
-          echo "BRANCH_NAME=$(echo '${{ steps.get-branch.outputs.branch }}' | sed 's/\\//-/g; s/#//g')" >> $GITHUB_ENV
-          echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
+          BRANCH_NAME=$(echo '${{ steps.get-branch.outputs.branch }}' | sed 's/[\/#]/-/g')
+          echo "BRANCH_NAME=${BRANCH_NAME}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${BRANCH_NAME}" >> $GITHUB_ENV
           echo "ISSUE_NUMBER=${{ steps.get-branch.outputs.issue_number }}" >> $GITHUB_ENV
+
+      - name: Debug - Display environment variables
+        run: |
+          echo "BRANCH_NAME=${BRANCH_NAME}"
+          echo "IMAGE_TAG=${IMAGE_TAG}"
+          echo "ISSUE_NUMBER=${ISSUE_NUMBER}"
+          env
 
       - name: Checkout code
         uses: actions/checkout@v4
