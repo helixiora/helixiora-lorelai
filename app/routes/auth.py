@@ -181,7 +181,6 @@ def register_user_to_org(
 
         # if created = True, this is the first user of the org so make them an org_admin by
         # inserting a record in the user_roles table
-        print("^^^^^^^^^^^^^^^^^^", user_created_success, created_new_org)
         if user_created_success and created_new_org:
             # get the role_id of the org_admin role
             cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
