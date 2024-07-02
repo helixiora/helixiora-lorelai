@@ -14,16 +14,38 @@ jobs:
       actions: read
       pull-requests: write
     steps:
-      - uses: 8398a7/action-slack@v3
+      - name: Get PR branch name and issue number
+        uses: actions/github-script@v7
+        id: get-branch
         with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,action,eventName,job,took,pullRequest
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
-        if: always() # Pick up events even if the job fails or is canceled.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pullRequest = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            core.setOutput("branch", pullRequest.data.head.ref);
+            core.setOutput("issue_number", context.issue.number);
+
+      - name: Set branch and issue number
+        run: |
+          BRANCH_NAME=$(echo '${{ steps.get-branch.outputs.branch }}' | sed 's/[\/#]/-/g')
+          echo "BRANCH_NAME=${BRANCH_NAME}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${BRANCH_NAME}" >> $GITHUB_ENV
+          echo "ISSUE_NUMBER=${{ steps.get-branch.outputs.issue_number }}" >> $GITHUB_ENV
+
+      - name: Debug - Display environment variables
+        run: |
+          echo "BRANCH_NAME=${BRANCH_NAME}"
+          echo "IMAGE_TAG=${IMAGE_TAG}"
+          echo "ISSUE_NUMBER=${ISSUE_NUMBER}"
+          env
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.get-branch.outputs.branch }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3.2.0
@@ -35,26 +57,56 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.3.0
 
-      - name: Extract branch name
-        id: prep
-        run: |
-            BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g; s/#//g')
-            echo "IMAGE_TAG=$BRANCH_NAME" >> $GITHUB_ENV
       - name: Build and push web image
         uses: docker/build-push-action@v6.1.0
         with:
           context: .
           file: ./Dockerfile
+          target: web-production
           push: true
           tags: ghcr.io/${{ github.repository }}/web:${{ env.IMAGE_TAG }}
           platforms: linux/amd64
+
       - name: Build and push worker image
         uses: docker/build-push-action@v6.1.0
         with:
           context: .
           file: ./Dockerfile
+          target: worker-production
           push: true
           tags: ghcr.io/${{ github.repository }}/worker:${{ env.IMAGE_TAG }}
           platforms: linux/amd64
+
       - name: Logout from Docker
         run: docker logout ghcr.io
+
+      - name: Post build status to PR comment
+        if: always() # Ensure this step runs regardless of job success or failure
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const status = context.job === 'success' ? 'succeeded' : 'failed';
+            const runId = process.env.GITHUB_RUN_ID;
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const buildLogUrl = `${repoUrl}/actions/runs/${runId}`;
+            const webImageUrl = `ghcr.io/${context.repo.owner}/${context.repo.repo}/web:${process.env.IMAGE_TAG}`;
+            const workerImageUrl = `ghcr.io/${context.repo.owner}/${context.repo.repo}/worker:${process.env.IMAGE_TAG}`;
+            await github.rest.issues.createComment({
+              issue_number: process.env.ISSUE_NUMBER,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `The build for this branch has ${status}.
+              - **Build Log**: [View Logs](${buildLogUrl})
+              - **Web Image**: ${webImageUrl}
+              - **Worker Image**: ${workerImageUrl}`
+            });
+
+      - name: Send final Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,job,took,pullRequest
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
+        if: always() # Pick up events even if the job fails or is canceled.

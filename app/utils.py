@@ -280,7 +280,7 @@ def perform_health_checks() -> list[str]:
             logging.error(f"Health check failed ({check.__name__}): {message}")
             errors.append(message)
         else:
-            logging.info(f"Health check passed ({check.__name__}): {message}")
+            logging.debug(f"Health check passed ({check.__name__}): {message}")
     return errors
 
 

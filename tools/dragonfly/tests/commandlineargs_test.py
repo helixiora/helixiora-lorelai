@@ -34,7 +34,7 @@ def test_parser_with_invalid_verbs(capfd):
     # expect argparse to throw an ArgumentError since "dostuff" is not a valid verb
     with pytest.raises(SystemExit) as excinfo:
         parser.parse_args(["dostuff"])
-    assert excinfo.type == SystemExit
+    assert excinfo.type is SystemExit
 
     # Capture the output to stderr and stdout
     out, err = capfd.readouterr()
@@ -58,7 +58,7 @@ def test_main_with_no_args():
     with mock.patch.object(sys, "argv", testargs):
         with pytest.raises(SystemExit) as excinfo:
             main()
-    assert excinfo.type == SystemExit
+    assert excinfo.type is SystemExit
     assert excinfo.value.code != 0  # Should exit with an error since no verb is provided
 
 
@@ -68,7 +68,7 @@ def test_main_with_invalid_args():
     with mock.patch.object(sys, "argv", testargs):
         with pytest.raises(SystemExit) as excinfo:
             main()
-    assert excinfo.type == SystemExit
+    assert excinfo.type is SystemExit
     assert excinfo.value.code != 0  # Should exit with an error due to invalid verb
 
 
