@@ -10,6 +10,7 @@ from rq import get_current_job
 from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
+from app.utils import get_datasources_name
 
 logging_format = os.getenv(
     "LOG_FORMAT",
@@ -59,8 +60,8 @@ def execute_rag_llm(
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s", user, organisation)
     logging.debug("Datasource %s", datasource)
-
-    if datasource not in ["Direct", "Google"]:
+    db_datasource_list = get_datasources_name()
+    if datasource not in db_datasource_list:
         raise ValueError(f"Invalid datasource provided. Received: {datasource}")
 
     try:
