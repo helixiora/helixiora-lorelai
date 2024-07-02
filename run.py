@@ -96,14 +96,17 @@ def index():
     # render the index_logged_in page
     if user_is_logged_in(session):
         lorelai_settings = load_config("lorelai")
-        datasources = lorelai_settings["data_sources"]
+
+        # split the data sources into a list
+        sources = lorelai_settings["data_sources"]
+        sources = sources.split(",")
 
         is_admin_status = is_admin(session["user_id"])
         return render_template(
             "index_logged_in.html",
             user_email=session["user_email"],
             is_admin=is_admin_status,
-            datasource_list=datasources,
+            datasource_list=sources,
         )
 
     # if we're still here, there was no user_id in the session meaning we are not logged in
