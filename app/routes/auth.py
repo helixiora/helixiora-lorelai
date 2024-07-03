@@ -31,6 +31,7 @@ from app.utils import (
     get_user_id_by_email,
     is_admin,
     user_is_logged_in,
+    get_user_role_by_id,
 )
 from lorelai.slack.slack_processor import SlackOAuth
 
@@ -328,12 +329,12 @@ def login():
     except ValueError as e:
         logging.error("Invalid token: %s", e)
         return jsonify({"message": "Error: " + str(e)}), 401
-    except Exception as e:
-        logging.exception("An error occurred: %s", e)
-        return jsonify({"message": "An error occurred: " + str(e)}), 401
     except exceptions.GoogleAuthError as e:
         logging.error("Google Auth Error: %s", e)
         return jsonify({"message": "Google Auth Error: " + str(e)}), 401
+    except Exception as e:
+        logging.exception("An error occurred: %s", e)
+        return jsonify({"message": "An error occurred: " + str(e)}), 401
     finally:
         cursor.close()
         conn.close()
@@ -391,6 +392,7 @@ def login_user(
         cursor.close()
         conn.close()
 
+    user_roles = get_user_role_by_id(user_id)
     # Setup the session
     session["user_id"] = user_id
     session["user_email"] = user_email
@@ -398,6 +400,7 @@ def login_user(
     session["user_fullname"] = full_name
     session["org_id"] = org_id
     session["org_name"] = org_name
+    session["user_roles"] = user_roles
 
 
 def is_username_available(username: str) -> bool:

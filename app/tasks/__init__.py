@@ -80,8 +80,9 @@ def execute_rag_llm(
             answer = llm.get_answer_direct(question=chat_message)
             source = "Direct"
         else:
+            # have to change Retriever type based on data source.
             enriched_context = ContextRetriever.create(
-                indexer_type="GoogleDriveContextRetriever",
+                retriever_type="GoogleDriveContextRetriever",
                 org_name=organisation,
                 user=user,
             )
