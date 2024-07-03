@@ -60,8 +60,10 @@ def execute_rag_llm(
     logging.info("Session: %s, %s", user, organisation)
     logging.debug("Datasource %s", datasource)
 
+    datasource = datasource.strip()
+
     if datasource not in ["Direct", "Google Drive"]:
-        raise ValueError(f"Invalid datasource provided. Received: {datasource}")
+        raise ValueError(f"Invalid datasource provided. Received: '{datasource}'")
 
     try:
         # create model
