@@ -425,6 +425,19 @@ def get_user_email_by_id(cursor, user_id: int):
         return user_result["email"]
 
 
+def get_datasource_id_by_name(cursor, datasource_name: str):
+    """Get the organization name by ID."""
+    datasource_name_result = get_query_result(
+        "SELECT datasource_id FROM datasource WHERE datasource_name = %s",
+        (datasource_name,),
+        fetch_one=True,
+    )
+    if datasource_name_result:
+        return datasource_name_result["datasource_id"]
+
+    return None
+
+
 def get_datasources_name():
     """Get the list of datasources from datasource table."""
     with get_db_connection() as db:

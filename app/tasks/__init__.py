@@ -159,7 +159,7 @@ def run_indexer(
         logging.debug("Starting indexing...")
         job.meta["logs"].append("Starting indexing...")
         job.save_meta()
-
+        logging.info(f"{org_row},{user_rows},{user_auth_rows},{job},")
         # Perform indexing
         results = indexer.index_org(org_row, user_rows, user_auth_rows, job)
 
