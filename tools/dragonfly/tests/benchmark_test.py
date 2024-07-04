@@ -1,10 +1,10 @@
-# tests/test_benchmark.py
-
+"""Tests for the benchmark module."""
 
 from benchmark.validate import Validate
 
 
 def test_validation_functions_existence():
+    """Test that all expected validation functions exist in the Validate class."""
     # List of the expected validation method names
     expected_methods = {
         "validate_fact_retrieval",

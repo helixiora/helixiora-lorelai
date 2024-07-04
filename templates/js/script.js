@@ -145,12 +145,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(`/chat?job_id=${jobId}`);
             const data = await response.json();
 
+            console.log('Response:', data);
+
             if (data.status === 'SUCCESS') {
                 console.log('Operation completed successfully.');
                 displaySuccessMessage(data.result);
             } else if (data.status === 'FAILED') {
                 console.error('Operation failed:', data.error);
-                displayErrorMessage('Operation failed. Please try again later.');
+                if (data.error.error == 'Index not found. Please index something first.') {
+                    displayErrorMessage('It looks like you haven\'t indexed any data yet. \
+                        Please index some data first and try again, or use the direct-to-LLM \
+                        option to get answers directly from the LLM model');
+                } else {
+                    displayErrorMessage('Operation failed. Please try again later.');
+                }
             } else if (attempt < 20) {
                 console.log('Operation still in progress. Retrying...');
                 pollForResponse(jobId, attempt + 1);
@@ -177,7 +185,10 @@ document.addEventListener('DOMContentLoaded', function() {
         hideLoadingIndicator();
         addMessage(result.answer, false, false); // Display the answer
 
-        if (result.source && result.source.length > 0) {
+        if (result.source == 'Direct') {
+            addMessage('Source: Direct answer from LLM', false, false, true);
+        }
+        else if (result.source && result.source.length > 0) {
             const sourceText = result.source.map(src => `<li><a href="${src.source}">${src.title} (score: ${src.score})</a></li>`).join('');
             addMessage(`<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
         } else {
@@ -205,13 +216,16 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {string} message The text message to send to the server.
      */
     async function sendMessage(message) {
+        const datasourceSelect = document.getElementById('datasourceSelect');
+        const selectedDatasource = datasourceSelect.value;
+        console.log('Selected Datasource:', selectedDatasource);
         console.log('Sending message:', message);
         addMessage(message, true); // Display the message as sent by the user
         showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
         fetch('/chat', {
             method: 'POST',
-            body: JSON.stringify({message: message}),
+            body: JSON.stringify({message: message, datasource: selectedDatasource }),
             headers: {
                 'Content-Type': 'application/json'
             }

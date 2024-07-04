@@ -48,7 +48,7 @@ def main(folder_id: str = None) -> None:
 
             users = cur.fetchall()
 
-            indexer = Indexer()
+            indexer = Indexer.create("GoogleDriveIndexer")
             logging.debug(f"List of org and user found: {org}, {users}")
             indexer.index_org_drive(org, users, folder_id)
 

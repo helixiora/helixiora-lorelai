@@ -1,3 +1,5 @@
+"""Routes for the chat page."""
+
 import logging
 
 from flask import blueprints, jsonify, request, session
@@ -13,13 +15,15 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 # a get and post route for the chat page
 @chat_bp.route("/chat", methods=["POST"])
 def chat():
-    """Endpoint to post chat messages."""
-
+    """Post messages to rq to process."""
     content = request.get_json()
     if not content or "message" not in content:
         return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
-    logging.info("Chat request received: %s", content["message"])
+    logging.info(
+        "Chat request received: %s from user %s", content["message"], session.get("user_email")
+    )
+    logging.info("Datasource: %s", content["datasource"])
 
     redis = load_config("redis")
     redis_host = redis["url"]
@@ -38,11 +42,12 @@ def chat():
     job = queue.enqueue(
         execute_rag_llm,
         content["message"],
-        session.get("email"),
-        session.get("organisation"),
+        session.get("user_email"),
+        session.get("org_name"),
         llm_model,
+        datasource=content["datasource"],
         job_timeout=chat_task_timeout,
-        description=f"Execute RAG+LLM model: {content['message']} for {session.get('email')} \
+        description=f"Execute RAG+LLM model: {content['message']} for {session.get('user_email')} \
             using {llm_model}",
     )
 
@@ -65,11 +70,15 @@ def fetch_chat_result():
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
+    logging.debug("Job status: %s", job.get_status())
     if job is None:
         return jsonify({"status": "ERROR", "message": "Job not found"}), 404
     elif job.is_failed:
         return jsonify({"status": "FAILED", "error": str(job.exc_info)}), 500
-    elif job.result is not None:
+    elif job.is_finished:
+        logging.info("Job result: %s", job.result)
+        if job.result["status"] == "Failed":
+            return jsonify({"status": "FAILED", "error": job.result}), 500
         return jsonify({"status": "SUCCESS", "result": job.result})
     else:
         # Job is either queued or started but not yet finished

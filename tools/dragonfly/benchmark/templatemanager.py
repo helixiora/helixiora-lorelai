@@ -1,3 +1,5 @@
+"""Provides the TemplateManager class, responsible for managing benchmark templates."""
+
 import logging
 import os
 import sys
@@ -7,11 +9,14 @@ from lorelai.utils import load_config, get_db_connection  # noqa E402
 
 
 class TemplateManager:
+    """Class to manage benchmark templates."""
+
     def __init__(self):
+        """Initialize the TemplateManager with configuration settings."""
         self.config = load_config("dragonfly")
 
     def list_templates(self):
-        # Define the headers and format string
+        """List all benchmark templates."""
         headers = ("Template ID", "Template Name", "Description")
         format_str = "| {:<12} | {:<15} | {:<30} |"
         separator = "|-" + "-" * 12 + "-+-" + "-" * 15 + "-+-" + "-" * 30 + "-|"
@@ -30,7 +35,20 @@ class TemplateManager:
 
         print(separator)
 
-    def create_template(self, template_name, template_description):
+    def create_template(self, template_name: str, template_description: str):
+        """Create a new benchmark template.
+
+        Arguments
+        ---------
+        template_name : str
+            The name of the template.
+        template_description : str
+            The description of the template.
+
+        Returns
+        -------
+        None
+        """
         print(f"Creating template {template_name} ({template_description})")
         db = get_db_connection()
         with db.cursor() as cursor:
@@ -41,13 +59,25 @@ class TemplateManager:
             db.commit()
         print(f"Template {template_name} created")
 
-    def delete_template(self, template_id):
+    def delete_template(self, template_id: int):
+        """Delete a benchmark template by its ID.
+
+        Arguments
+        ---------
+        template_id : int
+            The ID of the template to delete.
+
+        Returns
+        -------
+        None
+        """
         print(f"Deleting template {template_id}")
         db = get_db_connection()
         with db.cursor() as cursor:
             # check if the template has any parameters
             cursor.execute(
-                "SELECT COUNT(*) FROM benchmark_template_parameter WHERE benchmark_template_id = %s",
+                "SELECT COUNT(*) FROM benchmark_template_parameter \
+                    WHERE benchmark_template_id = %s",
                 (template_id,),
             )
             count = cursor.fetchone()[0]
@@ -73,7 +103,18 @@ class TemplateManager:
             cursor.execute("DELETE FROM benchmark_template WHERE id = %s", (template_id,))
             db.commit()
 
-    def show_template(self, template_id):
+    def show_template(self, template_id: int):
+        """Show details of a specific benchmark template by its ID.
+
+        Arguments
+        ---------
+        template_id : int
+            The ID of the template to show.
+
+        Returns
+        -------
+        None
+        """
         print(f"Showing template {template_id}")
         db = get_db_connection()
         with db.cursor(dictionary=True) as cursor:
@@ -87,7 +128,8 @@ class TemplateManager:
 
                 # Fetch parameters
                 cursor.execute(
-                    "SELECT parameter, type, value FROM benchmark_template_parameter WHERE benchmark_template_id = %s",
+                    "SELECT parameter, type, value FROM benchmark_template_parameter \
+                        WHERE benchmark_template_id = %s",
                     (template_id,),
                 )
                 parameters = cursor.fetchall()
@@ -95,19 +137,32 @@ class TemplateManager:
                     print("Parameters:")
                     for parameter in parameters:
                         print(
-                            f"  {parameter['parameter']} ({parameter['type']}) = {parameter['value']}"
+                            f"  {parameter['parameter']} ({parameter['type']}) = \
+                                {parameter['value']}"
                         )
                 else:
                     print("No parameters defined")
             else:
                 logging.error(f"Template {template_id} not found")
 
-    def list_parameters(self, template_id):
+    def list_parameters(self, template_id: int):
+        """List all parameters for a specific benchmark template.
+
+        Arguments
+        ---------
+        template_id : int
+            The ID of the template whose parameters are to be listed.
+
+        Returns
+        -------
+        None
+        """
         print(f"Listing parameters for template {template_id}")
         db = get_db_connection()
         with db.cursor(dictionary=True) as cursor:
             cursor.execute(
-                "SELECT parameter, type, value FROM benchmark_template_parameter WHERE benchmark_template_id = %s",
+                "SELECT parameter, type, value FROM benchmark_template_parameter \
+                    WHERE benchmark_template_id = %s",
                 (template_id,),
             )
             parameters = cursor.fetchall()
@@ -134,7 +189,26 @@ class TemplateManager:
             else:
                 print("No parameters defined")
 
-    def add_parameter(self, template_id, parameter_name, parameter_type, parameter_value):
+    def add_parameter(
+        self, template_id: int, parameter_name: str, parameter_type: str, parameter_value: str
+    ):
+        """Add a parameter to a specific benchmark template.
+
+        Arguments
+        ---------
+        template_id : int
+            The ID of the template to add the parameter to.
+        parameter_name : str
+            The name of the parameter.
+        parameter_type : str
+            The type of the parameter.
+        parameter_value : str
+            The value of the parameter.
+
+        Returns
+        -------
+        None
+        """
         print(f"Adding parameter {parameter_name} to template {template_id}")
         db = get_db_connection()
         with db.cursor() as cursor:
@@ -144,8 +218,10 @@ class TemplateManager:
                 logging.error(f"Template {template_id} not found")
                 raise ValueError(f"Template {template_id} not found")
             # check if the parameter already exists
+
             cursor.execute(
-                "SELECT COUNT(*) FROM benchmark_template_parameter WHERE benchmark_template_id = %s AND parameter = %s",
+                "SELECT COUNT(*) FROM benchmark_template_parameter \
+                    WHERE benchmark_template_id = %s AND parameter = %s",
                 (template_id, parameter_name),
             )
             if cursor.fetchone()[0] > 0:
@@ -156,17 +232,32 @@ class TemplateManager:
                     f"Parameter {parameter_name} already exists for template {template_id}"
                 )
             cursor.execute(
-                "INSERT INTO benchmark_template_parameter (benchmark_template_id, parameter, type, value) VALUES (%s, %s, %s, %s)",
+                "INSERT INTO benchmark_template_parameter \
+                    (benchmark_template_id, parameter, type, value) VALUES (%s, %s, %s, %s)",
                 (template_id, parameter_name, parameter_type, parameter_value),
             )
             db.commit()
 
-    def delete_parameter(self, template_id, parameter_name):
+    def delete_parameter(self, template_id: int, parameter_name: str):
+        """Delete a parameter from a specific benchmark template.
+
+        Arguments
+        ---------
+        template_id : int
+            The ID of the template to delete the parameter from.
+        parameter_name : str
+            The name of the parameter to delete.
+
+        Returns
+        -------
+        None
+        """
         print(f"Deleting parameter {parameter_name} from template {template_id}")
         db = get_db_connection()
         with db.cursor() as cursor:
             cursor.execute(
-                "DELETE FROM benchmark_template_parameter WHERE benchmark_template_id = %s AND parameter = %s",
+                "DELETE FROM benchmark_template_parameter \
+                    WHERE benchmark_template_id = %s AND parameter = %s",
                 (template_id, parameter_name),
             )
             db.commit()

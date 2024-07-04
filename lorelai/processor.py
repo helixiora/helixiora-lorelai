@@ -3,7 +3,7 @@
 import logging
 import os
 import uuid
-from typing import Iterable
+from collections.abc import Iterable
 
 import numpy as np
 import pinecone
@@ -24,7 +24,7 @@ from lorelai.utils import (
 
 
 class Processor:
-    """This class is used to process the Google Drive documents and index them in Pinecone."""
+    """Used to process the Google Drive documents and index them in Pinecone."""
 
     def __init__(self):
         """Initialize the Processor class."""
@@ -75,7 +75,8 @@ class Processor:
                     # Check if doc already tag for this users
                     if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
                         logging.info(
-                            f"Document {doc['metadata']['title']} already exists in Pinecone and tagged by {doc['metadata']['users'][0]}"
+                            f"Document {doc['metadata']['title']} already exists in Pinecone and \
+                                tagged by {doc['metadata']['users'][0]}"
                         )
                         # if so then we remove doc form the document list
                         documents.remove(doc)
@@ -101,14 +102,14 @@ class Processor:
     def pinecone_format_vectors(
         self, documents: Iterable[Document], embeddings_model: Embeddings
     ) -> list:
-        """process the documents and format them for pinecone insert.
+        """Process the documents and format them for pinecone insert.
 
         :param docs: the documents to process
         :param embeddings_model: embeddings_model object
 
         :return: list of documents ready to be inserted in pinecone
         """
-        logging.info(f"Formating {len(documents)}Chunked docs to Pinecone format")
+        logging.info(f"Formatting {len(documents)}Chunked docs to Pinecone format")
         # Get Text
         text_docs = []
         for doc in documents:
@@ -119,7 +120,8 @@ class Processor:
         # prepare pinecone vectors
         formatted_documents = []
         logging.info(
-            f" Number documents {len(documents)} == Number embeds {len(embeds)} == {len(embeds)==len(documents)}"
+            f" Number documents {len(documents)} == Number embeds {len(embeds)} \
+                == {len(embeds)==len(documents)}"
         )
         if len(documents) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
@@ -142,13 +144,17 @@ class Processor:
     def remove_nolonger_accessed_documents(
         self, formatted_documents, pc_index, embedding_dimension, user_email
     ):
-        """Delete document which user no longer has access to from Pinecone
+        """Delete document which user no longer has access to from Pinecone.
 
-        :param formatted_documents: document user currently have access to
-        :param pc_index: pinecone index object
-        :param embedding_dimension: embedding model dimension
+        Arguments
+        ---------
+            :param formatted_documents: document user currently have access to
+            :param pc_index: pinecone index object
+            :param embedding_dimension: embedding model dimension
 
-        :return: None
+        Returns
+        -------
+            :return: None
 
         """
         logging.info("Removing docs which user doesn't have access to.")
@@ -174,7 +180,7 @@ class Processor:
                     "title": i["metadata"]["title"],
                 }
                 continue
-            # add ids to source key, some source can have many vector becuase of chuncking
+            # add ids to source key, some source can have many vector because of chunking
             db_vector_dict[i["metadata"]["source"]]["ids"] = db_vector_dict[
                 i["metadata"]["source"]
             ]["ids"] + [i["id"]]
@@ -182,7 +188,7 @@ class Processor:
         logging.info(f"Google document in pinecone {len(db_vector_dict)}")
         # Compare current doc list accessible by user to the doc in the db.
         # only keep which is not accessible by user
-        logging.info(f"FORMATED DOC SIZE {len(formatted_documents)}")
+        logging.info(f"FORMATTED DOC SIZE {len(formatted_documents)}")
         for doc in formatted_documents:
             if doc["metadata"]["source"] in db_vector_dict:
                 logging.debug(f'{doc["metadata"]["source"]} already in pinecone index')
@@ -210,7 +216,10 @@ class Processor:
                 delete_vector_title_list.append(db_vector_dict[key]["title"])
 
         logging.info(
-            f"Deleting following document from pinecone :\n{delete_vector_title_list}\nSize:{len(delete_vector_title_list)}\n as no users have access to these documents"
+            f"Deleting following document from pinecone :\n \
+                {delete_vector_title_list}\n \
+                Size:{len(delete_vector_title_list)}\n \
+                as no users have access to these documents"
         )
         if delete_vector_ids_list:
             pc_index.delete(ids=delete_vector_ids_list)
@@ -219,11 +228,13 @@ class Processor:
         return count_updated, count_deleted
 
     def store_docs_in_pinecone(self, docs: Iterable[Document], index_name, user_email) -> None:
-        """process the documents and index them in Pinecone
+        """Process the documents and index them in Pinecone.
 
-        :param docs: the documents to process
-        :param index_name: name of index
-        :param user_email: the user to process
+        Arguments
+        ---------
+            :param docs: the documents to process
+            :param index_name: name of index
+            :param user_email: the user to process
         """
         logging.info(f"Processing {len(docs)} Google documents for user: {user_email}")
 
@@ -258,7 +269,8 @@ class Processor:
             logging.debug(f"Pinecone index {index_name} already exists")
 
         logging.info(
-            f"Indexing {len(documents)} documents in Pinecone index {index_name} using:embedding_model:{embedding_model_name}"
+            f"Indexing {len(documents)} documents in Pinecone index {index_name} \
+                using:embedding_model:{embedding_model_name}"
         )
 
         pc_index = pc.Index(index_name)
@@ -282,7 +294,8 @@ class Processor:
             f"{already_exist_and_tagged} documents  already exist and tagged in index {index_name}"
         )
         logging.info(
-            f"Added user tag to {tagged_existing_doc_with_user} documents which already exist in index {index_name}"
+            f"Added user tag to {tagged_existing_doc_with_user} documents which already exist\
+                in index {index_name}"
         )
         logging.info(f"removed user tag to {count_removed_access} documents in index {index_name}")
         logging.info(f"Deleted {count_deleted} documents in Pinecone index {index_name}")

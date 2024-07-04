@@ -1,266 +1,473 @@
-"""Routes for user authentication."""
+"""Routes for user authentication.
+
+The flow for authentication is:
+
+1. The user opens /, handled by the index route.
+2. The index route checks if the user is logged in.
+3. If the user is not logged in, the index route displays the logged out page
+4. From that page, if the user logs in, we run javascript code to send a POST request to /login
+5. The login route may return a redirect URL to the frontend, which will redirect the user to the
+    registration page
+6. The user registers and is redirected to the login page
+7. The user logs in and is redirected to the logged in index page
+
+
+"""
 
 import logging
-from collections import namedtuple
-from collections.abc import Iterable
 
-import google.auth.transport.requests
-from flask import blueprints, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
+from google.auth import exceptions
+from google.auth.transport import requests
 from google.oauth2 import id_token
-from google_auth_oauthlib.flow import Flow
 
-from app.utils import get_db_connection, is_admin, load_config
+from app.routes.google.auth import google_auth_url
+from app.utils import (
+    get_db_connection,
+    get_org_id_by_organisation,
+    get_org_id_by_userid,
+    get_organisation_by_org_id,
+    get_query_result,
+    get_user_id_by_email,
+    is_admin,
+    user_is_logged_in,
+    get_user_role_by_id,
+)
+from lorelai.slack.slack_processor import SlackOAuth
 
-auth_bp = blueprints.Blueprint("auth", __name__)
+auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.route("/profile")
 def profile():
-    """the profile page"""
-    if "google_id" in session:
-        # Example: Fetch user details from the database
+    """Return the profile page.
+
+    Returns
+    -------
+        str: The profile page.
+    """
+    # only proceed if the user is logged in
+    if user_is_logged_in(session):
+        is_admin_status = is_admin(session["user_id"])
         user = {
-            "name": session["name"],
-            "email": session["email"],
-            "org_name": session["organisation"],
+            "user_id": session["user_id"],
+            "email": session["user_email"],
+            "username": session["user_username"],
+            "full_name": session["user_fullname"],
+            "organisation": session.get("org_name"),
         }
-        return render_template("profile.html", user=user, is_admin=is_admin(session["google_id"]))
-    return "You are not logged in!"
+        return render_template(
+            "profile.html",
+            user=user,
+            is_admin=is_admin_status,
+            features=g.features,
+            google_auth_url=google_auth_url(),
+        )
+    return "You are not logged in!", 403
 
 
-@auth_bp.route("/register", methods=["GET", "POST"])
-def register():
-    """Register a new user."""
-    if request.method == "GET":
-        email = session.get("oauth_data", {}).get("email")
-        name = session.get("oauth_data", {}).get("name")
+@auth_bp.route("/register", methods=["GET"])
+def register_get():
+    """Return the registration page.
 
-        return render_template("register.html", email=email, name=name)
+    If the request method is GET, the registration page is rendered with the user's email and
+    full name.
 
-    # Process the registration form submission
-    registration_info = request.form
+    This means we are in the signup flow and the user
 
-    # Combine OAuth data with registration form data
-    oauth_data = session.pop("oauth_data", {})
+    Returns
+    -------
+        str: The registration page.
+    """
+    email = request.args.get("email", "")
+    full_name = request.args.get("full_name", "")
+    google_token = request.args.get("google_token", "")
+    google_id = request.args.get("google_id", "")
 
-    logging.debug(f"Registration info: {registration_info}")
-    logging.debug(f"OAuth data: {oauth_data}")
-
-    username = registration_info["name"]
-    user_email = registration_info["email"]
-    organisation = registration_info["organisation"]
-    access_token = session.pop("access_token", None)
-    refresh_token = session.pop("refresh_token", None)
-    expiry = session.pop("expiry", None)
-    token_type = session.pop("token_type", None)
-    scope = session.pop("scope", None)
-
-    user_info = process_user(
-        organisation,
-        username,
-        user_email,
-        access_token,
-        refresh_token,
-        expiry,
-        token_type,
-        scope,
+    logging.debug(
+        "Received email: %s, full_name: %s, google_id: %s, token: %s",
+        email,
+        full_name,
+        google_id,
+        google_token,
     )
 
-    # logging.info(f"Creating user: {registration_info} / {oauth_data}")
-
-    # Log the user in (pseudo code)
-    login_user(
-        user_info["name"],
-        user_info["email"],
-        user_info["org_id"],
-        user_info["organisation"],
+    return render_template(
+        "register.html",
+        email=email,
+        full_name=full_name,
+        google_id=google_id,
+        google_token=google_token,
     )
+
+
+@auth_bp.route("/register", methods=["POST"])
+def register_post():
+    """Handle the registration form submission.
+
+    If the request method is POST, the user data is validated and inserted into the database.
+    If the user is already registered, they are redirected to the index page.
+
+    Returns
+    -------
+        str: The registration page or a redirect to the index page.
+    """
+    email = request.form.get("email")
+    full_name = request.form.get("full_name")
+    organisation = request.form.get("organisation")
+
+    google_id = request.form.get("google_id")
+    google_token = request.form.get("google_token")
+
+    missing = validate_form(email=email, name=full_name, organisation=organisation)
+
+    if missing:
+        flash("All fields are required. Missing: " + missing, "danger")
+        return render_template(
+            "register.html",
+            email=email,
+            full_name=full_name,
+            organisation=organisation,
+            google_id=google_id,
+            google_token=google_token,
+        )
+
+    # register the user
+    success, message, user_id = register_user_to_org(
+        email, full_name, organisation, google_id, google_token
+    )
+
+    flash("Registration successful!", "success")
     return redirect(url_for("index"))
 
 
-@auth_bp.route("/oauth2callback")
-def oauth_callback():
-    """OAuth2 callback route."""
-    # Load the Google OAuth2 secrets
-    secrets = load_config("google")
-    lorelaicreds = load_config("lorelai")
-
-    client_config = {
-        "web": {
-            "client_id": secrets["client_id"],
-            "project_id": secrets["project_id"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": secrets["client_secret"],
-            "redirect_uris": secrets["redirect_uris"],
-        }
-    }
-
-    flow = Flow.from_client_config(
-        client_config=client_config,
-        scopes=[
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/drive.readonly",
-            "openid",
-        ],
-        redirect_uri=lorelaicreds["redirect_uri"],
-    )
-
-    flow.fetch_token(authorization_response=request.url)
-
-    if not session["state"] == request.args["state"]:
-        return "State does not match!", 400
-
-    credentials = flow.credentials
-    request_session = google.auth.transport.requests.Request()
-    id_info = id_token.verify_oauth2_token(
-        id_token=credentials.id_token,  # pyright: ignore reportAttributeAccessIssue=false
-        request=request_session,
-        audience=flow.client_config["client_id"],
-    )
-
-    logging.debug(f"id_info: {id_info}")
-    logging.debug(f"credentials: {credentials}")
-
-    # Check if user exists in your database
-    userid, name, orgid, organisation = check_user_in_database(id_info["email"])
-    email = id_info["email"]
-
-    if not userid:
-        # Save the necessary OAuth data in the session to complete registration later
-
-        session["access_token"] = credentials.token
-        session["refresh_token"] = credentials.refresh_token
-        session["expiry"] = credentials.expiry
-        session["token_type"] = "Bearer"
-        session["scope"] = credentials.scopes
-
-        session["oauth_data"] = id_info
-        # Redirect to the registration page
-        return redirect(url_for("auth.register"))
-
-    # Log the user in
-    login_user(name, email, orgid, organisation)
-    return redirect(url_for("index"))
-
-
-def login_user(name: str, email: str, org_id: int, organisation: str) -> None:
+def register_user_to_org(
+    email: str, full_name: str, organisation: str, google_id: str, google_token: str
+) -> (bool, str, int):
     """
-    Log the user in by setting the session variables.
+    Register a user to an organisation.
+
+    Parameters
+    ----------
+    email : str
+        The user's email.
+    full_name : str
+        The user's full name.
+    organisation : str
+        The organisation name.
+    google_id : str
+        The Google ID.
+    google_token : str
+        The Google Oauth token.
+
+    Returns
+    -------
+    tuple
+        A tuple containing a boolean indicating success, a message, and the user ID.
     """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
 
-    session["google_id"] = email
-    session["name"] = name
-    session["email"] = email
-    session["org_id"] = org_id
-    session["organisation"] = organisation
+    try:
+        # check if the organisation exists
+        org_id, created_new_org = get_org_id_by_organisation(
+            conn=conn, organisation=organisation, create_if_not_exists=True
+        )
 
+        # insert the user
+        user_id, user_created_success = insert_user(
+            cursor, org_id, full_name, email, full_name, google_id
+        )
 
-# Define a named tuple structure for the user information
-UserInfo = namedtuple("UserInfo", "user_id name org_id organisation")
+        # if created = True, this is the first user of the org so make them an org_admin by
+        # inserting a record in the user_roles table
+        if user_created_success and created_new_org:
+            # get the role_id of the org_admin role
+            cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
+            role_id = cursor.fetchone()["role_id"]
 
-
-def check_user_in_database(email: str) -> UserInfo:
-    """Check if the user exists in the database."" """
-    # Use context manager for handling the database connection
-    with get_db_connection() as db:
-        cursor = db.cursor()
-        query = """
-            SELECT users.user_id, users.name, org_id, organisations.name
-            FROM users
-            LEFT JOIN organisations ON users.org_id = organisations.id
-            WHERE email = %s
-        """
-        cursor.execute(query, (email,))
-        user = cursor.fetchone()
-
-        # Directly unpack values with defaults for None if user is None
-        # Very pythonic :)
-        user_id, name, org_id, organisation = user if user else (None, None, None, None)
-
-        return UserInfo(user_id=user_id, name=name, org_id=org_id, organisation=organisation)
-
-
-def process_user(
-    organisation: str,
-    username: str,
-    user_email: str,
-    access_token: str,
-    refresh_token: str,
-    expiry: int,
-    token_type: str,
-    scope: list,
-) -> dict:
-    """Process the user information obtained from Google."""
-
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        # Get the organisation ID or create one if it doesn't exist
-        # Do this while so I don't repeat the select querry upon creation
-        org_id = ""
-        while not org_id:
-            cursor.execute("select id from organisations where name = %s", (organisation,))
-            res = cursor.fetchone()
-            if not res:
-                cursor.execute("insert into organisations (name) values (%s)", (organisation,))
-                conn.commit()
-            else:
-                org_id = res[0]
-
-        if isinstance(scope, Iterable):
-            scope_str = " ".join(scope)
-        else:
-            raise ValueError(f"Scope must be an iterable, is {type(scope)}: {scope}")
-
-        logging.debug(f"Expires in: {expiry}, type: {type(expiry)}")
-
-        # Insert/Update User
-        cursor.execute("SELECT user_id FROM users WHERE email = %s;", (user_email,))
-        user = cursor.fetchone()
-        if user:
             cursor.execute(
-                """
-                UPDATE users
-                SET org_id = %s, name = %s, access_token = %s,
-                refresh_token = %s, expiry = %s, token_type = %s,
-                scope = %s WHERE email = %s;
-                """,
-                (
-                    org_id,
-                    username,
-                    access_token,
-                    refresh_token,
-                    expiry,
-                    token_type,
-                    scope_str,
-                    user_email,
-                ),
+                "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
+                (user_id, role_id),
             )
-        else:
-            cursor.execute(
-                """
-                INSERT INTO users (org_id, name, email, access_token, refresh_token, expiry,
-                           token_type, scope)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-            """,
-                (
-                    org_id,
-                    username,
-                    user_email,
-                    access_token,
-                    refresh_token,
-                    expiry,
-                    token_type,
-                    scope_str,
-                ),
-            )
+
         conn.commit()
 
-    return {
-        "name": username,
-        "email": user_email,
-        "organisation": organisation,
-        "org_id": org_id,
-    }
+        return True, "Registration successful!", user_id
+
+    except Exception as e:
+        logging.error("An error occurred: %s", e)
+        conn.rollback()
+        return False, f"An error occurred: {e}", -1
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def insert_user(
+    cursor, org_id: int, name: str, email: str, full_name: str, google_id: str
+) -> (int, bool):
+    """Insert a new user and return the user ID."""
+    cursor.execute(
+        "INSERT INTO user (org_id, user_name, email, full_name, google_id) \
+            VALUES (%s, %s, %s, %s, %s)",
+        (org_id, name, email, full_name, google_id),
+    )
+
+    # return lastrowid if the insert was successful
+    user_id = cursor.lastrowid
+    if user_id:
+        return user_id, True
+    return -1, False
+
+
+def validate_form(email: str, name: str, organisation: str):
+    """Validate the registration form.
+
+    Parameters
+    ----------
+    email : str
+        The user's email.
+    name : str
+        The user's name.
+    organisation : str
+        The user's organisation.
+
+    Returns
+    -------
+    list
+        A list of missing fields.
+    """
+    missing_fields = []
+
+    if not email:
+        missing_fields.append("email")
+    if not name:
+        missing_fields.append("name")
+    if not organisation:
+        missing_fields.append("organisation")
+
+    return missing_fields
+
+
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    """
+    Login route.
+
+    This route is used to authenticate a user using Google's Identity Verification API.
+    The user sends a POST request with a JSON object containing the ID token received from Google.
+    The ID token is verified using Google's Identity Verification API and the user is authenticated.
+    If the user is not registered, they are redirected to the registration page.
+
+    Returns
+    -------
+        JSON: A JSON object with a message indicating whether the user was authenticated
+        successfully.
+    """
+    try:
+        if request.content_type != "application/json":
+            return jsonify({"message": "Invalid content type: " + request.content_type}), 400
+
+        data = request.get_json()
+        logging.info("Received JSON data: %s", data)
+
+        id_token_received = data.get("credential")
+
+        idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
+
+        if not idinfo:
+            raise exceptions.GoogleAuthError("Invalid token")
+
+        # this function will raise an exception if the token is invalid
+        validate_id_token(idinfo)
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        logging.info("Info from token: %s", idinfo)
+        user_email = idinfo["email"]
+        username = idinfo["name"]
+        user_full_name = idinfo["name"]
+        google_id = idinfo["sub"]
+        user_id = get_user_id_by_email(user_email)
+
+        org_id = get_org_id_by_userid(cursor, user_id)
+        organisation = get_organisation_by_org_id(cursor, org_id)
+
+        # if we can't find the user, it means they are not registered
+        # we don't redirect directly, but send a message back to the frontend to redirect using JS
+        if not user_id:
+            return jsonify(
+                {
+                    "message": "Invalid login",
+                    "email": user_email,
+                    "full_name": user_full_name,
+                    "google_id": google_id,
+                    "google_token": id_token_received,
+                    "redirect_url": url_for("auth.register_get"),
+                }
+            ), 200
+
+        # if we're still here, it means we found the user, so we log them in
+        logging.info("User logging in: %s", user_email)
+        login_user(
+            user_id=user_id,
+            user_email=user_email,
+            google_id=google_id,
+            username=username,
+            full_name=user_full_name,
+            org_id=org_id,
+            org_name=organisation,
+        )
+
+        logging.debug("Session: %s", session)
+
+        return jsonify({"message": "User authenticated successfully", "redirect_url": "/"}), 200
+
+    except ValueError as e:
+        logging.error("Invalid token: %s", e)
+        return jsonify({"message": "Error: " + str(e)}), 401
+    except exceptions.GoogleAuthError as e:
+        logging.error("Google Auth Error: %s", e)
+        return jsonify({"message": "Google Auth Error: " + str(e)}), 401
+    except Exception as e:
+        logging.exception("An error occurred: %s", e)
+        return jsonify({"message": "An error occurred: " + str(e)}), 401
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def login_user(
+    user_id: int,
+    user_email: str,
+    google_id: str,
+    username: str,
+    full_name: str,
+    org_id: int,
+    org_name: str,
+):
+    """
+    Create a session for the user and update the user's Google ID in the database.
+
+    Parameters
+    ----------
+    user_id : int
+        The user ID.
+    user_email : str
+        The user email.
+    google_id : str
+        The Google ID, uniquely identifies the user with Google.
+    username : str
+        The username.
+    full_name : str
+        The full name.
+    org_id : int
+        The organisation ID.
+    org_name : str
+        The organisation name.
+    """
+    # Ensure all details are provided
+    if not all([user_id, user_email, google_id, username, full_name, org_id, org_name]):
+        raise ValueError("All user and organization details must be provided.")
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Update the user's Google ID in the database
+        cursor.execute(
+            "UPDATE user SET google_id = %s WHERE user_id = %s",
+            (google_id, user_id),
+        )
+
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+    user_roles = get_user_role_by_id(user_id)
+    # Setup the session
+    session["user_id"] = user_id
+    session["user_email"] = user_email
+    session["user_username"] = username
+    session["user_fullname"] = full_name
+    session["org_id"] = org_id
+    session["org_name"] = org_name
+    session["user_roles"] = user_roles
+
+
+def is_username_available(username: str) -> bool:
+    """
+    Check if the username is available.
+
+    Parameters
+    ----------
+    username : str
+        The username to check.
+
+    Returns
+    -------
+    bool
+        True if the username is available, False otherwise.
+    """
+    user = get_query_result("SELECT 1 FROM user WHERE username = %s", (username,), fetch_one=True)
+    return not user
+
+
+def validate_id_token(idinfo: dict):
+    """
+    Validate the ID token.
+
+    Parameters
+    ----------
+    idinfo : dict
+        The ID token information.
+
+    Raises
+    ------
+    ValueError
+        If the issuer is wrong or the email is not verified.
+    """
+    if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
+        raise exceptions.GoogleAuthError("Wrong issuer.")
+    if not idinfo.get("email_verified"):
+        raise exceptions.GoogleAuthError("Email not verified")
+
+
+@auth_bp.route("/slack/auth")
+def slack_auth():
+    """Slack OAuth route. Redirects to the Slack OAuth URL."""
+    slack_oauth = SlackOAuth()
+    return redirect(slack_oauth.get_auth_url())
+
+
+@auth_bp.route("/slack/auth/callback")
+def slack_callback():
+    """Slack OAuth callback route. Handles the Slack OAuth callback."""
+    slack_oauth = SlackOAuth()
+    return slack_oauth.auth_callback()
+
+
+@auth_bp.route("/logout", methods=["GET"])
+def logout():
+    """
+    Logout route.
+
+    Clears the session and access tokens, then redirects to the index page.
+
+    Returns
+    -------
+    str
+        Redirects to the index page.
+    """
+    session.clear()
+    flash("You have been logged out.")
+
+    return redirect(url_for("index"))

@@ -1,4 +1,4 @@
-"""This module contains utility functions for the Lorelai package."""
+"""Contains utility functions for the Lorelai package."""
 
 import json
 import logging
@@ -20,7 +20,21 @@ def pinecone_index_name(
     env_name: str = "lorelai",
     version: str = "v1",
 ) -> str:
-    """Return the pinecone index name for the org."""
+    """Return the pinecone index name for the org.
+
+    Arguments:
+    ---------
+        org (str): The name of the organization.
+        datasource (str): The name of the datasource.
+        environment (str): The environment (e.g. dev, prod).
+        env_name (str): The name of the environment (e.g. lorelai, openai).
+        version (str): The version of the index (e.g. v1).
+
+    Returns
+    -------
+        str: The name of the pinecone index.
+
+    """
     parts = [environment, env_name, org, datasource, version]
 
     name = "-".join(parts)
@@ -34,12 +48,12 @@ def pinecone_index_name(
 def get_config_from_os(service: str) -> dict[str, str]:
     """Load credentials from OS env vars.
 
-    Arguments:
+    Arguments
     ---------
     service (str): The name of the service (e.g 'openai', 'pinecone')
         for which to load
 
-    Returns:
+    Returns
     -------
         dict: A dictionary containing the creds for the specified service.
 
@@ -64,17 +78,17 @@ def get_config_from_os(service: str) -> dict[str, str]:
 def load_config(service: str, config_file: str = "./settings.json") -> dict[str, str]:
     """Load credentials for a specified service from settings.json.
 
-    If file is non-existant or has syntax errors will try to pull from
+    If file is non-existent or has syntax errors will try to pull from
     OS env vars.
 
-    Arguments:
+    Arguments
     ---------
         service (str): The name of the service (e.g 'openai', 'pinecone')
         for which to load credentials.
 
         config_file (str): The path to the settings.json file.
 
-    Returns:
+    Returns
     -------
         dict: A dictionary containing the creds for the specified service.
 
@@ -135,14 +149,18 @@ def save_google_creds_to_tempfile(
     client_secret: str,
     tempfile: str = ".credentials/token.json",
 ) -> None:
-    """load the google creds to a tempfile.
+    """Load the google creds to a tempfile.
+
     This is needed because the GoogleDriveLoader uses
     the Credentials.from_authorized_user_file method to load the credentials
 
-    :param refresh_token: the refresh token
-    :param token_uri: the token uri
-    :param client_id: the client id
-    :param client_secret: the client secret
+    Arguments
+    ---------
+        refresh_token (str): The refresh token
+        token_uri (str): The token uri
+        client_id (str): The client id
+        client_secret (str): The client secret
+        tempfile (str): The path to the tempfile
     """
     tempfile = f"{Path.home()}/{tempfile}"
 
@@ -170,12 +188,15 @@ def save_google_creds_to_tempfile(
 
 def get_embedding_dimension(model_name) -> int:
     """
-    Returns the dimension of embeddings for a given model name.
+    Return the dimension of embeddings for a given model name.
+
     This function currently uses a hardcoded mapping based on documentation,
     as there's no API endpoint to retrieve this programmatically.
     See: https://platform.openai.com/docs/models/embeddings
 
-    :param model_name: The name of the model to retrieve the embedding dimension for.
+    Arguments
+    ---------
+        :param model_name: The name of the model to retrieve the embedding dimension for.
     """
     # Mapping of model names to their embedding dimensions
     model_dimensions = {
@@ -212,7 +233,13 @@ def get_index_stats(index_name: str) -> DescribeIndexStatsResponse | None:
 
 
 def print_index_stats_diff(index_stats_before, index_stats_after) -> None:
-    """prints the difference in the index statistics"""
+    """Print the difference in the index statistics.
+
+    Arguments
+    ---------
+        index_stats_before: The index statistics before the operation.
+        index_stats_after: The index statistics after the operation.
+    """
     if index_stats_before and index_stats_after:
         diff = {
             "num_vectors/documents": index_stats_after.total_vector_count

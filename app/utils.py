@@ -1,29 +1,58 @@
 """Utility functions for the application."""
 
 import logging
-import subprocess
 import os
+import subprocess
+from functools import wraps
 
 import mysql.connector
 import redis
+from flask import redirect, session, url_for
 
 from lorelai.utils import load_config
 
 
-def is_admin(google_id: str) -> bool:
+def is_admin(user_id: int) -> bool:
     """Check if the user is an admin.
 
     Parameters
     ----------
-    google_id : str
-        The Google ID of the user.
+    user_id : int
+        The user ID of the user.
 
     Returns
     -------
     bool
         True if the user is an admin, False otherwise.
     """
-    return google_id != ""  # Assuming all users are admins for now
+    # Implement the actual check logic, assuming user_id == 1 is admin for example
+    admin_roles = ["org_admin", "super_admin"]
+    if any(role in admin_roles for role in session["user_roles"]):
+        return True
+    return False
+
+
+def role_required(role_name_list):
+    """Check if the user has the required role."""
+
+    def wrapper(f):
+        """Define the wrapper function. This is the actual decorator."""
+
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Check if "role" is in session and is a list
+            if "user_roles" not in session or not isinstance(session["user_roles"], list):
+                return redirect(url_for("unauthorized"))
+
+            # Check if any role in session['role'] is in role_name_list
+            if not any(role in role_name_list for role in session["user_roles"]):
+                return redirect(url_for("unauthorized"))
+
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return wrapper
 
 
 def run_flyway_migrations(host: str, database: str, user: str, password: str) -> tuple[bool, str]:
@@ -42,10 +71,8 @@ def run_flyway_migrations(host: str, database: str, user: str, password: str) ->
 
     Returns
     -------
-    bool
-        True if the migrations were successful, False otherwise.
-    str
-        The output of the migrations.
+    tuple
+        A tuple with a boolean indicating success and a string with the output message.
     """
     try:
         flyway_command = [
@@ -56,19 +83,71 @@ def run_flyway_migrations(host: str, database: str, user: str, password: str) ->
             "-locations=filesystem:db/migrations",
             "migrate",
         ]
-        print("running flyway migrations")
+        logging.info("Running Flyway migrations")
         result = subprocess.run(flyway_command, capture_output=True, text=True)
-        print(result.stdout)
+        logging.info(result.stdout)
         if result.returncode == 0:
-            # return the output of flyway migrations
             return True, result.stdout
         else:
             return False, f"Flyway migrations failed: {result.stderr}"
     except Exception as e:
-        return str(e)
+        logging.exception("Flyway migration failed")
+        return False, str(e)
 
 
-# Helper function for database connections
+def get_db_cursor(with_dict: bool = False) -> mysql.connector.cursor.MySQLCursor:
+    """Get a database cursor.
+
+    Parameters
+    ----------
+    with_dict : bool, optional
+        Whether to return rows as dictionaries.
+
+    Returns
+    -------
+    mysql.connector.cursor.MySQLCursor
+        A cursor to the database.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=with_dict)
+        return cursor
+    except mysql.connector.Error:
+        logging.exception("Database connection failed")
+        raise
+
+
+def get_query_result(
+    query: str, params: tuple = None, fetch_one: bool = False
+) -> list[dict] | None:
+    """Get the result of a query.
+
+    Parameters
+    ----------
+    query : str
+        The query to execute.
+    params : tuple, optional
+        The parameters to pass to the query.
+    fetch_one : bool, optional
+        Whether to fetch one or all results.
+
+    Returns
+    -------
+    list or dict
+        A list of dictionaries containing the results of the query, or a single dictionary.
+    """
+    try:
+        logging.debug(f"Executing query: {query}")
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(query, params)
+                result = cursor.fetchone() if fetch_one else cursor.fetchall()
+                return result
+    except mysql.connector.Error:
+        logging.exception("Database query failed")
+        raise
+
+
 def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLConnection:
     """Get a database connection.
 
@@ -79,8 +158,8 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
 
     Returns
     -------
-        conn: a connection to the database
-
+    mysql.connector.connection.MySQLConnection
+        A connection to the database.
     """
     try:
         creds = load_config("db")
@@ -88,7 +167,6 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
             logging.debug(
                 f"Connecting to MySQL database: {creds['user']}@{creds['host']}/{creds['database']}"
             )
-
             conn = mysql.connector.connect(
                 host=creds["host"],
                 user=creds["user"],
@@ -97,7 +175,6 @@ def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLC
             )
         else:
             logging.debug(f"Connecting to MySQL server: {creds['user']}@{creds['host']}")
-
             conn = mysql.connector.connect(
                 host=creds["host"], user=creds["user"], password=creds["password"]
             )
@@ -112,18 +189,14 @@ def check_mysql() -> tuple[bool, str]:
 
     Returns
     -------
-    bool
-        True if the MySQL database is up and running, False otherwise.
-    str
-        The message to log.
+    tuple
+        A tuple with a boolean indicating success and a string with the message.
     """
     try:
-        db = get_db_connection()
-        logging.debug("Checking MySQL connection. DB: " + db.database + " Host: " + db.server_host)
-        cursor = db.cursor()
-        cursor.execute("SELECT 1")
+        get_query_result("SELECT 1", fetch_one=True)
         return True, "MySQL is up and running."
-    except Exception as e:
+    except mysql.connector.Error as e:
+        logging.exception("MySQL check failed")
         return False, str(e)
 
 
@@ -132,10 +205,8 @@ def check_redis() -> tuple[bool, str]:
 
     Returns
     -------
-    bool
-        True if the Redis server is up and running, False otherwise.
-    str
-        The message to log.
+    tuple
+        A tuple with a boolean indicating success and a string with the message.
     """
     try:
         redis_config = load_config("redis")
@@ -144,6 +215,7 @@ def check_redis() -> tuple[bool, str]:
         r.ping()
         return True, "Redis is reachable."
     except redis.ConnectionError as e:
+        logging.exception("Redis check failed")
         return False, str(e)
 
 
@@ -152,24 +224,19 @@ def check_flyway() -> tuple[bool, str]:
 
     Returns
     -------
-    bool
-        True if the Flyway schema version is up to date, False otherwise.
-    str
-        The message to log.
+    tuple
+        A tuple with a boolean indicating success and a string with the message.
     """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT MAX(version) FROM flyway_schema_history")
-        version = cursor.fetchone()
-        logging.debug(f"Flyway schema version: {version[0]}")
+        version = get_query_result(
+            "SELECT MAX(version) as version FROM flyway_schema_history", fetch_one=True
+        )
+        logging.debug(f"Flyway schema version: {version['version']}")
 
-        if version is None or version[0] is None:
+        if version is None or version["version"] is None:
             return False, "Flyway schema history not found."
 
-        # get the migrations from disk
         migrations_dir = "./db/migrations"
-        # get all the .sql files in the migrations directory in alphabetical order
         migrations = sorted(
             [
                 f
@@ -183,13 +250,16 @@ def check_flyway() -> tuple[bool, str]:
 
         last_migration = migrations[-1]
 
-        # this checks if eg. '1.2' is in 'V1.2__Rename_expires_in_to_expiry.sql'
-        if version[0] in last_migration:
-            return True, f"Flyway schema version: {version[0]}"
+        if version["version"] in last_migration:
+            return True, f"Flyway schema version: {version['version']}"
 
-        return True, f"Flyway schema version: {version[0]}"
-
+        return (
+            False,
+            f"Flyway schema version {version['version']} is not up to date with last \
+                migration {last_migration}.",
+        )
     except Exception as e:
+        logging.exception("Flyway check failed")
         return False, str(e)
 
 
@@ -204,14 +274,171 @@ def perform_health_checks() -> list[str]:
     checks = [check_mysql, check_redis, check_flyway]
     errors = []
     for check in checks:
-        # print the name of the check:
         logging.debug(f"Running check: {check.__name__}")
         success, message = check()
         if not success:
-            logging.debug(f"Something went wrong ({check.__name__}): " + message)
+            logging.error(f"Health check failed ({check.__name__}): {message}")
             errors.append(message)
-            logging.error(message)
         else:
-            logging.debug("Nothing went wrong: " + message)
-            logging.info(message)
+            logging.debug(f"Health check passed ({check.__name__}): {message}")
     return errors
+
+
+def get_user_role_by_id(user_id: str):
+    """Get the role of a user by email."""
+    with get_db_connection() as db:
+        try:
+            cursor = db.cursor()
+            query = """
+                SELECT roles.role_name
+                FROM user
+                JOIN user_roles ON user.user_id = user_roles.user_id
+                JOIN roles ON user_roles.role_id = roles.role_id
+                WHERE user.user_id = %s;
+            """
+            cursor.execute(query, (user_id,))
+            roles = cursor.fetchall()
+            role_names = [role[0] for role in roles]
+            print(role_names)
+            return role_names
+
+        except Exception:
+            logging.critical(f"{user_id} has no role assigned")
+            raise ValueError(f"{user_id} has no role assigned") from None
+
+
+def user_is_logged_in(session) -> bool:
+    """Check if the user is logged in.
+
+    Yhis is very simple now but might be more complex later. Using a function for maintainability
+
+    Parameters
+    ----------
+    session : dict
+        The session object.
+
+    Returns
+    -------
+    bool
+        True if the user is logged in, False otherwise.
+    """
+    return "user_id" in session
+
+
+def get_user_id_by_email(email: str) -> int:
+    """
+    Get the user ID by email.
+
+    Parameters
+    ----------
+    email : str
+        The email of the user.
+
+    Returns
+    -------
+    int
+        The user ID.
+    """
+    result = get_query_result("SELECT user_id FROM user WHERE email = %s", (email,), fetch_one=True)
+    return result["user_id"] if result else None
+
+
+def get_organisation_by_org_id(cursor, org_id: int):
+    """Get the organization name by ID."""
+    org_result = get_query_result(
+        "SELECT name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
+    )
+    if org_result:
+        return org_result["name"]
+
+    return None
+
+
+def get_org_id_by_userid(cursor, user_id: int):
+    """Get the organization ID for a user."""
+    org_result = get_query_result(
+        "SELECT org_id FROM user WHERE user_id = %s", (user_id,), fetch_one=True
+    )
+
+    if org_result:
+        return org_result["org_id"]
+
+    return None
+
+
+def get_org_id_by_organisation(
+    conn: mysql.connector.connection.MySQLConnection,
+    organisation: str,
+    create_if_not_exists: bool = False,
+) -> (int, bool):
+    """
+    Get the organization ID, inserting the organization if it does not exist.
+
+    Parameters
+    ----------
+    conn : mysql.connector.connection.MySQLConnection
+        The connection to the database.
+    organisation : str
+        The name of the organisation.
+    create_if_not_exists : bool, optional
+        Whether to create the organisation if it does not exist (default is False).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - int: The organisation ID.
+        - bool: Whether the organisation was created.
+    """
+    try:
+        cursor = conn.cursor(dictionary=True)
+        # Query to find the organization by name
+        query = "SELECT id FROM organisation WHERE name = %s"
+        cursor.execute(query, (organisation,))
+        org_result = cursor.fetchone()
+
+        if org_result:
+            logging.debug("Organisation found: %s", org_result["id"])
+            return org_result["id"], False
+
+        if create_if_not_exists:
+            logging.debug("Creating organisation: %s", organisation)
+            cursor = conn.cursor(dictionary=False)
+            insert_query = "INSERT INTO organisation (name) VALUES (%s)"
+            cursor.execute(insert_query, (organisation,))
+            conn.commit()
+            return cursor.lastrowid, True
+
+        logging.debug("Organisation not found and not created: %s", organisation)
+        return None, False
+
+    except Exception as e:
+        logging.error("Error occurred while getting or creating organisation: %s", e)
+        raise
+
+
+def get_user_email_by_id(cursor, user_id: int):
+    """Get the email of a user by ID."""
+    cursor.execute("SELECT email FROM user WHERE user_id = %s", (user_id,))
+    user_result = cursor.fetchone()
+    if user_result:
+        return user_result["email"]
+
+
+def get_datasources_name():
+    """Get the list of datasources from datasource table."""
+    with get_db_connection() as db:
+        try:
+            cursor = db.cursor()
+            query = """
+                SELECT datasource.datasource_name
+                FROM datasource;
+            """
+            cursor.execute(query)
+            datasources = cursor.fetchall()
+            datasources = [source[0] for source in datasources]
+            return datasources
+
+        except Exception:
+            logging.critical("No datasources in datasources table")
+            raise ValueError("No datasources in datasources table") from None

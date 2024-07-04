@@ -1,3 +1,5 @@
+"""Module to handle interaction with different language model APIs."""
+
 import logging
 import os
 
@@ -23,10 +25,9 @@ class Llm:
         Question: {question}
         """
 
-    # If you cannot find the answer, please respond with "I can't find the answer in the information available to me.
     @staticmethod
     def create(model_type="OpenAILlm"):
-        """Factory method to create instances of derived classes based on the class name."""
+        """Create instances of derived classes based on the class name."""
         Llm._allowed = True
         class_ = globals().get(model_type)
         if class_ is None or not issubclass(class_, Llm):
@@ -41,6 +42,10 @@ class Llm:
             raise Exception("This class should be instantiated through a create() factory method.")
 
     def get_answer(self, question, context):
+        """Retrieve an answer to a given question based on provided context."""
+        raise NotImplementedError
+
+    def get_answer_direct(self, question, context):
         """Retrieve an answer to a given question based on provided context."""
         raise NotImplementedError
 
@@ -61,8 +66,7 @@ class OllamaLlama3(Llm):
         self.model = "llama3-7b"  # Model identifier
 
     def get_answer(self, question, context):
-        """Implementation specific to local Llama3 7b model."""
-
+        """Get an answer from local Llama3 7b model."""
         context_doc_text = ""
         for context_doc in context:
             if isinstance(context_doc, Document):
@@ -99,6 +103,11 @@ class OllamaLlama3(Llm):
 class OpenAILlm(Llm):
     """Class to interact with the OpenAI LLM for answering context-based questions."""
 
+    _prompt_template_direct = """
+                You are a helpful, respectful and honest assistant.
+                question: {question}
+                """
+
     def __init__(self: None) -> None:
         super().__init__()
         self.openai_creds = load_config("openai")
@@ -106,8 +115,7 @@ class OpenAILlm(Llm):
         self.model = "gpt-3.5-turbo"
 
     def get_answer(self: None, question: str, context: list[Document]) -> str:
-        """Implementation specific to OpenAI models."""
-
+        """Get an answer specifically from the OpenAI models."""
         context_doc_text = ""
         for context_doc in context:
             if isinstance(context_doc, Document):
@@ -132,7 +140,25 @@ class OpenAILlm(Llm):
         )
         return result
 
+    def get_answer_direct(self, question):
+        """Get an answer directly from the OpenAI model."""
+        logging.debug(
+            "[OpenAILlm.get_answer_direct] Prompt template: %s",
+            self._prompt_template_direct,
+        )
+        logging.debug("[OpenAILlm.get_answer_direct] Question: %s", question)
+
+        prompt = PromptTemplate.from_template(
+            template=self._prompt_template_direct, template_format="f-string"
+        )
+        logging.debug("[OpenAILlm.get_answer_direct] Prompt: %s", prompt)
+
+        model = ChatOpenAI(model=self.model)
+        output_parser = StrOutputParser()
+        result = (prompt | model | output_parser).invoke({"question": question})
+        return result
+
     def get_llm_status(self: None) -> bool:
-        """Check the current status of the openai api endpoint https://api.openai.com/"""
+        """Check the current status of the openai api endpoint https://api.openai.com/."""
         status = requests.get("https://api.openai.com/v1/engines")
         return status.status_code == 200

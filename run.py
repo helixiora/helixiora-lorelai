@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 
-"""the main application file for the OAuth2 flow flask app"""
+"""Main application file for the OAuth2 flow flask app."""
 
 import logging
 import os
 import sys
+
 import mysql.connector
+from flask import Flask, g, redirect, render_template, request, session, url_for
 
-from flask import Flask, flash, redirect, render_template, session, url_for
-from google_auth_oauthlib.flow import Flow
-
-# load blueprints
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
-from app.utils import is_admin, perform_health_checks, get_db_connection
+from app.routes.google.auth import googledrive_bp
+from app.utils import (
+    get_db_connection,
+    is_admin,
+    perform_health_checks,
+    user_is_logged_in,
+    get_datasources_name,
+)
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
@@ -33,14 +38,16 @@ logging_format = os.getenv(
 )
 logging.basicConfig(format=logging_format)
 
-app.secret_key = "your_very_secret_and_long_random_string_here"
+lorelai_settings = load_config("lorelai")
+app.secret_key = lorelai_settings["secret_key"]
 
+app.register_blueprint(googledrive_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 
-lorelaisettings = load_config("db")
-dbname = lorelaisettings["database"]
+db_settings = load_config("db")
+dbname = db_settings["database"]
 # check if the database can be connected to
 db_exists = False
 try:
@@ -64,81 +71,69 @@ if db_exists:
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
+# Flagging success by displaying the app's address
+logging.debug("URL Map: %s", app.url_map)
+logging.debug("App config: %s", app.config)
+logging.info(
+    "Application loaded successfully. Running at %s",
+    app.config.get(
+        "BASE_URL", "http://" + os.getenv("HOST", "localhost") + ":" + os.getenv("PORT", "5000")
+    ),
+)
+
 
 # Improved index route using render_template
 @app.route("/")
 def index():
-    """the index page
+    """Return the index page.
 
-    Returns:
+    Returns
+    -------
         string: the index page
     """
+    logging.info("Index route")
+
     if app.config.get("LORELAI_SETUP"):
         # redirect to /admin/setup if the app is not set up
+        logging.info("App is not set up. Redirecting to /admin/setup")
         return redirect(url_for("admin.setup"))
 
-    # Load the Google OAuth2 secrets
-    secrets = load_config("google")
-    # check if all the required creds are present
-    e_creds = [
-        "client_id",
-        "project_id",
-        "client_secret",
-        "redirect_uris",
-    ]
-    if not all(i in secrets for i in e_creds):
-        missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
-        msg = "Missing required google credentials: "
-        raise ValueError(msg, missing_creds)
+    # if the user_id is in the session, the user is logged in
+    # render the index_logged_in page
+    if user_is_logged_in(session):
+        datasources = get_datasources_name()
 
-    client_config = {
-        "web": {
-            "client_id": secrets["client_id"],
-            "project_id": secrets["project_id"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": secrets["client_secret"],
-            "redirect_uris": secrets["redirect_uris"],
-        }
-    }
-
-    lorelaicreds = load_config("lorelai")
-
-    flow = Flow.from_client_config(
-        client_config=client_config,
-        scopes=[
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/drive.readonly",
-            "openid",
-        ],
-        redirect_uri=lorelaicreds["redirect_uri"],
-    )
-
-    if "google_id" in session:
-        user_data = {
-            "user_organization": session["organisation"],
-            "user_email": session["email"],
-            "is_admin": is_admin(session["google_id"]),
-        }
-
-        return render_template("index_logged_in.html", **user_data)
-
-    try:
-        authorization_url, state = flow.authorization_url(
-            access_type="offline", include_granted_scopes="true", prompt="consent"
+        is_admin_status = is_admin(session["user_id"])
+        # session["role"] = get_user_role(session["email"])
+        return render_template(
+            "index_logged_in.html",
+            user_email=session["user_email"],
+            is_admin=is_admin_status,
+            datasource_list=datasources,
         )
-        session["state"] = state
-        return render_template("index.html", auth_url=authorization_url)
-    except RuntimeError as e:
-        logging.debug(f"Error generating authorization URL: {e}")
-        return render_template("error.html", error_message="Failed to generate login URL.")
+
+    # if we're still here, there was no user_id in the session meaning we are not logged in
+    # render the front page with the google client id
+    # if the user clicks login from that page, the javascript function `onGoogleCredentialResponse`
+    # will handle the login using the /login route in auth.py.
+    # Depending on the output of that route, it's redirecting to /register if need be
+    secrets = load_config("google")
+    return render_template("index.html", google_client_id=secrets["client_id"])
 
 
 @app.route("/js/<script_name>.js")
 def serve_js(script_name):
-    """the javascript endpoint"""
+    """Return the javascript file dynamically.
+
+    Parameters
+    ----------
+    script_name : str
+        The name of the script to serve
+
+    Returns
+    -------
+        tuple: the javascript file, the status code, and the content type
+    """
     return (
         render_template(f"js/{script_name}.js"),
         200,
@@ -149,33 +144,29 @@ def serve_js(script_name):
 # health check route
 @app.route("/health")
 def health():
-    """the health check route"""
+    """Serve the health check route.
+
+    Returns
+    -------
+        string: the health check status
+    """
     checks = perform_health_checks()
     if checks:
         return checks, 500
     return "OK", 200
 
 
-# Logout route
-@app.route("/logout")
-def logout():
-    """the logout route"""
-    session.clear()
-    flash("You have been logged out.")
-    return redirect(url_for("index"))
-
-
 # Error handler for 404
 @app.errorhandler(404)
 def page_not_found(e):
-    """the error handler for 404 errors"""
+    """Handle 404 errors."""
     return render_template("404.html", e=e), 404
 
 
 # Error handler for 500
 @app.errorhandler(500)
 def internal_server_error(e):
-    """the error handler for 500 errors"""
+    """Handle 500 errors."""
     error_info = sys.exc_info()
     if error_info:
         error_message = str(error_info[1])  # Get the exception message
@@ -184,6 +175,87 @@ def internal_server_error(e):
 
     # Pass the error message to the template
     return render_template("500.html", error_message=error_message), 500
+
+
+@app.before_request
+def before_request():
+    """Load the features before every request."""
+    logging.debug("Before request: " + request.url)
+    g.features = load_config("features")
+
+
+@app.after_request
+def set_security_headers(response):
+    """Set the security headers for the response."""
+    cross_origin_opener_policy = "unsafe-none"
+
+    connect_src = ["'self'", "https://accounts.google.com/gsi/"]
+
+    frame_src = ["'self'", "https://accounts.google.com/gsi/", "https://accounts.google.com/"]
+
+    img_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "data:",
+        "https://accounts.google.com/gsi/",
+        "https://csi.gstatic.com/csi",
+    ]
+
+    script_src_elem = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/client",
+        "https://code.jquery.com/jquery-3.5.1.min.js",
+        "https://apis.google.com/js/api.js",
+        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_0",
+        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=picker/exm=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_1",
+        "https://cdn.tailwindcss.com/",
+        "https://code.jquery.com/jquery-3.5.1.slim.min.js",
+        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js",
+        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js",
+    ]
+
+    font_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/",
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/",
+        "https://fonts.gstatic.com/s/",
+    ]
+
+    script_src = ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/"]
+
+    style_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/style",
+        "https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css",
+        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css",
+        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://fonts.googleapis.com/css",
+        "https://fonts.googleapis.com/css2",
+        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css",
+    ]
+
+    default_src = ["'self'", "https://accounts.google.com/gsi/"]
+
+    content_security_policy = (
+        f"connect-src {' '.join(connect_src)}; "
+        f"frame-src {' '.join(frame_src)}; "
+        f"img-src {' '.join(img_src)}; "
+        f"script-src-elem {' '.join(script_src_elem)}; "
+        f"font-src {' '.join(font_src)}; "
+        f"script-src {' '.join(script_src)}; "
+        f"style-src {' '.join(style_src)}; "
+        f"default-src {' '.join(default_src)};"
+    )
+
+    response.headers["Cross-Origin-Opener-Policy"] = cross_origin_opener_policy
+    response.headers["Content-Security-Policy"] = content_security_policy
+
+    return response
 
 
 if __name__ == "__main__":
