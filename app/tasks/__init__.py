@@ -52,7 +52,7 @@ def execute_rag_llm(
     ValueError
         If the user or organisation is None.
     """
-    start_time = time.time()
+    execute_rag_llm_start_time = time.time()
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
@@ -86,7 +86,9 @@ def execute_rag_llm(
                 user=user,
             )
             try:
+                start_time = time.time()
                 context, source = enriched_context.retrieve_context(chat_message)
+                logging.info(f"Context Retriever time {time.time()-start_time}")
                 if context is None:
                     raise ValueError("Failed to retrieve context for the provided chat message.")
             except ValueError as e:
@@ -99,7 +101,9 @@ def execute_rag_llm(
                 raise Exception("Something went wrong") from e
 
             logging.info(f"LLM Status: {llm.get_llm_status()}")
+            start_time = time.time()
             answer = llm.get_answer(question=chat_message, context=context)
+            logging.info(f"Get Answer time {time.time()-start_time}")
 
         logging.info("Answer: %s", answer)
         logging.info("Source: %s", source)
@@ -116,7 +120,7 @@ def execute_rag_llm(
         return json_data
     finally:
         end_time = time.time()
-        logging.info(f"Worker Exec time: {end_time - start_time}")
+        logging.info(f"Worker Exec time: {end_time - execute_rag_llm_start_time}")
 
     return json_data
 
