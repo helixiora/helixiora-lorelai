@@ -299,7 +299,6 @@ def get_user_role_by_id(user_id: str):
             cursor.execute(query, (user_id,))
             roles = cursor.fetchall()
             role_names = [role[0] for role in roles]
-            print(role_names)
             return role_names
 
         except Exception:

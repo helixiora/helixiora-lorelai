@@ -140,9 +140,8 @@ class Indexer:
                     "job_id": job.id if job else "",
                     "user_id": user_row["user_id"],
                     "success": success,
-                    "message": "User indexed successfully"
-                    if success
-                    else f"User indexing failed: {message}",
+                    "message": "User indexed successfully",
+                    "index_stats": message if success else f"User indexing failed: {message}",
                 }
             )
 
@@ -274,7 +273,7 @@ class GoogleDriveIndexer(Indexer):
             f"Processing {len(document_ids)} Google documents for user: {user_row['email']}"
         )
         pinecone_processor = Processor()
-        pinecone_processor.google_docs_to_pinecone_docs(
+        index_stats = pinecone_processor.google_docs_to_pinecone_docs(
             document_ids=document_ids,
             credentials=credentials,
             org_name=org_row["name"],
@@ -288,6 +287,11 @@ class GoogleDriveIndexer(Indexer):
         # 7. Print the index statistics
         logging.debug("Index statistics before indexing vs after indexing:")
         lorelai.utils.print_index_stats_diff(index_stats_before, index_stats_after)
+
+        # return the number of doc added, removed and db index detail etc
+        if index_stats:
+            return True, index_stats
+        return False, {}
 
     def __get_google_docs_ids(self, credentials: Credentials, folder_id: str = "") -> list[str]:
         """Retrieve all Google Docs document IDs from the user's Google Drive or a specific folder.

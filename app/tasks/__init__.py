@@ -162,7 +162,6 @@ def run_indexer(
         logging.info(f"{org_row},{user_rows},{user_auth_rows},{job},")
         # Perform indexing
         results = indexer.index_org(org_row, user_rows, user_auth_rows, job)
-
         for result in results:
             logging.debug(result)
             job.meta["logs"].append(result)

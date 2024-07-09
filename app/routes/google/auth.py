@@ -51,7 +51,6 @@ def google_auth_url():
             access_type="offline", include_granted_scopes="true", prompt="consent"
         )
         session["state"] = state
-        print("******************", authorization_url, state)
         return authorization_url
 
     except RuntimeError as e:
@@ -73,7 +72,6 @@ def auth_callback():
     """
     lorelaicreds = load_config("lorelai")
     googlecreds = load_config("google")
-    print("%%%%%%%%%%%%%%%%%%%%")
     # state = request.args.get("state")
     state = session["state"]
     if state != session["state"]:
@@ -95,7 +93,6 @@ def auth_callback():
         scopes=None,
         redirect_uri=lorelaicreds["redirect_uri"],
     )
-    print("^^^^^^^^", request.url)
     flow.fetch_token(authorization_response=request.url)
 
     # retrieve the user_id from the session
@@ -109,7 +106,6 @@ def auth_callback():
     logging.debug(f"Access token: {access_token}")
     logging.debug(f"Refresh token: {refresh_token}")
     logging.debug(f"Expires at: {expires_at}")
-    print("GOT STUFF:", access_token, refresh_token, expires_at)
     # store them as records in user_auth
     data_source_name = "Google"
     conn = get_db_connection()
@@ -118,7 +114,6 @@ def auth_callback():
     if datasource_id is None:
         logging.error(f"{data_source_name} is missing from datasource table in db")
         raise ValueError(f"{data_source_name} is missing from datasource table in db")
-    print("$$$$$$$$$$$$$$$$$$$$$$$$$$", datasource_id)
     cursor.execute(
         """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
            VALUES (%s, %s, %s, %s, %s)""",

@@ -299,8 +299,9 @@ class Processor:
         )
         logging.info(f"removed user tag to {count_removed_access} documents in index {index_name}")
         logging.info(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
-
+        # New Document added = filtered_documents
         logging.info(f"Added {len(filtered_documents)} new documents in index {index_name}")
+        return len(filtered_documents)
 
     def google_docs_to_pinecone_docs(
         self: None,
@@ -356,5 +357,8 @@ class Processor:
             env_name=self.lorelai_settings["environment_slug"],
             version="v1",
         )
-        self.store_docs_in_pinecone(docs, index_name=index_name, user_email=user_email)
+        new_docs_added = self.store_docs_in_pinecone(
+            docs, index_name=index_name, user_email=user_email
+        )
         logging.info(f"Processed {len(docs)} documents for user: {user_email}")
+        return {"new_docs_added": new_docs_added}
