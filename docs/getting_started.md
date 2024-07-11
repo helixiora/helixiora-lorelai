@@ -17,7 +17,16 @@ There are two ways LorelAI can be deployed/ran:
 
 1. Get the database up and running, see the [readme in './db'](../db/readme.md)
 
-1. Ensure all `.py` scripts are executable: `chmod +x indexer.py lorelaicli.py`.
+1. Create a `settings.json` file (see `settings.json.example`) and customise the values to your
+   liking
+
+   1. You'll need a google cloud project for oauth
+
+   1. You'll need a pinecone API key
+
+   1. You need to setup Olama with Llama3 or use an OpenAI API key
+
+   See [prerequisites](./prerequisites.md) for more info
 
 1. Run an rq worker:
 
@@ -49,7 +58,7 @@ There are two ways LorelAI can be deployed/ran:
 ### Initial setup of the app
 
 1. Once you followed the steps and have an instance running, navigate to the local server URL
-   ([http://127.0.0.1:5000](http://127.0.0.1:5000)).
+   ([https://127.0.0.1:5000](https://127.0.0.1:5000)).
 
    - You will be asked to create an organisation if one doesn't exist in the MySQL database.
    - Note that this organization name will be the index name of the vector database following this
@@ -66,12 +75,12 @@ There are two ways LorelAI can be deployed/ran:
 
 ### Chat application
 
-Once logged in, you will see the chat interface at [http://127.0.0.1:5000](http://127.0.0.1:5000)
+Once logged in, you will see the chat interface at [https://127.0.0.1:5000](https://127.0.0.1:5000)
 
 ### Admin interface
 
 Very rudimentary admin interface to see what you have stored in pinecone and run the indexer,
-accessible from [http://127.0.0.1:5000/admin](http://127.0.0.1:5000/admin)
+accessible from [https://127.0.0.1:5000/admin](https://127.0.0.1:5000/admin)
 
 ### Executing the Indexer
 

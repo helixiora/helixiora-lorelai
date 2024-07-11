@@ -69,7 +69,7 @@ In order to pass these keys, connection strings for the MySQL database etc you h
 
 ### JSON settings file
 
-*Note* this option is a bit more difficult to pull of with a container, since you need to ensure the
+_Note_ this option is a bit more difficult to pull of with a container, since you need to ensure the
 file doesn't get overwritten on new image deploy
 
 The [example settings](./settings.json.example) file contains examples of all
