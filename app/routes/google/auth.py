@@ -72,7 +72,6 @@ def auth_callback():
     """
     lorelaicreds = load_config("lorelai")
     googlecreds = load_config("google")
-    # state = request.args.get("state")
     state = session["state"]
     if state != session["state"]:
         return render_template("error.html", error_message="Invalid state parameter.")
@@ -89,7 +88,6 @@ def auth_callback():
                 "redirect_uris": googlecreds["redirect_uris"],
             }
         },
-        # scopes=["https://www.googleapis.com/auth/drive.readonly"],
         scopes=None,
         redirect_uri=lorelaicreds["redirect_uri"],
     )
@@ -110,7 +108,7 @@ def auth_callback():
     data_source_name = "Google"
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    datasource_id = get_datasource_id_by_name(cursor, data_source_name)
+    datasource_id = get_datasource_id_by_name(data_source_name)
     if datasource_id is None:
         logging.error(f"{data_source_name} is missing from datasource table in db")
         raise ValueError(f"{data_source_name} is missing from datasource table in db")
