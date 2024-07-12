@@ -166,3 +166,5 @@ report.html
 report.json
 flyway.conf.original
 node_modules
+
+.vscode/launch.json

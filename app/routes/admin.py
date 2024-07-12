@@ -221,9 +221,12 @@ def list_indexes() -> str:
     str
         The rendered template of the list indexes page.
     """
-    enriched_context = ContextRetriever(
-        org_name=session["org_name"], user_email=session["user_email"]
+    enriched_context = ContextRetriever.create(
+        retriever_type="GoogleDriveContextRetriever",
+        org_name=session["org_name"],
+        user=session["user_email"],
     )
+
     indexes = enriched_context.get_all_indexes()
 
     return render_template(
@@ -235,8 +238,10 @@ def list_indexes() -> str:
 @admin_bp.route("/admin/pinecone/<host_name>")
 def index_details(host_name: str) -> str:
     """Return the index details page."""
-    enriched_context = ContextRetriever(
-        org_name=session["org_name"], user_email=session["user_email"]
+    enriched_context = ContextRetriever.create(
+        retriever_type="GoogleDriveContextRetriever",
+        org_name=session["org_name"],
+        user=session["user_email"],
     )
     index_metadata = enriched_context.get_index_details(index_host=host_name)
 
