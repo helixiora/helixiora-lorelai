@@ -7,7 +7,16 @@ import os
 import sys
 
 import mysql.connector
-from flask import Flask, g, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    g,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+    render_template_string,
+)
 
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
@@ -256,6 +265,34 @@ def set_security_headers(response):
     response.headers["Content-Security-Policy"] = content_security_policy
 
     return response
+
+
+@app.route("/unauthorized")
+def unauthorized():
+    """
+    Handle unauthorized access by showing a pop-up alert and redirecting to the previous page.
+
+    This route is triggered when a user attempts to access a protected page without the
+    required roles. It shows a JavaScript alert informing the user that they are not authorized,
+    and then redirects them to the page they came from (if available), or to the home page.
+
+    Query Parameters:
+        next (str): The URL to redirect to after displaying the alert. Defaults to the home page.
+
+    Returns
+    -------
+        A rendered HTML string containing a JavaScript alert and redirection script.
+    """
+    next_url = request.args.get("next") or url_for("index")
+    return render_template_string(
+        """
+        <script>
+            alert("You are not authorized to access this page.");
+            window.location.href = "{{ next_url }}";
+        </script>
+    """,
+        next_url=next_url,
+    )
 
 
 if __name__ == "__main__":
