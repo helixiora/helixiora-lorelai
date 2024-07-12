@@ -23,10 +23,8 @@ def is_admin(user_id: int) -> bool:
     Returns
     -------
     bool
-        True if the user is an admin, False otherwise.
+        True if the user is an admin (both super and org), False otherwise.
     """
-    # Implement the actual check logic, assuming user_id == 1 is admin for example
-    # what roles are considered admin, both super admin and org_admin. need clarification
     admin_roles = ["org_admin", "super_admin"]
     if any(role in admin_roles for role in session["user_roles"]):
         return True
