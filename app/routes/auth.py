@@ -29,9 +29,9 @@ from app.utils import (
     get_organisation_by_org_id,
     get_query_result,
     get_user_id_by_email,
+    get_user_role_by_id,
     is_admin,
     user_is_logged_in,
-    get_user_role_by_id,
 )
 from lorelai.slack.slack_processor import SlackOAuth
 
@@ -273,8 +273,10 @@ def login():
         data = request.get_json()
         logging.info("Received JSON data: %s", data)
 
+        # get the received token from the JSON data that came from the web client
         id_token_received = data.get("credential")
 
+        # use this token to verify the user's identity
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
 
         if not idinfo:
@@ -286,11 +288,14 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
+        # get some values from the info we got from google
         logging.info("Info from token: %s", idinfo)
         user_email = idinfo["email"]
         username = idinfo["name"]
         user_full_name = idinfo["name"]
         google_id = idinfo["sub"]
+
+        # check if the user is already registered
         user_id = get_user_id_by_email(user_email)
 
         org_id = get_org_id_by_userid(cursor, user_id)

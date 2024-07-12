@@ -23,9 +23,8 @@ def is_admin(user_id: int) -> bool:
     Returns
     -------
     bool
-        True if the user is an admin, False otherwise.
+        True if the user is an admin (both super and org), False otherwise.
     """
-    # Implement the actual check logic, assuming user_id == 1 is admin for example
     admin_roles = ["org_admin", "super_admin"]
     if any(role in admin_roles for role in session["user_roles"]):
         return True
@@ -299,7 +298,6 @@ def get_user_role_by_id(user_id: str):
             cursor.execute(query, (user_id,))
             roles = cursor.fetchall()
             role_names = [role[0] for role in roles]
-            print(role_names)
             return role_names
 
         except Exception:
@@ -423,6 +421,19 @@ def get_user_email_by_id(cursor, user_id: int):
     user_result = cursor.fetchone()
     if user_result:
         return user_result["email"]
+
+
+def get_datasource_id_by_name(datasource_name: str):
+    """Get the organization name by ID."""
+    datasource_name_result = get_query_result(
+        "SELECT datasource_id FROM datasource WHERE datasource_name = %s",
+        (datasource_name,),
+        fetch_one=True,
+    )
+    if datasource_name_result:
+        return datasource_name_result["datasource_id"]
+
+    return None
 
 
 def get_datasources_name():

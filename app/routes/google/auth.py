@@ -5,7 +5,7 @@ import logging
 from flask import Blueprint, redirect, render_template, request, session, url_for
 from google_auth_oauthlib.flow import Flow
 
-from app.utils import get_db_connection, load_config
+from app.utils import get_db_connection, load_config, get_datasource_id_by_name
 
 googledrive_bp = Blueprint("googledrive", __name__)
 
@@ -72,8 +72,7 @@ def auth_callback():
     """
     lorelaicreds = load_config("lorelai")
     googlecreds = load_config("google")
-
-    state = request.args.get("state")
+    state = session["state"]
     if state != session["state"]:
         return render_template("error.html", error_message="Invalid state parameter.")
 
@@ -89,10 +88,9 @@ def auth_callback():
                 "redirect_uris": googlecreds["redirect_uris"],
             }
         },
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
+        scopes=None,
         redirect_uri=lorelaicreds["redirect_uri"],
     )
-
     flow.fetch_token(authorization_response=request.url)
 
     # retrieve the user_id from the session
@@ -106,26 +104,31 @@ def auth_callback():
     logging.debug(f"Access token: {access_token}")
     logging.debug(f"Refresh token: {refresh_token}")
     logging.debug(f"Expires at: {expires_at}")
-
     # store them as records in user_auth
-
+    data_source_name = "Google"
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    datasource_id = get_datasource_id_by_name(data_source_name)
+    if datasource_id is None:
+        logging.error(f"{data_source_name} is missing from datasource table in db")
+        raise ValueError(f"{data_source_name} is missing from datasource table in db")
     cursor.execute(
         """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
            VALUES (%s, %s, %s, %s, %s)""",
-        (user_id, 1, "access_token", access_token, "oauth"),
+        (user_id, datasource_id, "access_token", access_token, "oauth"),
     )
     cursor.execute(
         """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
            VALUES (%s, %s, %s, %s, %s)""",
-        (user_id, 1, "refresh_token", refresh_token, "oauth"),
+        (user_id, datasource_id, "refresh_token", refresh_token, "oauth"),
     )
     cursor.execute(
         """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
            VALUES (%s, %s, %s, %s, %s)""",
-        (user_id, 1, "expires_at", expires_at, "oauth"),
+        (user_id, datasource_id, "expires_at", expires_at, "oauth"),
     )
+
+    conn.commit()
     session["credentials"] = flow.credentials.to_json()
 
-    return redirect(url_for("auth_bp.profile"))
+    return redirect(url_for("auth.profile"))
