@@ -1,5 +1,6 @@
 """Contains the Processor class that processes and indexes them in Pinecone."""
 
+import itertools
 import logging
 import os
 import uuid
@@ -236,6 +237,15 @@ class Processor:
             :param index_name: name of index
             :param user_email: the user to process
         """
+
+        def chunks(iterable, batch_size=100):
+            """Break an iterable into chunks of size batch_size."""
+            it = iter(iterable)
+            chunk = tuple(itertools.islice(it, batch_size))
+            while chunk:
+                yield chunk
+                chunk = tuple(itertools.islice(it, batch_size))
+
         logging.info(f"Processing {len(docs)} Google documents for user: {user_email}")
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
@@ -287,7 +297,11 @@ class Processor:
 
         # inserting  the documents
         if filtered_documents:
-            pc_index.upsert(filtered_documents)
+            logging.info(f"Inserting {len(filtered_documents)} documents in Pinecone {index_name}")
+            for chunk in chunks(filtered_documents, 50):
+                response = pc_index.upsert(vectors=chunk)
+                logging.debug(f"Upsert response: {response}")
+
         logging.info(f"Total Number of Google Docs {len(docs)}")
         logging.info(f"Total Number of documents, ie after chucking {len(documents)}")
         logging.info(
