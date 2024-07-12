@@ -190,6 +190,14 @@ def register_user_to_org(
                 "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
                 (user_id, role_id),
             )
+        elif user_created_success and not created_new_org:
+            cursor.execute("SELECT role_id FROM roles WHERE role_name = 'user'")
+            role_id = cursor.fetchone()["role_id"]
+
+            cursor.execute(
+                "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
+                (user_id, role_id),
+            )
 
         conn.commit()
 
