@@ -44,7 +44,7 @@ There are two ways LorelAI can be deployed/ran:
 
    ```bash
    export FLASK_APP=run.py
-   flask run
+   flask run --debug --cert ./cert.pem --key key.pem
    ```
 
    Note: add an `&` to `flask run` to have it run in the background, or use multiple terminals.
