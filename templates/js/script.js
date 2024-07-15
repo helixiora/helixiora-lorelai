@@ -250,6 +250,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Add a welcoming message on page load
+    const welcomeMessage = `
+    <div>
+        <h2>Welcome to Our Chat!</h2>
+        <p>We are excited to have you here. To ensure you have the best experience, we want to set clear expectations:</p>
+        <ol>
+            <li>
+                <strong>Accuracy of Responses:</strong>
+                <p>We strive to provide accurate and reliable information. However, if you encounter any responses that seem incorrect or misleading, please let us know immediately.</p>
+            </li>
+            <li>
+                <strong>Document Management:</strong>
+                <p>Your documents are important to us. If you notice any responses referencing documents you have deleted, please report it so we can address the issue.</p>
+            </li>
+            <li>
+                <strong>Access to Documents:</strong>
+                <p>We aim to ensure you can access all the documents you need. If you face any issues retrieving information from documents you have access to, please contact us for support.</p>
+            </li>
+        </ol>
+        <p>Thank you for using our service. We are here to assist you and make your experience as smooth as possible.</p>
+    </div>
+`;
+    addMessage(welcomeMessage, true, true, false);
 
     sendButton.addEventListener('click', function() {
         const text = messageInput.value;
