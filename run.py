@@ -12,10 +12,10 @@ from flask import (
     g,
     redirect,
     render_template,
+    render_template_string,
     request,
     session,
     url_for,
-    render_template_string,
 )
 
 from app.routes.admin import admin_bp
@@ -23,11 +23,11 @@ from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.google.auth import googledrive_bp
 from app.utils import (
+    get_datasources_name,
     get_db_connection,
     is_admin,
     perform_health_checks,
     user_is_logged_in,
-    get_datasources_name,
 )
 from lorelai.utils import load_config
 
@@ -100,7 +100,7 @@ def index():
     -------
         string: the index page
     """
-    logging.info("Index route")
+    logging.debug("Index route")
 
     if app.config.get("LORELAI_SETUP"):
         # redirect to /admin/setup if the app is not set up
