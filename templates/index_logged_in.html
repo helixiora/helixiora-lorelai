@@ -3,14 +3,8 @@
 {% block title %}Lorelai{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
 <script src="{{ url_for('serve_js', script_name='script') }}"></script>
 <style>
-    * {
-        font-family: Poppins, sans-serif;
-    }
     .hidden {
         display: none;
     }
@@ -94,7 +88,18 @@
                 </a>
             </div>
         </div>
-
+        <!-- Flash Messages -->
+        <div class="container mt-4">
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert alert-info">
+                        {% for message in messages %}
+                            <p>{{ message }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
         <!-- Chat Message Area -->
         <div id="messages" class="flex-grow rounded-lg p-4 mb-4 overflow-y-auto">
             <!-- User messages will go here -->
@@ -144,7 +149,7 @@
         </div>
 
         <!-- Hero Section with Conditional Background -->
-        <div class="w-full text-center sm:text-left sm:text-black mt-8">
+        <div class="w-full text-left sm:text-left sm:text-black mt-8">
             <h1 class="text-4xl sm:text-5xl font-bold leading-tight">Lorelai:<br/>Chat with your private data</h1>
         </div>
 
@@ -168,6 +173,10 @@
             </div>
         </p>
         {% endif %}
+
     </div>
 </div>
+
+<!-- Add Bootstrap JS for collapse functionality -->
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 {% endblock %}
