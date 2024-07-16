@@ -21,6 +21,7 @@
         "environment": "the stage of this environment eg dev/prod/qa",
         "environment_slug": "a name to recognise this env by",
         "redirect_uri":"http://127.0.0.1:5000/oauth2callback",
+        "free_msg_limit":10
     },
     "db": {
         "host": "your_mysql_server",

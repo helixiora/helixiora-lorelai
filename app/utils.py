@@ -8,7 +8,7 @@ from functools import wraps
 import mysql.connector
 import redis
 from flask import redirect, session, url_for
-
+from datetime import datetime, timedelta
 from lorelai.utils import load_config
 
 
@@ -422,6 +422,9 @@ def get_user_email_by_id(cursor, user_id: int):
     if user_result:
         return user_result["email"]
 
+    logging.error("No user found for user id: %s", user_id)
+    raise ValueError(f"No user found for user id: {user_id}")
+
 
 def get_datasource_id_by_name(datasource_name: str):
     """Get the organization name by ID."""
@@ -453,3 +456,35 @@ def get_datasources_name():
         except Exception:
             logging.critical("No datasources in datasources table")
             raise ValueError("No datasources in datasources table") from None
+
+
+def get_msg_count_last_24hr(user_id: int):
+    """
+    Retrieve the count of chat messages for a specified user from the last 24 hours.
+
+    Args:
+        user_id (int): The ID of the user whose messages are to be counted.
+
+    Returns
+    -------
+        int: The number of chat messages sent by the specified user in the last 24 hours.
+
+    Raises
+    ------
+        Exception: If there is an error connecting to the database or executing the query.
+    """
+    try:
+        with get_db_connection() as db:
+            past_24_hours_time = datetime.now() - timedelta(days=1)
+            cursor = db.cursor()
+            query = """
+                    SELECT COUNT(*)
+                    FROM chat_messages
+                    WHERE user_id = %s AND datetime >= %s
+                """
+            cursor.execute(query, (user_id, past_24_hours_time))
+            count = cursor.fetchone()[0]
+            return count
+    except Exception as e:
+        logging.error(e)
+        raise e

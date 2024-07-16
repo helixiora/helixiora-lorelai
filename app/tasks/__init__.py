@@ -6,11 +6,18 @@ import time
 
 from rq import get_current_job
 
+from app.utils import (
+    get_datasources_name,
+    get_db_connection,
+    get_user_id_by_email,
+    get_msg_count_last_24hr,
+    load_config,
+)
+
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
-from app.utils import get_datasources_name
 
 logging_format = os.getenv(
     "LOG_FORMAT",
@@ -18,6 +25,7 @@ logging_format = os.getenv(
 )
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format=logging_format)
+lorelaicreds = load_config("lorelai")
 
 
 def execute_rag_llm(
@@ -60,6 +68,14 @@ def execute_rag_llm(
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s", user, organisation)
     logging.debug("Datasource %s", datasource)
+    user_id = get_user_id_by_email(email=user)
+    msg_count = get_msg_count_last_24hr(user_id=user_id)
+    msg_limit = lorelaicreds["free_msg_limit"]
+    logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
+    if msg_count >= msg_limit:
+        json_data = {"answer": "MSG LIMIT EXCEED", "source": "LorelAI", "status": "Success"}
+        return json_data
+
     db_datasource_list = get_datasources_name()
     if datasource not in db_datasource_list:
         raise ValueError(f"Invalid datasource provided. Received: {datasource}")
@@ -121,6 +137,23 @@ def execute_rag_llm(
     finally:
         end_time = time.time()
         logging.info(f"Worker Exec time: {end_time - execute_rag_llm_start_time}")
+
+    # insert msg to db
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    insert_query = """
+                INSERT INTO chat_messages (user_id, user_text, bot_text, llm_model, datasource)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+    record_to_insert = (
+        user_id,
+        chat_message,
+        answer if answer else "No Response",
+        model_type,
+        datasource,
+    )
+    cursor.execute(insert_query, record_to_insert)
+    conn.commit()
 
     return json_data
 
