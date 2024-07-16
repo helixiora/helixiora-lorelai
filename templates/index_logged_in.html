@@ -71,10 +71,19 @@
             transform: scale(1);
         }
     }
+    /* Fixed width for admin and org panels with resizable property */
+    .resizable-panel {
+        width: 300px; /* Initial width */
+        max-width: 100%;
+        margin: 0 auto;
+        resize: both;
+        overflow: auto;
+        word-wrap: break-word;
+        padding: 16px;
+    }
 </style>
 
 <div class="h-screen flex">
-
     <!-- 2/3 Space Column -->
     <div class="ml-20 flex-grow bg-[#eaf5ff] pt-2 flex flex-col justify-between" style="flex-basis: 66.67%;">
         <!-- User Organization and Email Container -->
@@ -140,8 +149,9 @@
         </div>
 
         <!-- Paragraph -->
-        <p class="text-base sm:text-lg text-center sm:text-left mt-8">
-            This chatbot is a prototype developed by Helixiora. It is designed to provide information about information retrieved by the Google Drive crawler from information you have access to.
+        <p class="text-base sm:text-lg text-left sm:text-left mt-8">
+            This chatbot is a prototype developed by Helixiora. It is designed to provide information about information retrieved by the Google Drive crawler from information you have access to.</br>
+            If you need any help, please go to our <a href="{{ support_portal }}" class="text-[#4b9feb]">Support Portal</a> or contact us at <a href="mailto:{{ support_email }}" class="text-[#4b9feb]">{{ support_email }}</a>.
         </p>
 
         {% if 'super_admin' in session.get('user_roles', []) %}

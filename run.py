@@ -127,6 +127,8 @@ def index():
     if user_is_logged_in(session):
         datasources = get_datasources_name()
 
+        lorelai_settings = load_config("lorelai")
+
         is_admin_status = is_admin(session["user_id"])
 
         if is_super_admin(session["user_id"]):
@@ -138,6 +140,8 @@ def index():
             is_admin=is_admin_status,
             datasource_list=datasources,
             super_admin_content=super_admin_content,
+            support_portal=lorelai_settings["support_portal"],
+            support_email=lorelai_settings["support_email"],
         )
 
     # if we're still here, there was no user_id in the session meaning we are not logged in
