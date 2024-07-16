@@ -108,6 +108,19 @@
         </div>
     </nav>
 
+    <!-- Flash Messages -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <div class="container mt-4">
+                <div class="alert alert-info">
+                    {% for message in messages %}
+                        <p>{{ message }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        {% endwith %}
+
     <div class="hero">
         <h1>Unlock the Power of Your Data with Lorelai</h1>
         <p>AI-driven conversations with your internal company data, making information retrieval fast, easy, and intuitive.</p>
