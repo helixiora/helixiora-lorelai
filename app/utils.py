@@ -12,6 +12,42 @@ from flask import redirect, session, url_for
 from lorelai.utils import load_config
 
 
+def is_org_admin(user_id: int) -> bool:
+    """Check if the user is an organization admin.
+
+    Parameters
+    ----------
+    user_id : int
+        The user ID of the user.
+
+    Returns
+    -------
+    bool
+        True if the user is an organization admin, False otherwise.
+    """
+    if "org_admin" in session["user_roles"]:
+        return True
+    return False
+
+
+def is_super_admin(user_id: int) -> bool:
+    """Check if the user is a super admin.
+
+    Parameters
+    ----------
+    user_id : int
+        The user ID of the user.
+
+    Returns
+    -------
+    bool
+        True if the user is a super admin, False otherwise.
+    """
+    if "super_admin" in session["user_roles"]:
+        return True
+    return False
+
+
 def is_admin(user_id: int) -> bool:
     """Check if the user is an admin.
 
