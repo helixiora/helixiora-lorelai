@@ -143,6 +143,21 @@
         <p class="text-base sm:text-lg text-center sm:text-left mt-8">
             This chatbot is a prototype developed by Helixiora. It is designed to provide information about information retrieved by the Google Drive crawler from information you have access to.
         </p>
+
+        {% if 'super_admin' in session.get('user_roles', []) %}
+        <!-- Super Admin Panel -->
+        <p class="mt-4 p-4">
+            <div class="mt-4 p-4 bg-red-200 shadow rounded-lg resizable-panel">
+                <h2 class="text-xl font-bold mb-2">Super Admin Panel</h2>
+                <!-- Add more org admin controls here -->
+                <ul>
+                    {% for line in super_admin_content %}
+                        <li class="text-gray-400">{{ line }}</a>
+                    {% endfor %}
+                </ul>
+            </div>
+        </p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
