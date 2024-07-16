@@ -79,7 +79,7 @@ def role_required(role_name_list):
             if "user_roles" not in session or not isinstance(session["user_roles"], list):
                 return redirect(url_for("unauthorized"))
 
-            # Check if any role in session['role'] is in role_name_list
+            # Check if any role in session['user_roles'] is in role_name_list
             if not any(role in role_name_list for role in session["user_roles"]):
                 return redirect(url_for("unauthorized"))
 
@@ -357,6 +357,49 @@ def user_is_logged_in(session) -> bool:
         True if the user is logged in, False otherwise.
     """
     return "user_id" in session
+
+
+def get_users(org_id: int = None) -> list[dict] | None:
+    """Get the list of users from the user table.
+
+    If an org_id is provided, only users from that organization are returned.
+
+    Parameters
+    ----------
+    org_id : int, optional
+        The organization ID.
+
+    Returns
+    -------
+    list[dict] | None
+        A list of dictionaries containing the users.
+    """
+    if org_id:
+        users = get_query_result(
+            "SELECT u.user_id, u.email, o.name as organisation \
+            FROM \
+                user u \
+            LEFT JOIN \
+                organisation o on u.org_id = o.id \
+            WHERE \
+                u.org_id = %s",
+            (org_id,),
+        )
+    else:
+        users = get_query_result(
+            "SELECT \
+                u.user_id, u.email, o.name as organisation \
+            FROM \
+                user u \
+            LEFT JOIN \
+                organisation o on u.org_id = o.id"
+        )
+
+    # go through all users and add their roles as a list
+    for user in users:
+        user["roles"] = get_user_role_by_id(user["user_id"])
+
+    return users if users else None
 
 
 def get_user_id_by_email(email: str) -> int:

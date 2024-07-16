@@ -12,7 +12,10 @@ from app.tasks import run_indexer
 from app.utils import (
     get_db_connection,
     get_query_result,
+    get_users,
     is_admin,
+    is_org_admin,
+    is_super_admin,
     role_required,
     run_flyway_migrations,
     user_is_logged_in,
@@ -30,8 +33,16 @@ def admin():
 
     This page is only accessible to users who are admins.
     """
+    if is_super_admin(session["user_id"]):
+        users = get_users()
+    elif is_org_admin(session["user_id"]):
+        users = get_users(org_id=session["org_id"])
+    else:
+        users = None
+
     if user_is_logged_in(session) and is_admin(session["user_id"]):
-        return render_template("admin.html", is_admin=True)
+        return render_template("admin.html", is_admin=True, users=users)
+
     return "You are not logged in!"
 
 
