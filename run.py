@@ -133,6 +133,8 @@ def index():
 
         if is_super_admin(session["user_id"]):
             super_admin_content = super_admin_panel_content()
+        else:
+            super_admin_content = []
 
         return render_template(
             "index_logged_in.html",
