@@ -3,15 +3,14 @@
 import logging
 import os
 import time
-
 from rq import get_current_job
+import json
 
 from app.utils import (
     get_datasources_name,
-    get_db_connection,
-    get_user_id_by_email,
-    get_msg_count_last_24hr,
     load_config,
+    insert_thread_ignore,
+    insert_message,
 )
 
 # import the indexer
@@ -29,7 +28,9 @@ lorelaicreds = load_config("lorelai")
 
 
 def execute_rag_llm(
+    thread_id: str,
     chat_message: str,
+    user_id,
     user: str,
     organisation: str,
     model_type: str = "OpenAILlm",
@@ -64,17 +65,16 @@ def execute_rag_llm(
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
-
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
-    logging.info("Session: %s, %s", user, organisation)
+    logging.info("Session: %s, %s, %s", user_id, user, organisation)
     logging.debug("Datasource %s", datasource)
-    user_id = get_user_id_by_email(email=user)
-    msg_count = get_msg_count_last_24hr(user_id=user_id)
-    msg_limit = lorelaicreds["free_msg_limit"]
-    logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
-    if msg_count >= msg_limit:
+
+    # msg_count = get_msg_count_last_24hr(user_id=user_id)
+    # msg_limit = lorelaicreds["free_msg_limit"]
+    # logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
+    """if msg_count >= msg_limit:
         json_data = {"answer": "MSG LIMIT EXCEED", "source": "LorelAI", "status": "Success"}
-        return json_data
+        return json_data"""
 
     db_datasource_list = get_datasources_name()
     if datasource not in db_datasource_list:
@@ -89,11 +89,19 @@ def execute_rag_llm(
 
         llm = Llm.create(model_type=model_type)
 
+        # insert chat thread
+        insert_thread_ignore(
+            thread_id=str(thread_id), user_id=user_id, thread_name=chat_message[:20]
+        )
+
+        # insert message
+        insert_message(thread_id=str(thread_id), sender="user", message_content=chat_message)
+
         # Get the context for the question
         if datasource == "Direct":
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer_direct(question=chat_message)
-            source = "Direct"
+            source = [{"source": "Direct"}]
         else:
             # have to change Retriever type based on data source.
             enriched_context = ContextRetriever.create(
@@ -123,7 +131,8 @@ def execute_rag_llm(
 
         logging.info("Answer: %s", answer)
         logging.info("Source: %s", source)
-
+        logging.info(f"Source Type: {type(source)}")
+        source.append({"datasource": datasource})
         json_data = {"answer": answer, "source": source, "status": "Success"}
 
     except ValueError as e:
@@ -138,23 +147,13 @@ def execute_rag_llm(
         end_time = time.time()
         logging.info(f"Worker Exec time: {end_time - execute_rag_llm_start_time}")
 
-    # insert msg to db
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    insert_query = """
-                INSERT INTO chat_messages (user_id, user_text, bot_text, llm_model, datasource)
-                VALUES (%s, %s, %s, %s, %s)
-            """
-    record_to_insert = (
-        user_id,
-        chat_message,
-        answer if answer else "No Response",
-        model_type,
-        datasource,
+    print(source)
+    insert_message(
+        thread_id=str(thread_id),
+        sender="bot",
+        message_content=answer if answer else "No Response",
+        sources=json.dumps(source),
     )
-    cursor.execute(insert_query, record_to_insert)
-    conn.commit()
-
     return json_data
 
 

@@ -488,3 +488,72 @@ def get_msg_count_last_24hr(user_id: int):
     except Exception as e:
         logging.error(e)
         raise e
+
+
+def insert_thread_ignore(thread_id: str, user_id, thread_name=None):
+    """
+    Insert a new chat thread into the chat_threads table, ignoring the insertion if a duplicate.
+
+    # thread_id exists.
+
+    Args:
+        thread_id (str): The unique identifier for the chat thread.
+        user_id: The ID of the user who owns the thread.
+        thread_name (str, optional): The name of the chat thread. Defaults to None.
+
+    Returns
+    -------
+        bool: True if the insertion was successful or ignored, False otherwise.
+
+    Raises
+    ------
+        Exception: Propagates any exception that occurs during the database operation.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+            INSERT IGNORE INTO chat_threads (thread_id, user_id, thread_name)
+            VALUES (%s, %s, %s)
+                """
+            thread_data = (thread_id, user_id, thread_name)
+            cursor.execute(query, thread_data)
+            db.commit()
+            return True
+    except Exception as e:
+        logging.error(e)
+        raise e
+
+
+def insert_message(thread_id: str, sender: str, message_content: str, sources: str = None):
+    """
+    Insert a new message into the chat_messages table.
+
+    Args:
+        thread_id (str): The unique identifier for the chat thread the message belongs to.
+        sender (str): The sender of the message.
+        message_content (str): The content of the message.
+        sources (str, optional): Any sources associated with the message. Defaults to None.
+
+    Returns
+    -------
+        bool: True if the insertion was successful, False otherwise.
+
+    Raises
+    ------
+        Exception: Propagates any exception that occurs during the database operation.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+            INSERT INTO chat_messages (thread_id, sender, message_content, sources)
+            VALUES (%s, %s, %s, %s)
+                """
+            msg_data = (thread_id, sender, message_content, sources)
+            cursor.execute(query, msg_data)
+            db.commit()
+            return True
+    except Exception as e:
+        logging.error(e)
+        raise e

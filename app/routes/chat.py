@@ -38,10 +38,13 @@ def chat():
 
     llm_model = "OpenAILlm"
     # llm_model = "OllamaLlama3"
-
+    print("SEssion", session)
+    thread_id = session["thread_id"]
     job = queue.enqueue(
         execute_rag_llm,
+        thread_id,
         content["message"],
+        session.get("user_id"),
         session.get("user_email"),
         session.get("org_name"),
         llm_model,

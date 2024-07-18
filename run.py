@@ -5,7 +5,7 @@
 import logging
 import os
 import sys
-
+from ulid import ULID
 import mysql.connector
 from flask import (
     Flask,
@@ -110,6 +110,12 @@ def index():
     # if the user_id is in the session, the user is logged in
     # render the index_logged_in page
     if user_is_logged_in(session):
+        # have to setup thread_id for the chat history feature. in UI we have to create button for
+        # new
+        # thread which replace current session "thread_id"
+        if "thread_id" not in session:
+            # ULID creates chronological string, which make inserting faster as they are sequential
+            session["thread_id"] = str(ULID().to_uuid())
         datasources = get_datasources_name()
 
         is_admin_status = is_admin(session["user_id"])
@@ -126,6 +132,7 @@ def index():
     # if the user clicks login from that page, the javascript function `onGoogleCredentialResponse`
     # will handle the login using the /login route in auth.py.
     # Depending on the output of that route, it's redirecting to /register if need be
+
     secrets = load_config("google")
     return render_template("index.html", google_client_id=secrets["client_id"])
 
