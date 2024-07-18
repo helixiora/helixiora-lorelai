@@ -26,6 +26,7 @@ from app.utils import (
     get_datasources_name,
     get_db_connection,
     is_admin,
+    is_super_admin,
     perform_health_checks,
     user_is_logged_in,
 )
@@ -91,6 +92,20 @@ logging.info(
 )
 
 
+def super_admin_panel_content() -> list:
+    """Return the content for the super admin panel.
+
+    Returns
+    -------
+        list: the content for the super admin panel
+    """
+    session_variables = ["Session variables:"]
+    for key, value in session.items():
+        session_variables.append(f"- {key}: {value}")
+
+    return session_variables
+
+
 # Improved index route using render_template
 @app.route("/")
 def index():
@@ -112,13 +127,23 @@ def index():
     if user_is_logged_in(session):
         datasources = get_datasources_name()
 
+        lorelai_settings = load_config("lorelai")
+
         is_admin_status = is_admin(session["user_id"])
-        # session["role"] = get_user_role(session["email"])
+
+        if is_super_admin(session["user_id"]):
+            super_admin_content = super_admin_panel_content()
+        else:
+            super_admin_content = []
+
         return render_template(
             "index_logged_in.html",
             user_email=session["user_email"],
             is_admin=is_admin_status,
             datasource_list=datasources,
+            super_admin_content=super_admin_content,
+            support_portal=lorelai_settings["support_portal"],
+            support_email=lorelai_settings["support_email"],
         )
 
     # if we're still here, there was no user_id in the session meaning we are not logged in

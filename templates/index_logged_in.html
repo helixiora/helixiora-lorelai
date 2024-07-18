@@ -3,14 +3,8 @@
 {% block title %}Lorelai{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
 <script src="{{ url_for('serve_js', script_name='script') }}"></script>
 <style>
-    * {
-        font-family: Poppins, sans-serif;
-    }
     .hidden {
         display: none;
     }
@@ -71,10 +65,19 @@
             transform: scale(1);
         }
     }
+    /* Fixed width for admin and org panels with resizable property */
+    .resizable-panel {
+        width: 300px; /* Initial width */
+        max-width: 100%;
+        margin: 0 auto;
+        resize: both;
+        overflow: auto;
+        word-wrap: break-word;
+        padding: 16px;
+    }
 </style>
 
 <div class="h-screen flex">
-
     <!-- 2/3 Space Column -->
     <div class="ml-20 flex-grow bg-[#eaf5ff] pt-2 flex flex-col justify-between" style="flex-basis: 66.67%;">
         <!-- User Organization and Email Container -->
@@ -85,7 +88,18 @@
                 </a>
             </div>
         </div>
-
+        <!-- Flash Messages -->
+        <div class="container mt-4">
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert alert-info">
+                        {% for message in messages %}
+                            <p>{{ message }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
         <!-- Chat Message Area -->
         <div id="messages" class="flex-grow rounded-lg p-4 mb-4 overflow-y-auto">
             <!-- User messages will go here -->
@@ -135,14 +149,34 @@
         </div>
 
         <!-- Hero Section with Conditional Background -->
-        <div class="w-full text-center sm:text-left sm:text-black mt-8">
+        <div class="w-full text-left sm:text-left sm:text-black mt-8">
             <h1 class="text-4xl sm:text-5xl font-bold leading-tight">Lorelai:<br/>Chat with your private data</h1>
         </div>
 
         <!-- Paragraph -->
-        <p class="text-base sm:text-lg text-center sm:text-left mt-8">
-            This chatbot is a prototype developed by Helixiora. It is designed to provide information about information retrieved by the Google Drive crawler from information you have access to.
+        <p class="text-base sm:text-lg text-left sm:text-left mt-8">
+            This chatbot is a prototype developed by Helixiora. It is designed to provide information about information retrieved by the Google Drive crawler from information you have access to.</br>
+            If you need any help, please go to our <a href="{{ support_portal }}" class="text-[#4b9feb]">Support Portal</a> or contact us at <a href="mailto:{{ support_email }}" class="text-[#4b9feb]">{{ support_email }}</a>.
         </p>
+
+        {% if 'super_admin' in session.get('user_roles', []) %}
+        <!-- Super Admin Panel -->
+        <p class="mt-4 p-4">
+            <div class="mt-4 p-4 bg-red-200 shadow rounded-lg resizable-panel">
+                <h2 class="text-xl font-bold mb-2">Super Admin Panel</h2>
+                <!-- Add more org admin controls here -->
+                <ul>
+                    {% for line in super_admin_content %}
+                        <li class="text-gray-400">{{ line }}</a>
+                    {% endfor %}
+                </ul>
+            </div>
+        </p>
+        {% endif %}
+
     </div>
 </div>
+
+<!-- Add Bootstrap JS for collapse functionality -->
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 {% endblock %}
