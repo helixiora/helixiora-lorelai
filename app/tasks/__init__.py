@@ -11,6 +11,7 @@ from app.utils import (
     load_config,
     insert_thread_ignore,
     insert_message,
+    get_msg_count_last_24hr,
 )
 
 # import the indexer
@@ -69,12 +70,16 @@ def execute_rag_llm(
     logging.info("Session: %s, %s, %s", user_id, user, organisation)
     logging.debug("Datasource %s", datasource)
 
-    # msg_count = get_msg_count_last_24hr(user_id=user_id)
-    # msg_limit = lorelaicreds["free_msg_limit"]
-    # logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
-    """if msg_count >= msg_limit:
-        json_data = {"answer": "MSG LIMIT EXCEED", "source": "LorelAI", "status": "Success"}
-        return json_data"""
+    msg_count = get_msg_count_last_24hr(user_id=user_id)
+    msg_limit = lorelaicreds["free_msg_limit"]
+    logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
+    if msg_count >= msg_limit:
+        json_data = {
+            "answer": "MSG LIMIT EXCEED",
+            "source": [{"source:" "LorelAI"}, {"datasource:" "Error"}],
+            "status": "Success",
+        }
+        return json_data
 
     db_datasource_list = get_datasources_name()
     if datasource not in db_datasource_list:
@@ -129,10 +134,11 @@ def execute_rag_llm(
             answer = llm.get_answer(question=chat_message, context=context)
             logging.info(f"Get Answer time {time.time()-start_time}")
 
+        source.append({"datasource": datasource})
         logging.info("Answer: %s", answer)
         logging.info("Source: %s", source)
-        logging.info(f"Source Type: {type(source)}")
-        source.append({"datasource": datasource})
+        logging.debug(f"Source Type: {type(source)}")
+
         json_data = {"answer": answer, "source": source, "status": "Success"}
 
     except ValueError as e:
@@ -147,7 +153,7 @@ def execute_rag_llm(
         end_time = time.time()
         logging.info(f"Worker Exec time: {end_time - execute_rag_llm_start_time}")
 
-    print(source)
+    print("YYYYYYY", source)
     insert_message(
         thread_id=str(thread_id),
         sender="bot",

@@ -478,13 +478,17 @@ def get_msg_count_last_24hr(user_id: int):
             past_24_hours_time = datetime.now() - timedelta(days=1)
             cursor = db.cursor()
             query = """
-                    SELECT COUNT(*)
-                    FROM chat_messages
-                    WHERE user_id = %s AND datetime >= %s
+                    SELECT t.user_id, COUNT(m.message_id) AS message_count
+            FROM chat_threads t
+            JOIN chat_messages m ON t.thread_id = m.thread_id
+            WHERE t.user_id = %s AND m.sender = 'bot' and m.created_at >= %s
+            GROUP BY t.user_id
                 """
             cursor.execute(query, (user_id, past_24_hours_time))
-            count = cursor.fetchone()[0]
-            return count
+            count = cursor.fetchone()
+            if count is None:
+                return 0
+            return count[1]  # (user_id,message_count)
     except Exception as e:
         logging.error(e)
         raise e
@@ -554,6 +558,73 @@ def insert_message(thread_id: str, sender: str, message_content: str, sources: s
             cursor.execute(query, msg_data)
             db.commit()
             return True
+    except Exception as e:
+        logging.error(e)
+        raise e
+
+
+def list_all_user_threads(user_id: int):
+    """
+    Retrieve all thread IDs for a given user.
+
+    Args:
+        user_id (int): The ID of the user whose threads are to be listed.
+
+    Returns
+    -------
+        list: A list of thread IDs associated with the user. Returns an empty list if no threads are
+        found.
+
+    Raises
+    ------
+        Exception: If there is an error during the database query.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+            SELECT thread_id from chat_threads WHERE user_id = %s;
+                """
+            cursor.execute(query, (user_id,))
+            thread_ids = cursor.fetchall()
+            if thread_ids is None:
+                return []
+            return thread_ids
+    except Exception as e:
+        logging.error(e)
+        raise e
+
+
+def get_all_thread_messages(thread_id: str):
+    """
+    Retrieve all messages for a given thread, ordered by creation time.
+
+    Args:
+        thread_id (str): The ID of the thread whose messages are to be retrieved.
+
+    Returns
+    -------
+        list: A list of messages associated with the thread. Each message includes sender,
+        message_content, created_at, and sources. Returns an empty list if no messages are found.
+
+    Raises
+    ------
+        Exception: If there is an error during the database query.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+            SELECT sender, message_content, created_at, sources
+                FROM chat_messages
+                WHERE thread_id = %s
+                ORDER BY created_at ASC;
+                """
+            cursor.execute(query, (thread_id,))
+            messages = cursor.fetchall()
+            if messages is None:
+                return []
+            return messages
     except Exception as e:
         logging.error(e)
         raise e
