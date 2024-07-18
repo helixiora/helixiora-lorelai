@@ -47,7 +47,7 @@ def admin():
 
 
 @admin_bp.route("/admin/job-status/<job_id>")
-@role_required(["super_admin", "org_admin"])
+# note we don't require a role because a regular user should be able to index their own stuff
 def job_status(job_id: str) -> str:
     """Return the status of a job given its job_id.
 
@@ -116,7 +116,7 @@ def job_status(job_id: str) -> str:
 
 
 @admin_bp.route("/admin/index/<type>", methods=["POST"])
-@role_required(["super_admin", "org_admin"])
+# note we don't require a role because a regular user should be able to index their own stuff
 def start_indexing(type) -> str:
     """Start indexing the data for the organization of the logged-in user.
 
@@ -131,8 +131,10 @@ def start_indexing(type) -> str:
         If the connection to the Redis server or the database fails.
     """
     logging.info("Started indexing (type: %s)", type)
-    if not user_is_logged_in(session) or not is_admin(session["user_id"]):
-        return jsonify({"error": "Unauthorized"}), 403
+    if type == "organisation" and not is_org_admin(session["user_id"]):
+        return jsonify({"error": "Only organisation admins can index their organisation"}), 403
+    if type == "all" and not is_super_admin(session["user_id"]):
+        return jsonify({"error": "Only super admins can index all organisations"}), 403
 
     if type not in ["user", "organisation", "all"]:
         return jsonify({"error": "Invalid type"}), 400

@@ -246,7 +246,7 @@ class Processor:
                 yield chunk
                 chunk = tuple(itertools.islice(it, batch_size))
 
-        logging.info(f"Processing {len(docs)} Google documents for user: {user_email}")
+        logging.info(f"Storing {len(docs)} documents for user: {user_email}")
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
         # Iterate over documents and split each document's text into chunks
@@ -344,7 +344,7 @@ class Processor:
 
         drive_loader = GoogleDriveLoader(document_ids=document_ids)
 
-        logging.info(f"Processing {len(document_ids)} google documents for user: {user_email}")
+        logging.info(f"Loading {len(document_ids)} google documents for user: {user_email}")
         docs = drive_loader.load()
         logging.debug(f"Loaded {len(docs)} documents from Google Drive")
 
