@@ -41,6 +41,13 @@
         animation: dot-pulse-after 1.5s infinite linear;
         animation-delay: 0.5s;
     }
+    .source-score {
+    font-weight: bold;
+    }
+
+    .source-score:has(⚠️) {
+        color: #ff9900; /* Orange color for warning */
+    }
     @keyframes dot-pulse-before {
         0%, 60%, 100% {
             transform: scale(0.8);

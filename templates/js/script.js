@@ -77,10 +77,8 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContentDiv.style.overflowWrap = 'break-word';
         if (isHTML) {
             // Use innerHTML for bot messages that need to render HTML content
-            console.log('innerHTML:', content);
             messageContentDiv.innerHTML = content;
         } else {
-            console.log('textContent:', content);
             messageContentDiv.textContent = content; // Use textContent for user messages to avoid HTML
         }
 
@@ -183,14 +181,26 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     function displaySuccessMessage(result) {
         hideLoadingIndicator();
+        console.log('Result:', result);
         addMessage(result.answer, false, false); // Display the answer
 
-        if (result.source == 'Direct') {
+        if (result.datasource == 'Direct') {
             addMessage('Source: Direct answer from LLM', false, false, true);
         }
         else if (result.source && result.source.length > 0) {
-            const sourceText = result.source.map(src => `<li><a href="${src.source}">${src.title} (score: ${src.score})</a></li>`).join('');
-            addMessage(`<p><strong>Sources:</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
+            const sourceText = result.source.map(src => {
+                let score = parseFloat(src.score);
+                let scoreDisplay = 'N/A';
+                let warningSymbol = '';
+
+                if (!isNaN(score)) {
+                    scoreDisplay = score.toFixed(2);
+                    warningSymbol = score < 50 ? '⚠️ ' : ''; // Add warning symbol if score is less than 10
+                }
+
+                return `<li><a href="${src.source}">${src.title} (score: ${scoreDisplay}${warningSymbol})</a></li>`;
+            }).join('');
+            addMessage(`<p><strong>Sources (from ${src.datasource}):</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
         } else {
             addMessage('No sources found.', false, false);
         }
@@ -207,31 +217,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-    /**
-     * Sends a message to the server and handles the response.
-     * Shows a loading indicator while waiting for the server's response.
-     * Upon receiving a response, it triggers fetching the result with the provided request ID.
-     * If an error occurs during the fetch operation, it logs the error and displays an error message.
-     *
-     * @param {string} message The text message to send to the server.
-     */
-    async function sendMessage(message) {
-        const datasourceSelect = document.getElementById('datasourceSelect');
-        const selectedDatasource = datasourceSelect.value;
-        console.log('Selected Datasource:', selectedDatasource);
-        console.log('Sending message:', message);
-        addMessage(message, true); // Display the message as sent by the user
-        showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
+/**
+ * Sends a message to the server and handles the response.
+ * Shows a loading indicator while waiting for the server's response.
+ * Upon receiving a response, it triggers fetching the result with the provided request ID.
+ * If an error occurs during the fetch operation, it logs the error and displays an error message.
+ * Handles 429 "Quota Exceeded" responses with a specific message and retry logic.
+ *
+ * @param {string} message The text message to send to the server.
+ */
+async function sendMessage(message) {
+    const datasourceSelect = document.getElementById('datasourceSelect');
+    const selectedDatasource = datasourceSelect.value;
+    console.log('Selected Datasource:', selectedDatasource);
+    console.log('Sending message:', message);
+    addMessage(message, true); // Display the message as sent by the user
+    showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
-        fetch('/chat', {
+    try {
+        const response = await fetch('/chat', {
             method: 'POST',
             body: JSON.stringify({message: message, datasource: selectedDatasource }),
             headers: {
                 'Content-Type': 'application/json'
             }
-        })
-        .then(response => response.json())
-        .then(data => {
+        });
+
+        if (!response.ok) {
+            hideLoadingIndicator();
+
+            if (response.status === 429) {
+                // Handle 429 Quota Exceeded
+                console.warn('Quota exceeded.');
+                hideLoadingIndicator();
+                addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
+            } else {
+                addMessage('Error: Unable to send the message. Please try again later.', false, false);
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+        } else {
+
+            const data = await response.json();
+
             // Check if the server has accepted the message and is processing it
             if (data.job) {
                 pollForResponse(data.job); // Begin polling for the response based on the provided job ID
@@ -241,14 +269,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 hideLoadingIndicator();
                 addMessage('Error: The message could not be processed at this time. Please try again later.', false, false); // Display a generic error message
             }
-        })
-        .catch(error => {
-            // Handle network errors or issues with the fetch operation itself
-            console.error('Fetch error:', error);
-            hideLoadingIndicator(); // Hide the loading indicator as there's been an error
-            addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
-        });
+        }
+    } catch (error) {
+        // Handle network errors or issues with the fetch operation itself
+        console.error('Fetch error:', error);
+        hideLoadingIndicator(); // Hide the loading indicator as there's been an error
+        addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
     }
+}
 
     // Add a welcoming message on page load
     const welcomeMessage = `

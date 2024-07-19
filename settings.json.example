@@ -19,13 +19,19 @@
         "url": "redis_url_here"
     }
     "lorelai": {
+        "secret_key": "secret key here",
         "environment": "the stage of this environment eg dev/prod/qa",
         "environment_slug": "a name to recognise this env by",
         "redirect_uri":"http://127.0.0.1:5000/oauth2callback",
-        "free_msg_limit":10
+        "model_type": "OpenAILlm",
+        "chat_task_timeout": 20,
+        "support_portal": "https://support.helixiora.com/support/solutions/201000092447",
+        "support_email": "support@helixiora.com",
+        "free_msg_limit": 20
     },
     "db": {
         "host": "your_mysql_server",
+        "port": 3306,
         "user": "the_db_user",
         "database": "the_name_of_your_db",
         "password": "the_password_for_your_user"
