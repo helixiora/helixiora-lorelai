@@ -241,7 +241,9 @@ class GoogleDriveContextRetriever(ContextRetriever):
             docs.append(doc)
             # Create a source entry with title, source, and score (converted to percentage and
             # stringified)
-            logging.info(f"Doc: {doc.metadata['title']}")
+            logging.info(
+                f"Doc: {doc.metadata['title']}, Relevance score: {doc.metadata['relevance_score']}"
+            )
             logging.debug(f"Doc metadata: {doc.metadata}")
 
             score = doc.metadata["relevance_score"] * 100
