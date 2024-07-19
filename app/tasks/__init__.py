@@ -1,17 +1,17 @@
 """Contains the tasks that are executed asynchronously."""
 
+import json
 import logging
 import os
 import time
+
 from rq import get_current_job
-import json
 
 from app.utils import (
     get_datasources_name,
-    load_config,
-    insert_thread_ignore,
     insert_message,
-    get_msg_count_last_24hr,
+    insert_thread_ignore,
+    load_config,
 )
 
 # import the indexer
@@ -70,17 +70,6 @@ def execute_rag_llm(
     logging.info("Session: %s, %s, %s", user_id, user, organisation)
     logging.debug("Datasource %s", datasource)
 
-    msg_count = get_msg_count_last_24hr(user_id=user_id)
-    msg_limit = lorelaicreds["free_msg_limit"]
-    logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
-    if msg_count >= msg_limit:
-        json_data = {
-            "answer": "MSG LIMIT EXCEED",
-            "source": [{"source:" "LorelAI"}, {"datasource:" "Error"}],
-            "status": "Success",
-        }
-        return json_data
-
     db_datasource_list = get_datasources_name()
     if datasource not in db_datasource_list:
         raise ValueError(f"Invalid datasource provided. Received: {datasource}")
@@ -106,7 +95,7 @@ def execute_rag_llm(
         if datasource == "Direct":
             logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer_direct(question=chat_message)
-            source = [{"source": "Direct"}]
+            source = None
         else:
             # have to change Retriever type based on data source.
             enriched_context = ContextRetriever.create(
@@ -117,8 +106,15 @@ def execute_rag_llm(
             try:
                 start_time = time.time()
                 context, source = enriched_context.retrieve_context(chat_message)
+                logging.debug(f"Source: {source}")
+
+                # remove any sources with less than 0.5 score, they are irrelevant
+                source = [
+                    source_item for source_item in source if float(source_item["score"]) >= 0.5
+                ]
+                logging.debug(f"Filtered Source: {source}")
                 logging.info(f"Context Retriever time {time.time()-start_time}")
-                if context is None:
+                if context is None or source == []:
                     raise ValueError("Failed to retrieve context for the provided chat message.")
             except ValueError as e:
                 logging.error("(ValueError): Error in retrieving context: %s", str(e))
@@ -134,12 +130,16 @@ def execute_rag_llm(
             answer = llm.get_answer(question=chat_message, context=context)
             logging.info(f"Get Answer time {time.time()-start_time}")
 
-        source.append({"datasource": datasource})
         logging.info("Answer: %s", answer)
         logging.info("Source: %s", source)
         logging.debug(f"Source Type: {type(source)}")
 
-        json_data = {"answer": answer, "source": source, "status": "Success"}
+        json_data = {
+            "answer": answer,
+            "source": source,
+            "status": "Success",
+            "datasource": datasource,
+        }
 
     except ValueError as e:
         logging.error("ValueError in execute_rag_llm task: %s", str(e))

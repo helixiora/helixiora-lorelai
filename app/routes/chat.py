@@ -7,7 +7,7 @@ from redis import Redis
 from rq import Queue
 
 from app.tasks import execute_rag_llm
-from app.utils import load_config
+from app.utils import get_msg_count_last_24hr, load_config
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
@@ -24,6 +24,14 @@ def chat():
         "Chat request received: %s from user %s", content["message"], session.get("user_email")
     )
     logging.info("Datasource: %s", content["datasource"])
+
+    lorelaicreds = load_config("lorelai")
+    user_id = session.get("user_id")
+    msg_count = get_msg_count_last_24hr(user_id=session.get("user_id"))
+    msg_limit = lorelaicreds["free_msg_limit"]
+    logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
+    if msg_count >= msg_limit:
+        return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
 
     redis = load_config("redis")
     redis_host = redis["url"]
