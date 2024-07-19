@@ -153,7 +153,6 @@ def execute_rag_llm(
         end_time = time.time()
         logging.info(f"Worker Exec time: {end_time - execute_rag_llm_start_time}")
 
-    print("YYYYYYY", source)
     insert_message(
         thread_id=str(thread_id),
         sender="bot",
