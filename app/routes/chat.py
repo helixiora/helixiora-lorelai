@@ -89,6 +89,8 @@ def fetch_chat_result():
         logging.info("Job result: %s", job.result)
         if job.result["status"] == "Failed":
             return jsonify({"status": "FAILED", "error": job.result}), 500
+        if job.result["status"] == "No Relevant Source":
+            return jsonify({"status": "NO_RELEVANT_SOURCE", "result": job.result}), 500
         return jsonify({"status": "SUCCESS", "result": job.result})
     else:
         # Job is either queued or started but not yet finished
