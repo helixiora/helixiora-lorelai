@@ -112,7 +112,7 @@ class OpenAILlm(Llm):
         super().__init__()
         self.openai_creds = load_config("openai")
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
-        self.model = "gpt-3.5-turbo"
+        self.model = self.openai_creds.get("model", "gpt-3.5-turbo")
 
     def get_answer(self: None, question: str, context: list[Document]) -> str:
         """Get an answer specifically from the OpenAI models."""

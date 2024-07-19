@@ -13,6 +13,7 @@
     },
     "openai": {
         "api_key": "openapi_key_here"
+        "model": "gpt-4o-mini"
     },
     "redis": {
         "url": "redis_url_here"
