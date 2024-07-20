@@ -94,16 +94,19 @@ if db_exists:
     flyway_ok, error = check_flyway()
     # if the flyway is not ok, and the error contains 'not up to date with last migration'
     # we will run the migrations
-    if not flyway_ok and "not up to date with last migration" in error:
+    if not flyway_ok and "not up to date with last" in error:
         logging.info(f"Flyway not OK ({error}). Running flyway migrations...")
         success, log = run_flyway_migrations(
-            host=db_settings["host"], user=db_settings["user"], password=db_settings["password"]
+            host=db_settings["host"],
+            database=db_settings["database"],
+            user=db_settings["user"],
+            password=db_settings["password"],
         )
 
         if not success:
             sys.exit("Flyway migrations failed, exiting")
     else:
-        logging.info(f"Flyway is up to date ({error})")
+        logging.info(f"Flyway is ok ({flyway_ok}) and up to date ({error})")
 
     # run startup health checks. If there is a dependent service that is not running, we want to
     # know it asap and stop the app from running
