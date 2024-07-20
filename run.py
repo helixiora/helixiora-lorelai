@@ -5,7 +5,7 @@
 import logging
 import os
 import sys
-from ulid import ULID
+
 import mysql.connector
 from flask import (
     Flask,
@@ -17,17 +17,20 @@ from flask import (
     session,
     url_for,
 )
+from ulid import ULID
 
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.google.auth import googledrive_bp
 from app.utils import (
+    check_flyway,
     get_datasources_name,
     get_db_connection,
     is_admin,
     is_super_admin,
     perform_health_checks,
+    run_flyway_migrations,
     user_is_logged_in,
 )
 from lorelai.utils import load_config
@@ -71,6 +74,17 @@ except mysql.connector.Error as e:
         raise
 
 if db_exists:
+    flyway_ok, error = check_flyway()
+    # if the flyway is not ok, and the error contains 'not up to date with last migration'
+    # we will run the migrations
+    if not flyway_ok and "not up to date with last migration" in error:
+        success, log = run_flyway_migrations(
+            host=db_settings["host"], user=db_settings["user"], password=db_settings["password"]
+        )
+
+        if not success:
+            sys.exit("Flyway migrations failed, exiting")
+
     # run startup health checks. If there is a dependent service that is not running, we want to
     # know it asap and stop the app from running
     logging.debug("Running startup checks...")
