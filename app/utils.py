@@ -3,12 +3,13 @@
 import logging
 import os
 import subprocess
+from datetime import datetime, timedelta
 from functools import wraps
 
 import mysql.connector
 import redis
 from flask import redirect, session, url_for
-from datetime import datetime, timedelta
+
 from lorelai.utils import load_config
 
 
@@ -122,8 +123,10 @@ def run_flyway_migrations(host: str, database: str, user: str, password: str) ->
         result = subprocess.run(flyway_command, capture_output=True, text=True)
         logging.info(result.stdout)
         if result.returncode == 0:
+            logging.info("Flyway migrations successful")
             return True, result.stdout
         else:
+            logging.error("Flyway migrations failed")
             return False, f"Flyway migrations failed: {result.stderr}"
     except Exception as e:
         logging.exception("Flyway migration failed")

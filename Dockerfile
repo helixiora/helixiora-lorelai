@@ -11,7 +11,7 @@ RUN pip install --upgrade pip && \
 FROM base as web-production
 EXPOSE 5000
 # install flyway
-ENV FLYWAY_VERSION=10.13.0
+ENV FLYWAY_VERSION=10.16.0
 # Install Flyway dependencies and Flyway itself
 RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless wget
 RUN mkdir -p /usr/share/man/man1
