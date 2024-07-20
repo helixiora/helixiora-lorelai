@@ -13,11 +13,11 @@ EXPOSE 5000
 # install flyway
 ENV FLYWAY_VERSION=10.16.0
 # Install Flyway dependencies and Flyway itself
-RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless wget
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless wget git
 RUN mkdir -p /usr/share/man/man1
 RUN dpkg --print-architecture
 ENV FLYWAY_URL=https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}-linux-x64.tar.gz
-RUN wget -v -O flyway.tar.gz $FLYWAY_URL
+RUN wget -q -O flyway.tar.gz $FLYWAY_URL
 RUN tar xvz -C /usr/local/bin -f flyway.tar.gz
 RUN ln -s /usr/local/bin/flyway-${FLYWAY_VERSION}/flyway /usr/local/bin/flyway
 RUN rm flyway.tar.gz

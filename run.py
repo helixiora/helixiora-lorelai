@@ -104,7 +104,10 @@ if db_exists:
         )
 
         if not success:
+            logging.error(f"Flyway migrations failed: {log}")
             sys.exit("Flyway migrations failed, exiting")
+        else:
+            logging.info("Flyway migrations successful")
     else:
         logging.info(f"Flyway is ok ({flyway_ok}) and up to date ({error})")
 

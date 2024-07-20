@@ -121,15 +121,15 @@ def run_flyway_migrations(host: str, database: str, user: str, password: str) ->
         ]
         logging.info("Running Flyway migrations")
         result = subprocess.run(flyway_command, capture_output=True, text=True)
-        logging.info(result.stdout)
+        logging.info("Flyway stdout: " + result.stdout)
         if result.returncode == 0:
             logging.info("Flyway migrations successful")
             return True, result.stdout
         else:
-            logging.error("Flyway migrations failed")
+            logging.error(f"Flyway migrations failed: {result.stderr}")
             return False, f"Flyway migrations failed: {result.stderr}"
     except Exception as e:
-        logging.exception("Flyway migration failed")
+        logging.exception(f"Flyway migration failed with exception: {str(e)}")
         return False, str(e)
 
 
