@@ -28,7 +28,7 @@ def chat():
     lorelaicreds = load_config("lorelai")
     user_id = session.get("user_id")
     msg_count = get_msg_count_last_24hr(user_id=session.get("user_id"))
-    msg_limit = lorelaicreds["free_msg_limit"]
+    msg_limit = int(lorelaicreds["free_msg_limit"])
     logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
     if msg_count >= msg_limit:
         return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429

@@ -120,6 +120,7 @@ def run_flyway_migrations(host: str, database: str, user: str, password: str) ->
             "migrate",
         ]
         logging.info("Running Flyway migrations")
+        logging.debug(f"Flyway command: {' '.join(flyway_command)}")
         result = subprocess.run(flyway_command, capture_output=True, text=True)
         logging.info("Flyway stdout: " + result.stdout)
         if result.returncode == 0:
