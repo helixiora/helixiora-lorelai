@@ -5,7 +5,7 @@
 import logging
 import os
 import sys
-from ulid import ULID
+
 import mysql.connector
 from flask import (
     Flask,
@@ -17,24 +17,43 @@ from flask import (
     session,
     url_for,
 )
+from ulid import ULID
 
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.google.auth import googledrive_bp
 from app.utils import (
+    check_flyway,
     get_datasources_name,
     get_db_connection,
     is_admin,
     is_super_admin,
     perform_health_checks,
+    run_flyway_migrations,
     user_is_logged_in,
 )
 from lorelai.utils import load_config
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
+# get the git commit hash, branch name and first line of the commit message and print it out
 print("Loading the app...")
 logging.debug("Loading the app...")
+
+git_details = os.popen("git log --pretty=format:'%H %d %s' -n 1").read()
+print(f"Git details: {git_details}")
+logging.info(f"Git details: {git_details}")
+
+# if we're running the app in a container, gather information about the container
+if os.path.exists("/proc/self/cgroup"):
+    container_id = os.popen(
+        "cat /proc/self/cgroup | grep 'docker' | sed 's/^.*\///' | tail -n1"
+    ).read()
+else:
+    container_id = None
+container_id = container_id.strip() if container_id else "Not in a container"
+print(f"Container ID: {container_id}")
+logging.info(f"Container ID: {container_id}")
 
 app = Flask(__name__)
 # Get the log level from the environment variable
@@ -71,6 +90,27 @@ except mysql.connector.Error as e:
         raise
 
 if db_exists:
+    logging.info("Database connection successful, checking flyway version...")
+    flyway_ok, error = check_flyway()
+    # if the flyway is not ok, and the error contains 'not up to date with last migration'
+    # we will run the migrations
+    if not flyway_ok and "not up to date with last" in error:
+        logging.info(f"Flyway not OK ({error}). Running flyway migrations...")
+        success, log = run_flyway_migrations(
+            host=db_settings["host"],
+            database=db_settings["database"],
+            user=db_settings["user"],
+            password=db_settings["password"],
+        )
+
+        if not success:
+            logging.error(f"Flyway migrations failed: {log}")
+            sys.exit("Flyway migrations failed, exiting")
+        else:
+            logging.info("Flyway migrations successful")
+    else:
+        logging.info(f"Flyway is ok ({flyway_ok}) and up to date ({error})")
+
     # run startup health checks. If there is a dependent service that is not running, we want to
     # know it asap and stop the app from running
     logging.debug("Running startup checks...")
