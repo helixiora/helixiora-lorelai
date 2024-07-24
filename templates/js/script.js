@@ -157,6 +157,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     displayErrorMessage('Operation failed. Please try again later.');
                 }
+            } else if (data.status === 'NO_RELEVANT_SOURCE') {
+                console.error('No relevant source found.');
+                displayErrorMessage('No relevant source found for the question. Please try again \
+                    with a different question or ask the question directly to LLM.');
             } else if (attempt < 20) {
                 console.log('Operation still in progress. Retrying...');
                 pollForResponse(jobId, attempt + 1);
@@ -200,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 return `<li><a href="${src.source}">${src.title} (score: ${scoreDisplay}${warningSymbol})</a></li>`;
             }).join('');
-            addMessage(`<p><strong>Sources (from ${src.datasource}):</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
+            addMessage(`<p><strong>Sources (from ${result.datasource}):</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
         } else {
             addMessage('No sources found.', false, false);
         }

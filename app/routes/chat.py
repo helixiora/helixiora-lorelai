@@ -28,7 +28,7 @@ def chat():
     lorelaicreds = load_config("lorelai")
     user_id = session.get("user_id")
     msg_count = get_msg_count_last_24hr(user_id=session.get("user_id"))
-    msg_limit = lorelaicreds["free_msg_limit"]
+    msg_limit = int(lorelaicreds["free_msg_limit"])
     logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
     if msg_count >= msg_limit:
         return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
@@ -89,6 +89,8 @@ def fetch_chat_result():
         logging.info("Job result: %s", job.result)
         if job.result["status"] == "Failed":
             return jsonify({"status": "FAILED", "error": job.result}), 500
+        if job.result["status"] == "No Relevant Source":
+            return jsonify({"status": "NO_RELEVANT_SOURCE", "result": job.result}), 500
         return jsonify({"status": "SUCCESS", "result": job.result})
     else:
         # Job is either queued or started but not yet finished

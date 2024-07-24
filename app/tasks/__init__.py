@@ -92,9 +92,9 @@ def execute_rag_llm(
 
         # Get the context for the question
         if datasource == "Direct":
-            logging.info(f"LLM Status: {llm.get_llm_status()}")
             answer = llm.get_answer_direct(question=chat_message)
             source = None
+            status = "Success"
         else:
             # have to change Retriever type based on data source.
             enriched_context = ContextRetriever.create(
@@ -113,7 +113,12 @@ def execute_rag_llm(
                 ]
                 logging.debug(f"Filtered Source: {source}")
                 logging.info(f"Context Retriever time {time.time()-start_time}")
-                if context is None or source == []:
+                if source is None or len(source) == 0:
+                    no_relevant_source = True
+                else:
+                    no_relevant_source = False
+
+                if context is None:
                     raise ValueError("Failed to retrieve context for the provided chat message.")
             except ValueError as e:
                 logging.error("(ValueError): Error in retrieving context: %s", str(e))
@@ -124,9 +129,13 @@ def execute_rag_llm(
                 logging.error(f"Error in retrieving context: {str(e)}")
                 raise Exception("Something went wrong") from e
 
-            logging.info(f"LLM Status: {llm.get_llm_status()}")
             start_time = time.time()
-            answer = llm.get_answer(question=chat_message, context=context)
+            if no_relevant_source:
+                answer = ""
+                status = "No Relevant Source"
+            else:
+                answer = llm.get_answer(question=chat_message, context=context)
+                status = "Success"
             logging.info(f"Get Answer time {time.time()-start_time}")
 
         logging.info("Answer: %s", answer)
@@ -136,7 +145,7 @@ def execute_rag_llm(
         json_data = {
             "answer": answer,
             "source": source,
-            "status": "Success",
+            "status": status,
             "datasource": datasource,
         }
 

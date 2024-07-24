@@ -64,6 +64,11 @@ services:
       target: worker-development
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=test123
+      - DB_DATABASE=lorelai
+      - OPENAI_API_KEY=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
     volumes:
       - type: bind
         source: ./
