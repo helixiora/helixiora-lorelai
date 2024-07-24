@@ -156,8 +156,12 @@
         </div>
 
         <!-- Hero Section with Conditional Background -->
-        <div class="w-full text-left sm:text-left sm:text-black mt-8">
-            <h1 class="text-4xl sm:text-5xl font-bold leading-tight">Lorelai:<br/>Chat with your private data</h1>
+        <div class="w-full text-left sm:text-left sm:text-black mt-8 flex items-center">
+            <img src="{{ url_for('static', filename='img/lorelai_logo.png') }}" alt="Lorelai Logo" class="w-24 h-24 mr-4">
+            <div>
+                <h1 class="text-4xl sm:text-5xl font-bold leading-tight">Lorelai:</h1>
+                <h2 class="h2">Chat with your private data</h2>
+            </div>
         </div>
 
         <!-- Paragraph -->
