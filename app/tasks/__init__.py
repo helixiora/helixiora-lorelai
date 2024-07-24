@@ -11,8 +11,8 @@ from app.utils import (
     get_datasources_name,
     insert_message,
     insert_thread_ignore,
-    load_config,
 )
+
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
@@ -25,7 +25,6 @@ logging_format = os.getenv(
 )
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format=logging_format)
-lorelaicreds = load_config("lorelai")
 
 
 def execute_rag_llm(

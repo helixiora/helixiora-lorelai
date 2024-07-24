@@ -294,8 +294,8 @@ def check_flyway() -> tuple[bool, str]:
 
         return (
             False,
-            f"Flyway schema version {version['version']} is not up to date with last \
-                migration {last_migration}.",
+            f"Version of the database schema in MySQL {version['version']} is not up to date with \
+                last migration file on disk {last_migration}.",
         )
     except Exception as e:
         logging.exception("Flyway check failed")

@@ -33,6 +33,10 @@ Before starting out with LorelAI, please make sure you've met the
 
 Follow [these steps](./docs/getting_started.md) to set up the project and run the components.
 
+## Operating Lorelai
+
+Check the [operating procedures](./docs/ops.md) document to see how to perform common tasks
+
 ## Contributing
 
 Please make sure to read up on our
