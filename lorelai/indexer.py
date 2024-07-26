@@ -311,7 +311,7 @@ class GoogleDriveIndexer(Indexer):
             list of document IDs.
         """
         # Build the Drive v3 API service object
-        service = build("drive", "v3", credentials=credentials)
+        service = build("drive", "v3", credentials=credentials, cache_discovery=False)
 
         # List to store all document IDs
         document_ids = []
