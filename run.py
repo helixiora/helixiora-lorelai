@@ -94,7 +94,7 @@ if db_exists:
     flyway_ok, error = check_flyway()
     # if the flyway is not ok, and the error contains 'not up to date with last migration'
     # we will run the migrations
-    if not flyway_ok and "not up to date with last" in error:
+    if not flyway_ok and "not up to date with" in error:
         logging.info(f"Flyway not OK ({error}). Running flyway migrations...")
         success, log = run_flyway_migrations(
             host=db_settings["host"],
