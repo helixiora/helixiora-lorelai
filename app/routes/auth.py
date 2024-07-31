@@ -32,6 +32,7 @@ from app.utils import (
     get_user_role_by_id,
     is_admin,
     user_is_logged_in,
+    load_config,
 )
 from lorelai.slack.slack_processor import SlackOAuth
 
@@ -56,10 +57,15 @@ def profile():
             "full_name": session["user_fullname"],
             "organisation": session.get("org_name"),
         }
+        googlesettings = load_config("google")
+        google_client_id = googlesettings["client_id"]
+        google_api_key = googlesettings["api_key"]
         return render_template(
             "profile.html",
             user=user,
             is_admin=is_admin_status,
+            google_client_id=google_client_id,
+            google_api_key=google_api_key,
             features=g.features,
             google_auth_url=google_auth_url(),
         )

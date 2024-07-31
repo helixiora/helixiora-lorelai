@@ -26,13 +26,32 @@
             <div class="card-body bg-light">
                 <div class="row">
                     <div class="col-md-4">
-                        <img class="card-img-top" src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration">
+                        <img class="card-img-top" src="{{ url_for('static', filename='img/google_drive.png') }}"
+                            alt="Google Drive Integration">
                     </div>
                     <div class="col-md-8">
                         <h5 class="card-title font-weight-bold">Enhance your experience</h5>
                         <h6 class="card-title">Google Drive Integration</h6>
                         <p class="card-text">Start feeding your business data to the hungry LLM!</p>
                         <a class="btn btn-primary" href="{{ google_auth_url }}">Authorize</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card mb-3">
+            <div class="card-body bg-light">
+                <div class="row">
+                    <div class="col-md-4">
+                        <img class="card-img-top" src="{{ url_for('static', filename='img/google_drive.png') }}"
+                            alt="Google Drive Integration">
+                    </div>
+                    <div class="col-md-8">
+                        <h5 class="card-title font-weight-bold">Enhance your experience</h5>
+                        <h6 class="card-title">Google Drive Integration (New)</h6>
+                        <p class="card-text">Start feeding your business data to the hungry LLM!</p>
+                        <button class="btn btn-primary" id="authorize_button" style="visibility: hidden"
+                            onclick="handleAuthClick()">Authorize and Pick</button>
+                        <button class="btn" id="showEventsBtn" onclick="showEvents();">Show Calendar</button><br><br>
                     </div>
                 </div>
             </div>
@@ -44,7 +63,8 @@
             <div class="card-body bg-light">
                 <div class="row">
                     <div class="col-md-4">
-                        <img class="card-img-top" src="{{ url_for('static', filename='img/slack.png') }}" alt="Slack Integration">
+                        <img class="card-img-top" src="{{ url_for('static', filename='img/slack.png') }}"
+                            alt="Slack Integration">
                     </div>
                     <div class="col-md-8">
                         <h5 class="card-title font-weight-bold">Enhance your experience</h5>
@@ -59,5 +79,80 @@
 
     </div>
 </div>
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoad()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisInit()"></script>
+<script>
+    let tokenClient;
+    let gapiInited;
+    let gisInited;
 
+    document.getElementById("showEventsBtn").style.visibility = "hidden";
+    //document.getElementById("revokeBtn").style.visibility = "hidden";
+
+    function checkBeforeStart() {
+        if (gapiInited && gisInited) {
+            console.log('Both gapi and gis are initialized.');
+            // Start only when both gapi and gis are initialized.
+            document.getElementById("showEventsBtn").style.visibility = "visible";
+            // document.getElementById("revokeBtn").style.visibility="visible";
+        }
+    }
+
+    function gapiInit() {
+        gapi.client.init({
+            // NOTE: OAuth2 'scope' and 'client_id' parameters have moved to initTokenClient().
+        })
+            .then(function () {  // Load the Calendar API discovery document.
+                gapi.client.load('https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest');
+                gapiInited = true;
+                checkBeforeStart();
+            });
+    }
+
+    function gapiLoad() {
+        gapi.load('client', gapiInit)
+    }
+
+    function gisInit() {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: '{{ google_client_id }}',
+            scope: 'https://www.googleapis.com/auth/calendar.readonly',
+            callback: initCallback,
+        });
+        gisInited = true;
+        checkBeforeStart();
+    }
+
+    function initCallback(resp) {
+        console.log('tokenClient.callback()');
+        if (resp.error !== undefined) {
+            throw (resp);
+        }
+        // GIS has automatically updated gapi.client with the newly issued access token.
+        console.log('gapi.client access token: ' + JSON.stringify(gapi.client.getToken()));
+
+        gapi.client.calendar.events.list({ 'calendarId': 'primary' })
+            .then(calendarAPIResponse => console.log(JSON.stringify(calendarAPIResponse)))
+            .catch(err => console.log(err));
+
+        document.getElementById("showEventsBtn").innerText = "Refresh Calendar";
+    }
+
+    function showEvents() {
+        console.log('showEvents()');
+
+        // Conditionally ask users to select the Google Account they'd like to use,
+        // and explicitly obtain their consent to fetch their Calendar.
+        // NOTE: To request an access token a user gesture is necessary.
+        if (gapi.client.getToken() === null) {
+            // Prompt the user to select a Google Account and asked for consent to share their data
+            // when establishing a new session.
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } else {
+            // Skip display of account chooser and consent dialog for an existing session.
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+    }
+
+</script>
 {% endblock %}
