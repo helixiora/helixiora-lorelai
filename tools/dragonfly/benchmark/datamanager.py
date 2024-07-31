@@ -147,7 +147,7 @@ class DataManager:
                 client_config=client_config, scopes=scopes, redirect_uri="http://localhost:54364"
             )
             creds = flow.run_local_server(port=54364)
-            service = build("drive", "v3", credentials=creds)
+            service = build("drive", "v3", credentials=creds, cache_discovery=False)
             return service
         except Exception as e:
             logging.error(f"Failed to create Google Drive service: {e}")
