@@ -296,6 +296,8 @@ def set_security_headers(response):
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/client",
+        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.pGGAptgAK4s.O/m=picker/rt=j/sv=1/d=1/ed=1/am=AAAg/rs=AHpOoo-Cic-4VdRMZ7mFCYOA3wzpF7O-6g/cb=gapi.loaded_0",
+        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.pGGAptgAK4s.O/m=auth2/exm=client/rt=j/sv=1/d=1/ed=1/am=AAAg/rs=AHpOoo-Cic-4VdRMZ7mFCYOA3wzpF7O-6g/cb=gapi.loaded_1",
         "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_0",
         "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=picker/exm=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_1",
         "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.pGGAptgAK4s.O/m=auth/rt=j/sv=1/d=1/ed=1/am=AAAg/rs=AHpOoo-Cic-4VdRMZ7mFCYOA3wzpF7O-6g/cb=gapi.loaded_0",
