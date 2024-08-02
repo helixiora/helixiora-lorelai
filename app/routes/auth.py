@@ -60,12 +60,24 @@ def profile():
         googlesettings = load_config("google")
         google_client_id = googlesettings["client_id"]
         google_api_key = googlesettings["api_key"]
+
+        if g.features["google_drive"] == 1:
+            google_docs_to_index = get_query_result(
+                query="SELECT google_drive_id, item_name, mime_type, item_type, last_indexed_at \
+                    FROM google_drive_items WHERE user_id = %s",
+                params=(session["user_id"],),
+                fetch_one=False,
+            )
+        else:
+            google_docs_to_index = None
+
         return render_template(
             "profile.html",
             user=user,
             is_admin=is_admin_status,
             google_client_id=google_client_id,
             google_api_key=google_api_key,
+            google_docs_to_index=google_docs_to_index,
             features=g.features,
             google_auth_url=google_auth_url(),
         )

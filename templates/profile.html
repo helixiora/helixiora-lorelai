@@ -40,7 +40,23 @@
                             <button class="btn btn-secondary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
                         </div>
                     </div>
-                    <div class="list-group mt-3" id="content"></div>
+                    <div class="list-group mt-3 col-8" id="content">
+                        {%if google_docs_to_index %}
+                            {% for doc in google_docs_to_index %}
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex justify-content-between">
+                                        <h5 class="mb-1">{{ doc.item_name }}</h5>
+                                        <small>{{ doc.item_type }}</small>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <small>Google Drive ID: {{ doc.google_drive_id }}</small>
+                                        <small>Last indexed: {{ doc.last_indexed_at }}</small>
+                                    </div>
+                                    <button class="btn btn-primary btn-sm" onclick="alert('To be implemented')">Remove from Lorelai</button>
+                                </a>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             {% endif %}
