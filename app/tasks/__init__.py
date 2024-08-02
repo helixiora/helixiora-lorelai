@@ -174,6 +174,7 @@ def run_indexer(
     org_row: list[any],
     user_rows: list[any],
     user_auth_rows: list[any],
+    user_data_rows: list[any],
 ):
     """
     Run the indexer. Should be called from an rq job.
@@ -209,7 +210,7 @@ def run_indexer(
         job.save_meta()
         logging.info(f"{org_row},{user_rows},{user_auth_rows},{job},")
         # Perform indexing
-        results = indexer.index_org(org_row, user_rows, user_auth_rows, job)
+        results = indexer.index_org(org_row, user_rows, user_auth_rows, user_data_rows, job)
         for result in results:
             logging.debug(result)
             job.meta["logs"].append(result)

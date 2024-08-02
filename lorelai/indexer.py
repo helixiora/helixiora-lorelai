@@ -20,7 +20,7 @@ SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]
 
 
 class Indexer:
-    """Used to process the Google Drive documents and index them in Pinecone."""
+    """Used to process a datasource's documents and index them in Pinecone."""
 
     _allowed = False  # Flag to control constructor access
 
@@ -65,6 +65,7 @@ class Indexer:
         org_row: dict[str, any],
         user_rows: list[dict[str, any]],
         user_auth_rows: list[dict[str, any]],
+        user_data_rows: list[dict[str, any]],
         job: job.Job | None = None,
     ) -> list[dict[str, any]]:
         """Process the organisation, indexing all its users.
@@ -118,7 +119,11 @@ class Indexer:
 
             # index the user
             success, message = self.index_user(
-                user_row=user_row, org_row=org_row, user_auth_rows=user_auth_rows_filtered, job=job
+                user_row=user_row,
+                org_row=org_row,
+                user_auth_rows=user_auth_rows_filtered,
+                user_data_rows=user_data_rows,
+                job=job,
             )
 
             logging.info(
@@ -153,6 +158,7 @@ class Indexer:
         user_row: dict[str, any],
         org_row: dict[str, any],
         user_auth_rows: list[dict[str, any]],
+        user_data_rows: list[dict[str, any]],
         job: job.Job | None,
     ) -> tuple[bool, str]:
         """Process the Google Drive documents for a user and index them in Pinecone.
@@ -190,6 +196,7 @@ class GoogleDriveIndexer(Indexer):
         user_row: dict[str, any],
         org_row: dict[str, any],
         user_auth_rows: list[dict[str, any]],
+        user_data_rows: list[dict[str, any]],
         job: job.Job | None,
         folder_id: str = "",
     ) -> bool:
@@ -252,7 +259,23 @@ class GoogleDriveIndexer(Indexer):
 
         # 2. Get the Google Drive document IDs
         logging.debug(f"Getting Google Drive document IDs for user: {user_row['email']}")
-        document_ids = self.__get_google_docs_ids(credentials, folder_id)
+
+        document_ids = []
+        for user_data_row in user_data_rows:
+            if user_data_row["user_id"] != user_row["user_id"]:
+                continue
+
+            # 2.1 Get the Google Drive document IDs of files in the user_data_rows
+            if user_data_row["item_type"] == "document":
+                document_ids.append(user_data_row["google_drive_id"])
+
+            # 2.2 Get the google drive document ids of files in each folder in the user_data_rows
+            if user_data_row["item_type"] == "folder":
+                document_ids.append(
+                    self.__get_google_docs_ids(
+                        credentials=credentials, folder_id=user_data_row["google_drive_id"]
+                    )
+                )
 
         # 3. Generate the index name we will use in Pinecone
         index_name = lorelai.utils.pinecone_index_name(
@@ -293,7 +316,7 @@ class GoogleDriveIndexer(Indexer):
             return True, index_stats
         return False, {}
 
-    def __get_google_docs_ids(self, credentials: Credentials, folder_id: str = "") -> list[str]:
+    def __get_google_docs_ids(self, credentials: Credentials, folder_id: str) -> list[str]:
         """Retrieve all Google Docs document IDs from the user's Google Drive or a specific folder.
 
         Note: This only includes Google Docs documents, not text files or PDFs.
@@ -303,23 +326,23 @@ class GoogleDriveIndexer(Indexer):
         credentials: Credentials
             Google-auth credentials object for the user.
         folder_id: str
-            Optional Google Drive folder ID to restrict the search.
+            Google Drive folder ID to restrict the search.
 
         Returns
         -------
         list[str]
             list of document IDs.
         """
+        if folder_id == "" or folder_id is None:
+            logging.error("Error: No folder ID provided")
+            raise ValueError("No folder ID provided")
+
         # Build the Drive v3 API service object
         service = build("drive", "v3", credentials=credentials, cache_discovery=False)
 
         # List to store all document IDs
         document_ids = []
-        query = (
-            f"mimeType='application/vnd.google-apps.document' and '{folder_id}' in parents"
-            if folder_id
-            else "mimeType='application/vnd.google-apps.document'"
-        )
+        query = f"mimeType='application/vnd.google-apps.document' and '{folder_id}' in parents"
 
         # Call the Drive v3 API to get the list of files. We don't use GoogleDriveLoader because
         # we only need the document IDs here.

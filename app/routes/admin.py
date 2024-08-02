@@ -190,6 +190,7 @@ def start_indexing(type) -> str:
             # Only continue if we have users
             if user_rows:
                 user_auth_rows = []
+                user_data_rows = []
                 for user_row in user_rows:
                     # Get the user auth rows for the user
                     user_auth_rows_for_user = get_query_result(
@@ -200,6 +201,14 @@ def start_indexing(type) -> str:
                     )
                     user_auth_rows.extend(user_auth_rows_for_user)
 
+                    user_data_rows_for_user = get_query_result(
+                        "SELECT google_drive_id, item_name, mime_type, item_type, last_indexed \
+                            FROM google_drive_items \
+                                WHERE user_id = %s",
+                        (user_row["user_id"],),
+                    )
+                    user_data_rows.extend(user_data_rows_for_user)
+
                     logging.debug(
                         f"Starting indexing for user {user_row['email']} in org {org_row['name']}"
                     )
@@ -208,6 +217,7 @@ def start_indexing(type) -> str:
                         org_row=org_row,
                         user_rows=user_rows,
                         user_auth_rows=user_auth_rows,
+                        user_data_rows=user_data_rows,
                         job_timeout=3600,
                         description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']}",
                     )
