@@ -4,7 +4,17 @@ import logging
 import os
 
 import mysql.connector
-from flask import Blueprint, current_app, jsonify, render_template, session, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    render_template,
+    session,
+    url_for,
+    request,
+    flash,
+    redirect,
+)
 from redis import Redis
 from rq import Queue
 
@@ -21,7 +31,7 @@ from app.utils import (
     user_is_logged_in,
 )
 from lorelai.contextretriever import ContextRetriever
-from lorelai.utils import load_config
+from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -367,6 +377,47 @@ def setup_post() -> str:
             cursor.close()
         if conn:
             conn.close()
+
+
+@admin_bp.route("/admin/invite_user", methods=["POST"])
+def invite_user():
+    """
+    Handle user invitation process by sending an invite email with a registration link.
+
+    This function performs the following steps:
+    1. Retrieves the invitee's email from the request form.
+    2. Creates a JWT token for the invitee using their email, the organization admin's email, and
+    the organization's name.
+    3. Generates an invite registration URL with the JWT token.
+    4. Sends an invite email to the invitee with the registration URL.
+    5. Displays a success or error message based on the email sending status.
+    6. Redirects to the admin page.
+
+    Returns
+    -------
+        Redirect: A redirect response to the admin page.
+
+    Flask Context:
+        - Expects 'user_email' and 'org_name' to be present in the session.
+        - Expects 'email' to be present in the request form.
+    """
+    email = request.form["email"]
+    print(email)
+    token = create_jwt_token_invite_user(
+        invitee_email=email, org_admin_email=session["user_email"], org_name=session["org_name"]
+    )
+    invite_register_url = url_for("auth.invite_register_get", token=token, _external=True)
+
+    email_status = send_invite_email(
+        org_admin_email=session["user_email"],
+        invitee_email=email,
+        invite_url=invite_register_url,
+    )
+    if email_status:
+        flash("Invitation sent successfully!", "success")
+    else:
+        flash("Invitation failed", "error")
+    return redirect(url_for("admin.admin"))
 
 
 @admin_bp.route("/admin/test_connection", methods=["POST"])

@@ -11,6 +11,11 @@ from pinecone.core.client.exceptions import NotFoundException
 from pinecone.core.client.model.describe_index_stats_response import (
     DescribeIndexStatsResponse,
 )
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import jwt
+import datetime
 
 
 def pinecone_index_name(
@@ -249,3 +254,89 @@ def print_index_stats_diff(index_stats_before, index_stats_after) -> None:
         logging.debug(diff)
     else:
         logging.debug("No index statistics to compare")
+
+
+def create_jwt_token_invite_user(invitee_email, org_admin_email, org_name):
+    """
+    Create a JWT token for inviting a user to the organization.
+
+    This function performs the following steps:
+    1. Loads the LorelAI configuration.
+    2. Retrieves the JWT secret key from the configuration.
+    3. Creates a JWT token containing the invitee's email, the organization admin's email,
+    the organization's name, and an expiration time of 48 hours from the token creation.
+
+    Args:
+        invitee_email (str): The email address of the invitee.
+        org_admin_email (str): The email address of the organization admin.
+        org_name (str): The name of the organization.
+
+    Returns
+    -------
+        str: A JWT token as a string.
+    """
+    lorelai_config = load_config("lorelai")
+
+    # Create JWT token
+    jwt_secret_key = lorelai_config["jwt_secret_key"]
+    token = jwt.encode(
+        {
+            "invitee_email": invitee_email,
+            "org_admin_email": org_admin_email,
+            "org_name": org_name,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=48),
+        },
+        jwt_secret_key,
+        algorithm="HS256",
+    )
+    return token
+
+
+def send_invite_email(org_admin_email, invitee_email, invite_url):
+    """
+    Send an invitation email to a user with a registration link.
+
+    This function performs the following steps:
+    1. Loads the LorelAI configuration.
+    2. Sets up the SMTP server details and email credentials.
+    3. Creates the email with the invitee's email, the subject, and the body containing the
+    invitation link.
+    4. Sends the email via the configured SMTP server.
+    5. Logs and returns the status of the email sending process.
+
+    Args:
+        org_admin_email (str): The email address of the organization admin sending the invite.
+        invitee_email (str): The email address of the invitee.
+        invite_url (str): The URL link for the invitee to register.
+
+    Returns
+    -------
+        bool: True if the email was sent successfully, False otherwise.
+    """
+    # Email configuration
+    lorelai_config = load_config("lorelai")
+
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587  # Port for TLS
+    support_email = lorelai_config["support_email"]
+    password = lorelai_config[
+        "support_email_pass"
+    ]  # Use an app password if 2-Step Verification is enabled
+    # Create the email
+    msg = MIMEMultipart()
+    msg["From"] = support_email
+    msg["To"] = invitee_email  # Recipient's email address
+    msg["Subject"] = "Invite to LorelAI"
+    # Body of the email
+    body = f"Hello, from {org_admin_email}, follow the link to join LorelAI \n Invite Link:{invite_url}"  # noqa: E501
+    msg.attach(MIMEText(body, "plain"))
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()  # Upgrade to a secure connection
+            server.login(support_email, password)
+            server.send_message(msg)
+        logging.info("Email sent successfully!")
+        return True
+    except Exception as e:
+        logging.info(f"Error sending email: {e}")
+        return False

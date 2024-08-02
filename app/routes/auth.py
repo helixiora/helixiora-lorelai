@@ -20,6 +20,7 @@ from flask import Blueprint, flash, g, jsonify, redirect, render_template, reque
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
+import jwt
 
 from app.routes.google.auth import google_auth_url
 from app.utils import (
@@ -32,6 +33,7 @@ from app.utils import (
     get_user_role_by_id,
     is_admin,
     user_is_logged_in,
+    load_config,
 )
 from lorelai.slack.slack_processor import SlackOAuth
 
@@ -476,3 +478,50 @@ def logout():
     flash("You have been logged out.")
 
     return redirect(url_for("index"))
+
+
+@auth_bp.route("/invite_register/<token>", methods=["GET"])
+def invite_register_get(token):
+    """Return the registration page.
+
+    If the request method is GET, the registration page is rendered with the user's email and
+    full name.
+
+    This means we are in the signup flow and the user
+
+    Returns
+    -------
+        str: The registration page.
+    """
+    lorelai_config = load_config("lorelai")
+    try:
+        data = jwt.decode(token, lorelai_config["jwt_secret_key"], algorithms=["HS256"])
+        invitee_email = data["invitee_email"]
+        org_admin_email = data["org_admin_email"]
+        org_name = data["org_name"]
+        logging.info(f"{invitee_email}, \n{org_admin_email}, \n{org_name}")
+    except jwt.ExpiredSignatureError:
+        return "The token is expired!"
+    except jwt.InvalidTokenError:
+        return "Invalid token!"
+
+    email = request.args.get("email", "")
+    full_name = request.args.get("full_name", "")
+    google_token = request.args.get("google_token", "")
+    google_id = request.args.get("google_id", "")
+
+    logging.debug(
+        "Received email: %s, full_name: %s, google_id: %s, token: %s",
+        email,
+        full_name,
+        google_id,
+        google_token,
+    )
+
+    return render_template(
+        "register.html",
+        email=email,
+        full_name=full_name,
+        google_id=google_id,
+        google_token=google_token,
+    )
