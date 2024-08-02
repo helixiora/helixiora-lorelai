@@ -1,106 +1,75 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% if user is none %}
-    <div class="container mt-5">
+<div class="container mt-5">
+    {% if user is none %}
         <div class="alert alert-danger" role="alert">
             <h4 class="alert-heading">Unauthorized Access!</h4>
-            <p>You are not authorized to access this page. Please login to access this page.</p>
-            <hr>
-            <p class="mb-0">Click <a href="/login">here</a> to login.</p>
+            <p>You are not authorized to access this page. Please <a href="/login" class="alert-link">login</a> to access this page.</p>
         </div>
-    </div>
-{% endif %}
-
-{% if user is not none %}
-<div class="container mt-5">
-    <div class="card">
-        <div class="card-body">
-            <h5 class="card-title">Welcome, {{ user.full_name }}!</h5>
-            <p class="card-text">Here are some details about your current session:</p>
-            <ul class="list-group list-group-flush">
-                <li class="list-group-item">Email: {{ user.email }}</li>
-                <li class="list-group-item">Organisation: {{ user.organisation }}</li>
-            </ul>
+    {% else %}
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Welcome, {{ user.full_name }}!</h5>
+                <p class="card-text">Here are some details about your current session:</p>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item">Email: {{ user.email }}</li>
+                    <li class="list-group-item">Organisation: {{ user.organisation }}</li>
+                </ul>
+            </div>
         </div>
-    </div>
 
-    <!-- Indexer -->
-    {% include 'indexer.html' %}
+        <!-- Include Indexer -->
+        {% include 'indexer.html' %}
 
-    <!-- Marketplace Integration Section -->
-    <div class="mt-4">
-        <h1 class="mb-3 strong" style="color: #000;">Integrations</h1>
+        <!-- Marketplace Integration Section -->
+        <div class="mt-4">
+            <h2 class="mb-3" style="color: #000;">Integrations</h2>
 
-        <!-- Google Drive Integration -->
-        {% if features.google_drive %}
-        <div class="card mb-3">
-            <div class="card-body bg-light">
-                <div class="row">
-                    <div class="col-md-4">
-                        <img class="card-img-top" src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration">
+            <!-- Google Drive Integration -->
+            {% if features.google_drive %}
+            <div id="google-drive-section" class="card mb-3">
+                <div class="card-body bg-light">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <img src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration" class="img-fluid">
+                        </div>
+                        <div class="col-md-8">
+                            <h5 class="card-title font-weight-bold">Google Drive</h5>
+                            <button class="btn btn-primary" id="authorize_button" onclick="handleAuthClick()">Authorize</button>
+                            <button class="btn btn-secondary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
+                        </div>
                     </div>
-                    <div class="col-md-8">
-                        <h5 class="card-title font-weight-bold">Enhance your experience</h5>
-                        <h6 class="card-title">Google Drive Integration</h6>
-                        <p class="card-text">Start feeding your business data to the hungry LLM!</p>
-                        <a class="btn btn-primary" href="{{ google_auth_url }}">Authorize</a>
+                    <div class="list-group mt-3" id="content"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Slack Integration -->
+            {% if features.slack == 1 %}
+            <div class="card mb-3">
+                <div class="card-body bg-light">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <img src="{{ url_for('static', filename='img/slack.png') }}" alt="Slack Integration" class="img-fluid">
+                        </div>
+                        <div class="col-md-8">
+                            <h5 class="card-title font-weight-bold">Slack Integration</h5>
+                            <p class="card-text">Enhance your experience by integrating Slack with our platform.</p>
+                            <a href="/slack/auth" class="btn btn-primary">Start Integration</a>
+                        </div>
                     </div>
                 </div>
             </div>
+            {% endif %}
         </div>
-        <div class="card mb-3">
-            <div class="card-body bg-light">
-                <div class="row">
-                    <div class="col-md-4">
-                        <img class="card-img-top" src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration">
-                    </div>
-                    <div class="col-md-8">
-                        <h5 class="card-title font-weight-bold">Google Drive New</h5>
-                        <button class="btn btn-primary" id="authorize_button" onclick="handleAuthClick()">Authorize</button>
-                        <button class="btn btn-primary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-        <!-- Slack Integration -->
-        {% if features.slack == 1 %}
-        <div class="card mb-3">
-            <div class="card-body bg-light">
-                <div class="row">
-                    <div class="col-md-4">
-                        <img class="card-img-top" src="{{ url_for('static', filename='img/slack.png') }}" alt="Slack Integration">
-                    </div>
-                    <div class="col-md-8">
-                        <h5 class="card-title font-weight-bold">Enhance your experience</h5>
-                        <h6 class="card-title">Slack Integration</h6>
-                        <p class="card-text">Start feeding your business data to the hungry LLM!</p>
-                        <a href="/slack/auth" class="btn btn-primary">Start Integration</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-    </div>
+    {% endif %}
 </div>
 
-<script type="text/javascript">
-    /* exported gapiLoaded */
-    /* exported gisLoaded */
-    /* exported handleAuthClick */
-    /* exported handleSignoutClick */
-
-    // Authorization scopes required by the API; multiple scopes can be
-    // included, separated by spaces.
+<script>
     const SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly';
-
-    // TODO(developer): Set to client ID and API key from the Developer Console
     const CLIENT_ID = '188814832124-jic1ovt2a8vued9je3pdcg71imrdp67c.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyBS3VWEmt4x4eDZLTcoM1qnz_ynT_UeDbM';
-
-    // TODO(developer): Replace with your own project number from console.developers.google.com.
     const APP_ID = '188814832124';
 
     let tokenClient;
@@ -108,126 +77,120 @@
     let pickerInited = false;
     let gisInited = false;
 
-
     document.getElementById('authorize_button').style.visibility = 'hidden';
     document.getElementById('signout_button').style.visibility = 'hidden';
 
-    /**
-     * Callback after api.js is loaded.
-     */
     function gapiLoaded() {
-      gapi.load('client:picker', initializePicker);
+        gapi.load('client:picker', initializePicker);
     }
 
-    /**
-     * Callback after the API client is loaded. Loads the
-     * discovery doc to initialize the API.
-     */
     async function initializePicker() {
-      await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/drive/v3/rest');
-      pickerInited = true;
-      maybeEnableButtons();
+        await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/drive/v3/rest');
+        pickerInited = true;
+        maybeEnableButtons();
     }
 
-    /**
-     * Callback after Google Identity Services are loaded.
-     */
     function gisLoaded() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '', // defined later
-      });
-      gisInited = true;
-      maybeEnableButtons();
-    }
-
-    /**
-     * Enables user interaction after all libraries are loaded.
-     */
-    function maybeEnableButtons() {
-      if (pickerInited && gisInited) {
-        document.getElementById('authorize_button').style.visibility = 'visible';
-      }
-    }
-
-    /**
-     *  Sign in the user upon button click.
-     */
-    function handleAuthClick() {
-      tokenClient.callback = async (response) => {
-        if (response.error !== undefined) {
-          throw (response);
-        }
-        accessToken = response.access_token;
-        document.getElementById('signout_button').style.visibility = 'visible';
-        document.getElementById('authorize_button').innerText = 'Refresh';
-        await createPicker();
-      };
-
-      if (accessToken === null) {
-        // Prompt the user to select a Google Account and ask for consent to share their data
-        // when establishing a new session.
-        tokenClient.requestAccessToken({prompt: 'consent'});
-      } else {
-        // Skip display of account chooser and consent dialog for an existing session.
-        tokenClient.requestAccessToken({prompt: ''});
-      }
-    }
-
-    /**
-     *  Sign out the user upon button click.
-     */
-    function handleSignoutClick() {
-      if (accessToken) {
-        accessToken = null;
-        google.accounts.oauth2.revoke(accessToken);
-        document.getElementById('content').innerText = '';
-        document.getElementById('authorize_button').innerText = 'Authorize';
-        document.getElementById('signout_button').style.visibility = 'hidden';
-      }
-    }
-
-    /**
-     *  Create and render a Picker object for searching images.
-     */
-    function createPicker() {
-      const view = new google.picker.View(google.picker.ViewId.DOCS);
-      view.setMimeTypes('application/vnd.google-apps.document');
-      const picker = new google.picker.PickerBuilder()
-          .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-          .setDeveloperKey(API_KEY)
-          .setAppId(APP_ID)
-          .setOAuthToken(accessToken)
-          .addView(view)
-          .addView(new google.picker.DocsUploadView())
-          .setCallback(pickerCallback)
-          .build();
-      picker.setVisible(true);
-    }
-
-    /**
-     * Displays the file details of the user's selection.
-     * @param {object} data - Containers the user selection from the picker
-     */
-    async function pickerCallback(data) {
-      if (data.action === google.picker.Action.PICKED) {
-        let text = `Picker response: \n${JSON.stringify(data, null, 2)}\n`;
-        const document = data[google.picker.Response.DOCUMENTS][0];
-        const fileId = document[google.picker.Document.ID];
-        console.log(fileId);
-        const res = await gapi.client.drive.files.get({
-          'fileId': fileId,
-          'fields': '*',
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: '', // defined later
         });
-        text += `Drive API response for first document: \n${JSON.stringify(res.result, null, 2)}\n`;
-        window.document.getElementById('content').innerText = text;
-      }
+        gisInited = true;
+        maybeEnableButtons();
     }
-  </script>
-  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 
-{% endif %}
+    function maybeEnableButtons() {
+        if (pickerInited && gisInited) {
+            document.getElementById('authorize_button').style.visibility = 'visible';
+        }
+    }
 
+    function handleAuthClick() {
+        tokenClient.callback = async (response) => {
+            if (response.error !== undefined) {
+                console.error(response);
+                return;
+            }
+            accessToken = response.access_token;
+            document.getElementById('signout_button').style.visibility = 'visible';
+            document.getElementById('authorize_button').innerText = 'Refresh';
+            await createPicker();
+        };
+
+        tokenClient.requestAccessToken({ prompt: accessToken === null ? 'consent' : '' });
+    }
+
+    function handleSignoutClick() {
+        if (accessToken) {
+            google.accounts.oauth2.revoke(accessToken);
+            accessToken = null;
+            document.getElementById('content').innerHTML = '';
+            document.getElementById('authorize_button').innerText = 'Authorize';
+            document.getElementById('signout_button').style.visibility = 'hidden';
+        }
+    }
+
+    async function createPicker() {
+        const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+            .setMode(google.picker.DocsViewMode.LIST)
+            .setMimeTypes('application/vnd.google-apps.document')
+            .setParent('root')
+            .setEnableDrives(true);
+
+        const foldersView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+            .setSelectFolderEnabled(true)
+            .setMode(google.picker.DocsViewMode.LIST)
+            .setParent('root')
+            .setEnableDrives(true);
+
+        const picker = new google.picker.PickerBuilder()
+            .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+            .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
+            .disableFeature(google.picker.Feature.MINE_ONLY)
+            .setDeveloperKey(API_KEY)
+            .setAppId(APP_ID)
+            .setOAuthToken(accessToken)
+            .addView(foldersView)
+            .addView(docsView)
+            .setCallback(pickerCallback)
+            .setOrigin(window.location.protocol + '//' + window.location.host)
+            .setTitle('Select documents or folders')
+            .build();
+        picker.setVisible(true);
+    }
+
+    async function pickerCallback(data) {
+        if (data.action === google.picker.Action.PICKED) {
+            const documents = data[google.picker.Response.DOCUMENTS].map(doc => ({
+                id: doc[google.picker.Document.ID],
+                name: doc[google.picker.Document.NAME],
+                mimeType: doc[google.picker.Document.MIME_TYPE],
+                type: doc[google.picker.Document.TYPE],
+            }));
+
+            document.getElementById('content').innerHTML += documents.map(doc => `
+                <a href="#" class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between">
+                        <h5 class="mb-1">${doc.name}</h5>
+                        <small>${doc.type}</small>
+                    </div>
+                    <small>${doc.id}</small>
+                </a>
+            `).join('');
+
+            // Scroll to the Google Drive section
+            document.getElementById('google-drive-section').scrollIntoView({ behavior: 'smooth' });
+
+            await fetch('/google/drive/processfilepicker', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(documents),
+            });
+        }
+    }
+</script>
+
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 {% endblock %}

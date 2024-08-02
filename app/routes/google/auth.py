@@ -132,3 +132,43 @@ def auth_callback():
     session["credentials"] = flow.credentials.to_json()
 
     return redirect(url_for("auth.profile"))
+
+
+@googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])
+def process_file_picker():
+    """Process the list of google docs ids returned by the file picker."""
+    # retrieve the user_id from the session
+    user_id = session["user_id"]
+
+    # # store the google doc ids in the database
+    # data_source_name = "Google"
+    # conn = get_db_connection()
+    # cursor = conn.cursor(dictionary=True)
+    # datasource_id = get_datasource_id_by_name(data_source_name)
+    # if datasource_id is None:
+    #     logging.error(f"{data_source_name} is missing from datasource table in db")
+    #     raise ValueError(f"{data_source_name} is missing from datasource table in db")
+
+    # request.data is a json list of selected google docs
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    documents = request.get_json()
+
+    try:
+        for doc in documents:
+            logging.debug(f"Processing google doc id: {doc}")
+            cursor.execute(
+                """INSERT INTO google_drive_items( \
+                       user_id, google_drive_id, item_name, mime_type, item_type)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (user_id, doc["id"], doc["name"], doc["mimeType"], doc["type"]),
+            )
+    except Exception:
+        logging.error(f"Error inserting google doc id: {doc}")
+        return "Error inserting google doc id: {doc}"
+    finally:
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    return "Success"

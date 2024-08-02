@@ -303,7 +303,7 @@ def set_security_headers(response):
         "https://cdn.jsdelivr.net/",
         "https://cdn.tailwindcss.com/",
         "https://code.jquery.com/",
-        "https://stackpath.bootstrapcdn.com/bootstrap",
+        "https://stackpath.bootstrapcdn.com/bootstrap/",
     ]
 
     font_src = [
