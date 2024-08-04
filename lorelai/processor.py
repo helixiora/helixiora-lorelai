@@ -19,9 +19,9 @@ from pinecone import ServerlessSpec
 from lorelai.utils import (
     get_embedding_dimension,
     load_config,
-    pinecone_index_name,
     save_google_creds_to_tempfile,
 )
+from lorelai.pinecone import index_name
 
 
 class Processor:
@@ -364,15 +364,13 @@ class Processor:
                 doc.metadata["users"].append(user_email)
 
         # indexname must consist of lower case alphanumeric characters or '-'"
-        index_name = pinecone_index_name(
+        index = index_name(
             org=org_name,
             datasource="googledrive",
             environment=self.lorelai_settings["environment"],
             env_name=self.lorelai_settings["environment_slug"],
             version="v1",
         )
-        new_docs_added = self.store_docs_in_pinecone(
-            docs, index_name=index_name, user_email=user_email
-        )
+        new_docs_added = self.store_docs_in_pinecone(docs, index_name=index, user_email=user_email)
         logging.info(f"Processed {len(docs)} documents for user: {user_email}")
         return {"new_docs_added": new_docs_added}
