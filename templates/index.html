@@ -90,17 +90,17 @@
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item google-btn-container">
                     <div id="g_id_onload"
-                         data-client_id="{{ google_client_id }}"
-                         data-logout_uri="{{ url_for('auth.logout', _external=True ) }}"
-                         data-callback="onGoogleCredentialResponse">
+                        data-client_id="{{ google_client_id }}"
+                        data-login_uri="{{ url_for('auth.login', _external=True ) }}"
+                        data-logout_uri="{{ url_for('auth.logout', _external=True ) }}">
                     </div>
                     <div class="g_id_signin"
-                         data-type="standard"
-                         data-shape="rectangular"
-                         data-theme="outline"
-                         data-text="signin_with"
-                         data-size="large"
-                         data-logo_alignment="left">
+                        data-type="standard"
+                        data-shape="rectangular"
+                        data-theme="outline"
+                        data-text="signin_with"
+                        data-size="large"
+                        data-logo_alignment="left">
                     </div>
                     <div id="signin-status" aria-live="polite"></div>
                 </li>
@@ -168,45 +168,6 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script>
-        async function onGoogleCredentialResponse(response) {
-            const id_token = response.credential;
-            const google_id = response.googleId;
-            const statusElement = document.getElementById('signin-status');
 
-            try {
-                const res = await fetch('/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ credential: id_token })
-                });
-
-                if (!res.ok) {
-                    throw new Error('Network response was not ok: ' + res.status + ' ' + res.statusText);
-                }
-
-                const data = await res.json();
-
-                if (data.message === "User authenticated successfully") {
-                    statusElement.innerText = 'Signed in successfully';
-                    window.location.href = data.redirect_url;
-                } else if (data.message === "Invalid login") {
-                    // Redirect to /register
-                    window.location.href = data.redirect_url +
-                        '?email=' + encodeURIComponent(data.email) +
-                        '&full_name=' + encodeURIComponent(data.full_name) +
-                        '&google_id=' + encodeURIComponent(data.google_id) +
-                        '&google_token=' + encodeURIComponent(data.google_token);
-                } else {
-                    throw new Error(data.message);
-                }
-            } catch (error) {
-                statusElement.innerText = 'Error signing in: ' + error.message;
-                console.error('Error:', error);
-            }
-        }
-    </script>
 </body>
 </html>
