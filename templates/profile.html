@@ -35,27 +35,30 @@
                             <img src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration" class="img-fluid">
                         </div>
                         <div class="col-md-8">
-                            <h5 class="card-title font-weight-bold">Google Drive</h5>
-                            <button class="btn btn-primary" id="authorize_button" onclick="handleAuthClick()">Authorize</button>
+                            <h5 class="card-title h5">Google Drive</h5>
+                            <button class="btn btn-primary" id="authorize_button" onclick="codeClient.requestCode()">Authorize</button>
                             <button class="btn btn-secondary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
+                            <p class="card-text">Integrate your Google Drive with Lorelai to index your documents.</p>
+                            <h5 class="card-title h5">Documents Indexed:</h5>
+                            <button class="btn btn-primary mt-3" id="select_button" onclick="createPicker()">Select Folders/Documents</button>
+                            <div class="list-group mt-3 col-8" id="content">
+                                {%if google_docs_to_index %}
+                                    {% for doc in google_docs_to_index %}
+                                        <a href="#" class="list-group-item list-group-item-action">
+                                            <div class="d-flex justify-content-between">
+                                                <h5 class="mb-1">{{ doc.item_name }}</h5>
+                                                <small>{{ doc.item_type }}</small>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <small>Google Drive ID: {{ doc.google_drive_id }}</small>
+                                                <small>Last indexed: {{ doc.last_indexed_at }}</small>
+                                            </div>
+                                            <button class="btn btn-primary btn-sm" onclick="alert('To be implemented')">Remove from Lorelai</button>
+                                        </a>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
                         </div>
-                    </div>
-                    <div class="list-group mt-3 col-8" id="content">
-                        {%if google_docs_to_index %}
-                            {% for doc in google_docs_to_index %}
-                                <a href="#" class="list-group-item list-group-item-action">
-                                    <div class="d-flex justify-content-between">
-                                        <h5 class="mb-1">{{ doc.item_name }}</h5>
-                                        <small>{{ doc.item_type }}</small>
-                                    </div>
-                                    <div class="d-flex justify-content-between">
-                                        <small>Google Drive ID: {{ doc.google_drive_id }}</small>
-                                        <small>Last indexed: {{ doc.last_indexed_at }}</small>
-                                    </div>
-                                    <button class="btn btn-primary btn-sm" onclick="alert('To be implemented')">Remove from Lorelai</button>
-                                </a>
-                            {% endfor %}
-                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -83,18 +86,20 @@
 </div>
 
 <script>
-    const SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
     const CLIENT_ID = '188814832124-jic1ovt2a8vued9je3pdcg71imrdp67c.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyBS3VWEmt4x4eDZLTcoM1qnz_ynT_UeDbM';
     const APP_ID = '188814832124';
 
-    let tokenClient;
+    let codeClient;
     let accessToken = null;
+    let authorizationCode = null;
     let pickerInited = false;
     let gisInited = false;
 
     document.getElementById('authorize_button').style.visibility = 'hidden';
     document.getElementById('signout_button').style.visibility = 'hidden';
+    document.getElementById('select_button').style.visibility = 'hidden';
 
     function gapiLoaded() {
         gapi.load('client:picker', initializePicker);
@@ -107,10 +112,33 @@
     }
 
     function gisLoaded() {
-        tokenClient = google.accounts.oauth2.initTokenClient({
+        codeClient = google.accounts.oauth2.initCodeClient({
             client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: '', // defined later
+            scope: 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
+            ux_mode: 'popup',
+            callback: async (response) => {
+                if (response.error !== undefined) {
+                    console.error(response);
+                    return;
+                }
+                try {
+                    const res = await fetch('/store_token', { // Send the authorization code to the server
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: response.code }),
+                    });
+                    const data = await res.json();
+                    accessToken = data.access_token;
+
+                    if (accessToken) {
+                        document.getElementById('signout_button').style.visibility = 'visible';
+                        document.getElementById('select_button').style.visibility = 'visible';
+                        document.getElementById('authorize_button').innerText = 'Refresh';
+                    }
+                } catch (error) {
+                    console.error('Error obtaining access token:', error);
+                }
+            },
         });
         gisInited = true;
         maybeEnableButtons();
@@ -122,25 +150,10 @@
         }
     }
 
-    function handleAuthClick() {
-        tokenClient.callback = async (response) => {
-            if (response.error !== undefined) {
-                console.error(response);
-                return;
-            }
-            accessToken = response.access_token;
-            document.getElementById('signout_button').style.visibility = 'visible';
-            document.getElementById('authorize_button').innerText = 'Refresh';
-            await createPicker();
-        };
-
-        tokenClient.requestAccessToken({ prompt: accessToken === null ? 'consent' : '' });
-    }
-
     function handleSignoutClick() {
-        if (accessToken) {
+        if (authorizationCode) {
             google.accounts.oauth2.revoke(accessToken);
-            accessToken = null;
+            authorizationCode = null;
             document.getElementById('content').innerHTML = '';
             document.getElementById('authorize_button').innerText = 'Authorize';
             document.getElementById('signout_button').style.visibility = 'hidden';
@@ -148,6 +161,8 @@
     }
 
     async function createPicker() {
+        console.log('Creating picker...');
+        console.log('accessToken:', accessToken);
         const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
             .setMode(google.picker.DocsViewMode.LIST)
             .setMimeTypes('application/vnd.google-apps.document')
