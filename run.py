@@ -20,9 +20,9 @@ from flask import (
 from ulid import ULID
 
 from app.routes.admin import admin_bp
-from app.routes.auth import auth_bp
+from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
-from app.routes.google.auth import googledrive_bp
+from app.routes.google.authorization import googledrive_bp
 from app.utils import (
     check_flyway,
     get_datasources_name,

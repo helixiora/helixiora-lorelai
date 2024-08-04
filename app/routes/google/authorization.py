@@ -1,65 +1,36 @@
-"""Google OAuth2 authentication routes."""
+"""Google Drive authorization routes.
+
+Google now recommends the Google Identity Services library for scope authorization.
+
+
+References
+----------
+- https://developers.google.com/identity/protocols/oauth2/web-server
+- https://developers.google.com/identity/protocols/oauth2/scopes
+- https://developers.google.com/identity/oauth2/web/guides/use-code-model
+
+"""
 
 import logging
+import os
 
-from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask import Blueprint, request, session
 from google_auth_oauthlib.flow import Flow
+
+from oauthlib.oauth2.rfc6749.errors import (
+    OAuth2Error,
+    FatalClientError,
+    InvalidRequestFatalError,
+    InvalidRequestError,
+)
 
 from app.utils import get_db_connection, load_config, get_datasource_id_by_name
 
 googledrive_bp = Blueprint("googledrive", __name__)
 
 
-def google_auth_url():
-    """Generate the Google OAuth2 authorization URL.
-
-    Returns
-    -------
-        str: The Google OAuth2 authorization URL.
-
-    """
-    # Load the Google OAuth2 secrets
-    secrets = load_config("google")
-    e_creds = ["client_id", "project_id", "client_secret", "redirect_uris"]
-    if not all(i in secrets for i in e_creds):
-        missing_creds = ", ".join([ec for ec in e_creds if ec not in secrets])
-        msg = "Missing required google credentials: "
-        raise ValueError(msg, missing_creds)
-
-    client_config = {
-        "web": {
-            "client_id": secrets["client_id"],
-            "project_id": secrets["project_id"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": secrets["client_secret"],
-            "redirect_uris": secrets["redirect_uris"],
-        }
-    }
-
-    lorelaicreds = load_config("lorelai")
-
-    flow = Flow.from_client_config(
-        client_config=client_config,
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
-        redirect_uri=lorelaicreds["redirect_uri"],
-    )
-
-    try:
-        authorization_url, state = flow.authorization_url(
-            access_type="offline", include_granted_scopes="true", prompt="consent"
-        )
-        session["state"] = state
-        return authorization_url
-
-    except RuntimeError as e:
-        logging.debug(f"Error generating authorization URL: {e}")
-        return render_template("error.html", error_message="Failed to generate login URL.")
-
-
-@googledrive_bp.route("/google/auth/callback", methods=["GET"])
-def auth_callback():
+@googledrive_bp.route("/store_token", methods=["POST"])
+def store_token():
     """Handle callback for Google OAuth2 authentication.
 
     This route is called by Google after the user has authenticated.
@@ -70,11 +41,15 @@ def auth_callback():
         string: The index page.
 
     """
-    lorelaicreds = load_config("lorelai")
     googlecreds = load_config("google")
-    state = session["state"]
-    if state != session["state"]:
-        return render_template("error.html", error_message="Invalid state parameter.")
+
+    data = request.json
+    logging.debug(f"Data: {data}")
+    authorization_code = data["code"]
+
+    # set the environment variable to relax the token scope, Google has a habot of changing the
+    # order of the scopes, raising a Warning
+    os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 
     flow = Flow.from_client_config(
         client_config={
@@ -85,13 +60,37 @@ def auth_callback():
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
                 "client_secret": googlecreds["client_secret"],
-                "redirect_uris": googlecreds["redirect_uris"],
+                # "redirect_uris": googlecreds["redirect_uris"],
             }
         },
-        scopes=None,
-        redirect_uri=lorelaicreds["redirect_uri"],
+        scopes=[
+            "https://www.googleapis.com/auth/userinfo.profile openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file"  # noqa
+        ],
+        redirect_uri="https://127.0.0.1:5000",
     )
-    flow.fetch_token(authorization_response=request.url)
+
+    # this can fail in many ways: token expired, fatal client error, invalid request fatal error,
+    # invalid request error
+    # see an article here:
+    # https://blog.timekit.io/google-oauth-invalid-grant-nightmare-and-how-to-fix-it-9f4efaf1da35
+    # https://stackoverflow.com/questions/10576386/invalid-grant-trying-to-get-oauth-token-from-google # noqa
+    # also see oauthlib.oauth2.rfc6749.errors
+    try:
+        flow.fetch_token(code=authorization_code)
+    except InvalidRequestError as e:
+        logging.error(f"Invalid request error: {e}")
+        return "Invalid request error: {e}"
+    except FatalClientError as e:
+        logging.error(f"Fatal client error: {e}")
+        return "Fatal client error: {e}"
+    except InvalidRequestFatalError as e:
+        logging.error(f"Invalid request fatal error: {e}")
+        return "Invalid request fatal error: {e}"
+    except OAuth2Error as e:
+        logging.error(f"Generic OAuth2 error: {e}")
+        return "Generic OAuth2 error: {e}"
+    except Warning as e:
+        logging.warning(f"Warning: {e}")
 
     # retrieve the user_id from the session
     user_id = session["user_id"]
@@ -105,7 +104,7 @@ def auth_callback():
     logging.debug(f"Refresh token: {refresh_token}")
     logging.debug(f"Expires at: {expires_at}")
     # store them as records in user_auth
-    data_source_name = "Google"
+    data_source_name = "Google Drive"
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     datasource_id = get_datasource_id_by_name(data_source_name)
@@ -114,24 +113,33 @@ def auth_callback():
         raise ValueError(f"{data_source_name} is missing from datasource table in db")
     cursor.execute(
         """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-           VALUES (%s, %s, %s, %s, %s)""",
+           VALUES (%s, %s, %s, %s, %s)
+           ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
         (user_id, datasource_id, "access_token", access_token, "oauth"),
     )
     cursor.execute(
         """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-           VALUES (%s, %s, %s, %s, %s)""",
+           VALUES (%s, %s, %s, %s, %s)
+           ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
         (user_id, datasource_id, "refresh_token", refresh_token, "oauth"),
     )
     cursor.execute(
         """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-           VALUES (%s, %s, %s, %s, %s)""",
+           VALUES (%s, %s, %s, %s, %s)
+           ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
         (user_id, datasource_id, "expires_at", expires_at, "oauth"),
     )
 
     conn.commit()
     session["credentials"] = flow.credentials.to_json()
 
-    return redirect(url_for("auth.profile"))
+    return {
+        "status": "success",
+        "message": "Authorization code exchanged for access_token, refresh_token, and expiry",
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_at": expires_at,
+    }
 
 
 @googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])

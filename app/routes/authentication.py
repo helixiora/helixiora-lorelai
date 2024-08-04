@@ -5,13 +5,19 @@ The flow for authentication is:
 1. The user opens /, handled by the index route.
 2. The index route checks if the user is logged in.
 3. If the user is not logged in, the index route displays the logged out page
-4. From that page, if the user logs in, we run javascript code to send a POST request to /login
-5. The login route may return a redirect URL to the frontend, which will redirect the user to the
-    registration page
-6. The user registers and is redirected to the login page
-7. The user logs in and is redirected to the logged in index page
+4. From that page, if the user logs in with Google, the /login route is called by google at the end
+    of the OAuth flow
+5. The /login route verifies the token and logs the user and redirects to the logged in index page
+6. If the user is not registered, they are redirected to the /register page
 
+NOTE: Google has separated authentication and authorization. Authentication is verifying the user's
+identity, while authorization is verifying the user's permissions to access a resource. This file
+handles authentication, while the google/authorization.py file handles authorization.
 
+References
+----------
+- https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+- https://stackoverflow.com/questions/72766506/relationship-between-google-identity-services-sign-in-with-google-and-user-aut
 """
 
 import logging
