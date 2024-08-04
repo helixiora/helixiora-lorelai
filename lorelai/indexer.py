@@ -198,7 +198,6 @@ class GoogleDriveIndexer(Indexer):
         user_auth_rows: list[dict[str, any]],
         user_data_rows: list[dict[str, any]],
         job: job.Job | None,
-        folder_id: str = "",
     ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
@@ -224,10 +223,6 @@ class GoogleDriveIndexer(Indexer):
         """
         if user_row:
             logging.debug(f"Processing user: {user_row['email']} from org: {org_row['name']}")
-            if folder_id:
-                logging.debug(f"Processing folder: {folder_id}")
-            else:
-                logging.debug("Processing all folders")
 
             refresh_token = next(
                 (
