@@ -303,15 +303,16 @@ def set_security_headers(response):
         "https://cdn.jsdelivr.net/",
         "https://cdn.tailwindcss.com/",
         "https://code.jquery.com/",
-        "https://stackpath.bootstrapcdn.com/bootstrap/",
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
+        "https://unpkg.com/@popperjs/",
     ]
 
     font_src = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/",
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/",
         "https://fonts.gstatic.com/s/",
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
     ]
 
     script_src = [
@@ -326,12 +327,12 @@ def set_security_headers(response):
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/style",
-        "https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css",
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css",
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://cdn.datatables.net/",
+        "https://cdn.jsdelivr.net/npm/@popperjs/",
         "https://fonts.googleapis.com/css",
         "https://fonts.googleapis.com/css2",
-        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css",
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
     ]
 
     default_src = ["'self'", "https://accounts.google.com/gsi/"]
