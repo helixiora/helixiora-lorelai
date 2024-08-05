@@ -107,30 +107,35 @@ def store_token():
     data_source_name = "Google Drive"
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    datasource_id = get_datasource_id_by_name(data_source_name)
-    if datasource_id is None:
-        logging.error(f"{data_source_name} is missing from datasource table in db")
-        raise ValueError(f"{data_source_name} is missing from datasource table in db")
-    cursor.execute(
-        """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-           VALUES (%s, %s, %s, %s, %s)
-           ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
-        (user_id, datasource_id, "access_token", access_token, "oauth"),
-    )
-    cursor.execute(
-        """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-           VALUES (%s, %s, %s, %s, %s)
-           ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
-        (user_id, datasource_id, "refresh_token", refresh_token, "oauth"),
-    )
-    cursor.execute(
-        """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-           VALUES (%s, %s, %s, %s, %s)
-           ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
-        (user_id, datasource_id, "expires_at", expires_at, "oauth"),
-    )
+    try:
+        datasource_id = get_datasource_id_by_name(data_source_name)
+        if datasource_id is None:
+            logging.error(f"{data_source_name} is missing from datasource table in db")
+            raise ValueError(f"{data_source_name} is missing from datasource table in db")
+        cursor.execute(
+            """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
+            (user_id, datasource_id, "access_token", access_token, "oauth"),
+        )
+        cursor.execute(
+            """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
+            (user_id, datasource_id, "refresh_token", refresh_token, "oauth"),
+        )
+        cursor.execute(
+            """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
+            (user_id, datasource_id, "expires_at", expires_at, "oauth"),
+        )
 
-    conn.commit()
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
     session["credentials"] = flow.credentials.to_json()
 
     return {
@@ -148,20 +153,16 @@ def process_file_picker():
     # retrieve the user_id from the session
     user_id = session["user_id"]
 
-    # # store the google doc ids in the database
-    # data_source_name = "Google"
-    # conn = get_db_connection()
-    # cursor = conn.cursor(dictionary=True)
-    # datasource_id = get_datasource_id_by_name(data_source_name)
-    # if datasource_id is None:
-    #     logging.error(f"{data_source_name} is missing from datasource table in db")
-    #     raise ValueError(f"{data_source_name} is missing from datasource table in db")
-
     # request.data is a json list of selected google docs
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
     documents = request.get_json()
 
+    # validate the content of documents
+    if not documents:
+        logging.error("No documents selected")
+        return "No documents selected"
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
     try:
         for doc in documents:
             logging.debug(f"Processing google doc id: {doc}")
@@ -171,11 +172,11 @@ def process_file_picker():
                    VALUES (%s, %s, %s, %s, %s)""",
                 (user_id, doc["id"], doc["name"], doc["mimeType"], doc["type"]),
             )
+        conn.commit()
     except Exception:
         logging.error(f"Error inserting google doc id: {doc}")
         return "Error inserting google doc id: {doc}"
     finally:
-        conn.commit()
         cursor.close()
         conn.close()
 
