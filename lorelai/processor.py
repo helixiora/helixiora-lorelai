@@ -7,14 +7,15 @@ import uuid
 from collections.abc import Iterable
 
 import numpy as np
+
 import pinecone
-from google.oauth2.credentials import Credentials
+from pinecone import ServerlessSpec
+
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_google_community.drive import GoogleDriveLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from pinecone import ServerlessSpec
 
 from lorelai.utils import (
     get_embedding_dimension,
@@ -77,7 +78,7 @@ class Processor:
                     if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
                         logging.info(
                             f"Document {doc['metadata']['title']} already exists in Pinecone and \
-                                tagged by {doc['metadata']['users'][0]}"
+ agged by {doc['metadata']['users'][0]}, removing from list"
                         )
                         # if so then we remove doc form the document list
                         documents.remove(doc)
@@ -248,13 +249,17 @@ class Processor:
 
         logging.info(f"Storing {len(docs)} documents for user: {user_email}")
 
-        splitter = RecursiveCharacterTextSplitter(chunk_size=4000)
+        embedding_settings = load_config("embeddings")
+        chunk_size = embedding_settings["chunk_size"]
+        embedding_model_name = embedding_settings["model"]
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size)
+
         # Iterate over documents and split each document's text into chunks
         # for doc_id, document_content in documents.items():
         documents = splitter.split_documents(docs)
-        logging.info(f"Converted {len(docs)}Google Docs into {len(documents)} Chucks")
-        # use text-embedding-ada-002
-        embedding_model_name = "text-embedding-ada-002"
+        logging.info(f"Converted {len(docs)} Google Docs into {len(documents)} Chucks")
+
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
         if embedding_dimension == -1:
@@ -263,6 +268,7 @@ class Processor:
         pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
 
         region = self.pinecone_settings["region"]
+        metric = self.pinecone_settings["metric"]
 
         # somehow the PineconeVectorStore doesn't support creating a new index, so we use pinecone
         # package directly. Check if the index already exists
@@ -271,7 +277,7 @@ class Processor:
             pc.create_index(
                 name=index_name,
                 dimension=embedding_dimension,
-                metric="cosine",
+                metric=metric,
                 spec=ServerlessSpec(cloud="aws", region=region),
             )
             logging.debug(f"Created new Pinecone index {index_name}")
@@ -303,7 +309,7 @@ class Processor:
                 logging.debug(f"Upsert response: {response}")
 
         logging.info(f"Total Number of Google Docs {len(docs)}")
-        logging.info(f"Total Number of documents, ie after chucking {len(documents)}")
+        logging.info(f"Total Number of document chunks, ie after chunking {len(documents)}")
         logging.info(
             f"{already_exist_and_tagged} documents  already exist and tagged in index {index_name}"
         )
@@ -319,8 +325,10 @@ class Processor:
 
     def google_docs_to_pinecone_docs(
         self: None,
-        document_ids: list[str],
-        credentials: Credentials,
+        documents: list[str],
+        access_token: str,
+        refresh_token: str,
+        expires_at: int,
         org_name: str,
         user_email: str,
     ) -> None:
@@ -333,35 +341,62 @@ class Processor:
 
         :return: None
         """
+        google_creds = load_config("google")
+
         # save the google creds to a tempfile as they are needed by the langchain google drive
         # loader until this issue is fixed: https://github.com/langchain-ai/langchain/issues/15058
         save_google_creds_to_tempfile(
-            refresh_token=credentials.refresh_token,
+            access_token=access_token,
+            refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=credentials.client_id,
-            client_secret=credentials.client_secret,
+            client_id=google_creds["client_id"],
+            client_secret=google_creds["client_secret"],
         )
 
-        drive_loader = GoogleDriveLoader(document_ids=document_ids)
+        docs = []
+        # documents contain a list of dictionaries with the following keys:
+        # user_id, google_drive_id, item_type, item_name
+        # loop through the documents and load them from Google Drive
+        for doc in documents:
+            doc_user_id = doc["user_id"]
+            doc_google_drive_id = doc["google_drive_id"]
+            doc_item_type = doc["item_type"]
+            doc_item_name = doc["item_name"]
 
-        logging.info(f"Loading {len(document_ids)} google documents for user: {user_email}")
-        docs = drive_loader.load()
-        logging.debug(f"Loaded {len(docs)} documents from Google Drive")
+            if doc_item_type not in ["document", "folder"]:
+                logging.error(f"Invalid item type: {doc_item_type}")
+                raise ValueError(f"Invalid item type: {doc_item_type}")
+
+            logging.info(
+                f"Loading {doc_item_type}: {doc_item_name} ({doc_google_drive_id}) for user: {doc_user_id}"  # noqa
+            )
+            if doc_item_type == "document":
+                drive_loader = GoogleDriveLoader(document_ids=[doc_google_drive_id])
+            elif doc_item_type == "folder":
+                drive_loader = GoogleDriveLoader(
+                    folder_id=doc_google_drive_id, recursive=True, include_folders=True
+                )
+
+            docs_loaded = drive_loader.load()
+            if docs_loaded:
+                docs.extend(docs_loaded)
+
+        logging.debug(f"Loaded {len(docs)} Google docs from Google Drive")
 
         # go through all docs. For each doc, see if the user is already in the metadata. If not,
         # add the user to the metadata
-        for doc in docs:
-            logging.info(f"Processing doc: {doc.metadata['title']}")
+        for loaded_doc in docs:
+            logging.info(f"Checking metadata users for Google doc: {loaded_doc.metadata['title']}")
             # check if the user key is in the metadata
-            if "users" not in doc.metadata:
-                doc.metadata["users"] = []
+            if "users" not in loaded_doc.metadata:
+                loaded_doc.metadata["users"] = []
             # check if the user is in the metadata
-            if user_email not in doc.metadata["users"]:
+            if user_email not in loaded_doc.metadata["users"]:
                 logging.info(
                     f"Adding user {user_email} to doc.metadata['users'] for \
-                    metadata.users ${doc.metadata['users']}"
+ metadata.users ${loaded_doc.metadata['users']}"
                 )
-                doc.metadata["users"].append(user_email)
+                loaded_doc.metadata["users"].append(user_email)
 
         # indexname must consist of lower case alphanumeric characters or '-'"
         index = index_name(
