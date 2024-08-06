@@ -382,6 +382,29 @@ def unauthorized():
     )
 
 
+@app.route("/org_exists")
+def org_exists():
+    """
+    Display an alert indicating that the organization name already exists and return the user to the previous page.
+
+    This route is typically used to notify the user that the organization name they are attempting to use already exists
+    in the database. After showing the alert, the user is redirected back to the page they were on before attempting to
+    create the organization with the duplicate name.
+
+    Returns
+    -------
+        str: A rendered template containing a script to show an alert and navigate back to the previous page.
+    """  # noqa: E501
+    return render_template_string(
+        """
+        <script>
+            alert("Organisation name already exists, please create different organisation name. If you want to be part of existing organisation please contact organisation admin for invite");
+            window.history.back();
+        </script>
+    """  # noqa: E501
+    )
+
+
 if __name__ == "__main__":
     logging.debug("Starting the app...")
     app.run(ssl_context=("cert.pem", "key.pem"))

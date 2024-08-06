@@ -26,7 +26,6 @@ from flask import Blueprint, flash, g, jsonify, redirect, render_template, reque
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
-import jwt
 import time
 
 from app.utils import (
@@ -40,6 +39,7 @@ from app.utils import (
     is_admin,
     user_is_logged_in,
     load_config,
+    org_exists_by_name,
 )
 from lorelai.slack.slack_processor import SlackOAuth
 
@@ -108,7 +108,7 @@ def register_get():
     google_token = request.args.get("google_token", "")
     google_id = request.args.get("google_id", "")
 
-    logging.debug(
+    logging.info(
         "Received email: %s, full_name: %s, google_id: %s, token: %s",
         email,
         full_name,
@@ -139,9 +139,11 @@ def register_post():
     email = request.form.get("email")
     full_name = request.form.get("full_name")
     organisation = request.form.get("organisation")
-
     google_id = request.form.get("google_id")
     google_token = request.form.get("google_token")
+
+    if org_exists_by_name(organisation):
+        return redirect(url_for("org_exists"))
 
     missing = validate_form(email=email, name=full_name, organisation=organisation)
 
@@ -395,8 +397,9 @@ def login_user(
 
         # Update the user's Google ID in the database
         cursor.execute(
-            "UPDATE user SET google_id = %s WHERE user_id = %s",
-            (google_id, user_id),
+            "UPDATE user SET google_id = %s, user_name = %s, full_name = %s \
+            WHERE user_id = %s",
+            (google_id, username, full_name, user_id),
         )
 
         conn.commit()
@@ -509,50 +512,3 @@ def logout():
     flash("You have been logged out.")
 
     return redirect(url_for("index"))
-
-
-@auth_bp.route("/invite_register/<token>", methods=["GET"])
-def invite_register_get(token):
-    """Return the registration page.
-
-    If the request method is GET, the registration page is rendered with the user's email and
-    full name.
-
-    This means we are in the signup flow and the user
-
-    Returns
-    -------
-        str: The registration page.
-    """
-    lorelai_config = load_config("lorelai")
-    try:
-        data = jwt.decode(token, lorelai_config["jwt_secret_key"], algorithms=["HS256"])
-        invitee_email = data["invitee_email"]
-        org_admin_email = data["org_admin_email"]
-        org_name = data["org_name"]
-        logging.info(f"{invitee_email}, \n{org_admin_email}, \n{org_name}")
-    except jwt.ExpiredSignatureError:
-        return "The token is expired!"
-    except jwt.InvalidTokenError:
-        return "Invalid token!"
-
-    email = request.args.get("email", "")
-    full_name = request.args.get("full_name", "")
-    google_token = request.args.get("google_token", "")
-    google_id = request.args.get("google_id", "")
-
-    logging.debug(
-        "Received email: %s, full_name: %s, google_id: %s, token: %s",
-        email,
-        full_name,
-        google_id,
-        google_token,
-    )
-
-    return render_template(
-        "register.html",
-        email=email,
-        full_name=full_name,
-        google_id=google_id,
-        google_token=google_token,
-    )

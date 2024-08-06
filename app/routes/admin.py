@@ -29,6 +29,7 @@ from app.utils import (
     role_required,
     run_flyway_migrations,
     user_is_logged_in,
+    create_invited_user_in_db,
 )
 from lorelai.contextretriever import ContextRetriever
 from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
@@ -424,7 +425,7 @@ def invite_user():
     token = create_jwt_token_invite_user(
         invitee_email=email, org_admin_email=session["user_email"], org_name=session["org_name"]
     )
-    invite_register_url = url_for("auth.invite_register_get", token=token, _external=True)
+    invite_register_url = url_for("index", token=token, _external=True)
 
     email_status = send_invite_email(
         org_admin_email=session["user_email"],
@@ -432,9 +433,12 @@ def invite_user():
         invite_url=invite_register_url,
     )
     if email_status:
+        create_invited_user_in_db(email=email, org_name=session["org_name"])
         flash("Invitation sent successfully!", "success")
+
     else:
         flash("Invitation failed", "error")
+
     return redirect(url_for("admin.admin"))
 
 
