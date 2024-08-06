@@ -231,7 +231,8 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ google_drive_id: googleDriveId }),
-        }).catch(console.error);
+        }).catch(console.error)
+        .then(() => location.reload());
     }
 
     document.addEventListener('DOMContentLoaded', function () {
