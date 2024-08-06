@@ -18,38 +18,6 @@ import jwt
 import datetime
 
 
-def pinecone_index_name(
-    org: str,
-    datasource: str,
-    environment: str = "dev",
-    env_name: str = "lorelai",
-    version: str = "v1",
-) -> str:
-    """Return the pinecone index name for the org.
-
-    Arguments:
-    ---------
-        org (str): The name of the organization.
-        datasource (str): The name of the datasource.
-        environment (str): The environment (e.g. dev, prod).
-        env_name (str): The name of the environment (e.g. lorelai, openai).
-        version (str): The version of the index (e.g. v1).
-
-    Returns
-    -------
-        str: The name of the pinecone index.
-
-    """
-    parts = [environment, env_name, org, datasource, version]
-
-    name = "-".join(parts)
-
-    name = name.lower().replace(".", "-").replace(" ", "-")
-
-    logging.debug("Index name: %s", name)
-    return name
-
-
 def get_config_from_os(service: str) -> dict[str, str]:
     """Load credentials from OS env vars.
 
@@ -149,6 +117,7 @@ def get_db_connection() -> mysql.connector.connection.MySQLConnection:
 
 def save_google_creds_to_tempfile(
     refresh_token: str,
+    access_token: str,
     token_uri: str,
     client_id: str,
     client_secret: str,
@@ -181,6 +150,7 @@ def save_google_creds_to_tempfile(
         f.write(
             json.dumps(
                 {
+                    "access_token": access_token,
                     "refresh_token": refresh_token,
                     "token_uri": token_uri,
                     "client_id": client_id,

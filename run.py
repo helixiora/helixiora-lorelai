@@ -20,9 +20,9 @@ from flask import (
 from ulid import ULID
 
 from app.routes.admin import admin_bp
-from app.routes.auth import auth_bp
+from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
-from app.routes.google.auth import googledrive_bp
+from app.routes.google.authorization import googledrive_bp
 from app.utils import (
     check_flyway,
     get_datasources_name,
@@ -268,11 +268,22 @@ def before_request():
 @app.after_request
 def set_security_headers(response):
     """Set the security headers for the response."""
-    cross_origin_opener_policy = "unsafe-none"
+    # cross_origin_opener_policy = "same-origin"
+    cross_origin_opener_policy = "same-origin-allow-popups"
 
-    connect_src = ["'self'", "https://accounts.google.com/gsi/"]
+    connect_src = [
+        "'self'",
+        "https://accounts.google.com/gsi/",
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    ]
 
-    frame_src = ["'self'", "https://accounts.google.com/gsi/", "https://accounts.google.com/"]
+    frame_src = [
+        "'self'",
+        "https://accounts.google.com/gsi/",
+        "https://accounts.google.com/",
+        "https://content.googleapis.com/",
+        "https://docs.google.com/",
+    ]
 
     img_src = [
         "'self'",
@@ -280,44 +291,48 @@ def set_security_headers(response):
         "data:",
         "https://accounts.google.com/gsi/",
         "https://csi.gstatic.com/csi",
+        "https://cdn.datatables.net/",
     ]
 
     script_src_elem = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/client",
-        "https://code.jquery.com/jquery-3.5.1.min.js",
-        "https://apis.google.com/js/api.js",
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
-        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_0",
-        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=picker/exm=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_1",
+        "https://apis.google.com/",
+        "https://cdn.datatables.net/",
+        "https://cdn.jsdelivr.net/",
         "https://cdn.tailwindcss.com/",
-        "https://code.jquery.com/jquery-3.5.1.slim.min.js",
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
-        "https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js",
-        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js",
+        "https://code.jquery.com/",
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
+        "https://unpkg.com/@popperjs/",
     ]
 
     font_src = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/",
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/",
         "https://fonts.gstatic.com/s/",
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
     ]
 
-    script_src = ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/"]
+    script_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/",
+        "https://apis.google.com/js/api.js",
+        "https://apis.google.com/",
+    ]
 
     style_src = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/style",
-        "https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css",
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css",
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://cdn.datatables.net/",
+        "https://cdn.jsdelivr.net/npm/@popperjs/",
         "https://fonts.googleapis.com/css",
         "https://fonts.googleapis.com/css2",
-        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css",
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
     ]
 
     default_src = ["'self'", "https://accounts.google.com/gsi/"]

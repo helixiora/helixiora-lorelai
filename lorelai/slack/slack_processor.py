@@ -18,7 +18,8 @@ from flask import redirect, request, session, url_for
 from langchain_openai import OpenAIEmbeddings
 
 from app.utils import get_db_connection
-from lorelai.utils import get_embedding_dimension, load_config, pinecone_index_name
+from lorelai.utils import get_embedding_dimension, load_config
+from lorelai.pinecone import index_name
 
 
 class SlackOAuth:
@@ -433,7 +434,7 @@ class SlackIndexer:
         -------
             int: The number of records loaded into Pinecone.
         """
-        index_name = pinecone_index_name(
+        index = index_name(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_settings["environment"],
@@ -443,15 +444,15 @@ class SlackIndexer:
 
         pc = pinecone.Pinecone(api_key=self.pinecone_settings["api_key"])
 
-        if index_name not in pc.list_indexes().names():
+        if index not in pc.list_indexes().names():
             # Create a new index
             pc.create_index(
-                name=index_name,
+                name=index,
                 dimension=embedding_dimension,
                 metric="cosine",
                 spec=pinecone.ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"]),
             )
-        pc_index = pc.Index(index_name)
+        pc_index = pc.Index(index)
         pc_index.upsert(complete_chat_history)
         return len(complete_chat_history)
 

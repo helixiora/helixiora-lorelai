@@ -5,13 +5,19 @@ The flow for authentication is:
 1. The user opens /, handled by the index route.
 2. The index route checks if the user is logged in.
 3. If the user is not logged in, the index route displays the logged out page
-4. From that page, if the user logs in, we run javascript code to send a POST request to /login
-5. The login route may return a redirect URL to the frontend, which will redirect the user to the
-    registration page
-6. The user registers and is redirected to the login page
-7. The user logs in and is redirected to the logged in index page
+4. From that page, if the user logs in with Google, the /login route is called by google at the end
+    of the OAuth flow
+5. The /login route verifies the token and logs the user and redirects to the logged in index page
+6. If the user is not registered, they are redirected to the /register page
 
+NOTE: Google has separated authentication and authorization. Authentication is verifying the user's
+identity, while authorization is verifying the user's permissions to access a resource. This file
+handles authentication, while the google/authorization.py file handles authorization.
 
+References
+----------
+- https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+- https://stackoverflow.com/questions/72766506/relationship-between-google-identity-services-sign-in-with-google-and-user-aut
 """
 
 import logging
@@ -21,8 +27,8 @@ from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
 import jwt
+import time
 
-from app.routes.google.auth import google_auth_url
 from app.utils import (
     get_db_connection,
     get_org_id_by_organisation,
@@ -58,12 +64,28 @@ def profile():
             "full_name": session["user_fullname"],
             "organisation": session.get("org_name"),
         }
+        googlesettings = load_config("google")
+        google_client_id = googlesettings["client_id"]
+        google_api_key = googlesettings["api_key"]
+
+        if g.features["google_drive"] == 1:
+            google_docs_to_index = get_query_result(
+                query="SELECT google_drive_id, item_name, mime_type, item_type, last_indexed_at \
+                    FROM google_drive_items WHERE user_id = %s",
+                params=(session["user_id"],),
+                fetch_one=False,
+            )
+        else:
+            google_docs_to_index = None
+
         return render_template(
             "profile.html",
             user=user,
             is_admin=is_admin_status,
+            google_client_id=google_client_id,
+            google_api_key=google_api_key,
+            google_docs_to_index=google_docs_to_index,
             features=g.features,
-            google_auth_url=google_auth_url(),
         )
     return "You are not logged in!", 403
 
@@ -268,54 +290,41 @@ def login():
         JSON: A JSON object with a message indicating whether the user was authenticated
         successfully.
     """
+    # get the received token from the JSON data that came from the web client
+    id_token_received = request.form.get("credential")
+    csrf_token = request.form.get("g_csrf_token")
+
+    # use this token to verify the user's identity
+    idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
+
+    if not idinfo:
+        raise exceptions.GoogleAuthError("Invalid token")
+
+    # this function will raise an exception if the token is invalid
+    validate_id_token(idinfo, csrf_token=csrf_token)
+
+    # get some values from the info we got from google
+    logging.info("Info from token: %s", idinfo)
+    user_email = idinfo["email"]
+    username = idinfo["name"]
+    user_full_name = idinfo["name"]
+    google_id = idinfo["sub"]
+
+    # check if the user is already registered
+    user_id = get_user_id_by_email(user_email)
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
     try:
-        if request.content_type != "application/json":
-            return jsonify({"message": "Invalid content type: " + request.content_type}), 400
-
-        data = request.get_json()
-        logging.info("Received JSON data: %s", data)
-
-        # get the received token from the JSON data that came from the web client
-        id_token_received = data.get("credential")
-
-        # use this token to verify the user's identity
-        idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
-
-        if not idinfo:
-            raise exceptions.GoogleAuthError("Invalid token")
-
-        # this function will raise an exception if the token is invalid
-        validate_id_token(idinfo)
-
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        # get some values from the info we got from google
-        logging.info("Info from token: %s", idinfo)
-        user_email = idinfo["email"]
-        username = idinfo["name"]
-        user_full_name = idinfo["name"]
-        google_id = idinfo["sub"]
-
-        # check if the user is already registered
-        user_id = get_user_id_by_email(user_email)
-
         org_id = get_org_id_by_userid(cursor, user_id)
         organisation = get_organisation_by_org_id(cursor, org_id)
 
         # if we can't find the user, it means they are not registered
-        # we don't redirect directly, but send a message back to the frontend to redirect using JS
+        # redirect them to the registration page
         if not user_id:
-            return jsonify(
-                {
-                    "message": "Invalid login",
-                    "email": user_email,
-                    "full_name": user_full_name,
-                    "google_id": google_id,
-                    "google_token": id_token_received,
-                    "redirect_url": url_for("auth.register_get"),
-                }
-            ), 200
+            logging.info("User not registered: %s", user_email)
+            return redirect(url_for("auth.register_get", email=user_email, full_name=username))
 
         # if we're still here, it means we found the user, so we log them in
         logging.info("User logging in: %s", user_email)
@@ -331,7 +340,7 @@ def login():
 
         logging.debug("Session: %s", session)
 
-        return jsonify({"message": "User authenticated successfully", "redirect_url": "/"}), 200
+        return redirect(url_for("index"))
 
     except ValueError as e:
         logging.error("Invalid token: %s", e)
@@ -428,7 +437,7 @@ def is_username_available(username: str) -> bool:
     return not user
 
 
-def validate_id_token(idinfo: dict):
+def validate_id_token(idinfo: dict, csrf_token: str):
     """
     Validate the ID token.
 
@@ -436,12 +445,34 @@ def validate_id_token(idinfo: dict):
     ----------
     idinfo : dict
         The ID token information.
+    csrf_token : str
+        The CSRF token from the body of the POST request.
 
     Raises
     ------
     ValueError
         If the issuer is wrong or the email is not verified.
     """
+    # TODO: Add more checks here, see
+    # https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+
+    if not csrf_token:
+        raise exceptions.GoogleAuthError("No CSRF token in post body.")
+
+    csrf_token_cookie = request.cookies.get("g_csrf_token")
+    if not csrf_token_cookie:
+        raise exceptions.GoogleAuthError("No CSRF token in cookie.")
+
+    if csrf_token != csrf_token_cookie:
+        raise exceptions.GoogleAuthError("CSRF token mismatch.")
+
+    googlesettings = load_config("google")
+    if idinfo["aud"] not in googlesettings["client_id"]:
+        raise exceptions.GoogleAuthError("Wrong client ID.")
+
+    if idinfo["exp"] < time.time():
+        raise exceptions.GoogleAuthError("Token expired.")
+
     if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
         raise exceptions.GoogleAuthError("Wrong issuer.")
     if not idinfo.get("email_verified"):
