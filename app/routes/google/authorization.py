@@ -136,8 +136,6 @@ def store_token():
         cursor.close()
         conn.close()
 
-    session["credentials"] = flow.credentials.to_json()
-
     return {
         "status": "success",
         "message": "Authorization code exchanged for access_token, refresh_token, and expiry",
