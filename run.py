@@ -35,6 +35,8 @@ from app.utils import (
 )
 from lorelai.utils import load_config
 
+from flask_debugtoolbar import DebugToolbarExtension
+
 # this is a print on purpose (not a logger statement) to show that the app is loading
 # get the git commit hash, branch name and first line of the commit message and print it out
 print("Loading the app...")
@@ -59,6 +61,7 @@ app = Flask(__name__)
 # Get the log level from the environment variable
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
 
+
 # Set the log level using the mapping, defaulting to logging.INFO if not found
 app.logger.setLevel(logging.getLevelName(log_level))
 logging_format = os.getenv(
@@ -69,6 +72,9 @@ logging.basicConfig(format=logging_format)
 
 lorelai_settings = load_config("lorelai")
 app.secret_key = lorelai_settings["secret_key"]
+
+toolbar = DebugToolbarExtension(app)
+app.config["DEBUG_TB_PROFILER_ENABLED"] = True
 
 app.register_blueprint(googledrive_bp)
 app.register_blueprint(admin_bp)
