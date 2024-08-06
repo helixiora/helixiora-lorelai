@@ -170,21 +170,6 @@
             If you need any help, please go to our <a href="{{ support_portal }}" class="text-[#4b9feb]">Support Portal</a> or contact us at <a href="mailto:{{ support_email }}" class="text-[#4b9feb]">{{ support_email }}</a>.
         </p>
 
-        {% if 'super_admin' in session.get('user_roles', []) %}
-        <!-- Super Admin Panel -->
-        <p class="mt-4 p-4">
-            <div class="mt-4 p-4 bg-red-200 shadow rounded-lg resizable-panel">
-                <h2 class="text-xl font-bold mb-2">Super Admin Panel</h2>
-                <!-- Add more org admin controls here -->
-                <ul>
-                    {% for line in super_admin_content %}
-                        <li class="text-gray-400">{{ line }}</a>
-                    {% endfor %}
-                </ul>
-            </div>
-        </p>
-        {% endif %}
-
     </div>
 </div>
 
