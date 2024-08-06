@@ -8,13 +8,15 @@
             <p>You are not authorized to access this page. Please <a href="/login" class="alert-link">login</a> to access this page.</p>
         </div>
     {% else %}
-        <div class="card">
+        <div class="card mb-2 mt-2" id="card-welcome">
+            <h5 class="card-header h5">Welcome, {{ user.full_name }}!</h5>
             <div class="card-body">
-                <h5 class="card-title">Welcome, {{ user.full_name }}!</h5>
-                <p class="card-text">Here are some details about your current session:</p>
                 <ul class="list-group list-group-flush">
-                    <li class="list-group-item">Email: {{ user.email }}</li>
-                    <li class="list-group-item">Organisation: {{ user.organisation }}</li>
+                    <li class="list-group-item"><strong>Full Name:</strong> {{ user.full_name }}</li>
+                    <li class="list-group-item"><strong>Username:</strong> {{ user.username }}</li>
+                    <li class="list-group-item"><strong>Email:</strong> {{ user.email }}</li>
+                    <li class="list-group-item"><strong>Organisation:</strong> {{ user.organisation }}</li>
+                    <li class="list-group-item"><strong>Role:</strong> {{ user.role }}</li>
                 </ul>
             </div>
         </div>
@@ -23,44 +25,60 @@
         {% include 'indexer.html' %}
 
         <!-- Marketplace Integration Section -->
-        <div class="mt-4">
-            <h2 class="mb-3" style="color: #000;">Integrations</h2>
-
-            <!-- Google Drive Integration -->
+        <div class="card mb-2 mt-2" id="card-integrations">
+            <h5 class="h5 card-header">Integrations</h5>
+            <div class="card-body">
             {% if features.google_drive %}
-            <div id="google-drive-section" class="card mb-3">
-                <div class="card-body bg-light">
-                    <div class="row">
-                        <div class="col-md-4">
+                <!-- Google Drive Integration -->
+                <div id="card-integration-google-drive" class="card mb-2 mt-2">
+                    <h5 class="card-header h5">Google Drive</h5>
+                    <div class="card-body flex">
+                        <div class="col-2 mr-4 ml-2">
                             <img src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration" class="img-fluid">
+                            <p class="card-text">Integrate your Google Drive with Lorelai to index your documents. Currently supports individual google docs and folders (we'll only pick up google docs inside those folders, other file types will be ignored)</p>
                         </div>
-                        <div class="col-md-8">
-                            <h5 class="card-title h5">Google Drive</h5>
+                        <div class="col-8">
+
+                            <h5 class="card-title h5">Actions:</h5>
+                            <p>Use the following buttons to authorize Lorelai to index specific Google Drive files and folders:</p>
                             <button class="btn btn-primary" id="authorize_button" onclick="codeClient.requestCode()">Authorize</button>
                             <button class="btn btn-secondary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
-                            <button class="btn btn-primary mt-3" id="select_button" onclick="createPicker()">Select Folders/Documents</button>
-                            <p class="card-text">Integrate your Google Drive with Lorelai to index your documents.</p>
-                            <h5 class="card-title h5">Documents Indexed:</h5>
-                            <div class="list-group mt-3 col-8" id="content">
+                            <button class="btn btn-secondary" id="select_button" onclick="createPicker()">Select Folders/Documents</button>
+
+                            <h5 class="card-title h5 mt-4">Documents Indexed:</h5>
+                            <div class="list-group mt-3" id="content">
                             {%if google_docs_to_index %}
-                                {% for doc in google_docs_to_index %}
-                                <div class="list-group-item list-group-item-action">
-                                    <div class="d-flex justify-content-between">
-                                        <h5 class="mb-1">{{ doc.item_name }}
-                                            <span class="info-icon" data-bs-toggle="tooltip" title="Google Docs ID: {{ doc.google_drive_id }}">
-                                                <i class="bi bi-info-circle"></i>
-                                            </span>
-                                        </h5>
-                                        <small>{{ doc.item_type }}
-                                            <a href="https://drive.google.com/file/d/{{ doc.google_drive_id }}/view" target="_blank"><i class="bi bi-arrow-right-circle"></i></a>
-                                        </small>
-                                    </div>
-                                    <div class="d-flex justify-content-between">
-                                        <small>Last indexed: {{ doc.last_indexed_at }}</small>
-                                    </div>
-                                    <button class="btn btn-primary btn-sm" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove from Lorelai</button>
-                                </div>
-                                {% endfor %}
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Name</th>
+                                            <th scope="col">Type</th>
+                                            <th scope="col">Last Indexed</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for doc in google_docs_to_index %}
+                                        <tr>
+                                            <td><h5 class="mb-1">{{ doc.item_name }}
+                                                <span class="info-icon" data-bs-toggle="tooltip" title="Google Docs ID: {{ doc.google_drive_id }}">
+                                                    <i class="bi bi-info-circle"></i>
+                                                </span>
+                                            </h5></td>
+                                            <td>{{ doc.item_type }}</td>
+                                            <td>{{ doc.last_indexed_at }}</td>
+                                            <td>
+                                                <button class="btn btn-primary btn-sm" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove from Index</button>
+                                                {% if doc.item_type == 'document' %}
+                                                    <button class="btn btn-primary btn-sm" onclick="window.open('https://docs.google.com/document/d/{{ doc.google_drive_id }}', '_blank')">View File</button>
+                                                {% else %}
+                                                    <button class="btn btn-primary btn-sm" onclick="window.open('https://drive.google.com/drive/folders/{{ doc.google_drive_id }}', '_blank')">Open Folder</button>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
                             {% endif %}
                             </div>
                         </div>
@@ -97,14 +115,14 @@
     const APP_ID = '188814832124';
 
     let codeClient;
-    let accessToken = null;
+    let accessToken = {% if google_drive_access_token %}'{{ google_drive_access_token }}'{% else %}null{% endif %};
     let authorizationCode = null;
     let pickerInited = false;
     let gisInited = false;
 
-    document.getElementById('authorize_button').style.visibility = 'hidden';
-    document.getElementById('signout_button').style.visibility = 'hidden';
-    document.getElementById('select_button').style.visibility = 'hidden';
+    document.getElementById('authorize_button').disabled = true;
+    document.getElementById('signout_button').disabled = true;
+    document.getElementById('select_button').disabled = true;
 
     function gapiLoaded() {
         gapi.load('client:picker', initializePicker);
@@ -151,8 +169,13 @@
 
     function maybeEnableButtons() {
         if (pickerInited && gisInited) {
-            document.getElementById('authorize_button').style.visibility = 'visible';
+            document.getElementById('authorize_button').disabled = false;
         }
+    }
+
+    function checkAuthorizationStatus() {
+
+
     }
 
     function handleSignoutClick() {
@@ -160,8 +183,7 @@
             google.accounts.oauth2.revoke(accessToken);
             authorizationCode = null;
             document.getElementById('content').innerHTML = '';
-            document.getElementById('authorize_button').innerText = 'Authorize';
-            document.getElementById('signout_button').style.visibility = 'hidden';
+            document.getElementById('signout_button').disabled = true;
         }
     }
 
