@@ -71,7 +71,7 @@ def fetch_chat_result():
     if not job_id:
         return jsonify({"status": "ERROR", "message": "Job ID is required"}), 400
 
-    logging.info("Fetching job result for job ID: %s", job_id)
+    logging.debug("Fetching job result for job ID: %s", job_id)
 
     redis = load_config("redis")
     redis_host = redis["url"]

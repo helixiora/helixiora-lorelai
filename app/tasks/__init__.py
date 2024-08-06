@@ -206,11 +206,18 @@ def run_indexer(
 
     try:
         logging.debug("Starting indexing...")
+        job.meta["status"] = "Indexing"
         job.meta["logs"].append("Starting indexing...")
         job.save_meta()
         logging.info(f"{org_row},{user_rows},{user_auth_rows},{job},")
         # Perform indexing
-        results = indexer.index_org(org_row, user_rows, user_auth_rows, user_data_rows, job)
+        results = indexer.index_org(
+            user_rows=user_rows,
+            user_auth_rows=user_auth_rows,
+            user_data_rows=user_data_rows,
+            org_row=org_row,
+            job=job,
+        )
         for result in results:
             logging.debug(result)
             job.meta["logs"].append(result)

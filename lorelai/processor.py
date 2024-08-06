@@ -91,7 +91,6 @@ class Processor:
                             result["matches"][0]["metadata"]["users"] + doc["metadata"]["users"]
                         )
                         logging.info(f"Tagging {doc['metadata']['title']} with {users_list}")
-                        logging.info(f"Tagging {doc['metadata']['title']} with {users_list}")
                         pc_index.update(
                             id=result["matches"][0]["id"],
                             set_metadata={"users": users_list},
