@@ -214,7 +214,7 @@ class GoogleDriveIndexer(Indexer):
         org_row: dict[str, any],
         user_auth_rows: list[dict[str, any]],
         user_data_rows: list[dict[str, any]],
-        job: job.Job | None,
+        job: job.Job,
     ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
@@ -286,6 +286,7 @@ class GoogleDriveIndexer(Indexer):
             expires_at=expires_at,
             org_name=org_row["name"],
             user_email=user_row["email"],
+            job=job,
         )
 
         logging.info(f"Indexing complete for user: {user_row['email']}")

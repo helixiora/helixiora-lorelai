@@ -209,7 +209,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
         logging.info(f"Using Pinecone index: {index}")
         try:
             vec_store = PineconeVectorStore.from_existing_index(
-                index_name=index_name, embedding=OpenAIEmbeddings()
+                index_name=index, embedding=OpenAIEmbeddings()
             )
 
         except ValueError as e:
@@ -233,7 +233,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         results = compression_retriever.invoke(question)
         logging.info(
-            f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
+            f"Retrieved {len(results)} documents from index {index} for question: {question}"
         )
 
         docs: list[Document] = []

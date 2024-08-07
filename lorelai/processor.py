@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Iterable
 
 import numpy as np
+from rq import job
 
 import pinecone
 from pinecone import ServerlessSpec
@@ -21,6 +22,7 @@ from lorelai.utils import (
     get_embedding_dimension,
     load_config,
     save_google_creds_to_tempfile,
+    get_db_connection,
 )
 from lorelai.pinecone import index_name
 
@@ -78,7 +80,7 @@ class Processor:
                     if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
                         logging.info(
                             f"Document {doc['metadata']['title']} already exists in Pinecone and \
- agged by {doc['metadata']['users'][0]}, removing from list"
+ tagged by {doc['metadata']['users'][0]}, removing from list"
                         )
                         # if so then we remove doc form the document list
                         documents.remove(doc)
@@ -228,7 +230,9 @@ class Processor:
         # store ids of doc in db to be delete as user does not have access
         return count_updated, count_deleted
 
-    def store_docs_in_pinecone(self, docs: Iterable[Document], index_name, user_email) -> None:
+    def store_docs_in_pinecone(
+        self, docs: Iterable[Document], index_name: str, user_email: str, job: job.Job
+    ) -> None:
         """Process the documents and index them in Pinecone.
 
         Arguments
@@ -236,6 +240,7 @@ class Processor:
             :param docs: the documents to process
             :param index_name: name of index
             :param user_email: the user to process
+            :param job: the job object
         """
 
         def chunks(iterable, batch_size=100):
@@ -255,9 +260,8 @@ class Processor:
         splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size)
 
         # Iterate over documents and split each document's text into chunks
-        # for doc_id, document_content in documents.items():
-        documents = splitter.split_documents(docs)
-        logging.info(f"Converted {len(docs)} Google Docs into {len(documents)} Chucks")
+        document_chunks = splitter.split_documents(docs)
+        logging.info(f"Converted {len(docs)} Google Docs into {len(document_chunks)} Chucks")
 
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
@@ -284,31 +288,33 @@ class Processor:
             logging.debug(f"Pinecone index {index_name} already exists")
 
         logging.info(
-            f"Indexing {len(documents)} documents in Pinecone index {index_name} \
+            f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
                 using:embedding_model:{embedding_model_name}"
         )
 
         pc_index = pc.Index(index_name)
 
         # Format the document for insertion
-        formatted_documents = self.pinecone_format_vectors(documents, embedding_model)
-        filtered_documents, tagged_existing_doc_with_user, already_exist_and_tagged = (
-            self.pinecone_filter_deduplicate_documents_list(formatted_documents, pc_index)
+        formatted_document_chunks = self.pinecone_format_vectors(document_chunks, embedding_model)
+        filtered_document_chunks, tagged_existing_doc_with_user, already_exist_and_tagged = (
+            self.pinecone_filter_deduplicate_documents_list(formatted_document_chunks, pc_index)
         )
 
         count_removed_access, count_deleted = self.remove_nolonger_accessed_documents(
-            formatted_documents, pc_index, embedding_dimension, user_email
+            formatted_document_chunks, pc_index, embedding_dimension, user_email
         )
 
         # inserting  the documents
-        if filtered_documents:
-            logging.info(f"Inserting {len(filtered_documents)} documents in Pinecone {index_name}")
-            for chunk in chunks(filtered_documents, 50):
+        if filtered_document_chunks:
+            logging.info(
+                f"Inserting {len(filtered_document_chunks)} documents in Pinecone {index_name}"
+            )
+            for chunk in chunks(filtered_document_chunks, 50):
                 response = pc_index.upsert(vectors=chunk)
                 logging.debug(f"Upsert response: {response}")
 
         logging.info(f"Total Number of Google Docs {len(docs)}")
-        logging.info(f"Total Number of document chunks, ie after chunking {len(documents)}")
+        logging.info(f"Total Number of document chunks, ie after chunking {len(document_chunks)}")
         logging.info(
             f"{already_exist_and_tagged} documents  already exist and tagged in index {index_name}"
         )
@@ -318,9 +324,36 @@ class Processor:
         )
         logging.info(f"removed user tag to {count_removed_access} documents in index {index_name}")
         logging.info(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
-        # New Document added = filtered_documents
-        logging.info(f"Added {len(filtered_documents)} new documents in index {index_name}")
-        return len(filtered_documents)
+        # New Document added = filtered_document_chunks
+        logging.info(f"Added {len(filtered_document_chunks)} new documents in index {index_name}")
+
+        return len(filtered_document_chunks)
+
+    def update_last_indexed_for_docs(self, documents, job):
+        """Update the last indexed timestamp for the documents in the database.
+
+        :param documents: the documents to update
+        :param job: the job object
+        """
+        for doc in documents:
+            doc_id = doc["google_drive_id"]
+            logging.info(f"Updating last indexed timestamp for document: {doc_id}")
+
+            # update the last indexed timestamp for the document in the database
+            db = get_db_connection()
+            cursor = db.cursor()
+            try:
+                cursor.execute(
+                    "UPDATE google_drive_items SET last_indexed_at = NOW() \
+                        WHERE google_drive_id = %s",
+                    (doc_id,),
+                )
+                db.commit()
+            finally:
+                cursor.close()
+                db.close()
+
+        job.meta["log"].append(f"Updated last indexed timestamp for {len(documents)} documents")
 
     def google_docs_to_pinecone_docs(
         self: None,
@@ -330,13 +363,17 @@ class Processor:
         expires_at: int,
         org_name: str,
         user_email: str,
+        job: job.Job,
     ) -> None:
         """Process the Google Drive documents and divide them into pinecone compatible chunks.
 
-        :param document_id: the document to process
-        :param credentials: the credentials to use to process the document
-        :param org: the organisation to process
-        :param user: the user to process
+        :param documents: the list of google document ids to process
+        :param access_token: the access token to use for Google Drive API
+        :param refresh_token: the refresh token to use for Google Drive API
+        :param expires_at: the expiry time of the access token
+        :param org_name: the name of the organization
+        :param user_email: the user to process
+        :param job: the job object
 
         :return: None
         """
@@ -367,7 +404,8 @@ class Processor:
                 raise ValueError(f"Invalid item type: {doc_item_type}")
 
             logging.info(
-                f"Loading {doc_item_type}: {doc_item_name} ({doc_google_drive_id}) for user: {doc_user_id}"  # noqa
+                f"Loading {doc_item_type}: {doc_item_name} ({doc_google_drive_id}) \
+for user: {doc_user_id}"  # noqa
             )
             if doc_item_type == "document":
                 drive_loader = GoogleDriveLoader(document_ids=[doc_google_drive_id])
@@ -376,7 +414,10 @@ class Processor:
                     folder_id=doc_google_drive_id, recursive=True, include_folders=True
                 )
 
+            # use langchain google drive loader to load the content of the docs from google drive
             docs_loaded = drive_loader.load()
+
+            # if the docs_loaded is not None, add the loaded docs to the docs list
             if docs_loaded:
                 docs.extend(docs_loaded)
 
@@ -405,6 +446,13 @@ class Processor:
             env_name=self.lorelai_settings["environment_slug"],
             version="v1",
         )
-        new_docs_added = self.store_docs_in_pinecone(docs, index_name=index, user_email=user_email)
+
+        # store the documents in Pinecone
+        new_docs_added = self.store_docs_in_pinecone(
+            docs, index_name=index, user_email=user_email, job=job
+        )
+
+        self.update_last_indexed_for_docs(documents, job)
+
         logging.info(f"Processed {len(docs)} documents for user: {user_email}")
         return {"new_docs_added": new_docs_added}
