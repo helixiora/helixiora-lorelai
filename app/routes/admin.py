@@ -421,7 +421,6 @@ def invite_user():
         - Expects 'email' to be present in the request form.
     """
     email = request.form["email"]
-    print(email)
     token = create_jwt_token_invite_user(
         invitee_email=email, org_admin_email=session["user_email"], org_name=session["org_name"]
     )

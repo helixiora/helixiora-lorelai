@@ -108,7 +108,7 @@ def register_get():
     google_token = request.args.get("google_token", "")
     google_id = request.args.get("google_id", "")
 
-    logging.info(
+    logging.debug(
         "Received email: %s, full_name: %s, google_id: %s, token: %s",
         email,
         full_name,
