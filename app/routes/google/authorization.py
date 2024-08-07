@@ -100,6 +100,9 @@ def store_token():
     refresh_token = flow.credentials.refresh_token
     expires_at = flow.credentials.expiry
 
+    session["access_token"] = access_token
+    session["expires_at"] = expires_at
+
     logging.debug(f"Access token: {access_token}")
     logging.debug(f"Refresh token: {refresh_token}")
     logging.debug(f"Expires at: {expires_at}")
