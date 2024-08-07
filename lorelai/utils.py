@@ -7,8 +7,8 @@ from pathlib import Path
 
 import mysql.connector
 from pinecone import Pinecone
-from pinecone.core.client.exceptions import NotFoundException
-from pinecone.core.client.model.describe_index_stats_response import (
+from pinecone.exceptions import NotFoundException
+from pinecone.core.openapi.data.model.describe_index_stats_response import (
     DescribeIndexStatsResponse,
 )
 
