@@ -16,7 +16,8 @@ from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 from pinecone.models.index_list import IndexList
 
-from lorelai.utils import load_config, pinecone_index_name
+from lorelai.utils import load_config
+from lorelai.pinecone import index_name
 
 
 class ContextRetriever:
@@ -198,17 +199,17 @@ class GoogleDriveContextRetriever(ContextRetriever):
         """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
-        index_name = pinecone_index_name(
+        index = index_name(
             org=self.org_name,
             datasource="googledrive",
             environment=self.lorelai_creds["environment"],
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
         )
-        logging.info(f"Using Pinecone index: {index_name}")
+        logging.info(f"Using Pinecone index: {index}")
         try:
             vec_store = PineconeVectorStore.from_existing_index(
-                index_name=index_name, embedding=OpenAIEmbeddings()
+                index_name=index, embedding=OpenAIEmbeddings()
             )
 
         except ValueError as e:
@@ -232,7 +233,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         results = compression_retriever.invoke(question)
         logging.info(
-            f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
+            f"Retrieved {len(results)} documents from index {index} for question: {question}"
         )
 
         docs: list[Document] = []
@@ -289,20 +290,20 @@ class SlackContextRetriever(ContextRetriever):
         """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
-        index_name = pinecone_index_name(
+        index = index_name(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_creds["environment"],
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
         )
-        logging.info(f"Using Pinecone index: {index_name}")
+        logging.info(f"Using Pinecone index: {index}")
         vec_store = PineconeVectorStore.from_existing_index(
-            index_name=index_name, embedding=OpenAIEmbeddings()
+            index_name=index, embedding=OpenAIEmbeddings()
         )
 
         if vec_store is None:
-            raise ValueError(f"Index {index_name} not found.")
+            raise ValueError(f"Index {index} not found.")
 
         retriever = vec_store.as_retriever(
             search_type="similarity",
@@ -316,7 +317,7 @@ class SlackContextRetriever(ContextRetriever):
 
         results = compression_retriever.invoke(question)
         logging.info(
-            f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
+            f"Retrieved {len(results)} documents from index {index} for question: {question}"
         )
 
         docs: list[Document] = []

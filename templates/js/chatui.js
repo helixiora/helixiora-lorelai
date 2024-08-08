@@ -1,33 +1,3 @@
-function typeMessage(message, parentElement, isHTML, callback) {
-    if (isHTML) {
-        // Immediately set HTML content
-        parentElement.innerHTML = message;
-        if (callback) callback();
-    } else {
-        // Proceed with typing animation for plain text
-        const typingSpeed = 50;
-        let charIndex = 0;
-
-        function typing() {
-            if (charIndex < message.length) {
-                parentElement.textContent += message[charIndex++];
-                setTimeout(typing, typingSpeed);
-            } else if (callback) {
-                callback();
-            }
-        }
-
-        typing();
-    }
-}
-
-// Utility function to escape HTML if necessary
-function escapeHTML(str) {
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
 // Create a loading indicator that matches the bot message styling
 function showLoadingIndicator() {
     // Create the loading container div
@@ -62,10 +32,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const messagesDiv = document.getElementById('messages');
 
     function addMessage(content, isUser = true, isHTML = false, isSources = false) {
+        // Convert markdown content to HTML
+        content = marked.parse(content);
+
         const messagesDiv = document.getElementById('messages'); // The main container for all messages
 
         const messageContainerDiv = document.createElement('div');
-        messageContainerDiv.className = 'p-2 ' + (isUser ? 'text-left' : 'text-right');
+        messageContainerDiv.className = 'p-2';
 
         const messageContentDiv = document.createElement('div');
         if (isSources) {
@@ -75,13 +48,12 @@ document.addEventListener('DOMContentLoaded', function() {
             messageContentDiv.className = 'inline-block rounded-lg p-4 bg-white';
         }
         messageContentDiv.style.overflowWrap = 'break-word';
-        if (isHTML) {
-            // Use innerHTML for bot messages that need to render HTML content
-            messageContentDiv.innerHTML = content;
+        // Use innerHTML for bot messages that need to render HTML content
+        if (isUser) {
+            messageContentDiv.innerHTML = '<strong>{{ session.get('user_username') }}</strong>: ' + content;
         } else {
-            messageContentDiv.textContent = content; // Use textContent for user messages to avoid HTML
+            messageContentDiv.innerHTML = '<strong>Lorelai</strong>: ' + content;
         }
-
         messageContainerDiv.appendChild(messageContentDiv);
         messagesDiv.appendChild(messageContainerDiv); // Append the message to messagesDiv
         messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom of the chat
@@ -186,10 +158,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function displaySuccessMessage(result) {
         hideLoadingIndicator();
         console.log('Result:', result);
-        addMessage(result.answer, false, false); // Display the answer
+
+        content = result.answer + '\n\n'
 
         if (result.datasource == 'Direct') {
-            addMessage('Source: Direct answer from LLM', false, false, true);
+            content += '<br/><p><strong>Source:</strong> Direct answer from LLM</p>';
         }
         else if (result.source && result.source.length > 0) {
             const sourceText = result.source.map(src => {
@@ -204,10 +177,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 return `<li><a href="${src.source}">${src.title} (score: ${scoreDisplay}${warningSymbol})</a></li>`;
             }).join('');
-            addMessage(`<p><strong>Sources (from ${result.datasource}):</strong></p><ol type='1' class='text-left list-decimal'>${sourceText}</ol>`, false, true, true);
+            content += `<br/><p><strong>Sources (from ${result.datasource}):</strong></p><p><ol type='1' class='text-left list-decimal'>${sourceText}</ol></p>`;
         } else {
-            addMessage('No sources found.', false, false);
+            content += 'No sources found.';
         }
+        addMessage(content=content, isUser=false, false); // Display the answer
+
     }
 
     /**
@@ -283,28 +258,27 @@ async function sendMessage(message) {
 }
 
     // Add a welcoming message on page load
-    const welcomeMessage = `
-    <div>
-        <h2>Welcome to Our Chat!</h2>
-        <p>We are excited to have you here. To ensure you have the best experience, we want to set clear expectations:</p>
-        <ol>
-            <li>
-                <strong>Accuracy of Responses:</strong>
-                <p>We strive to provide accurate and reliable information. However, if you encounter any responses that seem incorrect or misleading, please let us know immediately.</p>
-            </li>
-            <li>
-                <strong>Document Management:</strong>
-                <p>Your documents are important to us. If you notice any responses referencing documents you have deleted, please report it so we can address the issue.</p>
-            </li>
-            <li>
-                <strong>Access to Documents:</strong>
-                <p>We aim to ensure you can access all the documents you need. If you face any issues retrieving information from documents you have access to, please contact us for support.</p>
-            </li>
-        </ol>
-        <p>Thank you for using our service. We are here to assist you and make your experience as smooth as possible.</p>
-    </div>
+    const welcomeMessage = `## Welcome to Lorelai!
+
+We are excited to have you here. To ensure you have the best experience, we want to set clear expectations:
+
+- ### Accuracy of Responses:
+  We strive to provide accurate and reliable information. However, if you encounter any responses that seem incorrect or misleading, please let us know immediately.
+
+- ### Document Management:
+  Your documents are important to us. If you notice any responses referencing documents you have deleted, please report it so we can address the issue.
+
+- ### Access to Documents:
+  We aim to ensure you can access all the documents you need. If you face any issues retrieving information from documents you have access to, please contact us for support.
+
+Thank you for using our service. We are here to assist you and make your experience as smooth as possible.
 `;
-    addMessage(welcomeMessage, true, true, false);
+    addMessage(
+        content=welcomeMessage,
+        isUser=false,
+        isHTML=true,
+        isSources=false
+    );
 
     sendButton.addEventListener('click', function() {
         const text = messageInput.value;

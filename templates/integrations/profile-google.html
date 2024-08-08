@@ -1,0 +1,227 @@
+<!-- Google Drive Integration -->
+<div id="card-integration-google-drive" class="card mb-2 mt-2">
+    <h5 class="card-header h5">Google Drive</h5>
+    <div class="card-body flex">
+        <div class="col-2 mr-4 ml-2">
+            <img src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration" class="img-fluid">
+            <p class="card-text">Integrate your Google Drive with Lorelai to index your documents. Currently supports individual google docs and folders (we'll only pick up google docs inside those folders, other file types will be ignored)</p>
+        </div>
+        <div class="col-8">
+
+            <h5 class="card-title h5">Actions:</h5>
+            <p>Use the following buttons to authorize Lorelai to index specific Google Drive files and folders:</p>
+            <button class="btn btn-primary" id="authorize_button" onclick="codeClient.requestCode()">Authorize</button>
+            <button class="btn btn-secondary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
+            <button class="btn btn-secondary" id="select_button" onclick="createPicker()">Select Folders/Documents</button>
+
+            <h5 class="card-title h5 mt-4">Documents Indexed:</h5>
+            <div class="list-group mt-3">
+            {%if google_docs_to_index %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Last Indexed</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="content">
+                    {% for doc in google_docs_to_index %}
+                        <tr>
+                            <td><h5 class="mb-1">{{ doc.item_name }}
+                                <span class="info-icon" data-bs-toggle="tooltip" title="Google Docs ID: {{ doc.google_drive_id }}">
+                                    <i class="bi bi-info-circle"></i>
+                                </span>
+                            </h5></td>
+                            <td>{{ doc.item_type }}</td>
+                            <td>{{ doc.last_indexed_at }}</td>
+                            <td>
+                                <button class="btn btn-primary btn-sm mb-2" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove from Index</button>
+                                {% if doc.item_type == 'document' %}
+                                    <button class="btn btn-primary btn-sm" onclick="window.open('https://docs.google.com/document/d/{{ doc.google_drive_id }}', '_blank')">View File</button>
+                                {% else %}
+                                    <button class="btn btn-primary btn-sm" onclick="window.open('https://drive.google.com/drive/folders/{{ doc.google_drive_id }}', '_blank')">Open Folder</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+<script>
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+    const CLIENT_ID = '{{ google_client_id }}';
+    const API_KEY = '{{ google_api_key }}';
+    const APP_ID = '{{ google_app_id }}';
+
+    let codeClient;
+    let accessToken = {% if google_drive_access_token %}'{{ google_drive_access_token }}'{% else %}null{% endif %};
+    let authorizationCode = null;
+    let pickerInited = false;
+    let gisInited = false;
+
+    document.getElementById('authorize_button').disabled = true;
+    document.getElementById('signout_button').disabled = true;
+    document.getElementById('select_button').disabled = true;
+
+    function gapiLoaded() {
+        gapi.load('client:picker', initializePicker);
+    }
+
+    async function initializePicker() {
+        await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/drive/v3/rest');
+        pickerInited = true;
+        maybeEnableButtons();
+    }
+
+    function gisLoaded() {
+        codeClient = google.accounts.oauth2.initCodeClient({
+            client_id: CLIENT_ID,
+            scope: 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
+            ux_mode: 'popup',
+            callback: async (response) => {
+                if (response.error !== undefined) {
+                    console.error(response);
+                    return;
+                }
+                try {
+                    const res = await fetch('/store_token', { // Send the authorization code to the server
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: response.code }),
+                    });
+                    const data = await res.json();
+                    accessToken = data.access_token;
+
+                    if (accessToken) {
+                        document.getElementById('signout_button').disabled = false;
+                        document.getElementById('select_button').disabled = false;
+                        document.getElementById('authorize_button').innerText = 'Refresh';
+                    }
+                } catch (error) {
+                    console.error('Error obtaining access token:', error);
+                }
+            },
+        });
+        gisInited = true;
+        maybeEnableButtons();
+    }
+
+    function maybeEnableButtons() {
+        if (pickerInited && gisInited) {
+            document.getElementById('authorize_button').disabled = false;
+            if (accessToken) {
+                document.getElementById('signout_button').disabled = false;
+                document.getElementById('select_button').disabled = false;
+            } else {
+                document.getElementById('signout_button').disabled = true;
+                document.getElementById('select_button').disabled = true;
+            }
+        }
+    }
+
+    function handleSignoutClick() {
+        if (authorizationCode) {
+            google.accounts.oauth2.revoke(accessToken);
+            authorizationCode = null;
+            document.getElementById('content').innerHTML = '';
+            document.getElementById('signout_button').disabled = true;
+        }
+    }
+
+    async function createPicker() {
+        console.log('Creating picker...');
+        console.log('accessToken:', accessToken);
+        const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+            .setMode(google.picker.DocsViewMode.LIST)
+            .setMimeTypes('application/vnd.google-apps.document')
+            .setParent('root')
+            .setEnableDrives(true);
+
+        const foldersView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+            .setSelectFolderEnabled(true)
+            .setMode(google.picker.DocsViewMode.LIST)
+            .setParent('root')
+            .setEnableDrives(true);
+
+        const picker = new google.picker.PickerBuilder()
+            .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+            .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
+            .disableFeature(google.picker.Feature.MINE_ONLY)
+            .setDeveloperKey(API_KEY)
+            .setAppId(APP_ID)
+            .setOAuthToken(accessToken)
+            .addView(foldersView)
+            .addView(docsView)
+            .setCallback(pickerCallback)
+            .setOrigin(window.location.protocol + '//' + window.location.host)
+            .setTitle('Select documents or folders')
+            .build();
+        picker.setVisible(true);
+    }
+
+    async function pickerCallback(data) {
+        if (data.action === google.picker.Action.PICKED) {
+            const documents = data[google.picker.Response.DOCUMENTS].map(doc => ({
+                id: doc[google.picker.Document.ID],
+                name: doc[google.picker.Document.NAME],
+                mimeType: doc[google.picker.Document.MIME_TYPE],
+                type: doc[google.picker.Document.TYPE],
+                lastIndexedAt: doc.last_indexed_at || 'N/A'  // Assuming last_indexed_at might not be available
+            }));
+
+            try {
+                const response = await fetch('/google/drive/processfilepicker', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(documents),
+                });
+
+                if (response.ok) {
+                    // If the request is successful, reload the page
+                    location.reload();
+                } else {
+                    console.error('Failed to process file picker:', response.statusText);
+                }
+            } catch (error) {
+                console.error('Error processing file picker:', error);
+            }
+        }
+    }
+
+
+    async function removeDocument(googleDriveId) {
+        await fetch('/google/drive/removefile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ google_drive_id: googleDriveId }),
+        }).catch(console.error)
+        .then(() => location.reload());
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+
+        // Check for an existing access token on page load
+        if (accessToken) {
+            document.getElementById('authorize_button').innerText = 'Refresh';
+            document.getElementById('signout_button').disabled = false;
+            document.getElementById('select_button').disabled = false;
+        } else {
+            document.getElementById('authorize_button').disabled = false;
+        }
+    });
+
+</script>
+
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>

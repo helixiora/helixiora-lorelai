@@ -2,62 +2,42 @@
 
 {% block content %}
 <div class="container mt-5">
-    <div class="card">
-        <div class="card-body">
-            <h5 class="card-title">Welcome, {{ user.full_name }}!</h5>
-            <p class="card-text">Here are some details about your current session:</p>
-            <ul class="list-group list-group-flush">
-                <li class="list-group-item">Email: {{ user.email }}</li>
-                <li class="list-group-item">Organisation: {{ user.organisation }}</li>
-            </ul>
+    {% if user is none %}
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">Unauthorized Access!</h4>
+            <p>You are not authorized to access this page. Please <a href="/login" class="alert-link">login</a> to access this page.</p>
         </div>
-    </div>
-
-    <!-- Indexer -->
-    {% include 'indexer.html' %}
-
-    <!-- Marketplace Integration Section -->
-    <div class="mt-4">
-        <h1 class="mb-3 strong" style="color: #000;">Integrations</h1>
-
-        <!-- Google Drive Integration -->
-        {% if features.google_drive %}
-        <div class="card mb-3">
-            <div class="card-body bg-light">
-                <div class="row">
-                    <div class="col-md-4">
-                        <img class="card-img-top" src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration">
-                    </div>
-                    <div class="col-md-8">
-                        <h5 class="card-title font-weight-bold">Enhance your experience</h5>
-                        <h6 class="card-title">Google Drive Integration</h6>
-                        <p class="card-text">Start feeding your business data to the hungry LLM!</p>
-                        <a class="btn btn-primary" href="{{ google_auth_url }}">Authorize</a>
-                    </div>
-                </div>
+    {% else %}
+        <div class="card mb-2 mt-2" id="card-welcome">
+            <h5 class="card-header h5">Welcome, {{ user.full_name }}!</h5>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item"><strong>Full Name:</strong> {{ user.full_name }}</li>
+                    <li class="list-group-item"><strong>Username:</strong> {{ user.username }}</li>
+                    <li class="list-group-item"><strong>Email:</strong> {{ user.email }}</li>
+                    <li class="list-group-item"><strong>Organisation:</strong> {{ user.organisation }}</li>
+                    <li class="list-group-item"><strong>Role:</strong> {{ user.roles }}</li>
+                </ul>
             </div>
         </div>
-        {% endif %}
-        <!-- Slack Integration -->
-        {% if features.slack == 1 %}
-        <div class="card mb-3">
-            <div class="card-body bg-light">
-                <div class="row">
-                    <div class="col-md-4">
-                        <img class="card-img-top" src="{{ url_for('static', filename='img/slack.png') }}" alt="Slack Integration">
-                    </div>
-                    <div class="col-md-8">
-                        <h5 class="card-title font-weight-bold">Enhance your experience</h5>
-                        <h6 class="card-title">Slack Integration</h6>
-                        <p class="card-text">Start feeding your business data to the hungry LLM!</p>
-                        <a href="/slack/auth" class="btn btn-primary">Start Integration</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
 
-    </div>
+        <!-- Include Indexer -->
+        {% include 'sections/indexer.html' %}
+
+        <!-- Marketplace Integration Section -->
+        <div class="card mb-2 mt-2" id="card-integrations">
+            <h5 class="h5 card-header">Integrations</h5>
+            <div class="card-body">
+            {% if features.google_drive %}
+                {% include 'integrations/profile-google.html' %}
+            {% endif %}
+
+            <!-- Slack Integration -->
+            {% if features.slack == 1 %}
+                {% include 'integrations/profile-slack.html' %}
+            {% endif %}
+        </div>
+    {% endif %}
 </div>
 
 {% endblock %}

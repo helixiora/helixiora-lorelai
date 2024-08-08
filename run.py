@@ -20,9 +20,9 @@ from flask import (
 from ulid import ULID
 
 from app.routes.admin import admin_bp
-from app.routes.auth import auth_bp
+from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
-from app.routes.google.auth import googledrive_bp
+from app.routes.google.authorization import googledrive_bp
 from app.utils import (
     check_flyway,
     get_datasources_name,
@@ -34,6 +34,8 @@ from app.utils import (
     user_is_logged_in,
 )
 from lorelai.utils import load_config
+
+from flask_debugtoolbar import DebugToolbarExtension
 
 # this is a print on purpose (not a logger statement) to show that the app is loading
 # get the git commit hash, branch name and first line of the commit message and print it out
@@ -59,6 +61,7 @@ app = Flask(__name__)
 # Get the log level from the environment variable
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
 
+
 # Set the log level using the mapping, defaulting to logging.INFO if not found
 app.logger.setLevel(logging.getLevelName(log_level))
 logging_format = os.getenv(
@@ -69,6 +72,9 @@ logging.basicConfig(format=logging_format)
 
 lorelai_settings = load_config("lorelai")
 app.secret_key = lorelai_settings["secret_key"]
+
+toolbar = DebugToolbarExtension(app)
+app.config["DEBUG_TB_PROFILER_ENABLED"] = True
 
 app.register_blueprint(googledrive_bp)
 app.register_blueprint(admin_bp)
@@ -268,11 +274,21 @@ def before_request():
 @app.after_request
 def set_security_headers(response):
     """Set the security headers for the response."""
-    cross_origin_opener_policy = "unsafe-none"
+    cross_origin_opener_policy = "same-origin-allow-popups"
 
-    connect_src = ["'self'", "https://accounts.google.com/gsi/"]
+    connect_src = [
+        "'self'",
+        "https://accounts.google.com/gsi/",
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    ]
 
-    frame_src = ["'self'", "https://accounts.google.com/gsi/", "https://accounts.google.com/"]
+    frame_src = [
+        "'self'",
+        "https://accounts.google.com/gsi/",
+        "https://accounts.google.com/",
+        "https://content.googleapis.com/",
+        "https://docs.google.com/",
+    ]
 
     img_src = [
         "'self'",
@@ -280,44 +296,48 @@ def set_security_headers(response):
         "data:",
         "https://accounts.google.com/gsi/",
         "https://csi.gstatic.com/csi",
+        "https://cdn.datatables.net/",
     ]
 
     script_src_elem = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/client",
-        "https://code.jquery.com/jquery-3.5.1.min.js",
-        "https://apis.google.com/js/api.js",
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
-        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_0",
-        "https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.en.6jI6mC1Equ4.O/m=picker/exm=auth/rt=j/sv=1/d=1/ed=1/am=AAAQ/rs=AHpOoo-79kMK-M6Si-J0E_6fI_9RBHBrwQ/cb=gapi.loaded_1",
+        "https://apis.google.com/",
+        "https://cdn.datatables.net/",
+        "https://cdn.jsdelivr.net/",
         "https://cdn.tailwindcss.com/",
-        "https://code.jquery.com/jquery-3.5.1.slim.min.js",
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
-        "https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js",
-        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js",
+        "https://code.jquery.com/",
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
+        "https://unpkg.com/@popperjs/",
     ]
 
     font_src = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/",
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/webfonts/",
         "https://fonts.gstatic.com/s/",
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
     ]
 
-    script_src = ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/"]
+    script_src = [
+        "'self'",
+        "'unsafe-inline'",
+        "https://accounts.google.com/gsi/",
+        "https://apis.google.com/js/api.js",
+        "https://apis.google.com/",
+    ]
 
     style_src = [
         "'self'",
         "'unsafe-inline'",
         "https://accounts.google.com/gsi/style",
-        "https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css",
-        "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css",
-        "https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js",
+        "https://cdn.datatables.net/",
+        "https://cdn.jsdelivr.net/npm/@popperjs/",
         "https://fonts.googleapis.com/css",
         "https://fonts.googleapis.com/css2",
-        "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css",
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
     ]
 
     default_src = ["'self'", "https://accounts.google.com/gsi/"]
@@ -364,6 +384,29 @@ def unauthorized():
         </script>
     """,
         next_url=next_url,
+    )
+
+
+@app.route("/org_exists")
+def org_exists():
+    """
+    Display an alert indicating that the organization name already exists and return the user to the previous page.
+
+    This route is typically used to notify the user that the organization name they are attempting to use already exists
+    in the database. After showing the alert, the user is redirected back to the page they were on before attempting to
+    create the organization with the duplicate name.
+
+    Returns
+    -------
+        str: A rendered template containing a script to show an alert and navigate back to the previous page.
+    """  # noqa: E501
+    return render_template_string(
+        """
+        <script>
+            alert("Organisation name already exists, please create different organisation name. If you want to be part of existing organisation please contact organisation admin for invite");
+            window.history.back();
+        </script>
+    """  # noqa: E501
     )
 
 
