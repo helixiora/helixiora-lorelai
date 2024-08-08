@@ -16,93 +16,11 @@
         {% endwith %}
 
         <!-- Indexer -->
-        {% include 'indexer.html' %}
+        {% include 'sections/indexer.html' %}
 
-        <!-- Org User Admin Section -->
-        {% if ('super_admin' in session.get('user_roles', [])) or ('org_admin' in session.get('user_roles', [])) %}
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="h2">User Administration</h2>
-                </div>
-                <div class="card-body">
-                    <p>Here's an overview of every user in your current organisation and their access level</p>
-                    <table id="OrgTable">
-                        <thead>
-                            <tr>
-                                <th>Userid</th>
-                                <th>Email</th>
-                                <th>Organisation</th>
-                                <th>Role</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for user in users %}
-                                <tr>
-                                    <td>{{ user.user_id }}</td>
-                                    <td>{{ user.email }}</td>
-                                    <td>{{ user.organisation }}</td>
-                                    <td>{% if user.roles %}
-                                    <ul>
-                                    {% for role in user.roles %}
-                                        <li>{{ role }}</li>
-                                    {% endfor %}
-                                    </ul>
-                                    {% else %}
-                                        No roles assigned
-                                    {% endif %}</td>
-                                    <td>No actions implemented yet.</td>
-                                </tr>
-                            {% else %}
-                                <tr><td colspan="3">No users found.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Invite User Section -->
-                <div class="card-body">
-                    <div class="card mt-4">
-                        <div class="card-header">
-                            <h2 class="h4">Invite New User</h2>
-                        </div>
-                        <div class="card-body">
-                            <form method="POST" action="/admin/invite_user">
-                                <div class="form-group">
-                                    <label for="email">Email address</label>
-                                    <input type="email" class="form-control" id="email" name="email" required>
-                                </div>
-                                <button type="submit" class="btn btn-primary">Invite User</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        {% include 'sections/useradmin.html' %}
 
-
-
-            <script>
-                $(document).ready(function() {
-                    $('#OrgTable').DataTable({
-                        "pagingType": "simple_numbers", // Enables simple pagination
-                        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]], // Sets the number of rows per page
-                        "order": [[0, "asc"]] // Sorts the table by the first column in ascending order
-                    });
-                });
-            </script>
-        {% endif %}
-
-        <!-- Pinecone Admin section -->
-        {% if 'super_admin' in session.get('user_roles', []) %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h2 class="h2">Pinecone Administration</h2>
-                </div>
-                <div class="card-body">
-                    <p>Visit the Pinecone Administration page to view and manage organisation settings and data.</p>
-                    <a href="/admin/pinecone" class="btn btn-primary mt-3">Go to Pinecone Admin</a>
-                </div>
-            </div>
-        {% endif %}
+        {% include 'sections/pinecone.html' %}
     </div>
 
     <!-- Optional JavaScript -->

@@ -1,0 +1,12 @@
+        {% if 'super_admin' in session.get('user_roles', []) %}
+        <!-- Pinecone Admin section -->
+        <div class="card mt-4">
+                <div class="card-header">
+                    <h2 class="h2">Pinecone Administration</h2>
+                </div>
+                <div class="card-body">
+                    <p>Visit the Pinecone Administration page to view and manage organisation settings and data.</p>
+                    <a href="/admin/pinecone" class="btn btn-primary mt-3">Go to Pinecone Admin</a>
+                </div>
+            </div>
+        {% endif %}
