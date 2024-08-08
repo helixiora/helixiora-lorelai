@@ -274,7 +274,6 @@ def before_request():
 @app.after_request
 def set_security_headers(response):
     """Set the security headers for the response."""
-    # cross_origin_opener_policy = "same-origin"
     cross_origin_opener_policy = "same-origin-allow-popups"
 
     connect_src = [

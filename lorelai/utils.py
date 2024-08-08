@@ -337,5 +337,8 @@ def send_templated_email(
         response = sg.send(message)
         logging.debug(f"Email sent successfully. Status code: {response.status_code}, \
 body: {response.body}, headers: {response.headers}")
+
+        return True
     except Exception as e:
         logging.debug(e.message)
+        return False

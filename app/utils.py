@@ -739,9 +739,11 @@ def create_invited_user_in_db(email: str, org_name: str):
     This function performs the following steps:
     1. Retrieves the organization ID (`org_id`) for the given organization name (`org_name`).
        If the organization ID is not found, a ValueError is raised.
-    2. Inserts a new user record into the `user` table with the retrieved `org_id` and the provided email.
+    2. Inserts a new user record into the `user` table with the retrieved `org_id` and the provided
+       email.
     3. Retrieves the `user_id` of the newly inserted user.
-    4. Inserts a record into the `user_roles` table to assign a default role (role_id=3) to the newly created user.
+    4. Inserts a record into the `user_roles` table to assign a default role (role_id=3) to the
+       newly created user.
     5. Commits the transaction if all steps are successful.
 
     Args:
@@ -756,7 +758,7 @@ def create_invited_user_in_db(email: str, org_name: str):
     ------
         ValueError: If the organization ID for the given organization name is not found.
         Exception: If any other error occurs during the database operations.
-    """  # noqa: E501
+    """
     try:
         with get_db_connection() as db:
             cursor = db.cursor()
@@ -765,10 +767,7 @@ def create_invited_user_in_db(email: str, org_name: str):
                 raise ValueError(f"Org_id for {org_name} not found")
 
             # user table
-            query = """
-            INSERT INTO user (org_id, email)
-            VALUES (%s, %s)
-                """
+            query = "INSERT INTO user (org_id, email) VALUES (%s, %s)"
             user_data = (
                 org_id,
                 email,
@@ -777,10 +776,7 @@ def create_invited_user_in_db(email: str, org_name: str):
             user_id = cursor.lastrowid
 
             # user role
-            query = """
-            INSERT INTO user_roles (user_id, role_id)
-            VALUES (%s, %s)
-                """
+            query = "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)"
             role_data = (
                 user_id,
                 3,

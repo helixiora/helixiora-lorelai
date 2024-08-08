@@ -41,20 +41,18 @@
                 </div>
                 <!-- Invite User Section -->
                 <div class="card-body">
-                    <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#inviteUserSection" aria-expanded="false" aria-controls="inviteUserSection">
+                    <button class="btn btn-primary" type="button" onclick="toggleCollapse()">
                         Invite New User
                     </button>
                     <div class="collapse mt-4" id="inviteUserSection">
-                        <div class="card card-body">
-                            <h2 class="h4">Invite New User</h2>
-                            <form method="POST" action="/admin/invite_user">
-                                <div class="form-group">
-                                    <label for="email">Email address</label>
-                                    <input type="email" class="form-control" id="email" name="email" required>
-                                </div>
-                                <button type="submit" class="btn btn-primary">Invite User</button>
-                            </form>
-                        </div>
+                        <h2 class="h4">Invite New User</h2>
+                        <form method="POST" action="/admin/invite_user">
+                            <div class="form-group">
+                                <label for="email">Email address</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Invite User</button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -69,5 +67,10 @@
                         "order": [[0, "asc"]] // Sorts the table by the first column in ascending order
                     });
                 });
+
+                function toggleCollapse() {
+                    var inviteSection = document.getElementById('inviteUserSection');
+                    inviteSection.classList.toggle('collapse');
+                }
             </script>
         {% endif %}

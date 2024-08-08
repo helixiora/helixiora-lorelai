@@ -433,8 +433,7 @@ def invite_user():
     )
     if email_status:
         create_invited_user_in_db(email=email, org_name=session["org_name"])
-        flash("Invitation sent successfully!", "success")
-
+        flash(f"Invitation to {email} sent successfully!", "success")
     else:
         flash("Invitation failed", "error")
 
