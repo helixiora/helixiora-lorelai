@@ -89,16 +89,15 @@ class Indexer:
         logging.debug(f"User auths: {user_auth_rows}")
 
         if job:
-            job.meta["status"] = "Indexing " + self.get_indexer_name()
-            job.save_meta()
-
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
             logging.info("Indexing %s: %s", self.get_indexer_name(), job.id)
+            job.meta["logs"].append(f"Task ID: {job.id}, Message: {job.meta['status']}")
+            job.meta["logs"].append(f"Indexing {self.get_indexer_name()}: {job.id}")
 
         result = []
         for user_row in user_rows:
             if job:
-                job.meta["status"] = (
+                job.meta["logs"].append(
                     f"Indexing {self.get_indexer_name()} for user {user_row['email']}"
                 )
                 job.meta["org"] = org_row["name"]
@@ -127,9 +126,9 @@ class Indexer:
 
             if job:
                 job.meta[
-                    "status"
-                ] = f"Indexing {self.get_indexer_name()} for user {user_row['email']}: \
-                        {'succeeded' if success else 'failed'}"
+                    "logs"
+                ].append(f"Indexing {self.get_indexer_name()} for user {user_row['email']}: \
+                        {'succeeded' if success else 'failed'}")
                 job.meta["org"] = org_row["name"]
                 job.meta["user"] = user_row["email"]
                 job.save_meta()
@@ -215,7 +214,7 @@ class GoogleDriveIndexer(Indexer):
         org_row: dict[str, any],
         user_auth_rows: list[dict[str, any]],
         user_data_rows: list[dict[str, any]],
-        job: job.Job | None,
+        job: job.Job,
     ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
@@ -240,6 +239,7 @@ class GoogleDriveIndexer(Indexer):
             True if indexing was successful, False otherwise.
         """
         logging.info(f"Indexing user: {user_row['email']} from org: {org_row['name']}")
+        job.meta["logs"].append(f"Indexing user: {user_row['email']} from org: {org_row['name']}")
 
         # 1. Get the Google Drive access token, refresh token, and expiry
         access_token, refresh_token, expires_at = self.__get_token_details(user_auth_rows)
@@ -268,10 +268,16 @@ class GoogleDriveIndexer(Indexer):
 
         if not documents or len(documents) == 0:
             logging.warn(f"No Google Drive documents found for user: {user_row['email']}")
+            job.meta["logs"].append(
+                f"No Google Drive documents found for user: {user_row['email']}"
+            )
             # return True, f"No Google Drive documents found for user: {user_row['email']}"
 
         # 5. Process the Google Drive documents and index them in Pinecone
         logging.info(f"Processing {len(documents)} Google documents for user: {user_row['email']}")
+        job.meta["logs"].append(
+            f"Processing {len(documents)} Google documents for user: {user_row['email']}"
+        )
         pinecone_processor = Processor()
         pinecone_processor.google_docs_to_pinecone_docs(
             documents=documents,
@@ -280,8 +286,10 @@ class GoogleDriveIndexer(Indexer):
             expires_at=expires_at,
             org_name=org_row["name"],
             user_email=user_row["email"],
+            job=job,
         )
 
         logging.info(f"Indexing complete for user: {user_row['email']}")
+        job.meta["logs"].append(f"Indexing complete for user: {user_row['email']}")
 
         return True

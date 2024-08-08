@@ -28,6 +28,8 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 import time
 
+import requests as lib_requests
+
 from app.utils import (
     get_db_connection,
     get_org_id_by_organisation,
@@ -46,6 +48,75 @@ from lorelai.slack.slack_processor import SlackOAuth
 auth_bp = Blueprint("auth", __name__)
 
 
+def refresh_google_token_if_needed(access_token):
+    """
+    Refresh the Google access token if needed.
+
+    Parameters
+    ----------
+    access_token : str
+        The Google access token.
+
+    Returns
+    -------
+    str
+        The refreshed access token.
+    """
+    token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+    response = lib_requests.get(token_info_url)
+    if response.status_code != 200 or "error" in response.json():
+        # Token is invalid or expired, refresh it
+        refresh_token = session.get("refresh_token")
+        if not refresh_token:
+            refresh_token = get_query_result(
+                "SELECT auth_value FROM user_auth WHERE user_id = %s AND \
+                    auth_key = 'refresh_token'",
+                (session["user_id"],),
+                fetch_one=True,
+            )["auth_value"]
+
+        google_settings = load_config("google")
+
+        token_url = "https://oauth2.googleapis.com/token"
+        payload = {
+            "client_id": google_settings["client_id"],
+            "client_secret": google_settings["client_secret"],
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+        token_response = lib_requests.post(token_url, data=payload)
+        if token_response.status_code == 200:
+            new_tokens = token_response.json()
+            session["access_token"] = new_tokens["access_token"]
+            if "refresh_token" in new_tokens:
+                session["refresh_token"] = new_tokens["refresh_token"]
+            else:
+                # If the refresh token is not returned, use the existing one
+                new_tokens["refresh_token"] = refresh_token
+
+            store_access_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
+                AND auth_key = 'access_token'"
+            store_refresh_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
+                AND auth_key = 'refresh_token'"
+            db = get_db_connection()
+            cursor = db.cursor()
+            try:
+                cursor.execute(
+                    store_access_token_query, (new_tokens["access_token"], session["user_id"])
+                )
+                cursor.execute(
+                    store_refresh_token_query, (new_tokens["refresh_token"], session["user_id"])
+                )
+                db.commit()
+            finally:
+                cursor.close()
+                db.close()
+
+            return new_tokens["access_token"]
+        else:
+            return None
+    return access_token
+
 @auth_bp.route("/profile")
 def profile():
     """Return the profile page.
@@ -63,10 +134,34 @@ def profile():
             "username": session["user_username"],
             "full_name": session["user_fullname"],
             "organisation": session.get("org_name"),
+            "roles": session.get("user_roles"),
         }
         googlesettings = load_config("google")
         google_client_id = googlesettings["client_id"]
         google_api_key = googlesettings["api_key"]
+
+        # app id is everything before the first dash in the client id
+        google_app_id = google_client_id.split("-")[0]
+
+        # Get the user's Google access token from the database if it's not in the session
+        if session.get("access_token") is None:
+            result = get_query_result(
+                "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token'",
+                (session["user_id"],),
+                fetch_one=True,
+            )
+            # if there is no result, the user has not authenticated with Google (yet)
+            if result:
+                access_token = result["auth_value"]
+            else:
+                access_token = None
+        else:
+            access_token = session.get("access_token")
+
+        if access_token:
+            # Check if the token is still valid and refresh if necessary
+            access_token = refresh_google_token_if_needed(access_token)
+            session["access_token"] = access_token
 
         if g.features["google_drive"] == 1:
             google_docs_to_index = get_query_result(
@@ -85,6 +180,8 @@ def profile():
             google_client_id=google_client_id,
             google_api_key=google_api_key,
             google_docs_to_index=google_docs_to_index,
+            google_app_id=google_app_id,
+            google_drive_access_token=access_token,
             features=g.features,
         )
     return "You are not logged in!", 403
@@ -411,6 +508,31 @@ def login_user(
         cursor.close()
         conn.close()
 
+    # get the user's access token and refresh token
+    access_token_query = get_query_result(
+        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token'",
+        (user_id,),
+        fetch_one=True,
+    )
+    if not access_token_query:
+        logging.warning("No access token found for user %s", user_id)
+        access_token = None
+    else:
+        access_token = access_token_query["auth_value"]
+
+    refresh_token_query = get_query_result(
+        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'refresh_token'",
+        (user_id,),
+        fetch_one=True,
+    )
+
+    if not refresh_token_query:
+        logging.warning("No refresh token found for user %s", user_id)
+        refresh_token = None
+    else:
+        refresh_token = refresh_token_query["auth_value"]
+
+    # Get the user's roles
     user_roles = get_user_role_by_id(user_id)
     # Setup the session
     session["user_id"] = user_id
@@ -420,6 +542,10 @@ def login_user(
     session["org_id"] = org_id
     session["org_name"] = org_name
     session["user_roles"] = user_roles
+    if access_token:
+        session["access_token"] = access_token
+    if refresh_token:
+        session["refresh_token"] = refresh_token
 
 
 def is_username_available(username: str) -> bool:

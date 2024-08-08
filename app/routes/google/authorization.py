@@ -100,6 +100,9 @@ def store_token():
     refresh_token = flow.credentials.refresh_token
     expires_at = flow.credentials.expiry
 
+    session["access_token"] = access_token
+    session["expires_at"] = expires_at
+
     logging.debug(f"Access token: {access_token}")
     logging.debug(f"Refresh token: {refresh_token}")
     logging.debug(f"Expires at: {expires_at}")
@@ -135,8 +138,6 @@ def store_token():
     finally:
         cursor.close()
         conn.close()
-
-    session["credentials"] = flow.credentials.to_json()
 
     return {
         "status": "success",
@@ -181,3 +182,31 @@ def process_file_picker():
         conn.close()
 
     return "Success"
+
+# /google/drive/removefile
+@googledrive_bp.route("/google/drive/removefile", methods=["POST"])
+def remove_file():
+    """Remove a google drive item from the database."""
+    # retrieve the user_id from the session
+    user_id = session["user_id"]
+
+    data = request.get_json()
+    google_drive_id = data["google_drive_id"]
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """DELETE FROM google_drive_items
+               WHERE user_id = %s AND google_drive_id = %s""",
+            (user_id, google_drive_id),
+        )
+        conn.commit()
+    except Exception:
+        logging.error(f"Error deleting google doc id: {google_drive_id}")
+        return "Error deleting google doc id: {google_drive_id}"
+    finally:
+        cursor.close()
+        conn.close()
+
+    return "OK"
