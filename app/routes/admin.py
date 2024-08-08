@@ -434,8 +434,10 @@ def invite_user():
     if email_status:
         create_invited_user_in_db(email=email, org_name=session["org_name"])
         flash(f"Invitation to {email} sent successfully!", "success")
+        logging.info(f"Invitation to {email} sent successfully!")
     else:
         flash("Invitation failed", "error")
+        logging.error(f"Invitation to {email} failed")
 
     return redirect(url_for("admin.admin"))
 
