@@ -3,13 +3,15 @@
         "client_id": "client_id_here",
         "project_id": "project_id_here",
         "client_secret": "client_secret_here",
+        "api_key": "google api key",
         "redirect_uris": [
             "redirect_uris_here"
         ]
     },
     "pinecone": {
         "api_key": "pinecone_api_key_here",
-        "region": "aws-region-here"
+        "region": "aws-region-here",
+        "metric": "cosine"
     },
     "openai": {
         "api_key": "openapi_key_here"
@@ -27,9 +29,16 @@
         "chat_task_timeout": 20,
         "support_portal": "https://support.helixiora.com/support/solutions/201000092447",
         "support_email": "support@helixiora.com",
-        "support_email_pass":"PASS",
         "free_msg_limit": 20,
         "jwt_secret_key":"KEY"
+    },
+    "embeddings": {
+        "model": "text-embedding-ada-002",
+        "chunk_size": 4000
+    },
+    "sendgrid": {
+        "api_key": " apikey here",
+        "invite_template_id": "d-709a4aaf4af14541a9a31aba7c773bae"
     },
     "db": {
         "host": "your_mysql_server",

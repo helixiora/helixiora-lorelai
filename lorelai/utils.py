@@ -11,11 +11,12 @@ from pinecone.exceptions import NotFoundException
 from pinecone.core.openapi.data.model.describe_index_stats_response import (
     DescribeIndexStatsResponse,
 )
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+
 import jwt
 import datetime
+
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 
 def get_config_from_os(service: str) -> dict[str, str]:
@@ -264,49 +265,77 @@ def create_jwt_token_invite_user(invitee_email, org_admin_email, org_name):
 
 def send_invite_email(org_admin_email, invitee_email, invite_url):
     """
-    Send an invitation email to a user with a registration link.
+    Send an invitation email to a user.
 
     This function performs the following steps:
-    1. Loads the LorelAI configuration.
-    2. Sets up the SMTP server details and email credentials.
-    3. Creates the email with the invitee's email, the subject, and the body containing the
-    invitation link.
-    4. Sends the email via the configured SMTP server.
-    5. Logs and returns the status of the email sending process.
+    1. Sends an email to the invitee containing the invitation URL.
+    2. Logs and returns the status of the email sending process.
 
-    Args:
-        org_admin_email (str): The email address of the organization admin sending the invite.
+    Args
+    ----
+        org_admin_email (str): The email address of the organization admin.
         invitee_email (str): The email address of the invitee.
-        invite_url (str): The URL link for the invitee to register.
+        invite_url (str): The URL to register the invitee.
 
     Returns
     -------
         bool: True if the email was sent successfully, False otherwise.
     """
-    # Email configuration
-    lorelai_config = load_config("lorelai")
+    sendgridconfig = load_config("sendgrid")
+    template_id = sendgridconfig["invite_template_id"]
 
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587  # Port for TLS
-    support_email = lorelai_config["support_email"]
-    password = lorelai_config[
-        "support_email_pass"
-    ]  # Use an app password if 2-Step Verification is enabled
-    # Create the email
-    msg = MIMEMultipart()
-    msg["From"] = support_email
-    msg["To"] = invitee_email  # Recipient's email address
-    msg["Subject"] = "Invite to LorelAI"
-    # Body of the email
-    body = f"Hello, from {org_admin_email}, follow the link to join LorelAI \n Invite Link:{invite_url}"  # noqa: E501
-    msg.attach(MIMEText(body, "plain"))
+    return send_templated_email(
+        from_addr=org_admin_email,
+        to_addr=invitee_email,
+        template_id=template_id,
+        template_data={
+            "invitee": invitee_email,
+            "inviter": org_admin_email,
+            "link": invite_url,
+        },
+    )
+
+
+def send_templated_email(
+    from_addr: str,
+    to_addr: str,
+    template_id: str,
+    template_data: dict,
+):
+    """
+    Send an email.
+
+    This function performs the following steps:
+    1. Loads the LorelAI configuration.
+    2. Sets up the SMTP server details and email credentials.
+    3. Creates the email with the sender's email, the recipient's email, the subject, and the body.
+    4. Sends the email via the configured SMTP server.
+    5. Logs and returns the status of the email sending process.
+
+    Args:
+        from_addr (str): The email address of the sender.
+        to_addr (str): The email address of the recipient.
+        subject (str): The subject of the email.
+        body (str): The body of the email.
+
+    Returns
+    -------
+        bool: True if the email was sent successfully, False otherwise.
+    """
+    message = Mail(
+        from_email=from_addr,
+        to_emails=to_addr,
+    )
+    message.template_id = template_id
+    message.dynamic_template_data = template_data
+
+    sendgridconfig = load_config("sendgrid")
+    sendgridapikey = sendgridconfig["api_key"]
+
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()  # Upgrade to a secure connection
-            server.login(support_email, password)
-            server.send_message(msg)
-        logging.info("Email sent successfully!")
-        return True
+        sg = SendGridAPIClient(sendgridapikey)
+        response = sg.send(message)
+        logging.debug(f"Email sent successfully. Status code: {response.status_code}, \
+body: {response.body}, headers: {response.headers}")
     except Exception as e:
-        logging.info(f"Error sending email: {e}")
-        return False
+        logging.debug(e.message)
