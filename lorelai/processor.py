@@ -261,7 +261,7 @@ class Processor:
 
         # Iterate over documents and split each document's text into chunks
         document_chunks = splitter.split_documents(docs)
-        logging.info(f"Converted {len(docs)} Google Docs into {len(document_chunks)} Chucks")
+        logging.info(f"Converted {len(docs)} Google Docs into {len(document_chunks)} Chunks")
 
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
@@ -315,6 +315,7 @@ class Processor:
 
         logging.info(f"Total Number of Google Docs {len(docs)}")
         logging.info(f"Total Number of document chunks, ie after chunking {len(document_chunks)}")
+
         logging.info(
             f"{already_exist_and_tagged} documents  already exist and tagged in index {index_name}"
         )

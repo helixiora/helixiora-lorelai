@@ -4,10 +4,21 @@
     <div class="container mx-auto mt-8">
         <h1 class="h1 mb-4">Admin Dashboard</h1>
 
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="alert-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
         <!-- Indexer -->
         {% include 'indexer.html' %}
 
-        <!-- Pinecone Admin Section -->
+        <!-- Org User Admin Section -->
         {% if ('super_admin' in session.get('user_roles', [])) or ('org_admin' in session.get('user_roles', [])) %}
             <div class="card">
                 <div class="card-header">
@@ -47,9 +58,28 @@
                             {% endfor %}
                         </tbody>
                     </table>
-
+                </div>
+                <!-- Invite User Section -->
+                <div class="card-body">
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h2 class="h4">Invite New User</h2>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="/admin/invite_user">
+                                <div class="form-group">
+                                    <label for="email">Email address</label>
+                                    <input type="email" class="form-control" id="email" name="email" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Invite User</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+
+
             <script>
                 $(document).ready(function() {
                     $('#OrgTable').DataTable({

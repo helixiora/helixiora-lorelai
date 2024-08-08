@@ -27,6 +27,7 @@ from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
 import time
+
 import requests as lib_requests
 
 from app.utils import (
@@ -40,6 +41,7 @@ from app.utils import (
     is_admin,
     user_is_logged_in,
     load_config,
+    org_exists_by_name,
 )
 from lorelai.slack.slack_processor import SlackOAuth
 
@@ -115,7 +117,6 @@ def refresh_google_token_if_needed(access_token):
             return None
     return access_token
 
-
 @auth_bp.route("/profile")
 def profile():
     """Return the profile page.
@@ -138,6 +139,7 @@ def profile():
         googlesettings = load_config("google")
         google_client_id = googlesettings["client_id"]
         google_api_key = googlesettings["api_key"]
+
         # app id is everything before the first dash in the client id
         google_app_id = google_client_id.split("-")[0]
 
@@ -177,8 +179,8 @@ def profile():
             is_admin=is_admin_status,
             google_client_id=google_client_id,
             google_api_key=google_api_key,
-            google_app_id=google_app_id,
             google_docs_to_index=google_docs_to_index,
+            google_app_id=google_app_id,
             google_drive_access_token=access_token,
             features=g.features,
         )
@@ -234,9 +236,11 @@ def register_post():
     email = request.form.get("email")
     full_name = request.form.get("full_name")
     organisation = request.form.get("organisation")
-
     google_id = request.form.get("google_id")
     google_token = request.form.get("google_token")
+
+    if org_exists_by_name(organisation):
+        return redirect(url_for("org_exists"))
 
     missing = validate_form(email=email, name=full_name, organisation=organisation)
 
@@ -490,8 +494,9 @@ def login_user(
 
         # Update the user's Google ID in the database
         cursor.execute(
-            "UPDATE user SET google_id = %s WHERE user_id = %s",
-            (google_id, user_id),
+            "UPDATE user SET google_id = %s, user_name = %s, full_name = %s \
+            WHERE user_id = %s",
+            (google_id, username, full_name, user_id),
         )
 
         conn.commit()

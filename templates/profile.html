@@ -40,4 +40,159 @@
     {% endif %}
 </div>
 
+<script>
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+    const CLIENT_ID = '188814832124-jic1ovt2a8vued9je3pdcg71imrdp67c.apps.googleusercontent.com';
+    const API_KEY = 'AIzaSyBS3VWEmt4x4eDZLTcoM1qnz_ynT_UeDbM';
+    const APP_ID = '188814832124';
+
+    let codeClient;
+    let accessToken = null;
+    let authorizationCode = null;
+    let pickerInited = false;
+    let gisInited = false;
+
+    document.getElementById('authorize_button').style.visibility = 'hidden';
+    document.getElementById('signout_button').style.visibility = 'hidden';
+    document.getElementById('select_button').style.visibility = 'hidden';
+
+    function gapiLoaded() {
+        gapi.load('client:picker', initializePicker);
+    }
+
+    async function initializePicker() {
+        await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/drive/v3/rest');
+        pickerInited = true;
+        maybeEnableButtons();
+    }
+
+    function gisLoaded() {
+        codeClient = google.accounts.oauth2.initCodeClient({
+            client_id: CLIENT_ID,
+            scope: 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
+            ux_mode: 'popup',
+            callback: async (response) => {
+                if (response.error !== undefined) {
+                    console.error(response);
+                    return;
+                }
+                try {
+                    const res = await fetch('/store_token', { // Send the authorization code to the server
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: response.code }),
+                    });
+                    const data = await res.json();
+                    accessToken = data.access_token;
+
+                    if (accessToken) {
+                        document.getElementById('signout_button').style.visibility = 'visible';
+                        document.getElementById('select_button').style.visibility = 'visible';
+                        document.getElementById('authorize_button').innerText = 'Refresh';
+                    }
+                } catch (error) {
+                    console.error('Error obtaining access token:', error);
+                }
+            },
+        });
+        gisInited = true;
+        maybeEnableButtons();
+    }
+
+    function maybeEnableButtons() {
+        if (pickerInited && gisInited) {
+            document.getElementById('authorize_button').style.visibility = 'visible';
+        }
+    }
+
+    function handleSignoutClick() {
+        if (authorizationCode) {
+            google.accounts.oauth2.revoke(accessToken);
+            authorizationCode = null;
+            document.getElementById('content').innerHTML = '';
+            document.getElementById('authorize_button').innerText = 'Authorize';
+            document.getElementById('signout_button').style.visibility = 'hidden';
+        }
+    }
+
+    async function createPicker() {
+        console.log('Creating picker...');
+        console.log('accessToken:', accessToken);
+        const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+            .setMode(google.picker.DocsViewMode.LIST)
+            .setMimeTypes('application/vnd.google-apps.document')
+            .setParent('root')
+            .setEnableDrives(true);
+
+        const foldersView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+            .setSelectFolderEnabled(true)
+            .setMode(google.picker.DocsViewMode.LIST)
+            .setParent('root')
+            .setEnableDrives(true);
+
+        const picker = new google.picker.PickerBuilder()
+            .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+            .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
+            .disableFeature(google.picker.Feature.MINE_ONLY)
+            .setDeveloperKey(API_KEY)
+            .setAppId(APP_ID)
+            .setOAuthToken(accessToken)
+            .addView(foldersView)
+            .addView(docsView)
+            .setCallback(pickerCallback)
+            .setOrigin(window.location.protocol + '//' + window.location.host)
+            .setTitle('Select documents or folders')
+            .build();
+        picker.setVisible(true);
+    }
+
+    async function pickerCallback(data) {
+        if (data.action === google.picker.Action.PICKED) {
+            const documents = data[google.picker.Response.DOCUMENTS].map(doc => ({
+                id: doc[google.picker.Document.ID],
+                name: doc[google.picker.Document.NAME],
+                mimeType: doc[google.picker.Document.MIME_TYPE],
+                type: doc[google.picker.Document.TYPE],
+            }));
+
+            document.getElementById('content').innerHTML += documents.map(doc => `
+                <a href="#" class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between">
+                        <h5 class="mb-1">${doc.name}</h5>
+                        <small>${doc.type}</small>
+                    </div>
+                    <small>${doc.id}</small>
+                </a>
+            `).join('');
+
+            // Scroll to the Google Drive section
+            document.getElementById('google-drive-section').scrollIntoView({ behavior: 'smooth' });
+
+            await fetch('/google/drive/processfilepicker', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(documents),
+            }).catch(console.error);
+        }
+    }
+
+    async function removeDocument(googleDriveId) {
+        await fetch('/google/drive/removefile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ google_drive_id: googleDriveId }),
+        }).catch(console.error);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    });
+
+</script>
+
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 {% endblock %}

@@ -183,7 +183,6 @@ def process_file_picker():
 
     return "Success"
 
-
 # /google/drive/removefile
 @googledrive_bp.route("/google/drive/removefile", methods=["POST"])
 def remove_file():

@@ -27,7 +27,9 @@
         "chat_task_timeout": 20,
         "support_portal": "https://support.helixiora.com/support/solutions/201000092447",
         "support_email": "support@helixiora.com",
-        "free_msg_limit": 20
+        "support_email_pass":"PASS",
+        "free_msg_limit": 20,
+        "jwt_secret_key":"KEY"
     },
     "db": {
         "host": "your_mysql_server",
