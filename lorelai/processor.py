@@ -112,7 +112,7 @@ class Processor:
 
         :return: list of documents ready to be inserted in pinecone
         """
-        logging.info(f"Formatting {len(documents)}Chunked docs to Pinecone format")
+        logging.info(f"Formatting {len(documents)} chunked docs to Pinecone format")
         # Get Text
         text_docs = []
         for doc in documents:
@@ -357,7 +357,7 @@ class Processor:
                 cursor.close()
                 db.close()
 
-        job.meta["log"].append(f"Updated last indexed timestamp for {len(documents)} documents")
+        job.meta["logs"].append(f"Updated last indexed timestamp for {len(documents)} documents")
 
     def google_docs_to_pinecone_docs(
         self: None,
