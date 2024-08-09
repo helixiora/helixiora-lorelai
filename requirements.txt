@@ -1,5 +1,6 @@
 FlashRank==0.2.8
 Flask==3.0.3
+flask-debugtoolbar==0.15.1
 google-api-python-client==2.139.0
 google-auth==2.32.0
 google-auth-httplib2==0.2.0
