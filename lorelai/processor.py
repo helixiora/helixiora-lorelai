@@ -218,15 +218,18 @@ class Processor:
                 delete_vector_ids_list = delete_vector_ids_list + db_vector_dict[key]["ids"]
                 delete_vector_title_list.append(db_vector_dict[key]["title"])
 
-        logging.info(
-            f"Deleting following document from pinecone :\n \
-                {delete_vector_title_list}\n \
-                Size:{len(delete_vector_title_list)}\n \
-                as no users have access to these documents"
-        )
-        if delete_vector_ids_list:
+        if delete_vector_ids_list and len(delete_vector_ids_list) > 0:
+            logging.info(
+                f"Deleting following document from pinecone :\n \
+                    {delete_vector_title_list}\n \
+                    Size:{len(delete_vector_title_list)}\n \
+                    as no users have access to these documents"
+            )
             pc_index.delete(ids=delete_vector_ids_list)
             count_deleted = len(delete_vector_ids_list)
+        else:
+            count_deleted = 0
+            logging.info("No document to delete from pinecone")
         # store ids of doc in db to be delete as user does not have access
         return count_updated, count_deleted
 
