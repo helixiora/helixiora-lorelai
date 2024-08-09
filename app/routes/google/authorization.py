@@ -14,14 +14,16 @@ References
 import logging
 import os
 
-from flask import Blueprint, request, session
+from flask import Blueprint, request, session, jsonify
 from google_auth_oauthlib.flow import Flow
 
 from oauthlib.oauth2.rfc6749.errors import (
     OAuth2Error,
     FatalClientError,
-    InvalidRequestFatalError,
+    InvalidGrantError,
+    InvalidScopeError,
     InvalidRequestError,
+    InvalidRedirectURIError,
 )
 
 from app.utils import get_db_connection, load_config, get_datasource_id_by_name
@@ -31,28 +33,45 @@ googledrive_bp = Blueprint("googledrive", __name__)
 
 @googledrive_bp.route("/store_token", methods=["POST"])
 def store_token():
-    """Handle callback for Google OAuth2 authentication.
+    """Handle callback for Google OAuth2 authentication and store tokens."""
+    googlecreds, lorelai_config = load_configurations()
+    authorization_code = extract_authorization_code()
 
-    This route is called by Google after the user has authenticated.
-    The route verifies the state and exchanges the authorization code for an access token.
+    if not authorization_code:
+        return jsonify_error("Authorization code is missing", 400)
 
-    Returns
-    -------
-        string: The index page.
+    flow = initialize_oauth_flow(googlecreds, lorelai_config)
 
-    """
+    try:
+        fetch_oauth_tokens(flow, authorization_code)
+    except OAuth2Error as e:
+        return handle_oauth_error(e)
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify_error("User not logged in or session expired", 401)
+
+    return save_tokens_to_db(flow, user_id)
+
+
+def load_configurations():
+    """Load necessary configurations for OAuth and return them."""
     googlecreds = load_config("google")
     lorelai_config = load_config("lorelai")
+    return googlecreds, lorelai_config
 
+
+def extract_authorization_code():
+    """Extract the authorization code from the request JSON data."""
     data = request.json
-    logging.debug(f"Data: {data}")
-    authorization_code = data["code"]
+    logging.debug(f"Data received for authorization: {data}")
+    return data.get("code")
 
-    # set the environment variable to relax the token scope, Google has a habot of changing the
-    # order of the scopes, raising a Warning
+
+def initialize_oauth_flow(googlecreds, lorelai_config):
+    """Initialize the OAuth2 flow using the provided credentials."""
     os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
-
-    flow = Flow.from_client_config(
+    return Flow.from_client_config(
         client_config={
             "web": {
                 "client_id": googlecreds["client_id"],
@@ -64,38 +83,39 @@ def store_token():
             }
         },
         scopes=[
-            "https://www.googleapis.com/auth/userinfo.profile openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file"  # noqa
+            "https://www.googleapis.com/auth/userinfo.profile",
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/drive.file",
         ],
         redirect_uri=lorelai_config["redirect_uri"],
     )
 
-    # this can fail in many ways: token expired, fatal client error, invalid request fatal error,
-    # invalid request error
-    # see an article here:
-    # https://blog.timekit.io/google-oauth-invalid-grant-nightmare-and-how-to-fix-it-9f4efaf1da35
-    # https://stackoverflow.com/questions/10576386/invalid-grant-trying-to-get-oauth-token-from-google # noqa
-    # also see oauthlib.oauth2.rfc6749.errors
-    try:
-        flow.fetch_token(code=authorization_code)
-    except InvalidRequestError as e:
-        logging.error(f"Invalid request error: {e}")
-        return "Invalid request error: {e}"
-    except FatalClientError as e:
-        logging.error(f"Fatal client error: {e}")
-        return "Fatal client error: {e}"
-    except InvalidRequestFatalError as e:
-        logging.error(f"Invalid request fatal error: {e}")
-        return "Invalid request fatal error: {e}"
-    except OAuth2Error as e:
-        logging.error(f"Generic OAuth2 error: {e}")
-        return "Generic OAuth2 error: {e}"
-    except Warning as e:
-        logging.warning(f"Warning: {e}")
 
-    # retrieve the user_id from the session
-    user_id = session["user_id"]
+def fetch_oauth_tokens(flow, authorization_code):
+    """Fetch OAuth tokens using the provided authorization code."""
+    flow.fetch_token(code=authorization_code)
 
-    # save the access token, refresh token, and expiry in the database
+
+def handle_oauth_error(error):
+    """Handle OAuth2 related errors and return appropriate responses."""
+    error_map = {
+        InvalidScopeError: ("Invalid scope error", 400),
+        InvalidRedirectURIError: ("Invalid redirect URI error", 400),
+        InvalidRequestError: ("Invalid request error", 400),
+        FatalClientError: ("Fatal client error", 400),
+        InvalidGrantError: ("Invalid grant error", 400),
+        OAuth2Error: ("OAuth2 error", 400),
+    }
+    error_type = type(error)
+    error_message, status_code = error_map.get(error_type, ("Generic OAuth2 error", 400))
+
+    logging.error(f"{error_message}: {error}")
+    return jsonify({"status": "error", "message": f"{error_message}: {str(error)}"}), status_code
+
+
+def save_tokens_to_db(flow, user_id):
+    """Save tokens in the database after successful OAuth authentication."""
     access_token = flow.credentials.token
     refresh_token = flow.credentials.refresh_token
     expires_at = flow.credentials.expiry
@@ -106,46 +126,57 @@ def store_token():
     logging.debug(f"Access token: {access_token}")
     logging.debug(f"Refresh token: {refresh_token}")
     logging.debug(f"Expires at: {expires_at}")
-    # store them as records in user_auth
-    data_source_name = "Google Drive"
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+
     try:
+        data_source_name = "Google Drive"
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
         datasource_id = get_datasource_id_by_name(data_source_name)
         if datasource_id is None:
-            logging.error(f"{data_source_name} is missing from datasource table in db")
             raise ValueError(f"{data_source_name} is missing from datasource table in db")
-        cursor.execute(
-            """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-            VALUES (%s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
-            (user_id, datasource_id, "access_token", access_token, "oauth"),
-        )
-        cursor.execute(
-            """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-            VALUES (%s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
-            (user_id, datasource_id, "refresh_token", refresh_token, "oauth"),
-        )
-        cursor.execute(
-            """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-            VALUES (%s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
-            (user_id, datasource_id, "expires_at", expires_at, "oauth"),
-        )
+
+        insert_or_update_token(cursor, user_id, datasource_id, "access_token", access_token)
+        insert_or_update_token(cursor, user_id, datasource_id, "refresh_token", refresh_token)
+        insert_or_update_token(cursor, user_id, datasource_id, "expires_at", expires_at)
 
         conn.commit()
+    except Exception as e:
+        logging.error(f"Database error: {e}")
+        return jsonify_error(f"Database error: {str(e)}", 500)
     finally:
         cursor.close()
         conn.close()
 
-    return {
-        "status": "success",
-        "message": "Authorization code exchanged for access_token, refresh_token, and expiry",
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "expires_at": expires_at,
-    }
+    return jsonify_success(access_token, refresh_token, expires_at)
+
+
+def insert_or_update_token(cursor, user_id, datasource_id, key, value):
+    """Insert or update a single token in the database."""
+    cursor.execute(
+        """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
+        VALUES (%s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
+        (user_id, datasource_id, key, value, "oauth"),
+    )
+
+
+def jsonify_error(message, status_code):
+    """Help function to return a JSON error response."""
+    return jsonify({"status": "error", "message": message}), status_code
+
+
+def jsonify_success(access_token, refresh_token, expires_at):
+    """Help function to return a JSON success response."""
+    return jsonify(
+        {
+            "status": "success",
+            "message": "Authorization code exchanged for access_token, refresh_token, and expiry",
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+        }
+    ), 200
 
 
 @googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])

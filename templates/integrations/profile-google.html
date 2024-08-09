@@ -96,8 +96,22 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ code: response.code }),
                     });
-                    const data = await res.json();
-                    accessToken = data.access_token;
+
+                    // Check if the response was successful
+                    if (!res.ok) {
+                        throw new Error('Failed to fetch token');
+                    }
+
+                    // Attempt to parse the JSON response
+                    let data;
+                    try {
+                        data = await res.json();
+                    } catch (jsonError) {
+                        throw new Error('Response is not valid JSON');
+                    }
+
+                    // Extract the access token from the data
+                    const accessToken = data.access_token;
 
                     if (accessToken) {
                         document.getElementById('signout_button').disabled = false;
