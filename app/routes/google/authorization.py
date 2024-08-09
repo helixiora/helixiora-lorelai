@@ -42,6 +42,7 @@ def store_token():
 
     """
     googlecreds = load_config("google")
+    lorelai_config = load_config("lorelai")
 
     data = request.json
     logging.debug(f"Data: {data}")
@@ -60,13 +61,12 @@ def store_token():
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
                 "client_secret": googlecreds["client_secret"],
-                # "redirect_uris": googlecreds["redirect_uris"],
             }
         },
         scopes=[
             "https://www.googleapis.com/auth/userinfo.profile openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file"  # noqa
         ],
-        redirect_uri="https://127.0.0.1:5000",
+        redirect_uri=lorelai_config["redirect_uri"],
     )
 
     # this can fail in many ways: token expired, fatal client error, invalid request fatal error,
@@ -182,6 +182,7 @@ def process_file_picker():
         conn.close()
 
     return "Success"
+
 
 # /google/drive/removefile
 @googledrive_bp.route("/google/drive/removefile", methods=["POST"])
