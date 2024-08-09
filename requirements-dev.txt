@@ -1,5 +1,4 @@
 codespell==2.3.0
-flask-debugtoolbar==0.15.1
 mdforma==0.7.17
 pydoc-markdow==4.8.2
 pytes==8.3.2

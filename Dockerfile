@@ -2,7 +2,7 @@
 FROM python:3.11-slim as base
 WORKDIR /app
 COPY . .
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential git \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
@@ -13,7 +13,7 @@ EXPOSE 5000
 # install flyway
 ENV FLYWAY_VERSION=10.16.0
 # Install Flyway dependencies and Flyway itself
-RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless wget git
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless wget
 RUN mkdir -p /usr/share/man/man1
 RUN dpkg --print-architecture
 ENV FLYWAY_URL=https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}-linux-x64.tar.gz
