@@ -136,19 +136,25 @@
     }
 
     async function createPicker() {
-        console.log('Creating picker...');
-        console.log('accessToken:', accessToken);
-        const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
-            .setMode(google.picker.DocsViewMode.LIST)
-            .setMimeTypes('application/vnd.google-apps.document')
-            .setParent('root')
-            .setEnableDrives(true);
-
-        const foldersView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+        const shareddrivesview = new google.picker.DocsView(google.picker.ViewId.DOCS)
+            .setEnableDrives(true)
+            .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder')
             .setSelectFolderEnabled(true)
-            .setMode(google.picker.DocsViewMode.LIST)
+            .setOwnedByMe(false)
+            .setIncludeFolders(true); // creates just the shared drives view
+
+        const sharedwithmeview = new google.picker.DocsView(google.picker.ViewId.DOCS)
+            .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder')
+            .setSelectFolderEnabled(true)
+            .setIncludeFolders(true)
+            .setOwnedByMe(false); // creates just the shared with me view
+
+        const mydriveview = new google.picker.DocsView(google.picker.ViewId.DOCS)
+            .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder')
+            .setSelectFolderEnabled(true)
+            .setOwnedByMe(true)
             .setParent('root')
-            .setEnableDrives(true);
+            .setIncludeFolders(true); // creates just the my drive view
 
         const picker = new google.picker.PickerBuilder()
             .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
@@ -157,8 +163,9 @@
             .setDeveloperKey(API_KEY)
             .setAppId(APP_ID)
             .setOAuthToken(accessToken)
-            .addView(foldersView)
-            .addView(docsView)
+            .addView(shareddrivesview)
+            .addView(sharedwithmeview)
+            .addView(mydriveview)
             .setCallback(pickerCallback)
             .setOrigin(window.location.protocol + '//' + window.location.host)
             .setTitle('Select documents or folders')
