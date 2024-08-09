@@ -41,10 +41,7 @@ def get_config_from_os(service: str) -> dict[str, str]:
             # remove the service name and convert to lower case
             # eg. GOOGLE_CLIENT_ID -> client_id
             n_k = k.lower().replace(f"{service}_", "")
-            if "redirect_uris" in n_k:
-                config[n_k] = os.environ[k].split("|")
-            else:
-                config[n_k] = os.environ[k]
+            config[n_k] = os.environ[k]
 
     return config
 

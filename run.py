@@ -279,7 +279,6 @@ def set_security_headers(response):
     connect_src = [
         "'self'",
         "https://accounts.google.com/gsi/",
-        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
     ]
 
     frame_src = [
