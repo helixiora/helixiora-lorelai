@@ -3,10 +3,7 @@
         "client_id": "client_id_here",
         "project_id": "project_id_here",
         "client_secret": "client_secret_here",
-        "api_key": "google api key",
-        "redirect_uris": [
-            "redirect_uris_here"
-        ]
+        "api_key": "google api key"
     },
     "pinecone": {
         "api_key": "pinecone_api_key_here",
@@ -24,7 +21,7 @@
         "secret_key": "secret key here",
         "environment": "the stage of this environment eg dev/prod/qa",
         "environment_slug": "a name to recognise this env by",
-        "redirect_uri":"http://127.0.0.1:5000/oauth2callback",
+        "redirect_uri":"http://127.0.0.1:5000",
         "model_type": "OpenAILlm",
         "chat_task_timeout": 20,
         "support_portal": "https://support.helixiora.com/support/solutions/201000092447",
