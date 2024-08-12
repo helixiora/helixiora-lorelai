@@ -179,6 +179,47 @@ def jsonify_success(access_token, refresh_token, expires_at):
     ), 200
 
 
+@googledrive_bp.route("/google/drive/revoke", methods=["POST"])
+def deauthorize():
+    """Deauthorize the user by removing the tokens from the database."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify_error("User not logged in or session expired", 401)
+
+    data_source_name = "Google Drive"
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        datasource_id = get_datasource_id_by_name(data_source_name)
+        if datasource_id is None:
+            raise ValueError(f"{data_source_name} is missing from datasource table in db")
+
+        # remove the tokens from the database
+        cursor.execute(
+            """DELETE FROM user_auth
+            WHERE user_id = %s AND datasource_id = %s""",
+            (user_id, datasource_id),
+        )
+
+        # remove the google drive items from the database
+        cursor.execute(
+            """DELETE FROM google_drive_items
+            WHERE user_id = %s""",
+            (user_id,),
+        )
+
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Database error: {e}")
+        return jsonify_error(f"Database error: {str(e)}", 500)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return jsonify({"status": "success", "message": "User deauthorized from Google Drive"}), 200
+
+
 @googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])
 def process_file_picker():
     """Process the list of google docs ids returned by the file picker."""
