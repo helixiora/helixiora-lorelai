@@ -31,7 +31,13 @@
                                     {% else %}
                                         No roles assigned
                                     {% endif %}</td>
-                                    <td>No actions implemented yet.</td>
+                                    <td>
+                                    {% if user.user_name is none %}
+                                        Invited
+                                    {% else %}
+                                        No actions implemented yet.
+                                    {% endif %}
+                                    </td>
                                 </tr>
                             {% else %}
                                 <tr><td colspan="3">No users found.</td></tr>

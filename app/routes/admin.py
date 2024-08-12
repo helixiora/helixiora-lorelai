@@ -52,6 +52,7 @@ def admin():
         users = None
 
     if user_is_logged_in(session) and is_admin(session["user_id"]):
+        print("%%%%%%%%%%%%\n", users)
         return render_template("admin.html", is_admin=True, users=users)
 
     return "You are not logged in!"
