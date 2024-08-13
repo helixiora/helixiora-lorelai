@@ -380,7 +380,7 @@ def get_users(org_id: int = None) -> list[dict] | None:
     """
     if org_id:
         users = get_query_result(
-            "SELECT u.user_id, u.email, o.name as organisation \
+            "SELECT u.user_id, u.email, u.user_name, o.name as organisation \
             FROM \
                 user u \
             LEFT JOIN \
@@ -392,7 +392,7 @@ def get_users(org_id: int = None) -> list[dict] | None:
     else:
         users = get_query_result(
             "SELECT \
-                u.user_id, u.email, o.name as organisation \
+                u.user_id, u.email, u.user_name, o.name as organisation \
             FROM \
                 user u \
             LEFT JOIN \
