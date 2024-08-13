@@ -255,16 +255,25 @@ class Processor:
                 chunk = tuple(itertools.islice(it, batch_size))
 
         logging.info(f"Storing {len(docs)} documents for user: {user_email}")
+        job.meta["logs"].append(f"Storing {len(docs)} documents for user: {user_email}")
 
         embedding_settings = load_config("embeddings")
+        if not embedding_settings:
+            raise ValueError("Could not load embeddings configuration")
+
         chunk_size = embedding_settings["chunk_size"]
+        logging.debug(f"Using chunk size: {chunk_size}")
         embedding_model_name = embedding_settings["model"]
+        logging.debug(f"Using embedding model: {embedding_model_name}")
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=int(chunk_size))
 
         # Iterate over documents and split each document's text into chunks
         document_chunks = splitter.split_documents(docs)
         logging.info(f"Converted {len(docs)} Google Docs into {len(document_chunks)} Chunks")
+        job.meta["logs"].append(
+            f"Converted {len(docs)} Google Docs into {len(document_chunks)} Chunks"
+        )
 
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
@@ -294,6 +303,10 @@ class Processor:
             f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
                 using:embedding_model:{embedding_model_name}"
         )
+        job.meta["logs"].append(
+            f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
+                using:embedding_model:{embedding_model_name}"
+        )
 
         pc_index = pc.Index(index_name)
 
@@ -318,7 +331,6 @@ class Processor:
 
         logging.info(f"Total Number of Google Docs {len(docs)}")
         logging.info(f"Total Number of document chunks, ie after chunking {len(document_chunks)}")
-
         logging.info(
             f"{already_exist_and_tagged} documents  already exist and tagged in index {index_name}"
         )
@@ -328,8 +340,21 @@ class Processor:
         )
         logging.info(f"removed user tag to {count_removed_access} documents in index {index_name}")
         logging.info(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
-        # New Document added = filtered_document_chunks
-        logging.info(f"Added {len(filtered_document_chunks)} new documents in index {index_name}")
+        logging.info(
+            f"Added {len(filtered_document_chunks)} new document chunks in index {index_name}"
+        )
+
+        job.meta["logs"].append(
+            f"Total Number of Google Docs {len(docs)}\n\
+                Total Number of document chunks, ie after chunking {len(document_chunks)}\n\
+                {already_exist_and_tagged} documents  already exist and tagged in index \
+                {index_name}\n\
+                Added user tag to {tagged_existing_doc_with_user} documents which already exist\
+                in index {index_name}\n\
+                removed user tag to {count_removed_access} documents in index {index_name}\n\
+                Deleted {count_deleted} documents in Pinecone index {index_name}\n\
+                Added {len(filtered_document_chunks)} new document chunks in index {index_name}"
+        )
 
         return len(filtered_document_chunks)
 
@@ -424,6 +449,22 @@ for user: {doc_user_id}"  # noqa
             # if the docs_loaded is not None, add the loaded docs to the docs list
             if docs_loaded:
                 docs.extend(docs_loaded)
+                logging.info(f"Loaded {len(docs_loaded)} Google docs from Google Drive \
+                    {doc_item_type} {doc_item_name}")
+                job.meta["logs"].append(f"Loaded {len(docs_loaded)} Google docs from Google Drive \
+                    {doc_item_type} {doc_item_name}")
+
+                # if the doc_item_type is a folder, log the loaded docs
+                if doc_item_type == "folder":
+                    for loaded_doc in docs_loaded:
+                        logging.info(
+                            f"Loaded Google doc: {loaded_doc.metadata['title']} \
+                                (source: {loaded_doc.metadata['source']})"
+                        )
+                        job.meta["logs"].append(
+                            f"Loaded Google doc: {loaded_doc.metadata['title']} \
+                                (source: {loaded_doc.metadata['source']})"
+                        )
 
         logging.debug(f"Loaded {len(docs)} Google docs from Google Drive")
 
@@ -459,4 +500,5 @@ for user: {doc_user_id}"  # noqa
         self.update_last_indexed_for_docs(documents, job)
 
         logging.info(f"Processed {len(docs)} documents for user: {user_email}")
+        job.meta["logs"].append(f"Processed {len(docs)} documents for user: {user_email}")
         return {"new_docs_added": new_docs_added}
