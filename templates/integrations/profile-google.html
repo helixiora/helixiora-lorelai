@@ -108,12 +108,27 @@
         }
     }
 
-    function handleSignoutClick() {
-        if (authorizationCode) {
-            google.accounts.oauth2.revoke(accessToken);
-            authorizationCode = null;
-            document.getElementById('content').innerHTML = '';
-            document.getElementById('signout_button').disabled = true;
+    async function handleSignoutClick() {
+        if (accessToken) {
+            // Remove the access token from the server
+            const response = await fetch('/google/drive/revoke', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: accessToken }),
+            });
+
+            if (response.ok) {
+                // If the request is successful, reload the page
+                // Revoke the access token from Google
+                google.accounts.oauth2.revoke(accessToken, async (successful, error) => {
+                    console.log('Access token revoked: ', );
+                });
+
+                location.reload();
+            } else {
+                console.error('Failed to revoke access token:', response.statusText);
+            }
+
         }
     }
 
