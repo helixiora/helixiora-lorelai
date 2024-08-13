@@ -260,7 +260,7 @@ class Processor:
         chunk_size = embedding_settings["chunk_size"]
         embedding_model_name = embedding_settings["model"]
 
-        splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size)
+        splitter = RecursiveCharacterTextSplitter(chunk_size=int(chunk_size))
 
         # Iterate over documents and split each document's text into chunks
         document_chunks = splitter.split_documents(docs)
