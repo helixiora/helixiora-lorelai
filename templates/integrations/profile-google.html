@@ -84,44 +84,12 @@
         codeClient = google.accounts.oauth2.initCodeClient({
             client_id: CLIENT_ID,
             scope: 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
-            ux_mode: 'popup',
-            callback: async (response) => {
-                if (response.error !== undefined) {
-                    console.error(response);
-                    return;
-                }
-                try {
-                    const res = await fetch('/store_token', { // Send the authorization code to the server
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code: response.code }),
-                    });
-
-                    // Check if the response was successful
-                    if (!res.ok) {
-                        throw new Error('Failed to fetch token');
-                    }
-
-                    // Attempt to parse the JSON response
-                    let data;
-                    try {
-                        data = await res.json();
-                    } catch (jsonError) {
-                        throw new Error('Response is not valid JSON');
-                    }
-
-                    // Extract the access token from the data
-                    const accessToken = data.access_token;
-
-                    if (accessToken) {
-                        document.getElementById('signout_button').disabled = false;
-                        document.getElementById('select_button').disabled = false;
-                        document.getElementById('authorize_button').innerText = 'Refresh';
-                    }
-                } catch (error) {
-                    console.error('Error obtaining access token:', error);
-                }
+            ux_mode: 'redirect',
+            error_callback: async (type) => {
+                console.error('Error obtaining authorization code:', type);
             },
+            redirect_uri: window.location.origin + '/google/drive/codeclientcallback',
+            state: 'google_drive'
         });
         gisInited = true;
         maybeEnableButtons();
