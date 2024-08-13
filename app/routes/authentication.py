@@ -67,13 +67,18 @@ def refresh_google_token_if_needed(access_token):
     if response.status_code != 200 or "error" in response.json():
         # Token is invalid or expired, refresh it
         refresh_token = session.get("refresh_token")
-        if not refresh_token:
-            refresh_token = get_query_result(
+        logging.debug("Refreshing token for user %s: %s", session["user_id"], refresh_token)
+        if not refresh_token or refresh_token is None:
+            result = get_query_result(
                 "SELECT auth_value FROM user_auth WHERE user_id = %s AND \
                     auth_key = 'refresh_token'",
                 (session["user_id"],),
                 fetch_one=True,
-            )["auth_value"]
+            )
+            if not result:
+                logging.error("No refresh token found for user %s", session["user_id"])
+                return None
+            refresh_token = result["auth_value"]
 
         google_settings = load_config("google")
 
@@ -116,6 +121,7 @@ def refresh_google_token_if_needed(access_token):
         else:
             return None
     return access_token
+
 
 @auth_bp.route("/profile")
 def profile():
@@ -307,7 +313,10 @@ def register_user_to_org(
         if user_created_success and created_new_org:
             # get the role_id of the org_admin role
             cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
-            role_id = cursor.fetchone()["role_id"]
+            result = cursor.fetchone()
+            if not result:
+                raise ValueError("Role 'org_admin' not found in the database.")
+            role_id = result["role_id"]
 
             cursor.execute(
                 "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
