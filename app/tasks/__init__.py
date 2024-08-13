@@ -225,7 +225,7 @@ def run_indexer(
 
         logging.debug("Indexing completed!")
     except Exception as e:
-        logging.error(f"Error in run_indexer task: {str(e)}")
+        logging.error(f"Error in run_indexer task: {str(e)}", exc_info=True)
         job.meta["logs"].append(f"Error in run_indexer task: {str(e)}")
         job.meta["progress"] = {
             "current": 100,
@@ -235,4 +235,5 @@ def run_indexer(
         }
         job.save_meta()
         job.set_status("failed")
+
         return job.meta["progress"]

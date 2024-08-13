@@ -70,7 +70,7 @@
     document.getElementById('signout_button').disabled = true;
     document.getElementById('select_button').disabled = true;
 
-    function gapiLoaded() {
+    async function gapiLoaded() {
         gapi.load('client:picker', initializePicker);
     }
 
@@ -80,7 +80,8 @@
         maybeEnableButtons();
     }
 
-    function gisLoaded() {
+    async function gisLoaded() {
+        // More info here: https://developers.google.com/identity/oauth2/web/reference/js-reference
         codeClient = google.accounts.oauth2.initCodeClient({
             client_id: CLIENT_ID,
             scope: 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
@@ -95,7 +96,7 @@
         maybeEnableButtons();
     }
 
-    function maybeEnableButtons() {
+    async function maybeEnableButtons() {
         if (pickerInited && gisInited) {
             document.getElementById('authorize_button').disabled = false;
             if (accessToken) {
@@ -123,7 +124,6 @@
                 google.accounts.oauth2.revoke(accessToken, async (successful, error) => {
                     console.log('Access token revoked: ', );
                 });
-
                 location.reload();
             } else {
                 console.error('Failed to revoke access token:', response.statusText);
