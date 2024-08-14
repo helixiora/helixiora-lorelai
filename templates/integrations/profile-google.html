@@ -70,7 +70,7 @@
     document.getElementById('signout_button').disabled = true;
     document.getElementById('select_button').disabled = true;
 
-    function gapiLoaded() {
+    async function gapiLoaded() {
         gapi.load('client:picker', initializePicker);
     }
 
@@ -80,7 +80,8 @@
         maybeEnableButtons();
     }
 
-    function gisLoaded() {
+    async function gisLoaded() {
+        // More info here: https://developers.google.com/identity/oauth2/web/reference/js-reference
         codeClient = google.accounts.oauth2.initCodeClient({
             client_id: CLIENT_ID,
             scope: 'openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
@@ -90,12 +91,13 @@
             },
             redirect_uri: window.location.origin + '/google/drive/codeclientcallback',
             state: 'google_drive'
+
         });
         gisInited = true;
         maybeEnableButtons();
     }
 
-    function maybeEnableButtons() {
+    async function maybeEnableButtons() {
         if (pickerInited && gisInited) {
             document.getElementById('authorize_button').disabled = false;
             if (accessToken) {
@@ -108,27 +110,12 @@
         }
     }
 
-    async function handleSignoutClick() {
-        if (accessToken) {
-            // Remove the access token from the server
-            const response = await fetch('/google/drive/revoke', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ access_token: accessToken }),
-            });
-
-            if (response.ok) {
-                // If the request is successful, reload the page
-                // Revoke the access token from Google
-                google.accounts.oauth2.revoke(accessToken, async (successful, error) => {
-                    console.log('Access token revoked: ', );
-                });
-
-                location.reload();
-            } else {
-                console.error('Failed to revoke access token:', response.statusText);
-            }
-
+    function handleSignoutClick() {
+        if (authorizationCode) {
+            google.accounts.oauth2.revoke(accessToken);
+            authorizationCode = null;
+            document.getElementById('content').innerHTML = '';
+            document.getElementById('signout_button').disabled = true;
         }
     }
 
