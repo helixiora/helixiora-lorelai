@@ -14,7 +14,7 @@ References
 import logging
 import os
 
-from flask import Blueprint, request, session, jsonify
+from flask import Blueprint, request, session, jsonify, redirect, url_for
 from google_auth_oauthlib.flow import Flow
 
 from oauthlib.oauth2.rfc6749.errors import (
@@ -31,11 +31,21 @@ from app.utils import get_db_connection, load_config, get_datasource_id_by_name
 googledrive_bp = Blueprint("googledrive", __name__)
 
 
-@googledrive_bp.route("/store_token", methods=["POST"])
-def store_token():
-    """Handle callback for Google OAuth2 authentication and store tokens."""
+@googledrive_bp.route("/google/drive/codeclientcallback", methods=["GET"])
+def google_auth_redirect():
+    """Handle callback for Google CodeClient."""
     googlecreds, lorelai_config = load_configurations()
-    authorization_code = extract_authorization_code()
+    authorization_code = request.args.get("code")
+
+    error = request.args.get("error")
+    error_description = request.args.get("error_description")
+    error_uri = request.args.get("error_uri")
+
+    if error:
+        return jsonify_error(f"{error}: {error_description} ({error_uri})", 400)
+
+    state = request.args.get("state")
+    logging.debug(f"State: {state}")
 
     if not authorization_code:
         return jsonify_error("Authorization code is missing", 400)
@@ -51,7 +61,9 @@ def store_token():
     if not user_id:
         return jsonify_error("User not logged in or session expired", 401)
 
-    return save_tokens_to_db(flow, user_id)
+    save_tokens_to_db(flow, user_id)
+
+    return redirect(url_for("auth.profile"))
 
 
 def load_configurations():
@@ -59,13 +71,6 @@ def load_configurations():
     googlecreds = load_config("google")
     lorelai_config = load_config("lorelai")
     return googlecreds, lorelai_config
-
-
-def extract_authorization_code():
-    """Extract the authorization code from the request JSON data."""
-    data = request.json
-    logging.debug(f"Data received for authorization: {data}")
-    return data.get("code")
 
 
 def initialize_oauth_flow(googlecreds, lorelai_config):

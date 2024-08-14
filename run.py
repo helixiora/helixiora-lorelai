@@ -279,6 +279,7 @@ def set_security_headers(response):
     connect_src = [
         "'self'",
         "https://accounts.google.com/gsi/",
+        "https://oauth2.googleapis.com/",
     ]
 
     frame_src = [
