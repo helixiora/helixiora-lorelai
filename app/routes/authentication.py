@@ -158,8 +158,10 @@ def profile():
             )
             # if there is no result, the user has not authenticated with Google (yet)
             if result:
+                logging.info("Access token found in user_auth for user %s", session["user_id"])
                 access_token = result["auth_value"]
             else:
+                logging.info("No access token found in user_auth for user %s", session["user_id"])
                 access_token = None
         else:
             access_token = session.get("access_token")
@@ -179,6 +181,10 @@ def profile():
         else:
             google_docs_to_index = None
 
+        logging.info(
+            "Rendering profile page for user %s with access_token %s", user["email"], access_token
+        )
+        logging.info("Google docs to index: %s", google_docs_to_index)
         return render_template(
             "profile.html",
             user=user,

@@ -48,12 +48,16 @@ def google_auth_redirect():
     logging.debug(f"State: {state}")
 
     if not authorization_code:
+        logging.error("Authorization code is missing")
         return jsonify_error("Authorization code is missing", 400)
 
     flow = initialize_oauth_flow(googlecreds, lorelai_config)
 
     try:
         fetch_oauth_tokens(flow, authorization_code)
+        logging.info(
+            "Authorization code exchanged for access_token, refresh_token, and expiry for user id"
+        )
     except OAuth2Error as e:
         return handle_oauth_error(e)
 
@@ -146,6 +150,7 @@ def save_tokens_to_db(flow, user_id):
         insert_or_update_token(cursor, user_id, datasource_id, "expires_at", expires_at)
 
         conn.commit()
+        logging.info(f"Tokens saved to database for user id: {user_id}")
     except Exception as e:
         logging.error(f"Database error: {e}")
         return jsonify_error(f"Database error: {str(e)}", 500)
@@ -213,8 +218,8 @@ def deauthorize():
             WHERE user_id = %s""",
             (user_id,),
         )
-
         conn.commit()
+        logging.info(f"User deauthorized from Google Drive for user id: {user_id}")
     except Exception as e:
         logging.error(f"Database error: {e}")
         return jsonify_error(f"Database error: {str(e)}", 500)
@@ -243,13 +248,13 @@ def process_file_picker():
     cursor = conn.cursor(dictionary=True)
     try:
         for doc in documents:
-            logging.debug(f"Processing google doc id: {doc}")
             cursor.execute(
                 """INSERT INTO google_drive_items( \
                        user_id, google_drive_id, item_name, mime_type, item_type)
                    VALUES (%s, %s, %s, %s, %s)""",
                 (user_id, doc["id"], doc["name"], doc["mimeType"], doc["type"]),
             )
+            logging.info(f"Inserted google doc id: {doc['id']} for user id: {user_id}")
         conn.commit()
     except Exception:
         logging.error(f"Error inserting google doc id: {doc}")
@@ -280,6 +285,7 @@ def remove_file():
             (user_id, google_drive_id),
         )
         conn.commit()
+        logging.info(f"Deleted google doc id: {google_drive_id} for user id: {user_id}")
     except Exception:
         logging.error(f"Error deleting google doc id: {google_drive_id}")
         return "Error deleting google doc id: {google_drive_id}"
