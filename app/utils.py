@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import subprocess
 from datetime import datetime, timedelta
 from functools import wraps
@@ -268,7 +269,14 @@ def check_flyway() -> tuple[bool, str]:
     """
     try:
         version = get_query_result(
-            "SELECT MAX(version) as version FROM flyway_schema_history", fetch_one=True
+            "SELECT version \
+    FROM flyway_schema_history \
+    ORDER BY \
+        CAST(SUBSTRING_INDEX(version, '.', 1) AS UNSIGNED) DESC, \
+        CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(version, '.', 2), '.', -1) AS UNSIGNED) DESC, \
+        CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(version, '.', 3), '.', -1) AS UNSIGNED) DESC \
+    LIMIT 1;",
+            fetch_one=True,
         )
         logging.debug(f"Flyway schema version: {version['version']}")
 
@@ -281,7 +289,8 @@ def check_flyway() -> tuple[bool, str]:
                 f
                 for f in os.listdir(migrations_dir)
                 if os.path.isfile(os.path.join(migrations_dir, f)) and f.endswith(".sql")
-            ]
+            ],
+            key=lambda f: [int(num) for num in re.findall(r"\d+", f)],
         )
 
         if not migrations:
