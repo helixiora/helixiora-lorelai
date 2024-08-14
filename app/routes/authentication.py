@@ -172,7 +172,7 @@ def profile():
             access_token = refresh_google_token_if_needed(access_token)
             session["access_token"] = access_token
 
-        if g.features["google_drive"] == 1:
+        if int(g.features["google_drive"]) == 1:
             google_docs_to_index = get_query_result(
                 query="SELECT google_drive_id, item_name, mime_type, item_type, last_indexed_at \
                     FROM google_drive_items WHERE user_id = %s",
