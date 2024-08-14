@@ -37,6 +37,8 @@ from lorelai.utils import load_config
 
 from flask_debugtoolbar import DebugToolbarExtension
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 # this is a print on purpose (not a logger statement) to show that the app is loading
 # get the git commit hash, branch name and first line of the commit message and print it out
 print("Loading the app...")
@@ -47,6 +49,10 @@ print(f"Git details: {git_details}")
 logging.info(f"Git details: {git_details}")
 
 app = Flask(__name__)
+
+# Apply ProxyFix to handle X-Forwarded-* headers
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
 # Get the log level from the environment variable
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
 

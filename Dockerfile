@@ -26,7 +26,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN flyway -v || true
 # install gunicorn
 RUN pip install --no-cache-dir -r requirements-web.txt
-CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5000", "run:app"]
+CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5000", "--forwarded-allow-ips", "'*'", "run:app"]
 
 # Development stage
 FROM web-production as web-development
