@@ -164,6 +164,7 @@ def profile():
                 logging.info("No access token found in user_auth for user %s", session["user_id"])
                 access_token = None
         else:
+            logging.info("Access token found in session for user %s", session["user_id"])
             access_token = session.get("access_token")
 
         if access_token:
@@ -178,7 +179,12 @@ def profile():
                 params=(session["user_id"],),
                 fetch_one=False,
             )
+            logging.info(
+                "Google Drive feature is enabled. Found %s items to index.",
+                len(google_docs_to_index),
+            )
         else:
+            logging.warning("Google Drive feature is disabled.")
             google_docs_to_index = None
 
         logging.info(
