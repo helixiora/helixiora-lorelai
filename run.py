@@ -46,17 +46,6 @@ git_details = os.popen("git log --pretty=format:'%H %d %s' -n 1").read()
 print(f"Git details: {git_details}")
 logging.info(f"Git details: {git_details}")
 
-# if we're running the app in a container, gather information about the container
-if os.path.exists("/proc/self/cgroup"):
-    container_id = os.popen(
-        "cat /proc/self/cgroup | grep 'docker' | sed 's/^.*\///' | tail -n1"
-    ).read()
-else:
-    container_id = None
-container_id = container_id.strip() if container_id else "Not in a container"
-print(f"Container ID: {container_id}")
-logging.info(f"Container ID: {container_id}")
-
 app = Flask(__name__)
 # Get the log level from the environment variable
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
@@ -306,7 +295,6 @@ def set_security_headers(response):
         "https://apis.google.com/",
         "https://cdn.datatables.net/",
         "https://cdn.jsdelivr.net/",
-        "https://cdn.tailwindcss.com/",
         "https://code.jquery.com/",
         "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
         "https://unpkg.com/@popperjs/",
