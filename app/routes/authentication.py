@@ -158,10 +158,13 @@ def profile():
             )
             # if there is no result, the user has not authenticated with Google (yet)
             if result:
+                logging.info("Access token found in user_auth for user %s", session["user_id"])
                 access_token = result["auth_value"]
             else:
+                logging.info("No access token found in user_auth for user %s", session["user_id"])
                 access_token = None
         else:
+            logging.info("Access token found in session for user %s", session["user_id"])
             access_token = session.get("access_token")
 
         if access_token:
@@ -169,16 +172,25 @@ def profile():
             access_token = refresh_google_token_if_needed(access_token)
             session["access_token"] = access_token
 
-        if g.features["google_drive"] == 1:
+        if int(g.features["google_drive"]) == 1:
             google_docs_to_index = get_query_result(
                 query="SELECT google_drive_id, item_name, mime_type, item_type, last_indexed_at \
                     FROM google_drive_items WHERE user_id = %s",
                 params=(session["user_id"],),
                 fetch_one=False,
             )
+            logging.info(
+                "Google Drive feature is enabled. Found %s items to index.",
+                len(google_docs_to_index),
+            )
         else:
+            logging.warning("Google Drive feature is disabled.")
             google_docs_to_index = None
 
+        logging.info(
+            "Rendering profile page for user %s with access_token %s", user["email"], access_token
+        )
+        logging.info("Google docs to index: %s", google_docs_to_index)
         return render_template(
             "profile.html",
             user=user,
