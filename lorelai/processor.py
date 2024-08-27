@@ -117,6 +117,7 @@ class Processor:
         text_docs = []
         for doc in documents:
             texts = doc.page_content.replace("\n", " ").replace("\r", " ")
+            texts = f"Documents Title: {doc.metadata['title']}: \n {texts}"
             text_docs.append(texts)
         embeds = embeddings_model.embed_documents(text_docs)
 
