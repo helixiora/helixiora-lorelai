@@ -513,6 +513,7 @@ def login_user(
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
+        # We May need to change this logic, as we are setting same thing every time user logs in.
         # Update the user's Google ID in the database
         cursor.execute(
             "UPDATE user SET google_id = %s, user_name = %s, full_name = %s \
@@ -520,6 +521,12 @@ def login_user(
             (google_id, username, full_name, user_id),
         )
 
+        # login_type, it is not necessary now but in future when we add multiple login method
+        cursor.execute(
+            "INSERT INTO user_login (user_id, login_type) \
+            VALUES (%s, %s)",
+            (user_id, "google-oauth"),
+        )
         conn.commit()
 
     except Exception as e:
