@@ -167,8 +167,7 @@ def index():
     # render the index_logged_in page
     if user_is_logged_in(session):
         # have to setup thread_id for the chat history feature. in UI we have to create button for
-        # new
-        # thread which replace current session "thread_id"
+        # new thread which replace current session "thread_id"
         if "thread_id" not in session:
             # ULID creates chronological string, which make inserting faster as they are sequential
             session["thread_id"] = str(ULID().to_uuid())
@@ -328,6 +327,7 @@ def set_security_headers(response):
         "https://accounts.google.com/gsi/style",
         "https://cdn.datatables.net/",
         "https://cdn.jsdelivr.net/npm/@popperjs/",
+        "https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/",
         "https://fonts.googleapis.com/css",
         "https://fonts.googleapis.com/css2",
         "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",

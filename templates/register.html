@@ -18,9 +18,8 @@
                 <label for="organisation">Organisation</label>
                 <input type="text" class="form-control" id="organisation" name="organisation" placeholder="Enter your organisation" required value="{{ organisation }}">
             </div>
-            <!-- Add a hidden field that holds the google auth token and google_id -->
+            <!-- Add a hidden field that holds the google_id -->
             <input type="hidden" name="google_id" value="{{ google_id }}">
-            <input type="hidden" name="google_token" value="{{ google_token }}">
             <button type="submit" class="btn btn-primary">Register</button>
         </form>
     </div>

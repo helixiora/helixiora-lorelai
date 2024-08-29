@@ -220,23 +220,13 @@ def register_get():
     """
     email = request.args.get("email", "")
     full_name = request.args.get("full_name", "")
-    google_token = request.args.get("google_token", "")
     google_id = request.args.get("google_id", "")
-
-    logging.debug(
-        "Received email: %s, full_name: %s, google_id: %s, token: %s",
-        email,
-        full_name,
-        google_id,
-        google_token,
-    )
 
     return render_template(
         "register.html",
         email=email,
         full_name=full_name,
         google_id=google_id,
-        google_token=google_token,
     )
 
 
@@ -255,7 +245,8 @@ def register_post():
     full_name = request.form.get("full_name")
     organisation = request.form.get("organisation")
     google_id = request.form.get("google_id")
-    google_token = request.form.get("google_token")
+
+    logging.info("Registering user: %s with google_id: %s", email, google_id)
 
     if org_exists_by_name(organisation):
         return redirect(url_for("org_exists"))
@@ -270,21 +261,31 @@ def register_post():
             full_name=full_name,
             organisation=organisation,
             google_id=google_id,
-            google_token=google_token,
         )
 
     # register the user
-    success, message, user_id = register_user_to_org(
-        email, full_name, organisation, google_id, google_token
+    success, message, user_id, org_id = register_user_to_org(
+        email, full_name, organisation, google_id
     )
 
+    if success:
+        login_user(
+            user_id=user_id,
+            user_email=email,
+            google_id=google_id,
+            username=full_name,
+            full_name=full_name,
+            org_id=org_id,
+            org_name=organisation,
+        )
+
     flash("Registration successful!", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("auth.profile"))
 
 
 def register_user_to_org(
-    email: str, full_name: str, organisation: str, google_id: str, google_token: str
-) -> (bool, str, int):
+    email: str, full_name: str, organisation: str, google_id: str
+) -> (bool, str, int, int):
     """
     Register a user to an organisation.
 
@@ -298,13 +299,12 @@ def register_user_to_org(
         The organisation name.
     google_id : str
         The Google ID.
-    google_token : str
-        The Google Oauth token.
 
     Returns
     -------
     tuple
-        A tuple containing a boolean indicating success, a message, and the user ID.
+        A tuple containing a boolean indicating success, a message, the user ID, and the
+        organisation ID.
     """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -337,7 +337,7 @@ def register_user_to_org(
 
         conn.commit()
 
-        return True, "Registration successful!", user_id
+        return True, "Registration successful!", user_id, org_id
 
     except Exception as e:
         logging.error("An error occurred: %s", e)
@@ -444,7 +444,11 @@ def login():
         # redirect them to the registration page
         if not user_id:
             logging.info("User not registered: %s", user_email)
-            return redirect(url_for("auth.register_get", email=user_email, full_name=username))
+            return redirect(
+                url_for(
+                    "auth.register_get", email=user_email, full_name=username, google_id=google_id
+                )
+            )
 
         # if we're still here, it means we found the user, so we log them in
         logging.info("User logging in: %s", user_email)
