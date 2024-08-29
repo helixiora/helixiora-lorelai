@@ -95,3 +95,27 @@ def fetch_chat_result():
     else:
         # Job is either queued or started but not yet finished
         return jsonify({"status": "IN PROGRESS"}), 202
+
+
+@chat_bp.route("/api/notifications")
+def get_notifications():
+    """Get notifications for the current user."""
+    try:
+        # Fetch unread notifications for the current user
+        notifications = []
+
+        # Convert notifications to a list of dictionaries
+        notifications_list = [
+            {
+                "id": notification.id,
+                "message": notification.message,
+                "created_at": notification.created_at.isoformat(),
+            }
+            for notification in notifications
+        ]
+
+        return jsonify(notifications_list), 200
+    except Exception as e:
+        # Log the error (you should set up proper logging)
+        print(f"Error fetching notifications: {str(e)}")
+        return jsonify({"error": "Unable to fetch notifications"}), 500
