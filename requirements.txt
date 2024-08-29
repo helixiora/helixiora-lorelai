@@ -9,7 +9,7 @@ langchain==0.2.14
 langchain-community==0.2.12
 langchain-openai==0.1.22
 langchain-pinecone==0.1.3
-langchain_google_community==1.0.9
+git+https://github.com/walterheck/langchain-google.git@fix/drive-scope#egg=langchain_google_community&subdirectory=libs/community
 mysql-connector-python==9.0.0
 pinecone-client==5.0.1
 PyJWT==2.9.0
