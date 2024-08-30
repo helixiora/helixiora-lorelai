@@ -2,20 +2,55 @@
 
 {% block title %}Lorelai{% endblock %}
 
-{% block content %}
-<script src="{{ url_for('serve_js', script_name='chatui') }}"></script>
+{% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_styles.css') }}">
+{% endblock head %}
 
-<div class="d-flex vh-100">
-    <div class="ms-5 flex-grow-1 pt-2 d-flex flex-column justify-content-between">
+{% block content %}
+<div class="d-flex vh-100" id="content-div">
+    <!-- Recent Conversations Column (Resizable) -->
+    <div class="bg-light border-end ml-0 expanded" id="recentConversationsColumn">
+        <div class="position-relative h-100">
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                <strong>Recent Conversations</strong>
+            </div>
+            <div id="recentConversationsList" class="overflow-auto" style="max-height: calc(100vh - 60px);">
+                <ul class="list-group list-group-flush">
+                    {% if recent_conversations %}
+                        {% for conversation in recent_conversations %}
+                            <li class="list-group-item conversation-item" data-conversation-id="{{ conversation.id }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="text-truncate">{{ conversation.title }}</span>
+                                    <small class="text-muted">{{ conversation.date.strftime('%Y-%m-%d') }}</small>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    {% else %}
+                        <a href="/" class="text-primary text-decoration-none">
+                            <li class="list-group-item"><small>< Current conversation ></small></li>
+                        </a>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-grow-1 pt-2 d-flex flex-column justify-content-between">
         <!-- User Organization and Email Container -->
-        <div class="ps-4 pt-2">
+        <div class="ps-4 pt-2 d-flex justify-content-between align-items-center">
+
             <div class="text-dark">
                 <a href="/profile" class="text-primary text-decoration-none">
                     <i class="bi bi-envelope"></i> <span>{{ user_email }}</span>
                 </a>
             </div>
+            <div class="pe-4">
+                <button id="newConversationBtn" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-plus-circle"></i> New Conversation
+                </button>
+            </div>
         </div>
+
         <!-- Flash Messages -->
         <div class="container mt-4">
             {% with messages = get_flashed_messages() %}
@@ -28,24 +63,25 @@
                 {% endif %}
             {% endwith %}
         </div>
+
         <!-- Chat Message Area -->
         <div id="messages" class="flex-grow-1 rounded-lg p-4 mb-4 overflow-auto">
             <!-- More messages will be added here dynamically -->
         </div>
+
         <!-- Input Box and Send Button -->
         <div class="pb-4 mx-auto w-100 ps-4 pe-4">
             <div class="d-flex align-items-center bg-white rounded shadow-sm border">
-                <input id="messageInput" type="text" placeholder="Type something to discover awesome stuff!" class="flex-grow-1 p-4 rounded-start border-0">
-                <!-- Datasource Select Dropdown -->
-                <div class="ps-4 p-2">
+                <textarea id="messageInput" placeholder="Type something to discover awesome stuff!" class="flex-grow-1 p-3 rounded-start border-0" rows="1"></textarea>
+                <div class="ps-3 p-2">
                     <select id="datasourceSelect" class="form-select">
                         {% for source in datasource_list %}
                             <option value="{{ source }}">{{ source }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <button id="sendButton" class="btn btn-primary rounded-end p-4 border-0">
-                    <i class="bi bi-send-fill" style="font-size: 2rem"></i>
+                <button id="sendButton" class="btn btn-primary rounded-end p-3 border-0">
+                    <i class="bi bi-send-fill" style="font-size: 1.5rem"></i>
                 </button>
             </div>
             <span class="text-center text-secondary d-block mt-2">Chatbot may display inaccurate info, including about people, so double-check its responses.</span>
@@ -53,8 +89,11 @@
     </div>
 </div>
 
+{% endblock content %}
 
 
-<!-- Add Bootstrap JS for collapse functionality -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('serve_js', script_name='tour-index') }}"></script>
+<script src="{{ url_for('serve_js', script_name='conversations') }}"></script>
+<script src="{{ url_for('serve_js', script_name='chatui') }}"></script>
+{% endblock scripts %}
