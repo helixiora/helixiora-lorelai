@@ -7,7 +7,9 @@ from redis import Redis
 from rq import Queue
 
 from app.tasks import execute_rag_llm
-from app.utils import get_msg_count_last_24hr, load_config
+from app.helpers.chat import get_msg_count_last_24hr
+from app.helpers.notifications import get_notifications
+from lorelai.utils import load_config
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
@@ -98,23 +100,13 @@ def fetch_chat_result():
 
 
 @chat_bp.route("/api/notifications")
-def get_notifications():
+def api_notifications():
     """Get notifications for the current user."""
     try:
         # Fetch unread notifications for the current user
-        notifications = []
+        notifications = get_notifications(session.get("user_id"))
 
-        # Convert notifications to a list of dictionaries
-        notifications_list = [
-            {
-                "id": notification.id,
-                "message": notification.message,
-                "created_at": notification.created_at.isoformat(),
-            }
-            for notification in notifications
-        ]
-
-        return jsonify(notifications_list), 200
+        return jsonify(notifications), 200
     except Exception as e:
         # Log the error (you should set up proper logging)
         print(f"Error fetching notifications: {str(e)}")

@@ -7,6 +7,17 @@ import os
 import sys
 
 import mysql.connector
+from app.helpers.database import (
+    get_db_connection,
+    run_flyway_migrations,
+    check_flyway,
+    perform_health_checks,
+)
+from app.helpers.users import is_super_admin, is_admin, user_is_logged_in
+import app.helpers.notifications
+from app.helpers.datasources import get_datasources_name
+import app.helpers.chat
+
 from flask import (
     Flask,
     g,
@@ -23,16 +34,7 @@ from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.google.authorization import googledrive_bp
-from app.utils import (
-    check_flyway,
-    get_datasources_name,
-    get_db_connection,
-    is_admin,
-    is_super_admin,
-    perform_health_checks,
-    run_flyway_migrations,
-    user_is_logged_in,
-)
+
 from lorelai.utils import load_config
 
 from flask_debugtoolbar import DebugToolbarExtension

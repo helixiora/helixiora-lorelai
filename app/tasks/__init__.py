@@ -7,12 +7,8 @@ import time
 
 from rq import get_current_job
 
-from app.utils import (
-    get_datasources_name,
-    insert_message,
-    insert_thread_ignore,
-)
-
+from app.helpers.datasources import get_datasources_name
+from app.helpers.chat import insert_message, insert_thread_ignore
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever

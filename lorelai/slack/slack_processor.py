@@ -17,7 +17,7 @@ import requests
 from flask import redirect, request, session, url_for
 from langchain_openai import OpenAIEmbeddings
 
-from app.utils import get_db_connection
+from app.helpers.database import get_db_connection
 from lorelai.utils import get_embedding_dimension, load_config
 from lorelai.pinecone import index_name
 
