@@ -237,6 +237,7 @@ def start_indexing(type) -> str:
                         user_rows=user_rows,
                         user_auth_rows=user_auth_rows,
                         user_data_rows=user_data_rows,
+                        started_by_user_id=user_id,
                         job_timeout=3600,
                         description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']}",
                     )

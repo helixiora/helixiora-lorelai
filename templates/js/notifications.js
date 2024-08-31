@@ -45,8 +45,43 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             notifications.forEach(notification => {
                 const li = document.createElement('li');
-                li.textContent = notification.message;
-                li.className = 'notification-item';
+                li.className = `notification-item ${notification.type}`;
+                li.dataset.id = notification.id;
+
+                const title = document.createElement('strong');
+                title.textContent = notification.title;
+                li.appendChild(title);
+
+                const message = document.createElement('p');
+                message.textContent = notification.message;
+                li.appendChild(message);
+
+                const date = document.createElement('small');
+                date.textContent = new Date(notification.created_at).toLocaleString();
+                li.appendChild(date);
+
+                if (notification.url) {
+                    const link = document.createElement('a');
+                    link.href = notification.url;
+                    link.textContent = 'View';
+                    li.appendChild(link);
+                }
+
+                const actionDiv = document.createElement('div');
+                actionDiv.className = 'notification-actions';
+
+                const readBtn = document.createElement('button');
+                readBtn.textContent = 'Mark as Read';
+                readBtn.onclick = () => markAsRead(notification.id);
+                actionDiv.appendChild(readBtn);
+
+                const dismissBtn = document.createElement('button');
+                dismissBtn.textContent = 'Dismiss';
+                dismissBtn.onclick = () => dismissNotification(notification.id);
+                actionDiv.appendChild(dismissBtn);
+
+                li.appendChild(actionDiv);
+
                 notificationList.appendChild(li);
             });
         }
@@ -56,6 +91,72 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleFetchError() {
         updateNotificationBadge(0);
         notificationList.innerHTML = '<li class="text-danger">Unable to load notifications. Please try again later.</li>';
+    }
+
+    // Function to mark a notification as read
+    async function markAsRead(notificationId) {
+        try {
+            const response = await fetch(`/api/notifications/${notificationId}/read`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
+                    if (notificationItem) {
+                        notificationItem.classList.add('read');
+                    }
+                    updateNotificationBadge(data.remaining_unread);
+                    updateNotificationCounts(data);
+                } else {
+                    console.error('Failed to mark notification as read');
+                }
+            } else {
+                console.error('Failed to mark notification as read');
+            }
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
+    }
+
+    // Function to dismiss a notification
+    async function dismissNotification(notificationId) {
+        try {
+            const response = await fetch(`/api/notifications/${notificationId}/dismiss`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
+                    if (notificationItem) {
+                        notificationItem.remove();
+                    }
+                    updateNotificationBadge(data.remaining_unread);
+                    updateNotificationCounts(data);
+                } else {
+                    console.error('Failed to dismiss notification');
+                }
+            } else {
+                console.error('Failed to dismiss notification');
+            }
+        } catch (error) {
+            console.error('Error dismissing notification:', error);
+        }
+    }
+
+    // New function to update notification counts
+    function updateNotificationCounts(data) {
+        // Update any UI elements that display notification counts
+        // For example:
+        document.getElementById('readCount').textContent = data.read;
+        document.getElementById('undismissedCount').textContent = data.undismissed;
     }
 
     // Show/hide popover on hover

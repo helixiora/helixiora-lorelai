@@ -51,35 +51,85 @@ def get_unread_notifications(user_id: int) -> list[dict]:
     return [notification for notification in notifications if not notification["read"]]
 
 
-def mark_notification_as_read(notification_id: int) -> bool:
-    """Mark a notification as read."""
+def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
+    """Mark a notification as read and return status information."""
     try:
         with get_db_connection() as db:
-            cursor = db.cursor()
-            query = "UPDATE notifications SET read = TRUE WHERE id = %s"
-            cursor.execute(query, (notification_id,))
+            cursor = db.cursor(dictionary=True)
+
+            # Mark the notification as read
+            update_query = "UPDATE notifications SET read = TRUE WHERE id = %s AND user_id = %s"
+            cursor.execute(update_query, (notification_id, user_id))
+            success = cursor.rowcount > 0
             db.commit()
-            return True
+
+            # Get counts for different notification states
+            count_query = """
+            SELECT
+                SUM(CASE WHEN read = FALSE THEN 1 ELSE 0 END) as remaining_unread,
+                SUM(CASE WHEN read = TRUE THEN 1 ELSE 0 END) as read,
+                SUM(CASE WHEN dismissed = TRUE THEN 1 ELSE 0 END) as dismissed,
+                SUM(CASE WHEN dismissed = FALSE THEN 1 ELSE 0 END) as undismissed
+            FROM notifications
+            WHERE user_id = %s
+            """
+            cursor.execute(count_query, (user_id,))
+            counts = cursor.fetchone()
+
+            return {"success": success, **{k: v or 0 for k, v in counts.items()}}
     except Exception as e:
         logging.error(f"Failed to mark notification as read: {e}")
-        return False
+        return {
+            "success": False,
+            "error": str(e),
+            "remaining_unread": 0,
+            "read": 0,
+            "dismissed": 0,
+            "undismissed": 0,
+        }
     finally:
         cursor.close()
         db.close()
 
 
-def mark_notification_as_dismissed(notification_id: int) -> bool:
-    """Mark a notification as dismissed."""
+def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
+    """Mark a notification as dismissed and return status information."""
     try:
         with get_db_connection() as db:
-            cursor = db.cursor()
-            query = "UPDATE notifications SET dismissed = TRUE WHERE id = %s"
-            cursor.execute(query, (notification_id,))
+            cursor = db.cursor(dictionary=True)
+
+            # Mark the notification as dismissed
+            update_query = (
+                "UPDATE notifications SET dismissed = TRUE WHERE id = %s AND user_id = %s"
+            )
+            cursor.execute(update_query, (notification_id, user_id))
+            success = cursor.rowcount > 0
             db.commit()
-            return True
+
+            # Get counts for different notification states
+            count_query = """
+            SELECT
+                SUM(CASE WHEN read = FALSE THEN 1 ELSE 0 END) as remaining_unread,
+                SUM(CASE WHEN read = TRUE THEN 1 ELSE 0 END) as read,
+                SUM(CASE WHEN dismissed = TRUE THEN 1 ELSE 0 END) as dismissed,
+                SUM(CASE WHEN dismissed = FALSE THEN 1 ELSE 0 END) as undismissed
+            FROM notifications
+            WHERE user_id = %s
+            """
+            cursor.execute(count_query, (user_id,))
+            counts = cursor.fetchone()
+
+            return {"success": success, **{k: v or 0 for k, v in counts.items()}}
     except Exception as e:
         logging.error(f"Failed to mark notification as dismissed: {e}")
-        return False
+        return {
+            "success": False,
+            "error": str(e),
+            "remaining_unread": 0,
+            "read": 0,
+            "dismissed": 0,
+            "undismissed": 0,
+        }
     finally:
         cursor.close()
         db.close()

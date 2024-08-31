@@ -9,6 +9,7 @@ from rq import get_current_job
 
 from app.helpers.datasources import get_datasources_name
 from app.helpers.chat import insert_message, insert_thread_ignore
+from app.helpers.notifications import add_notification
 
 # import the indexer
 from lorelai.contextretriever import ContextRetriever
@@ -171,6 +172,7 @@ def run_indexer(
     user_rows: list[any],
     user_auth_rows: list[any],
     user_data_rows: list[any],
+    started_by_user_id: int,
 ):
     """
     Run the indexer. Should be called from an rq job.
@@ -218,6 +220,13 @@ def run_indexer(
             logging.debug(result)
             job.meta["logs"].append(result)
             job.save_meta()
+
+        add_notification(
+            user_id=started_by_user_id,
+            title="Indexing completed",
+            type="success",
+            message=f"Indexing completed for {org_row['name']}",
+        )
 
         logging.debug("Indexing completed!")
     except Exception as e:

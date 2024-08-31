@@ -8,7 +8,11 @@ from rq import Queue
 
 from app.tasks import execute_rag_llm
 from app.helpers.chat import get_msg_count_last_24hr
-from app.helpers.notifications import get_notifications
+from app.helpers.notifications import (
+    get_notifications,
+    mark_notification_as_read,
+    mark_notification_as_dismissed,
+)
 from lorelai.utils import load_config
 
 chat_bp = blueprints.Blueprint("chat", __name__)
@@ -111,3 +115,17 @@ def api_notifications():
         # Log the error (you should set up proper logging)
         print(f"Error fetching notifications: {str(e)}")
         return jsonify({"error": "Unable to fetch notifications"}), 500
+
+
+@chat_bp.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
+def api_notifications_read(notification_id):
+    """Mark a notification as read."""
+    mark_notification_as_read(notification_id, session.get("user_id"))
+    return jsonify({"status": "success"}), 200
+
+
+@chat_bp.route("/api/notifications/<int:notification_id>/dismiss", methods=["POST"])
+def api_notifications_dismiss(notification_id):
+    """Mark a notification as dismissed."""
+    mark_notification_as_dismissed(notification_id, session.get("user_id"))
+    return jsonify({"status": "success"}), 200
