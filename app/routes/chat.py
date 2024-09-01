@@ -2,18 +2,30 @@
 
 import logging
 
-from flask import blueprints, jsonify, request, session
+from flask import (
+    blueprints,
+    jsonify,
+    request,
+    session,
+    redirect,
+    url_for,
+    current_app,
+    render_template,
+)
 from redis import Redis
 from rq import Queue
 
+from app.helpers.users import user_is_logged_in
+from app.helpers.chat import get_chat_template_requirements
 from app.tasks import execute_rag_llm
-from app.helpers.chat import get_msg_count_last_24hr
+from app.helpers.chat import get_msg_count_last_24hr, get_all_thread_messages
 from app.helpers.notifications import (
     get_notifications,
     mark_notification_as_read,
     mark_notification_as_dismissed,
 )
 from lorelai.utils import load_config
+from ulid import ULID
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
@@ -52,7 +64,14 @@ def chat():
 
     llm_model = "OpenAILlm"
     # llm_model = "OllamaLlama3"
-    thread_id = session["thread_id"]
+
+    # if the thread_id is not set, create a new one
+    if "thread_id" in content:
+        thread_id = content["thread_id"]
+    else:
+        thread_id = str(ULID().to_uuid())
+        session["thread_id"] = thread_id
+
     job = queue.enqueue(
         execute_rag_llm,
         thread_id,
@@ -74,6 +93,7 @@ def chat():
 def fetch_chat_result():
     """Endpoint to fetch the result of a chat operation."""
     job_id = request.args.get("job_id")
+    thread_id = request.args.get("thread_id")
     if not job_id:
         return jsonify({"status": "ERROR", "message": "Job ID is required"}), 400
 
@@ -97,13 +117,13 @@ def fetch_chat_result():
             return jsonify({"status": "FAILED", "error": job.result}), 500
         if job.result["status"] == "No Relevant Source":
             return jsonify({"status": "NO_RELEVANT_SOURCE", "result": job.result}), 500
-        return jsonify({"status": "SUCCESS", "result": job.result})
+        return jsonify({"status": "SUCCESS", "result": job.result, "thread_id": thread_id})
     else:
         # Job is either queued or started but not yet finished
         return jsonify({"status": "IN PROGRESS"}), 202
 
 
-@chat_bp.route("/api/notifications")
+@chat_bp.route("/api/notifications", methods=["GET"])
 def api_notifications():
     """Get notifications for the current user."""
     try:
@@ -120,6 +140,9 @@ def api_notifications():
 @chat_bp.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
 def api_notifications_read(notification_id):
     """Mark a notification as read."""
+    logging.info(
+        f"Marking notification {notification_id} as read for user {session.get('user_id')}"
+    )
     mark_notification_as_read(notification_id, session.get("user_id"))
     return jsonify({"status": "success"}), 200
 
@@ -127,5 +150,81 @@ def api_notifications_read(notification_id):
 @chat_bp.route("/api/notifications/<int:notification_id>/dismiss", methods=["POST"])
 def api_notifications_dismiss(notification_id):
     """Mark a notification as dismissed."""
+    logging.info(
+        f"Marking notification {notification_id} as dismissed for user {session.get('user_id')}"
+    )
     mark_notification_as_dismissed(notification_id, session.get("user_id"))
     return jsonify({"status": "success"}), 200
+
+
+@chat_bp.route("/conversation/<thread_id>")
+def conversation(thread_id):
+    """Return the conversation page.
+
+    Returns
+    -------
+        string: the conversation page
+    """
+    session["thread_id"] = thread_id
+    lorelai_settings = load_config("lorelai")
+    chat_template_requirements = get_chat_template_requirements(thread_id, session["user_id"])
+    return render_template(
+        template_name_or_list="index_logged_in.html",
+        user_email=session["user_email"],
+        recent_conversations=chat_template_requirements["recent_conversations"],
+        is_admin=chat_template_requirements["is_admin_status"],
+        datasource_list=chat_template_requirements["datasources"],
+        support_portal=lorelai_settings["support_portal"],
+        support_email=lorelai_settings["support_email"],
+    )
+
+
+# get all messages for a given thread
+@chat_bp.route("/api/conversation/<thread_id>")
+def api_conversation(thread_id):
+    """Get all messages for a given thread."""
+    messages = get_all_thread_messages(thread_id)
+    return jsonify(messages), 200
+
+
+# Improved index route using render_template
+@chat_bp.route("/")
+def index():
+    """Return the index page.
+
+    Returns
+    -------
+        string: the index page
+    """
+    logging.debug("Index route")
+
+    if current_app.config.get("LORELAI_SETUP"):
+        # redirect to /admin/setup if the app is not set up
+        logging.info("App is not set up. Redirecting to /admin/setup")
+        return redirect(url_for("admin.setup"))
+
+    # if the user_id is in the session, the user is logged in
+    # render the index_logged_in page
+    if user_is_logged_in(session):
+        lorelai_settings = load_config("lorelai")
+        thread_id = session.get("thread_id")
+        chat_template_requirements = get_chat_template_requirements(thread_id, session["user_id"])
+
+        return render_template(
+            "index_logged_in.html",
+            user_email=session["user_email"],
+            recent_conversations=chat_template_requirements["recent_conversations"],
+            is_admin=chat_template_requirements["is_admin_status"],
+            datasource_list=chat_template_requirements["datasources"],
+            support_portal=lorelai_settings["support_portal"],
+            support_email=lorelai_settings["support_email"],
+        )
+
+    # if we're still here, there was no user_id in the session meaning we are not logged in
+    # render the front page with the google client id
+    # if the user clicks login from that page, the javascript function `onGoogleCredentialResponse`
+    # will handle the login using the /login route in auth.py.
+    # Depending on the output of that route, it's redirecting to /register if need be
+
+    secrets = load_config("google")
+    return render_template("index.html", google_client_id=secrets["client_id"])

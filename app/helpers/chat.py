@@ -3,7 +3,34 @@
 import logging
 from datetime import datetime, timedelta
 
+from app.helpers.users import is_admin
+from app.helpers.datasources import get_datasources_name
 from app.helpers.database import get_db_connection
+
+
+def get_chat_template_requirements(thread_id: str, user_id: int):
+    """
+    Retrieve the chat template requirements for a given thread.
+
+    Args:
+        thread_id (str): The ID of the thread whose chat template requirements are to be retrieved.
+        user_id (int): The ID of the user whose chat template requirements are to be retrieved.
+
+    Returns
+    -------
+        dict: A dictionary containing the chat template requirements.
+    """
+    datasources = get_datasources_name()
+
+    recent_conversations = get_recent_threads(user_id)
+
+    is_admin_status = is_admin(user_id)
+
+    return {
+        "datasources": datasources,
+        "recent_conversations": recent_conversations,
+        "is_admin_status": is_admin_status,
+    }
 
 
 def get_msg_count_last_24hr(user_id: int):
@@ -161,7 +188,7 @@ def get_all_thread_messages(thread_id: str):
     """
     try:
         with get_db_connection() as db:
-            cursor = db.cursor()
+            cursor = db.cursor(dictionary=True)
             query = """
             SELECT sender, message_content, created_at, sources
                 FROM chat_messages
@@ -176,3 +203,42 @@ def get_all_thread_messages(thread_id: str):
     except Exception as e:
         logging.error(e)
         raise e
+
+
+def get_recent_threads(user_id: int):
+    """
+    Retrieve the most recent threads for a given user.
+
+    Args:
+        user_id (int): The ID of the user whose recent threads are to be retrieved.
+
+    Returns
+    -------
+        list: A list of recent threads for the user. Each thread includes thread_id, thread_name,
+        and created_at. Returns an empty list if no recent threads are found.
+
+    Raises
+    ------
+        Exception: If there is an error during the database query.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            query = """
+            SELECT thread_id, thread_name, created_at
+            FROM chat_threads
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT 10;
+            """
+            cursor.execute(query, (user_id,))
+            recent_threads = cursor.fetchall()
+            if recent_threads is None:
+                return []
+            return recent_threads
+    except Exception as e:
+        logging.error(e)
+        raise e
+    finally:
+        cursor.close()
+        db.close()

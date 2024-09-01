@@ -144,6 +144,7 @@ def execute_rag_llm(
             "source": source,
             "status": status,
             "datasource": datasource,
+            "thread_id": thread_id,
         }
 
     except ValueError as e:

@@ -354,7 +354,7 @@ def login():
 
         logging.debug("Session: %s", session)
 
-        return redirect(url_for("index"))
+        return redirect(url_for("chat.index"))
 
     except ValueError as e:
         logging.error("Invalid token: %s", e)
@@ -559,4 +559,4 @@ def logout():
     session.clear()
     flash("You have been logged out.")
 
-    return redirect(url_for("index"))
+    return redirect(url_for("chat.index"))

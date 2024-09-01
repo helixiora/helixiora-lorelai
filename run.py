@@ -7,28 +7,23 @@ import os
 import sys
 
 import mysql.connector
+
+import app.helpers.notifications
 from app.helpers.database import (
     get_db_connection,
     run_flyway_migrations,
     check_flyway,
     perform_health_checks,
 )
-from app.helpers.users import is_super_admin, is_admin, user_is_logged_in
-import app.helpers.notifications
-from app.helpers.datasources import get_datasources_name
-import app.helpers.chat
 
 from flask import (
     Flask,
     g,
-    redirect,
     render_template,
     render_template_string,
     request,
-    session,
     url_for,
 )
-from ulid import ULID
 
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
@@ -133,75 +128,6 @@ logging.info(
         "BASE_URL", "http://" + os.getenv("HOST", "localhost") + ":" + os.getenv("PORT", "5000")
     ),
 )
-
-
-def super_admin_panel_content() -> list:
-    """Return the content for the super admin panel.
-
-    Returns
-    -------
-        list: the content for the super admin panel
-    """
-    session_variables = ["Session variables:"]
-    for key, value in session.items():
-        session_variables.append(f"- {key}: {value}")
-
-    return session_variables
-
-
-# Improved index route using render_template
-@app.route("/")
-def index():
-    """Return the index page.
-
-    Returns
-    -------
-        string: the index page
-    """
-    logging.debug("Index route")
-
-    if app.config.get("LORELAI_SETUP"):
-        # redirect to /admin/setup if the app is not set up
-        logging.info("App is not set up. Redirecting to /admin/setup")
-        return redirect(url_for("admin.setup"))
-
-    # if the user_id is in the session, the user is logged in
-    # render the index_logged_in page
-    if user_is_logged_in(session):
-        # have to setup thread_id for the chat history feature. in UI we have to create button for
-        # new thread which replace current session "thread_id"
-        if "thread_id" not in session:
-            # ULID creates chronological string, which make inserting faster as they are sequential
-            session["thread_id"] = str(ULID().to_uuid())
-        datasources = get_datasources_name()
-
-        lorelai_settings = load_config("lorelai")
-
-        is_admin_status = is_admin(session["user_id"])
-
-        if is_super_admin(session["user_id"]):
-            super_admin_content = super_admin_panel_content()
-        else:
-            super_admin_content = []
-
-        return render_template(
-            "index_logged_in.html",
-            user_email=session["user_email"],
-            is_admin=is_admin_status,
-            datasource_list=datasources,
-            super_admin_content=super_admin_content,
-            support_portal=lorelai_settings["support_portal"],
-            support_email=lorelai_settings["support_email"],
-        )
-
-    # if we're still here, there was no user_id in the session meaning we are not logged in
-    # render the front page with the google client id
-    # if the user clicks login from that page, the javascript function `onGoogleCredentialResponse`
-    # will handle the login using the /login route in auth.py.
-    # Depending on the output of that route, it's redirecting to /register if need be
-
-    secrets = load_config("google")
-    return render_template("index.html", google_client_id=secrets["client_id"])
 
 
 @app.route("/js/<script_name>.js")
@@ -371,7 +297,7 @@ def unauthorized():
     -------
         A rendered HTML string containing a JavaScript alert and redirection script.
     """
-    next_url = request.args.get("next") or url_for("index")
+    next_url = request.args.get("next") or url_for("chat.index")
     return render_template_string(
         """
         <script>

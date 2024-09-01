@@ -425,7 +425,7 @@ def invite_user():
     token = create_jwt_token_invite_user(
         invitee_email=email, org_admin_email=session["user_email"], org_name=session["org_name"]
     )
-    invite_register_url = url_for("index", token=token, _external=True)
+    invite_register_url = url_for("chat.index", token=token, _external=True)
 
     email_status = send_invite_email(
         org_admin_email=session["user_email"],

@@ -98,7 +98,7 @@ class SlackOAuth:
                 )
                 conn.commit()
                 logging.debug(access_token)
-                return redirect(url_for("index"))
+                return redirect(url_for("chat.index"))
         return "Error", 400
 
 

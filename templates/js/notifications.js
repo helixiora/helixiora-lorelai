@@ -72,11 +72,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const readBtn = document.createElement('button');
                 readBtn.textContent = 'Mark as Read';
+                readBtn.classList.add('btn', 'btn-primary', 'btn-sm');
                 readBtn.onclick = () => markAsRead(notification.id);
                 actionDiv.appendChild(readBtn);
 
                 const dismissBtn = document.createElement('button');
                 dismissBtn.textContent = 'Dismiss';
+                dismissBtn.classList.add('btn', 'btn-primary', 'btn-sm');
                 dismissBtn.onclick = () => dismissNotification(notification.id);
                 actionDiv.appendChild(dismissBtn);
 
@@ -112,10 +114,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateNotificationBadge(data.remaining_unread);
                     updateNotificationCounts(data);
                 } else {
-                    console.error('Failed to mark notification as read');
+                    console.error('Failed to mark notification as read:', data.error);
                 }
             } else {
-                console.error('Failed to mark notification as read');
+                console.error('Failed to mark notification as read:', response.statusText);
             }
         } catch (error) {
             console.error('Error marking notification as read:', error);
@@ -141,10 +143,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateNotificationBadge(data.remaining_unread);
                     updateNotificationCounts(data);
                 } else {
-                    console.error('Failed to dismiss notification');
+                    console.error('Failed to dismiss notification:', data.error);
                 }
             } else {
-                console.error('Failed to dismiss notification');
+                console.error('Failed to dismiss notification:', response.statusText);
             }
         } catch (error) {
             console.error('Error dismissing notification:', error);
