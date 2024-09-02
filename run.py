@@ -8,6 +8,8 @@ import sys
 
 import mysql.connector
 
+import sentry_sdk
+
 import app.helpers.notifications
 from app.helpers.database import (
     get_db_connection,
@@ -44,6 +46,12 @@ logging.debug("Loading the app...")
 git_details = os.popen("git log --pretty=format:'%H %d %s' -n 1").read()
 print(f"Git details: {git_details}")
 logging.info(f"Git details: {git_details}")
+
+sentry_sdk.init(
+    dsn=load_config("sentry")["dsn"],
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+)
 
 app = Flask(__name__)
 
@@ -202,6 +210,13 @@ def set_security_headers(response):
         "'self'",
         "https://accounts.google.com/gsi/",
         "https://oauth2.googleapis.com/",
+        "https://o4507884621791232.ingest.de.sentry.io/api/",
+    ]
+
+    worker_src = [
+        "'self'",
+        "https://o4507884621791232.ingest.de.sentry.io/api/",
+        "blob:",  # Add this line to allow blob URLs for workers
     ]
 
     frame_src = [
@@ -224,6 +239,8 @@ def set_security_headers(response):
     script_src_elem = [
         "'self'",
         "'unsafe-inline'",
+        "https://js-de.sentry-cdn.com/",
+        "https://browser.sentry-cdn.com/",
         "https://accounts.google.com/gsi/client",
         "https://apis.google.com/",
         "https://cdn.datatables.net/",
@@ -272,6 +289,7 @@ def set_security_headers(response):
         f"font-src {' '.join(font_src)}; "
         f"script-src {' '.join(script_src)}; "
         f"style-src {' '.join(style_src)}; "
+        f"worker-src {' '.join(worker_src)}; "
         f"default-src {' '.join(default_src)};"
     )
 
