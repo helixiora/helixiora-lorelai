@@ -225,12 +225,16 @@ def get_recent_threads(user_id: int):
         with get_db_connection() as db:
             cursor = db.cursor(dictionary=True)
             query = """
-            SELECT thread_id, thread_name, created_at
-            FROM chat_threads
-            WHERE user_id = %s
-            ORDER BY created_at DESC
+            SELECT ct.thread_id, ct.thread_name, ct.created_at, max(cm.created_at) AS
+            last_messages_created_at
+            FROM chat_threads ct
+            LEFT JOIN chat_messages cm ON ct.thread_id = cm.thread_id
+            WHERE ct.user_id = %s
+            GROUP BY ct.thread_id, ct.thread_name, ct.created_at
+            HAVING max(cm.created_at) IS NOT NULL
+            ORDER BY last_messages_created_at DESC
             LIMIT 10;
-            """
+`            """
             cursor.execute(query, (user_id,))
             recent_threads = cursor.fetchall()
             if recent_threads is None:
