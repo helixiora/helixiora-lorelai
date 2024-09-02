@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const response = await fetch(`/chat?job_id=${jobId}`);
+            const response = await fetch(`/api/chat?job_id=${jobId}`);
             const data = await response.json();
 
             console.log('Response:', data);
@@ -222,7 +222,7 @@ async function sendMessage(message) {
     showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
     try {
-        const response = await fetch('/chat', {
+        const response = await fetch('/api/chat', {
             method: 'POST',
             body: JSON.stringify({message: message, datasource: selectedDatasource}),
             headers: {

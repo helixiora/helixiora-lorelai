@@ -31,7 +31,7 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 
 
 # a get and post route for the chat page
-@chat_bp.route("/chat", methods=["POST"])
+@chat_bp.route("/api/chat", methods=["POST"])
 def chat():
     """Post messages to rq to process."""
     content = request.get_json()
@@ -65,13 +65,14 @@ def chat():
     llm_model = "OpenAILlm"
     # llm_model = "OllamaLlama3"
 
-    # if the thread_id is not set, create a new one
-    if "thread_id" in content:
-        thread_id = content["thread_id"]
+    # if the thread_id is set in the session, use it; otherwise, create a new one
+    if "thread_id" in session:
+        thread_id = session["thread_id"]
     else:
         thread_id = str(ULID().to_uuid())
         session["thread_id"] = thread_id
 
+    # enqueue the chat task
     job = queue.enqueue(
         execute_rag_llm,
         thread_id,
@@ -89,7 +90,7 @@ def chat():
     return jsonify({"job": job.get_id()}), 202
 
 
-@chat_bp.route("/chat", methods=["GET"])
+@chat_bp.route("/api/chat", methods=["GET"])
 def fetch_chat_result():
     """Endpoint to fetch the result of a chat operation."""
     job_id = request.args.get("job_id")
@@ -157,7 +158,7 @@ def api_notifications_dismiss(notification_id):
     return jsonify({"status": "success"}), 200
 
 
-@chat_bp.route("/conversation/<thread_id>")
+@chat_bp.route("/conversation/<thread_id>", methods=["GET"])
 def conversation(thread_id):
     """Return the conversation page.
 
