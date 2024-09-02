@@ -58,7 +58,9 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
             cursor = db.cursor(dictionary=True)
 
             # Mark the notification as read
-            update_query = "UPDATE notifications SET read = TRUE WHERE id = %s AND user_id = %s"
+            update_query = (
+                """UPDATE notifications SET `read` = TRUE WHERE `id` = %s AND `user_id` = %s"""
+            )
             cursor.execute(update_query, (notification_id, user_id))
             success = cursor.rowcount > 0
             db.commit()
@@ -66,12 +68,12 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
             # Get counts for different notification states
             count_query = """
             SELECT
-                SUM(CASE WHEN read = FALSE THEN 1 ELSE 0 END) as remaining_unread,
-                SUM(CASE WHEN read = TRUE THEN 1 ELSE 0 END) as read,
-                SUM(CASE WHEN dismissed = TRUE THEN 1 ELSE 0 END) as dismissed,
-                SUM(CASE WHEN dismissed = FALSE THEN 1 ELSE 0 END) as undismissed
-            FROM notifications
-            WHERE user_id = %s
+                SUM(CASE WHEN `read` = FALSE THEN 1 ELSE 0 END) as `remaining_unread`,
+                SUM(CASE WHEN `read` = TRUE THEN 1 ELSE 0 END) as `read`,
+                SUM(CASE WHEN `dismissed` = TRUE THEN 1 ELSE 0 END) as `dismissed`,
+                SUM(CASE WHEN `dismissed` = FALSE THEN 1 ELSE 0 END) as `undismissed`
+            FROM `notifications`
+            WHERE `user_id` = %s
             """
             cursor.execute(count_query, (user_id,))
             counts = cursor.fetchone()
@@ -99,9 +101,8 @@ def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
             cursor = db.cursor(dictionary=True)
 
             # Mark the notification as dismissed
-            update_query = (
-                "UPDATE notifications SET dismissed = TRUE WHERE id = %s AND user_id = %s"
-            )
+            update_query = """UPDATE `notifications` SET `dismissed` = TRUE WHERE `id` = %s AND
+            `user_id` = %s"""
             cursor.execute(update_query, (notification_id, user_id))
             success = cursor.rowcount > 0
             db.commit()
@@ -109,12 +110,12 @@ def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
             # Get counts for different notification states
             count_query = """
             SELECT
-                SUM(CASE WHEN read = FALSE THEN 1 ELSE 0 END) as remaining_unread,
-                SUM(CASE WHEN read = TRUE THEN 1 ELSE 0 END) as read,
-                SUM(CASE WHEN dismissed = TRUE THEN 1 ELSE 0 END) as dismissed,
-                SUM(CASE WHEN dismissed = FALSE THEN 1 ELSE 0 END) as undismissed
-            FROM notifications
-            WHERE user_id = %s
+                SUM(CASE WHEN `read` = FALSE THEN 1 ELSE 0 END) as `remaining_unread`,
+                SUM(CASE WHEN `read` = TRUE THEN 1 ELSE 0 END) as `read`,
+                SUM(CASE WHEN `dismissed` = TRUE THEN 1 ELSE 0 END) as `dismissed`,
+                SUM(CASE WHEN `dismissed` = FALSE THEN 1 ELSE 0 END) as `undismissed`
+            FROM `notifications`
+            WHERE `user_id` = %s
             """
             cursor.execute(count_query, (user_id,))
             counts = cursor.fetchone()

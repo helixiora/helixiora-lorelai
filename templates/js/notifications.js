@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (response.ok) {
                 const data = await response.json();
-                if (data.success) {
+                if (data.status === "success") {
                     const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
                     if (notificationItem) {
                         notificationItem.classList.add('read');
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (response.ok) {
                 const data = await response.json();
-                if (data.success) {
+                if (data.status === "success") {
                     const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
                     if (notificationItem) {
                         notificationItem.remove();
