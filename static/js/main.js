@@ -41,14 +41,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(script);
     }
 
-    // Google Sign-In status update
-    function updateSignInStatus(isSignedIn) {
-        const statusElement = document.getElementById('signin-status');
-        if (statusElement) {
-            statusElement.textContent = isSignedIn ? 'Signed In' : 'Signed Out';
-        }
-    }
-
     // Check if Google Sign-In is available
     if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
         google.accounts.id.prompt();

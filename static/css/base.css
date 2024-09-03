@@ -70,11 +70,6 @@ body {
     white-space: nowrap;
 }
 
-/* New styles for responsiveness and structure */
-body {
-    font-family: 'Arial', sans-serif;
-}
-
 .hero {
     background: #f4f4f4;
     padding: 50px 0;
@@ -113,11 +108,11 @@ body {
     .hero h1 {
         font-size: 2rem;
     }
-    
+
     .hero p {
         font-size: 1rem;
     }
-    
+
     .logo-overlay {
         max-width: 60px;
     }
