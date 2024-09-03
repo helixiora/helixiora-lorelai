@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS notifications (
+    `id` SERIAL PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `type` VARCHAR(255) NOT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `message` TEXT NOT NULL,
+    `data` TEXT DEFAULT NULL,
+    `url` VARCHAR(255) DEFAULT NULL,
+    `read` BOOLEAN DEFAULT FALSE,
+    `read_at` TIMESTAMP DEFAULT NULL,
+    `dismissed` BOOLEAN DEFAULT FALSE,
+    `dismissed_at` TIMESTAMP DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

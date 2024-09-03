@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
 # import the indexer
-from app.utils import get_db_connection
+from app.helpers.database import get_db_connection
 from lorelai.indexer import Indexer
 
 # logging settings

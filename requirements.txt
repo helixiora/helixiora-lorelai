@@ -17,4 +17,5 @@ python-ulid==2.7.0
 redis==5.0.8
 rq==1.16.2
 sendgrid==6.11.0
+sentry-sdk==2.13.0
 werkzeug==3.0.4

@@ -30,19 +30,21 @@ import time
 
 import requests as lib_requests
 
-from app.utils import (
-    get_db_connection,
-    get_org_id_by_organisation,
+from app.helpers.users import (
+    user_is_logged_in,
+    is_admin,
     get_org_id_by_userid,
     get_organisation_by_org_id,
-    get_query_result,
     get_user_id_by_email,
     get_user_role_by_id,
-    is_admin,
-    user_is_logged_in,
-    load_config,
     org_exists_by_name,
+    validate_form,
+    register_user_to_org,
 )
+from app.helpers.database import get_db_connection, get_query_result
+
+from lorelai.utils import load_config
+
 from lorelai.slack.slack_processor import SlackOAuth
 
 auth_bp = Blueprint("auth", __name__)
@@ -220,23 +222,13 @@ def register_get():
     """
     email = request.args.get("email", "")
     full_name = request.args.get("full_name", "")
-    google_token = request.args.get("google_token", "")
     google_id = request.args.get("google_id", "")
-
-    logging.debug(
-        "Received email: %s, full_name: %s, google_id: %s, token: %s",
-        email,
-        full_name,
-        google_id,
-        google_token,
-    )
 
     return render_template(
         "register.html",
         email=email,
         full_name=full_name,
         google_id=google_id,
-        google_token=google_token,
     )
 
 
@@ -255,7 +247,8 @@ def register_post():
     full_name = request.form.get("full_name")
     organisation = request.form.get("organisation")
     google_id = request.form.get("google_id")
-    google_token = request.form.get("google_token")
+
+    logging.info("Registering user: %s with google_id: %s", email, google_id)
 
     if org_exists_by_name(organisation):
         return redirect(url_for("org_exists"))
@@ -270,129 +263,26 @@ def register_post():
             full_name=full_name,
             organisation=organisation,
             google_id=google_id,
-            google_token=google_token,
         )
 
     # register the user
-    success, message, user_id = register_user_to_org(
-        email, full_name, organisation, google_id, google_token
+    success, message, user_id, org_id = register_user_to_org(
+        email, full_name, organisation, google_id
     )
+
+    if success:
+        login_user(
+            user_id=user_id,
+            user_email=email,
+            google_id=google_id,
+            username=full_name,
+            full_name=full_name,
+            org_id=org_id,
+            org_name=organisation,
+        )
 
     flash("Registration successful!", "success")
-    return redirect(url_for("index"))
-
-
-def register_user_to_org(
-    email: str, full_name: str, organisation: str, google_id: str, google_token: str
-) -> (bool, str, int):
-    """
-    Register a user to an organisation.
-
-    Parameters
-    ----------
-    email : str
-        The user's email.
-    full_name : str
-        The user's full name.
-    organisation : str
-        The organisation name.
-    google_id : str
-        The Google ID.
-    google_token : str
-        The Google Oauth token.
-
-    Returns
-    -------
-    tuple
-        A tuple containing a boolean indicating success, a message, and the user ID.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    try:
-        # check if the organisation exists
-        org_id, created_new_org = get_org_id_by_organisation(
-            conn=conn, organisation=organisation, create_if_not_exists=True
-        )
-
-        # insert the user
-        user_id, user_created_success = insert_user(
-            cursor, org_id, full_name, email, full_name, google_id
-        )
-
-        # if created = True, this is the first user of the org so make them an org_admin by
-        # inserting a record in the user_roles table
-        if user_created_success and created_new_org:
-            # get the role_id of the org_admin role
-            cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
-            result = cursor.fetchone()
-            if not result:
-                raise ValueError("Role 'org_admin' not found in the database.")
-            role_id = result["role_id"]
-
-            cursor.execute(
-                "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
-                (user_id, role_id),
-            )
-
-        conn.commit()
-
-        return True, "Registration successful!", user_id
-
-    except Exception as e:
-        logging.error("An error occurred: %s", e)
-        conn.rollback()
-        return False, f"An error occurred: {e}", -1
-
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def insert_user(
-    cursor, org_id: int, name: str, email: str, full_name: str, google_id: str
-) -> (int, bool):
-    """Insert a new user and return the user ID."""
-    cursor.execute(
-        "INSERT INTO user (org_id, user_name, email, full_name, google_id) \
-            VALUES (%s, %s, %s, %s, %s)",
-        (org_id, name, email, full_name, google_id),
-    )
-
-    # return lastrowid if the insert was successful
-    user_id = cursor.lastrowid
-    if user_id:
-        return user_id, True
-    return -1, False
-
-
-def validate_form(email: str, name: str, organisation: str):
-    """Validate the registration form.
-
-    Parameters
-    ----------
-    email : str
-        The user's email.
-    name : str
-        The user's name.
-    organisation : str
-        The user's organisation.
-
-    Returns
-    -------
-    list
-        A list of missing fields.
-    """
-    missing_fields = []
-
-    if not email:
-        missing_fields.append("email")
-    if not name:
-        missing_fields.append("name")
-    if not organisation:
-        missing_fields.append("organisation")
-
-    return missing_fields
+    return redirect(url_for("auth.profile"))
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -444,7 +334,11 @@ def login():
         # redirect them to the registration page
         if not user_id:
             logging.info("User not registered: %s", user_email)
-            return redirect(url_for("auth.register_get", email=user_email, full_name=username))
+            return redirect(
+                url_for(
+                    "auth.register_get", email=user_email, full_name=username, google_id=google_id
+                )
+            )
 
         # if we're still here, it means we found the user, so we log them in
         logging.info("User logging in: %s", user_email)
@@ -460,7 +354,7 @@ def login():
 
         logging.debug("Session: %s", session)
 
-        return redirect(url_for("index"))
+        return redirect(url_for("chat.index"))
 
     except ValueError as e:
         logging.error("Invalid token: %s", e)
@@ -665,4 +559,4 @@ def logout():
     session.clear()
     flash("You have been logged out.")
 
-    return redirect(url_for("index"))
+    return redirect(url_for("chat.index"))

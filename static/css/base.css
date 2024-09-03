@@ -1,0 +1,61 @@
+* {
+    font-family: Poppins, sans-serif;
+}
+body {
+    background-color: #eaf5ff;
+}
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    padding: 3px 6px;
+    border-radius: 50%;
+    background-color: red;
+    color: white;
+    font-size: 0.7rem;
+}
+.notification-popover {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    background-color: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    z-index: 1000;
+    width: 200px;
+    color: black;
+}
+.logo-container {
+    position: relative;
+    cursor: pointer;
+}
+
+#sidebar {
+    width: 5rem;
+    transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.content-wrapper {
+    margin-left: 5rem;
+    transition: margin-left 0.3s ease;
+}
+
+.nav-link {
+    transition: background-color 0.3s ease;
+}
+
+.nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.notification-item {
+    padding: 5px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.notification-item:last-child {
+    border-bottom: none;
+}

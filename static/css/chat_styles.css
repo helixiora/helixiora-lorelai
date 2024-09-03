@@ -1,0 +1,121 @@
+.hidden {
+    display: none;
+}
+#loading {
+    text-align: right;
+    white-space: nowrap;
+}
+.dot-pulse {
+    display: inline-block;
+    position: relative;
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: #4b9feb;
+    margin: 0 3px;
+    animation: dot-pulse 1.5s infinite linear;
+}
+.dot-pulse::before, .dot-pulse::after {
+    content: "";
+    display: inline-block;
+    position: absolute;
+    top: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: #4b9feb;
+}
+.dot-pulse::before {
+    left: -15px;
+    animation: dot-pulse-before 1.5s infinite linear;
+}
+.dot-pulse::after {
+    left: 15px;
+    animation: dot-pulse-after 1.5s infinite linear;
+    animation-delay: 0.5s;
+}
+.source-score {
+    font-weight: bold;
+}
+
+.source-score:has(⚠️) {
+    color: #ff9900; /* Orange color for warning */
+}
+@keyframes dot-pulse-before {
+    0%, 60%, 100% {
+        transform: scale(0.8);
+    }
+    30% {
+        transform: scale(1);
+    }
+}
+@keyframes dot-pulse {
+    0%, 60%, 100% {
+        transform: scale(0.8);
+    }
+    30% {
+        transform: scale(1);
+    }
+}
+@keyframes dot-pulse-after {
+    0%, 60%, 100% {
+        transform: scale(0.8);
+    }
+    30% {
+        transform: scale(1);
+    }
+}
+#recentConversationsColumn {
+    transition: all 0.3s ease-in-out;
+    resize: horizontal;
+    overflow: auto;
+    width: 250px;
+    min-width: 200px;
+    max-width: 50%;
+    position: relative;
+}
+#recentConversationsColumn.collapsed {
+    width: 0;
+    padding: 0;
+    border: none !important;
+}
+#recentConversationsColumn.collapsed > * {
+    display: none;
+}
+
+#recentConversationsList {
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+}
+
+#recentConversationsList::-webkit-scrollbar {
+    width: 6px;
+}
+
+#recentConversationsList::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#recentConversationsList::-webkit-scrollbar-thumb {
+    background: #888;
+}
+
+#recentConversationsList::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.conversation-item {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.conversation-item:hover {
+    background-color: #f8f9fa;
+}
+
+#messageInput {
+    resize: none;
+    overflow: hidden;
+    min-height: 38px;
+    max-height: 150px;
+}

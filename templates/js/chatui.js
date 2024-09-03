@@ -50,7 +50,9 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContentDiv.style.overflowWrap = 'break-word';
         // Use innerHTML for bot messages that need to render HTML content
         if (isUser) {
-            messageContentDiv.innerHTML = '<strong>{{ session.get('user_username') }}</strong>: ' + content;
+            // get the user_username from the session
+            const username = '{{ session.get('user_username') }}';
+            messageContentDiv.innerHTML = '<strong>' + username + '</strong>: ' + content;
         } else {
             messageContentDiv.innerHTML = '<strong>Lorelai</strong>: ' + content;
         }
@@ -112,10 +114,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const response = await fetch(`/chat?job_id=${jobId}`);
+            const response = await fetch(`/api/chat?job_id=${jobId}`);
             const data = await response.json();
 
             console.log('Response:', data);
+
+            thread_id = data.thread_id;
+            if (thread_id) {
+                //push the new url to the browser
+                history.pushState(null, '', `/conversation/${thread_id}`);
+            }
 
             if (data.status === 'SUCCESS') {
                 console.log('Operation completed successfully.');
@@ -214,9 +222,9 @@ async function sendMessage(message) {
     showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
     try {
-        const response = await fetch('/chat', {
+        const response = await fetch('/api/chat', {
             method: 'POST',
-            body: JSON.stringify({message: message, datasource: selectedDatasource }),
+            body: JSON.stringify({message: message, datasource: selectedDatasource}),
             headers: {
                 'Content-Type': 'application/json'
             }
@@ -257,22 +265,38 @@ async function sendMessage(message) {
     }
 }
 
+
+async function get_conversation(conversationId) {
+    // add an API call here to fetch the conversation messages
+    console.log('Fetching conversation:', conversationId);
+    // get /api/conversation/conversationId
+    fetch(`/api/conversation/${conversationId}`)
+        .then(response => response.json())
+        .then(data => {
+            for (const message of data) {
+                if (message.sender == "user") {
+                    addMessage(
+                        content=message.message_content,
+                        isUser=true,
+                        isHTML=true,
+                        isSources=false
+                    );
+                } else {
+                    addMessage(
+                        content=message.message_content,
+                        isUser=false,
+                        isHTML=true,
+                        isSources=false
+                    );
+                }
+            }
+        });
+}
+
     // Add a welcoming message on page load
     const welcomeMessage = `## Welcome to Lorelai!
 
-We are excited to have you here. To ensure you have the best experience, we want to set clear expectations:
-
-- ### Accuracy of Responses:
-  We strive to provide accurate and reliable information. However, if you encounter any responses that seem incorrect or misleading, please let us know immediately.
-
-- ### Document Management:
-  Your documents are important to us. If you notice any responses referencing documents you have deleted, please report it so we can address the issue.
-
-- ### Access to Documents:
-  We aim to ensure you can access all the documents you need. If you face any issues retrieving information from documents you have access to, please contact us for support.
-
-Thank you for using our service. We are here to assist you and make your experience as smooth as possible.
-`;
+We are excited to have you here! Feel free to ask any questions you have and set the datasource to the datasource you want to use.`;
     addMessage(
         content=welcomeMessage,
         isUser=false,
@@ -292,5 +316,48 @@ Thank you for using our service. We are here to assist you and make your experie
         if (e.key === 'Enter') {
             sendButton.click();
         }
+    });
+
+    // if the page is loaded with a conversation_id in the url, load the conversation
+    if (window.location.pathname.includes('/conversation/')) {
+        const conversationId = window.location.pathname.split('/conversation/')[1];
+        console.log('Loading conversation:', conversationId);
+        // You may want to add an API call here to fetch the conversation messages
+        conversation = get_conversation(conversationId);
+    }
+
+
+});
+
+// New conversation button functionality
+document.getElementById('newConversationBtn').addEventListener('click', function() {
+    // Clear the chat messages
+    document.getElementById('messages').innerHTML = '';
+    // Reset the input field
+    document.getElementById('messageInput').value = '';
+    // You may want to add an API call here to create a new conversation on the server
+});
+
+// Make the textarea auto-expand
+const messageInput = document.getElementById('messageInput');
+messageInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+});
+
+// Add click event listeners to conversation items
+document.querySelectorAll('.conversation-item').forEach(item => {
+    item.addEventListener('click', function() {
+        const conversationId = this.dataset.conversationId;
+        // Add logic to load the selected conversation
+        console.log('Loading conversation:', conversationId);
+        // You may want to add an API call here to fetch the conversation messages
+        window.location.href = `/conversation/${conversationId}`;
+        // set the thread_id in the session
+        session["thread_id"] = conversationId;
+        console.log('Setting thread_id in session:', session["thread_id"]);
+
+        // reload the page
+        location.reload();
     });
 });

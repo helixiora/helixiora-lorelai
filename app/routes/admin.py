@@ -19,18 +19,18 @@ from redis import Redis
 from rq import Queue
 
 from app.tasks import run_indexer
-from app.utils import (
-    get_db_connection,
-    get_query_result,
-    get_users,
-    is_admin,
-    is_org_admin,
+
+from app.helpers.users import (
     is_super_admin,
-    role_required,
-    run_flyway_migrations,
+    is_org_admin,
+    is_admin,
     user_is_logged_in,
+    get_users,
+    role_required,
     create_invited_user_in_db,
 )
+from app.helpers.database import get_db_connection, get_query_result, run_flyway_migrations
+
 from lorelai.contextretriever import ContextRetriever
 from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
 
@@ -237,6 +237,7 @@ def start_indexing(type) -> str:
                         user_rows=user_rows,
                         user_auth_rows=user_auth_rows,
                         user_data_rows=user_data_rows,
+                        started_by_user_id=user_id,
                         job_timeout=3600,
                         description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']}",
                     )
@@ -424,7 +425,7 @@ def invite_user():
     token = create_jwt_token_invite_user(
         invitee_email=email, org_admin_email=session["user_email"], org_name=session["org_name"]
     )
-    invite_register_url = url_for("index", token=token, _external=True)
+    invite_register_url = url_for("chat.index", token=token, _external=True)
 
     email_status = send_invite_email(
         org_admin_email=session["user_email"],
