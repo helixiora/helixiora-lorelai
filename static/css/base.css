@@ -59,3 +59,74 @@ body {
 .notification-item:last-child {
     border-bottom: none;
 }
+
+/* Existing styles */
+.hidden {
+    display: none;
+}
+
+#loading {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* New styles for responsiveness and structure */
+body {
+    font-family: 'Arial', sans-serif;
+}
+
+.hero {
+    background: #f4f4f4;
+    padding: 50px 0;
+    text-align: center;
+}
+
+.hero-image-container {
+    position: relative;
+    margin-top: 30px;
+}
+
+.hero-image {
+    max-height: 300px;
+    width: 100%;
+    object-fit: cover;
+}
+
+.logo-overlay {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    opacity: 0.7;
+    max-width: 100px;
+}
+
+.feature .card-img-top {
+    height: 200px;
+    object-fit: cover;
+}
+
+.cta {
+    background: #007BFF;
+}
+
+@media (max-width: 768px) {
+    .hero h1 {
+        font-size: 2rem;
+    }
+    
+    .hero p {
+        font-size: 1rem;
+    }
+    
+    .logo-overlay {
+        max-width: 60px;
+    }
+}
+
+/* Ensure this is at the end of the file */
+#messageInput {
+    resize: none;
+    overflow: hidden;
+    min-height: 38px;
+    max-height: 150px;
+}
