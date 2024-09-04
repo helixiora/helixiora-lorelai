@@ -2,7 +2,7 @@
 //     introJs.tour().setOptions({
 //         steps: [
 //             {
-//                 intro: "Welcome to Lorelai! Before you get started asking questions about your data, we need to configure the system. Please follow the steps below."
+//                 intro: "Welcome to LorelAI! Before you get started asking questions about your data, we need to configure the system. Please follow the steps below."
 //             },
 //             {
 //                 element: document.querySelector('.profile-link'),
