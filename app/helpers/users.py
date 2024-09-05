@@ -327,7 +327,7 @@ def create_invited_user_in_db(email: str, org_name: str):
                 raise ValueError(f"Org_id for {org_name} not found")
 
             # user table
-            query = "INSERT INTO user (org_id, email) VALUES (%s, %s)"
+            query = "INSERT IGNORE INTO user (org_id, email) VALUES (%s, %s)"
             user_data = (
                 org_id,
                 email,
