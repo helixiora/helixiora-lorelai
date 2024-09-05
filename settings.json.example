@@ -37,6 +37,9 @@
         "api_key": " apikey here",
         "invite_template_id": "d-709a4aaf4af14541a9a31aba7c773bae"
     },
+    "sentry": {
+        "dsn": "https://<<dsn here>>"
+    },
     "db": {
         "host": "your_mysql_server",
         "port": 3306,

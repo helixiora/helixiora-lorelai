@@ -16,7 +16,7 @@ from redis import Redis
 from rq import Queue
 
 from app.helpers.users import user_is_logged_in
-from app.helpers.chat import get_chat_template_requirements
+from app.helpers.chat import get_chat_template_requirements, delete_thread
 from app.tasks import execute_rag_llm
 from app.helpers.chat import get_msg_count_last_24hr, get_all_thread_messages
 from app.helpers.notifications import (
@@ -178,6 +178,14 @@ def conversation(thread_id):
         support_portal=lorelai_settings["support_portal"],
         support_email=lorelai_settings["support_email"],
     )
+
+
+# route to delete a thread and all its messages
+@chat_bp.route("/api/conversation/<thread_id>/delete", methods=["DELETE"])
+def delete_conversation(thread_id):
+    """Delete a thread and all its messages."""
+    delete_thread(thread_id)
+    return jsonify({"status": "success"}), 200
 
 
 # get all messages for a given thread

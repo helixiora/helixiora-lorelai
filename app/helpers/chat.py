@@ -246,3 +246,36 @@ def get_recent_threads(user_id: int):
     finally:
         cursor.close()
         db.close()
+
+
+def delete_thread(thread_id: str):
+    """
+    Delete a thread and all its messages.
+
+    Args:
+        thread_id (str): The ID of the thread to be deleted.
+
+    Returns
+    -------
+        bool: True if the deletion was successful, False otherwise.
+
+    Raises
+    ------
+        Exception: If there is an error during the database query.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+            DELETE FROM chat_threads WHERE thread_id = %s;
+            DELETE FROM chat_messages WHERE thread_id = %s;
+            """
+            cursor.execute(query, (thread_id, thread_id))
+            db.commit()
+            return True
+    except Exception as e:
+        logging.error(e)
+        raise e
+    finally:
+        cursor.close()
+        db.close()
