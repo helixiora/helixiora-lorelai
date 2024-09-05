@@ -297,7 +297,7 @@ specified index.
 
 # lorelai.utils
 
-This module contains utility functions for the Lorelai package.
+This module contains utility functions for the LorelAI package.
 
 <a id="lorelai.utils.pinecone_index_name"></a>
 

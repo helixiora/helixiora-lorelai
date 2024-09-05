@@ -299,7 +299,7 @@ def index_details(host_name: str) -> str:
 @admin_bp.route("/admin/setup", methods=["GET"])
 @role_required(["super_admin", "org_admin"])
 def setup() -> str:
-    """Return the lorelai setup page.
+    """Return the LorelAI setup page.
 
     Shows the parameters for the database connection,
     and two buttons to test the connection and run the database creation.

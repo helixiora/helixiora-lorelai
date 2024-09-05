@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const lorelai_tour = introJs().setOptions({
         steps: [
             {
-                intro: "Welcome to Lorelai! \n\nThis is your profile page. Before you can ask questions, we first need to add a data source and run the indexer on them."
+                intro: "Welcome to LorelAI! \n\nThis is your profile page. Before you can ask questions, we first need to add a data source and run the indexer on them."
             },
             {
                 element: '#authorize_button',
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             {
                 element: '#index_button',
-                intro: "Great! You have connected a data source and selected files and/or folders to be indexed by Lorelai. Now, let's run the indexer on the selected files."
+                intro: "Great! You have connected a data source and selected files and/or folders to be indexed by LorelAI. Now, let's run the indexer on the selected files."
             }
         ],
         showStepNumbers: true,
