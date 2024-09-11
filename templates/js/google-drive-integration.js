@@ -42,9 +42,11 @@ async function maybeEnableButtons() {
     if (pickerInited && gisInited) {
         document.getElementById('authorize_button').disabled = false;
         if (accessToken) {
+            document.getElementById('authorize_button').innerText = 'Refresh';
             document.getElementById('signout_button').disabled = false;
             document.getElementById('select_button').disabled = false;
         } else {
+            document.getElementById('authorize_button').innerText = 'Authorize';
             document.getElementById('signout_button').disabled = true;
             document.getElementById('select_button').disabled = true;
         }
@@ -52,11 +54,10 @@ async function maybeEnableButtons() {
 }
 
 function handleSignoutClick() {
-    if (authorizationCode) {
+    if (accessToken) {
         google.accounts.oauth2.revoke(accessToken);
-        authorizationCode = null;
-        document.getElementById('content').innerHTML = '';
-        document.getElementById('signout_button').disabled = true;
+        accessToken = null;
+        maybeEnableButtons();
     }
 }
 
@@ -142,13 +143,5 @@ document.addEventListener('DOMContentLoaded', function () {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl)
     })
-
-    // Check for an existing access token on page load
-    if (accessToken) {
-        document.getElementById('authorize_button').innerText = 'Refresh';
-        document.getElementById('signout_button').disabled = false;
-        document.getElementById('select_button').disabled = false;
-    } else {
-        document.getElementById('authorize_button').disabled = false;
-    }
+    maybeEnableButtons();
 });
