@@ -266,16 +266,19 @@ def delete_thread(thread_id: str):
     try:
         with get_db_connection() as db:
             cursor = db.cursor()
-            query = """
-            DELETE FROM chat_threads WHERE thread_id = %s;
-            DELETE FROM chat_messages WHERE thread_id = %s;
-            """
-            cursor.execute(query, (thread_id, thread_id))
+            # Delete messages first
+            delete_messages_query = "DELETE FROM chat_messages WHERE thread_id = %s;"
+            cursor.execute(delete_messages_query, (thread_id,))
+
+            # Then delete the thread
+            delete_thread_query = "DELETE FROM chat_threads WHERE thread_id = %s;"
+            cursor.execute(delete_thread_query, (thread_id,))
+
             db.commit()
             return True
     except Exception as e:
-        logging.error(e)
-        raise e
+        logging.error(f"Error deleting thread {thread_id}: {e}")
+        db.rollback()
+        return False
     finally:
         cursor.close()
-        db.close()
