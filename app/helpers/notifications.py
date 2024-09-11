@@ -32,7 +32,7 @@ def get_notifications(user_id: int) -> list[dict]:
     try:
         with get_db_connection() as db:
             cursor = db.cursor(dictionary=True)
-            query = "SELECT * FROM notifications WHERE user_id = %s"
+            query = "SELECT * FROM notifications WHERE user_id = %s ORDER BY created_at DESC"
             cursor.execute(query, (user_id,))
             notifications = cursor.fetchall()
             return notifications
@@ -62,7 +62,6 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
                 """UPDATE notifications SET `read` = TRUE WHERE `id` = %s AND `user_id` = %s"""
             )
             cursor.execute(update_query, (notification_id, user_id))
-            success = cursor.rowcount > 0
             db.commit()
 
             # Get counts for different notification states
@@ -78,7 +77,7 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
             cursor.execute(count_query, (user_id,))
             counts = cursor.fetchone()
 
-            return {"success": success, **{k: v or 0 for k, v in counts.items()}}
+            return {"success": True, **{k: v or 0 for k, v in counts.items()}}
     except Exception as e:
         logging.error(f"Failed to mark notification as read: {e}")
         return {

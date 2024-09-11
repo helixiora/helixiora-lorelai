@@ -48,6 +48,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 li.className = `notification-item ${notification.type}`;
                 li.dataset.id = notification.id;
 
+                // Add 'read' class if the notification is read
+                if (notification.read) {
+                    li.classList.add('read');
+                }
+
+                // Add 'dismissed' class if the notification is dismissed
+                if (notification.dismissed) {
+                    li.classList.add('dismissed');
+                }
+
                 const title = document.createElement('strong');
                 title.textContent = notification.title;
                 li.appendChild(title);
@@ -70,17 +80,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 const actionDiv = document.createElement('div');
                 actionDiv.className = 'notification-actions';
 
-                const readBtn = document.createElement('button');
-                readBtn.textContent = 'Mark as Read';
-                readBtn.classList.add('btn', 'btn-primary', 'btn-sm');
-                readBtn.onclick = () => markAsRead(notification.id);
-                actionDiv.appendChild(readBtn);
+                if (!notification.read) {
+                    const readBtn = document.createElement('button');
+                    readBtn.textContent = 'Mark as Read';
+                    readBtn.classList.add('btn', 'btn-primary', 'btn-sm');
+                    readBtn.onclick = () => markAsRead(notification.id);
+                    actionDiv.appendChild(readBtn);
+                }
 
-                const dismissBtn = document.createElement('button');
-                dismissBtn.textContent = 'Dismiss';
-                dismissBtn.classList.add('btn', 'btn-primary', 'btn-sm');
-                dismissBtn.onclick = () => dismissNotification(notification.id);
-                actionDiv.appendChild(dismissBtn);
+                if (!notification.dismissed) {
+                    const dismissBtn = document.createElement('button');
+                    dismissBtn.textContent = 'Dismiss';
+                    dismissBtn.classList.add('btn', 'btn-primary', 'btn-sm');
+                    dismissBtn.onclick = () => dismissNotification(notification.id);
+                    actionDiv.appendChild(dismissBtn);
+                }
 
                 li.appendChild(actionDiv);
 
@@ -106,10 +120,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (response.ok) {
                 const data = await response.json();
-                if (data.status === "success") {
+                if (data.success) {
                     const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
                     if (notificationItem) {
                         notificationItem.classList.add('read');
+                        const readBtn = notificationItem.querySelector('button:contains("Mark as Read")');
+                        if (readBtn) {
+                            readBtn.remove();
+                        }
                     }
                     updateNotificationBadge(data.remaining_unread);
                     updateNotificationCounts(data);
@@ -135,10 +153,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (response.ok) {
                 const data = await response.json();
-                if (data.status === "success") {
+                if (data.success) {
                     const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
                     if (notificationItem) {
-                        notificationItem.remove();
+                        notificationItem.classList.add('dismissed');
+                        const dismissBtn = notificationItem.querySelector('button:contains("Dismiss")');
+                        if (dismissBtn) {
+                            dismissBtn.remove();
+                        }
                     }
                     updateNotificationBadge(data.remaining_unread);
                     updateNotificationCounts(data);
@@ -158,6 +180,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update any UI elements that display notification counts
         // For example:
         document.getElementById('readCount').textContent = data.read;
+        document.getElementById('unreadCount').textContent = data.remaining_unread;
+        document.getElementById('dismissedCount').textContent = data.dismissed;
         document.getElementById('undismissedCount').textContent = data.undismissed;
     }
 
