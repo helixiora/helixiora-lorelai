@@ -61,34 +61,6 @@ document.addEventListener('DOMContentLoaded', function() {
         messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom of the chat
     }
 
-    function extractTextFromJSON(obj) {
-        let text = '';
-        if (typeof obj === 'object' && !Array.isArray(obj)) {
-            // If it's an object, iterate over its properties
-            for (let key in obj) {
-                if (typeof obj[key] === 'string') {
-                    // Add the string value as a paragraph
-                    let paragraphs = obj[key].split('. ').join('.\n\n');
-                    text += paragraphs.trim() + '\n\n';
-                } else {
-                    // If it's a nested structure, recursively process it
-                    text += extractTextFromJSON(obj[key]);
-                }
-            }
-        } else if (Array.isArray(obj)) {
-            // If it's an array, process each element
-            obj.forEach(item => {
-                text += extractTextFromJSON(item);
-            });
-        } else if (typeof obj === 'string') {
-            // If it's a string, just add it
-            let paragraphs = obj.split('. ').join('.\n\n');
-            text += paragraphs.trim() + '\n\n';
-        }
-        return text.replace(/[\r\n]{3,}/g, '\n\n'); // Replace 3 or more newlines with just two
-    }
-
-
     /**
      * Calculates the delay before making the next poll based on the attempt number.
      *
