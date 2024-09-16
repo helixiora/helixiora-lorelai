@@ -40,11 +40,6 @@
     "sentry": {
         "dsn": "https://<<dsn here>>"
     },
-    "slack":{
-        "client_id": "slack_client_id_here",
-        "client_secret":"slack_client_secret_here",
-        "redirect_uri":"slack_redirect_uri_here"
-    },
     "db": {
         "host": "your_mysql_server",
         "port": 3306,
@@ -55,9 +50,10 @@
     "slack": {
         "client_id": "xxxx",
         "client_secret": "xxxx",
-        "redirect_uri": "https://redirectmeto.com/https://127.0.0.1:5000/slack/auth/callback",
+        "redirect_uri": "https://127.0.0.1:5000/slack/auth/callback",
         "authorization_url": "https://slack.com/oauth/v2/authorize",
-        "token_url": "https://slack.com/api/oauth.v2.access"
+        "token_url": "https://slack.com/api/oauth.v2.access",
+        "scopes": "channels:history,channels:read,users:read"
     },
     "features": {
         "slack":0,
