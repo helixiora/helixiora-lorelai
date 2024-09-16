@@ -20,13 +20,12 @@ from lorelai.utils import load_config
 class SlackOAuth:
     """Handles OAuth authentication with Slack."""
 
-    AUTH_URL = "https://slack.com/oauth/v2/authorize"
-    TOKEN_URL = "https://slack.com/api/oauth.v2.access"
-    SCOPES = "channels:history,channels:read,users:read"
-
     def __init__(self):
         """Initialize the SlackOAuth class with configuration settings."""
         self.config = load_config("slack")
+        self.authorization_url = self.config["authorization_url"]
+        self.token_url = self.config["token_url"]
+        self.scopes = self.config["scopes"]
         self.client_id = self.config["client_id"]
         self.client_secret = self.config["client_secret"]
         self.redirect_uri = self.config["redirect_uri"]
@@ -41,10 +40,10 @@ class SlackOAuth:
         """
         params = {
             "client_id": self.client_id,
-            "scope": self.SCOPES,
+            "scope": self.scopes,
             "redirect_uri": self.redirect_uri,
         }
-        request_url = requests.Request("GET", self.AUTH_URL, params=params).prepare().url
+        request_url = requests.Request("GET", self.authorization_url, params=params).prepare().url
         return request_url
 
     def get_access_token(self, code):
@@ -64,7 +63,7 @@ class SlackOAuth:
             "code": code,
             "redirect_uri": self.redirect_uri,
         }
-        response = requests.post(self.TOKEN_URL, data=payload)
+        response = requests.post(self.token_url, data=payload)
         if response.status_code == 200:
             return response.json()["access_token"]
         return None
