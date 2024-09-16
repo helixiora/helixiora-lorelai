@@ -27,12 +27,14 @@
 </div>
 
 <script>
-$(document).ready(function() {
-    $('#metadataTable').DataTable({
-        "pagingType": "simple_numbers", // Enables simple pagination
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]], // Sets the number of rows per page
-        "order": [[0, "asc"]] // Sorts the table by the first column in ascending order
+    document.addEventListener('DOMContentLoaded', function() {
+        $(document).ready(function() {
+            $('#metadataTable').DataTable({
+                "pagingType": "simple_numbers", // Enables simple pagination
+                "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]], // Sets the number of rows per page
+                "order": [[0, "asc"]] // Sorts the table by the first column in ascending order
+            });
+        });
     });
-});
 </script>
 {% endblock %}
