@@ -18,7 +18,7 @@ from flask import (
 from redis import Redis
 from rq import Queue
 
-from app.tasks import run_indexer
+from app.tasks import run_indexer, run_slack_indexer
 
 from app.helpers.users import (
     is_super_admin,
@@ -252,6 +252,44 @@ def start_indexing(type) -> str:
     except Exception as e:
         logging.error(f"Error starting indexing: {e}")
         return jsonify({"error": "Failed to start indexing"}), 500
+
+
+@admin_bp.route("/admin/startslackindex", methods=["POST"])
+@role_required(["super_admin", "org_admin"])
+# For Slack it logical that only org admin can run the indexer as the bot need to be added to slack then added to channel  # noqa: E501
+def start_slack_indexing() -> str:
+    """Start slack indexing the data for the organization of the logged-in user.
+
+    Returns
+    -------
+    str
+        The job_id of the indexing job.
+
+    Raises
+    ------
+    ConnectionError
+        If the connection to the Redis server or the database fails.
+    """
+    # indexer = SlackIndexer(session["user_email"], session["org_name"])
+    # indexer.process_slack_message()
+
+    jobs = []
+    redis_config = load_config("redis")
+    redis_conn = Redis.from_url(redis_config["url"])
+    queue = Queue(connection=redis_conn)
+    user_email = session["user_email"]
+    org_name = session["org_name"]
+    job = queue.enqueue(
+        run_slack_indexer,
+        user_email=user_email,
+        org_name=org_name,
+        job_timeout=3600 * 2,
+        description=f"Indexing Slack: for {org_name}",
+    )
+    job_id = job.get_id()
+    jobs.append(job_id)
+    logging.info("Started Slack Indexer")
+    return jsonify({"jobs": jobs}), 202
 
 
 @admin_bp.route("/admin/pinecone")

@@ -16,8 +16,11 @@ import pinecone
 import requests
 from flask import redirect, request, session, url_for
 from langchain_openai import OpenAIEmbeddings
+from datetime import datetime
 
 from app.helpers.database import get_db_connection
+from app.helpers.datasources import get_datasource_id_by_name
+from app.helpers.users import get_user_id_by_email
 from lorelai.utils import get_embedding_dimension, load_config
 from lorelai.pinecone import index_name
 
@@ -88,14 +91,18 @@ class SlackOAuth:
         access_token = self.get_access_token(code)
         if access_token:
             session["slack_access_token"] = access_token
+            datasource_id = get_datasource_id_by_name("Slack")
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute(
-                    """UPDATE users
-                SET slack_token = %s
-                WHERE email = %s""",
-                    (session["slack_access_token"], session["email"]),
-                )
+                query = """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                            auth_key = VALUES(auth_key),
+                            auth_value = VALUES(auth_value),
+                            auth_type = VALUES(auth_type);
+                        """  # noqa: E501
+                data = (session["user_id"], datasource_id, "access_token", access_token, "oauth")
+                cursor.execute(query, data)
                 conn.commit()
                 logging.debug(access_token)
                 return redirect(url_for("chat.index"))
@@ -143,17 +150,21 @@ class SlackIndexer:
         -------
             str or None: The Slack access token if found, otherwise None.
         """
+        datasource_id = get_datasource_id_by_name("Slack")
+        user_id = get_user_id_by_email(email)
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            sql_query = "SELECT slack_token FROM users WHERE email = %s;"
-            cursor.execute(sql_query, (email,))
+            sql_query = (
+                "SELECT auth_value FROM user_auth WHERE datasource_id = %s AND user_id = %s;"
+            )
+            cursor.execute(sql_query, (datasource_id, user_id))
             result = cursor.fetchone()
             if result:
                 slack_token = result[0]
                 logging.debug("Slack Token:", slack_token)
                 return slack_token
 
-            logging.debug("No Slack token found for the specified email.")
+            logging.debug("No Slack token found for the specified user_id.")
             return None
 
     def get_userid_name(self):
@@ -167,6 +178,7 @@ class SlackIndexer:
         url = "https://slack.com/api/users.list"
         response = requests.get(url, headers=self.headers)
         if response.ok:
+            print(response.json())
             users = response.json()["members"]
             users_dict = {}
             for i in users:
@@ -203,12 +215,13 @@ class SlackIndexer:
 
         Returns
         -------
-            list: A list of chat history records.
+            list: A list of chat history records. for that channel.
         """
         url = "https://slack.com/api/conversations.history"
         logging.debug(f"Getting Messages for Channel: {channel_name}")
         params = {"channel": channel_id}
         channel_chat_history = []
+
         while True:
             response = requests.get(url, headers=self.headers, params=params)
             if response.ok:
@@ -236,7 +249,11 @@ class SlackIndexer:
                                 msg_ts = msg["ts"]  # thread_ts
 
                             msg_link = self.get_message_permalink(channel_id, msg_ts)
+
+                            msg_datetime = self.timestamp_to_date(msg_ts)
+                            # Slack uses user_id not names
                             thread_text = self.replace_userid_with_name(thread_text)
+                            thread_text = f"{str(msg_datetime)} : {thread_text}"
                             metadata = {
                                 "text": thread_text,
                                 "source": msg_link,
@@ -263,7 +280,6 @@ class SlackIndexer:
                     logging.debug(f"Next Page cursor: {params['cursor']}")
                 else:
                     break
-
             else:
                 logging.debug("Failed to retrieve channel history. Error:", response.text)
         logging.debug("--------------")
@@ -294,6 +310,7 @@ class SlackIndexer:
                 # plogging.debug(history)
                 if "messages" in history:
                     for msg in history["messages"]:
+                        print(msg)
                         msg_text = self.extract_message_text(msg)
                         complete_thread += msg_text + "\n"
 
@@ -366,7 +383,7 @@ class SlackIndexer:
 
         params = {
             "types": "public_channel,private_channel",
-            "limit": 1000,  # Adjust the limit if needed
+            "limit": 1000,
         }
 
         channels_dict = {}
@@ -456,6 +473,92 @@ class SlackIndexer:
         pc_index.upsert(complete_chat_history)
         return len(complete_chat_history)
 
+    def timestamp_to_date(self, timestamp):
+        """
+        Convert a string Unix timestamp (with fractional seconds) to a formatted date string.
+
+        Args:
+            timestamp_str (str): The Unix timestamp as a string. Can include fractional seconds.
+
+        Returns
+        -------
+            str: The formatted date string in the format 'YYYY-MM-DD HH:MM:SS'.
+        """
+        # Convert the floating-point timestamp to a datetime object
+        timestamp = float(timestamp)
+        dt = datetime.fromtimestamp(timestamp)
+        # Format the datetime object as a string in the desired format
+        formatted_date = dt.strftime("%Y-%m-%d %H:%M:%S")
+        return formatted_date
+
+    def chunk_and_merge_metadata(self, lst, size, overlap_size):
+        """
+        Chunks a list of dictionaries and merges their metadata.
+
+        Args:
+            lst (list of dict): List of dictionaries, each containing 'id', 'values',
+                                and 'metadata' fields. 'metadata' includes:
+                                - text (str): A string to concatenate
+                                - source (str): A source URL
+                                - msg_ts (str): A timestamp
+                                - channel_name (str): A channel name
+                                - users (list): A list of users
+            size (int): Number of items in each chunk.
+            overlap_size (int): Number of overlapping items between chunks.
+
+        Returns
+        -------
+            list of dict: A list of new dictionaries with merged metadata:
+                        - text: Concatenated text from the chunk
+                        - source, msg_ts: Taken from the last item in the chunk
+                        - channel_name, users: Unique sets converted to lists.
+
+        Example:
+            merged_chunks = chunk_and_merge_metadata(lst, size=2, overlap_size=1)
+        """
+        result = []
+        start = 0
+
+        while start < len(lst):
+            end = start + size
+            chunk = lst[start:end]
+
+            # Initialize merged metadata fields
+            merged_text = ""
+            merged_channel_names = set()
+            merged_users = set()
+
+            # Merge the metadata from all items in the chunk
+            for item in chunk:
+                merged_text += item["metadata"]["text"] + " "
+                merged_channel_names.add(item["metadata"]["channel_name"])
+                merged_users.update(item["metadata"]["users"])
+
+            # Remove trailing space from concatenated text
+            merged_text = merged_text.strip()
+            # Get the source and msg_ts from the last item in the chunk
+            last_item = chunk[-1]
+
+            # Create the new dictionary with merged metadata
+            merged_dict = {
+                "id": str(uuid.uuid4()),  # Generate a new unique id
+                "values": [],  # Assuming values field remains as is
+                "metadata": {
+                    "text": merged_text,
+                    "source": last_item["metadata"]["source"],
+                    "msg_ts": last_item["metadata"]["msg_ts"],
+                    "channel_name": list(merged_channel_names),  # Convert set to list
+                    "users": list(merged_users),  # Convert set to list
+                },
+            }
+
+            result.append(merged_dict)
+
+            # Move the start index for the next chunk
+            start += size - overlap_size
+
+        return result
+
     def process_slack_message(self, channel_id=None):
         """
         Process Slack messages, generate embeddings, and load them into Pinecone.
@@ -464,38 +567,54 @@ class SlackIndexer:
             channel_id (str, optional): The ID of a specific Slack channel to process.
             Defaults to None.
         """
-        channel_ids_dict = self.dict_channel_ids()
-        complete_chat_history = []
-        if channel_id is not None:
-            if channel_id in channel_ids_dict:
-                channel_ids_dict = {channel_id: channel_ids_dict[channel_id]}
-            else:
-                logging.debug(f"{channel_id} not in slack")
-                return None
+        try:
+            # Setup embedding config:
+            embedding_model_name = "text-embedding-ada-002"
+            embedding_model = OpenAIEmbeddings(model=embedding_model_name)
+            embedding_dimension = get_embedding_dimension(embedding_model_name)
+            if embedding_dimension == -1:
+                raise ValueError(
+                    f"Could not find embedding dimension for model '{embedding_model}'"
+                )
+            channel_ids_dict = self.dict_channel_ids()
 
-        for channel_id, channel_name in channel_ids_dict.items():
-            logging.debug(f"Processing {channel_id} {channel_name}")
-            complete_chat_history.extend(self.get_messages(channel_id, channel_name))
-            #
+            # this logic allows to process a single channel if passed as args
+            if channel_id is not None:
+                if channel_id in channel_ids_dict:
+                    channel_ids_dict = {channel_id: channel_ids_dict[channel_id]}
+                else:
+                    logging.info(f"{channel_id} not in slack")
+                    return None
 
-        embedding_model_name = "text-embedding-ada-002"
-        embedding_model = OpenAIEmbeddings(model=embedding_model_name)
-        embedding_dimension = get_embedding_dimension(embedding_model_name)
-        if embedding_dimension == -1:
-            raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
+            # Process each channel
+            for channel_id, channel_name in channel_ids_dict.items():
+                logging.info(f"Processing {channel_id} {channel_name}")
+                channel_chat_history = self.get_messages(channel_id, channel_name)
+                #
+                logging.info(f"Processing complete for {channel_id} {channel_name}")
 
-        # Process in Batch
-        batch_size = 200
-        total_items = len(complete_chat_history)
-        logging.info(
-            f"Getting Embeds and Inserting to DB for {total_items} \
-                messages in batches of {batch_size}"
-        )
-        for start_idx in range(0, total_items, batch_size):
-            end_idx = min(start_idx + batch_size, total_items)
-            batch = complete_chat_history[start_idx:end_idx]
-            batch = self.add_embedding(embedding_model, batch)
-            self.load_to_pinecone(embedding_dimension, batch)
+                messages = self.chunk_and_merge_metadata(channel_chat_history, 100, 20)
 
+                # Batch size to adhere to pinecone and OpenAI api size limit
+                # Process in Batch
+                batch_size = 5
+                total_items = len(messages)
+                logging.info(
+                    f"Getting Embeds and Inserting to DB for {total_items} \
+                        messages in batches of {batch_size}"
+                )
+                for start_idx in range(0, total_items, batch_size):
+                    end_idx = min(start_idx + batch_size, total_items)
+                    batch = messages[start_idx:end_idx]
+                    logging.info(f"Creating embds for {channel_id} {channel_name}")
+                    batch = self.add_embedding(embedding_model, batch)
+                    logging.info(f"loading to for {channel_id} {channel_name}")
+                    self.load_to_pinecone(embedding_dimension, batch)
+                    logging.info(f"Completed for {channel_id} {channel_name}")
 
-# 1715850407.699219
+            logging.info(
+                f"Slack Indexer ran successfully for org {self.org_name}, by user {self.email}"
+            )
+            return True
+        except Exception as e:
+            raise e

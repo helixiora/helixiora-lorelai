@@ -431,11 +431,13 @@ def login_user(
         conn.close()
 
     # get the user's access token and refresh token
+
     access_token_query = get_query_result(
-        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token'",
+        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token' AND datasource_id = 2",  # noqa: E501
         (user_id,),
         fetch_one=True,
     )
+
     if not access_token_query:
         logging.warning("No access token found for user %s", user_id)
         access_token = None
@@ -443,7 +445,7 @@ def login_user(
         access_token = access_token_query["auth_value"]
 
     refresh_token_query = get_query_result(
-        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'refresh_token'",
+        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'refresh_token' AND datasource_id = 2",  # noqa: E501
         (user_id,),
         fetch_one=True,
     )

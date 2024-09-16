@@ -23,9 +23,17 @@
                 {% if 'super_admin' in session.get('user_roles', []) %}
                     <div class="d-flex align-items-center mb-2">
                         <button class="btn btn-primary btn-block me-2" style="flex: 0.5;" onclick="startIndexing('all')">All Users</button>
-                        <div style="flex: 2;">Indexes all the data sources for all users. <strong>Warning:</strong> This could be a lengthy process.</div>
+                        <div style="flex: 2;">Indexes Google drive for all users. <strong>Warning:</strong> This could be a lengthy process.</div>
                     </div>
                 {% endif %}
+
+                {% if ('super_admin' in session.get('user_roles', [])) or ('org_admin' in session.get('user_roles', [])) %}
+                    <div class="d-flex align-items-center mb-2">
+                        <button class="btn btn-primary btn-block me-2" style="flex: 0.5;" onclick="startSlackIndexing()">Start Slack indexer</button>
+                        <div style="flex: 2;">Indexes Slack for the current organisation.</div>
+                    </div>
+                {% endif %}
+
 
                 <div>
                     <div class="alert" id="statusMessage" role="alert" style="display: none;"></div>

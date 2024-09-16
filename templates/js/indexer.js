@@ -72,3 +72,32 @@ function checkStatus(jobStatus, type, jobStatuses) {
             $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text('Error checking task status.');
         });
 }
+
+function startSlackIndexing() {
+    $('#statusMessage').hide().removeClass('alert-danger alert-success').addClass('alert-info').text(`Starting Slack indexing...`).show();
+
+    fetch(`/admin/startslackindex`, { method: 'POST' })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Unknown error');
+                });
+            }
+        })
+        .then(data => {
+            $('#statusMessage').text(` Slack indexing is in progress...`);
+
+            // Initialize job statuses
+            let jobStatuses = data.jobs.map(job => ({ jobId: job, state: 'pending' }));
+
+            // Check the status of each job returned
+            jobStatuses.forEach(jobStatus => {
+                checkStatus(jobStatus, type, jobStatuses);
+            });
+        })
+        .catch(error => {
+            $('#statusMessage').removeClass('alert-info').addClass('alert-danger').text(`Failed to start ${type} indexing: ` + error.message);
+        });
+}

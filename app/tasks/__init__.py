@@ -15,6 +15,7 @@ from app.helpers.notifications import add_notification
 from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
+from lorelai.slack.slack_processor import SlackIndexer
 
 logging_format = os.getenv(
     "LOG_FORMAT",
@@ -95,7 +96,8 @@ def execute_rag_llm(
         else:
             # have to change Retriever type based on data source.
             enriched_context = ContextRetriever.create(
-                retriever_type="GoogleDriveContextRetriever",
+                # retriever_type="GoogleDriveContextRetriever",
+                retriever_type="SlackContextRetriever",
                 org_name=organisation,
                 user=user,
             )
@@ -243,3 +245,37 @@ def run_indexer(
         job.set_status("failed")
 
         return job.meta["progress"]
+
+
+def run_slack_indexer(user_email: str, org_name: str):
+    """
+    Run the Slack indexer for a given user and organization.
+
+    This function retrieves the current job, logs task information, and initializes
+    the indexing progress. It then creates a SlackIndexer instance for the specified
+    user and organization, and starts processing Slack messages.
+
+    Args:
+        user_email (str): The email of the user running the indexer.
+        org_name (str): The name of the organization for which the Slack data is being indexed.
+    """
+    job = get_current_job()
+    if job is None:
+        raise ValueError("Could not get the current job.")
+
+    logging.info(f"Task ID -> Run Slack Indexer: {job.id} for {org_name}")
+
+    # Initialize job meta with logs
+    job.meta["progress"] = {"current": 0, "total": 100, "status": "Initializing indexing..."}
+    job.meta["logs"] = []
+    job.save_meta()
+
+    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+    print(
+        user_email,
+        org_name,
+    )
+    indexer = SlackIndexer(user_email, org_name)
+    indexer.process_slack_message("C06FBKAN70A")  # remove for prod
+
+    logging.info(f"Slack Indexer Completed for {org_name}")
