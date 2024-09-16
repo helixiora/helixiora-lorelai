@@ -6,18 +6,11 @@ contexts for specified questions. It leverages Pinecone's vector search capabili
 OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
 """
 
-import logging
-
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import FlashrankRerank
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
-from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 from pinecone.models.index_list import IndexList
 
 from lorelai.utils import load_config
-from lorelai.pinecone import index_name
 
 
 class ContextRetriever:
@@ -155,181 +148,15 @@ class ContextRetriever:
                         result.append(
                             {
                                 "id": vector_id,
-                                "title": metadata["title"],
-                                "source": metadata["source"],
-                                "user": metadata["users"],
-                                "when": metadata["when"],
+                                "title": metadata["title"] if "title" in metadata else "No Title",
+                                "source": metadata["source"]
+                                if "source" in metadata
+                                else "No Source",
+                                "user": metadata["users"] if "users" in metadata else "No Users",
+                                "when": metadata["when"] if "when" in metadata else "No When",
                             }
                         )
         except Exception as e:
             raise ValueError(f"Failed to fetch index details: {e}") from e
 
         return result
-
-
-class GoogleDriveContextRetriever(ContextRetriever):
-    """Context retriever which retrieves context ie vectors stored in Google drive index."""
-
-    def __init__(self, org_name: str, user: str):
-        """
-        Initialize the GoogleDriveContextRetriever instance.
-
-        Parameters
-        ----------
-        org_name : str
-            The organization name, used for Pinecone index naming.
-        user : str
-            The user name, potentially used for logging or customization.
-        """
-        super().__init__(org_name, user)
-
-    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
-        """
-        Retrieve context for a given question from Google Drive using Pinecone and OpenAI.
-
-        Parameters
-        ----------
-        question : str
-            The question for which context is being retrieved.
-
-        Returns
-        -------
-        tuple[list[Document], list[dict[str, any]]]
-            A tuple containing the retrieval result and a list of sources for the context.
-        """
-        logging.info(f"Retrieving context for question: {question} and user: {self.user}")
-
-        index = index_name(
-            org=self.org_name,
-            datasource="googledrive",
-            environment=self.lorelai_creds["environment"],
-            env_name=self.lorelai_creds["environment_slug"],
-            version="v1",
-        )
-        logging.info(f"Using Pinecone index: {index}")
-        try:
-            vec_store = PineconeVectorStore.from_existing_index(
-                index_name=index, embedding=OpenAIEmbeddings()
-            )
-
-        except ValueError as e:
-            logging.error(f"Failed to connect to Pinecone: {e}")
-            if "not found in your Pinecone project. Did you mean one of the following" in str(e):
-                raise ValueError("Index not found. Please index something first.") from e
-            raise ValueError("Failed to retrieve context for the provided chat message.") from e
-
-        retriever = vec_store.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
-        )
-
-        # Reranker takes the result from base retriever than reranks those retrieved.
-        # flash reranker is used as its standalone, lightweight. and free and open source
-        compressor = FlashrankRerank(top_n=3, model="ms-marco-TinyBERT-L-2-v2")
-
-        compression_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor, base_retriever=retriever
-        )
-
-        results = compression_retriever.invoke(question)
-        logging.info(
-            f"Retrieved {len(results)} documents from index {index} for question: {question}"
-        )
-
-        docs: list[Document] = []
-        sources: list[dict[str, any]] = []
-        for doc in results:
-            docs.append(doc)
-            # Create a source entry with title, source, and score (converted to percentage and
-            # stringified)
-            logging.info(
-                f"Doc: {doc.metadata['title']}, Relevance score: {doc.metadata['relevance_score']}"
-            )
-            logging.debug(f"Doc metadata: {doc.metadata}")
-
-            score = doc.metadata["relevance_score"] * 100
-            source_entry = {
-                "title": doc.metadata["title"],
-                "source": doc.metadata["source"],
-                "score": f"{score:.2f}",
-            }
-            sources.append(source_entry)
-        logging.debug(f"Context: {docs} Sources: {sources}")
-        return docs, sources
-
-
-class SlackContextRetriever(ContextRetriever):
-    """Context retriever which retrieves context ie vectors stored in Slack index."""
-
-    def __init__(self, org_name: str, user: str):
-        """
-        Initialize the SlackContextRetriever instance.
-
-        Parameters
-        ----------
-        org_name : str
-            The organization name, used for Pinecone index naming.
-        user : str
-            The user name, potentially used for logging or customization.
-        """
-        super().__init__(org_name, user)
-
-    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
-        """
-        Retrieve context for a given question from Slack using Pinecone and OpenAI.
-
-        Parameters
-        ----------
-        question : str
-            The question for which context is being retrieved.
-
-        Returns
-        -------
-        tuple[list[Document], list[dict[str, any]]]
-            A tuple containing the retrieval result and a list of sources for the context.
-        """
-        logging.info(f"Retrieving context for question: {question} and user: {self.user}")
-
-        index = index_name(
-            org=self.org_name,
-            datasource="slack",
-            environment=self.lorelai_creds["environment"],
-            env_name=self.lorelai_creds["environment_slug"],
-            version="v1",
-        )
-        logging.info(f"Using Pinecone index: {index}")
-        vec_store = PineconeVectorStore.from_existing_index(
-            index_name=index, embedding=OpenAIEmbeddings()
-        )
-
-        if vec_store is None:
-            raise ValueError(f"Index {index} not found.")
-
-        retriever = vec_store.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
-        )
-
-        compressor = FlashrankRerank(top_n=3, model="ms-marco-MiniLM-L-12-v2")
-        compression_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor, base_retriever=retriever
-        )
-
-        results = compression_retriever.invoke(question)
-        logging.info(
-            f"Retrieved {len(results)} documents from index {index} for question: {question}"
-        )
-
-        docs: list[Document] = []
-        sources: list[dict[str, any]] = []
-        for doc in results:
-            docs.append(doc)
-            score = doc.metadata["relevance_score"] * 100
-            source_entry = {
-                "title": doc.metadata["channel_name"],
-                "source": doc.metadata["source"],
-                "score": f"{score:.2f}",
-            }
-            sources.append(source_entry)
-        logging.debug(f"Context: {docs} Sources: {sources}")
-        return docs, sources

@@ -45,7 +45,7 @@ from app.helpers.database import get_db_connection, get_query_result
 
 from lorelai.utils import load_config
 
-from lorelai.slack.slack_processor import SlackOAuth
+from lorelai.slack.oauth import SlackOAuth
 
 auth_bp = Blueprint("auth", __name__)
 

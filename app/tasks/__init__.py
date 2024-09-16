@@ -15,7 +15,7 @@ from app.helpers.notifications import add_notification
 from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
-from lorelai.slack.slack_processor import SlackIndexer
+from lorelai.slack.indexer import SlackIndexer
 
 logging_format = os.getenv(
     "LOG_FORMAT",

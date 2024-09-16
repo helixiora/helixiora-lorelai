@@ -270,26 +270,27 @@ def start_slack_indexing() -> str:
     ConnectionError
         If the connection to the Redis server or the database fails.
     """
-    # indexer = SlackIndexer(session["user_email"], session["org_name"])
-    # indexer.process_slack_message()
-
-    jobs = []
-    redis_config = load_config("redis")
-    redis_conn = Redis.from_url(redis_config["url"])
-    queue = Queue(connection=redis_conn)
-    user_email = session["user_email"]
-    org_name = session["org_name"]
-    job = queue.enqueue(
-        run_slack_indexer,
-        user_email=user_email,
-        org_name=org_name,
-        job_timeout=3600 * 2,
-        description=f"Indexing Slack: for {org_name}",
-    )
-    job_id = job.get_id()
-    jobs.append(job_id)
-    logging.info("Started Slack Indexer")
-    return jsonify({"jobs": jobs}), 202
+    try:
+        jobs = []
+        redis_config = load_config("redis")
+        redis_conn = Redis.from_url(redis_config["url"])
+        queue = Queue(connection=redis_conn)
+        user_email = session["user_email"]
+        org_name = session["org_name"]
+        job = queue.enqueue(
+            run_slack_indexer,
+            user_email=user_email,
+            org_name=org_name,
+            job_timeout=3600 * 2,
+            description=f"Indexing Slack: for {org_name}",
+        )
+        job_id = job.get_id()
+        jobs.append(job_id)
+        logging.info("Started Slack Indexer")
+        return jsonify({"jobs": jobs}), 202
+    except Exception as e:
+        logging.error(f"Error starting Slack indexing: {e}")
+        return jsonify({"error": "Failed to start Slack indexing"}), 500
 
 
 @admin_bp.route("/admin/pinecone")

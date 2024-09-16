@@ -4,112 +4,27 @@ Module provides classes for integrating and processing Slack messages with Pinec
 It includes OAuth handling, message retrieval, embedding generation, and loading data into Pinecone.
 
 Classes:
-    SlackOAuth: Handles OAuth authentication with Slack.
-    SlackIndexer: Retrieves, processes, and loads Slack messages into Pinecone.
+    SlackIndexer: Handles Slack message indexing using Pinecone and OpenAI.
 """
 
 import logging
+
+from lorelai.indexer import Indexer
+import lorelai.utils
+
+import lorelai.pinecone
+
 import os
-import uuid
-
-import pinecone
 import requests
-from flask import redirect, request, session, url_for
-from langchain_openai import OpenAIEmbeddings
+import uuid
+import pinecone
 from datetime import datetime
+from langchain_openai import OpenAIEmbeddings
 
-from app.helpers.database import get_db_connection
-from app.helpers.datasources import get_datasource_id_by_name
-from app.helpers.users import get_user_id_by_email
-from lorelai.utils import get_embedding_dimension, load_config
-from lorelai.pinecone import index_name
+from lorelai.utils import get_embedding_dimension
 
 
-class SlackOAuth:
-    """Handles OAuth authentication with Slack."""
-
-    AUTH_URL = "https://slack.com/oauth/v2/authorize"
-    TOKEN_URL = "https://slack.com/api/oauth.v2.access"
-    SCOPES = "channels:history,channels:read,chat:write"
-
-    def __init__(self):
-        """Initialize the SlackOAuth class with configuration settings."""
-        self.config = load_config("slack")
-        self.client_id = self.config["client_id"]
-        self.client_secret = self.config["client_secret"]
-        self.redirect_uri = self.config["redirect_uri"]
-
-    def get_auth_url(self):
-        """
-        Generate and return the Slack OAuth authorization URL.
-
-        Returns
-        -------
-            str: The authorization URL.
-        """
-        params = {
-            "client_id": self.client_id,
-            "scope": self.SCOPES,
-            "redirect_uri": self.redirect_uri,
-        }
-        request_url = requests.Request("GET", self.AUTH_URL, params=params).prepare().url
-        return request_url
-
-    def get_access_token(self, code):
-        """
-        Exchange the authorization code for an access token.
-
-        Args:
-            code (str): The authorization code received from Slack.
-
-        Returns
-        -------
-            str or None: The access token if successful, otherwise None.
-        """
-        payload = {
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "code": code,
-            "redirect_uri": self.redirect_uri,
-        }
-        response = requests.post(self.TOKEN_URL, data=payload)
-        if response.status_code == 200:
-            return response.json()["access_token"]
-        return None
-
-    def auth_callback(self):
-        """
-        Handle the OAuth callback, exchange code for token.
-
-        and update the user's Slack token in the database.
-
-        Returns
-        -------
-            Response: A redirect response to the index page or an error message.
-        """
-        code = request.args.get("code")
-        access_token = self.get_access_token(code)
-        if access_token:
-            session["slack_access_token"] = access_token
-            datasource_id = get_datasource_id_by_name("Slack")
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                query = """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE
-                            auth_key = VALUES(auth_key),
-                            auth_value = VALUES(auth_value),
-                            auth_type = VALUES(auth_type);
-                        """  # noqa: E501
-                data = (session["user_id"], datasource_id, "access_token", access_token, "oauth")
-                cursor.execute(query, data)
-                conn.commit()
-                logging.debug(access_token)
-                return redirect(url_for("chat.index"))
-        return "Error", 400
-
-
-class SlackIndexer:
+class SlackIndexer(Indexer):
     """Retrieves, processes, and loads Slack messages into Pinecone."""
 
     def __init__(self, email, org_name) -> None:
@@ -121,16 +36,16 @@ class SlackIndexer:
             org_name (str): The organization name.
         """
         # load API keys
-        self.pinecone_settings = load_config("pinecone")
-        self.openai_creds = load_config("openai")
-        self.lorelai_settings = load_config("lorelai")
+        self.pinecone_settings = lorelai.utils.load_config("pinecone")
+        self.openai_creds = lorelai.utils.load_config("openai")
+        self.lorelai_settings = lorelai.utils.load_config("lorelai")
         os.environ["PINECONE_API_KEY"] = self.pinecone_settings["api_key"]
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
 
         # init class with required parameters
         self.email = email
         self.org_name = org_name
-        self.access_token = self.retrive_access_token(email)
+        self.access_token = self.retrieve_access_token(email)
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
@@ -139,7 +54,7 @@ class SlackIndexer:
 
         logging.debug(self.access_token)
 
-    def retrive_access_token(self, email):
+    def retrieve_access_token(self, email):
         """
         Retrieve the Slack access token from the database for the given email.
 
@@ -150,9 +65,9 @@ class SlackIndexer:
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = get_datasource_id_by_name("Slack")
-        user_id = get_user_id_by_email(email)
-        with get_db_connection() as conn:
+        datasource_id = lorelai.utils.get_datasource_id_by_name("Slack")
+        user_id = lorelai.utils.get_user_id_by_email(email)
+        with lorelai.utils.get_db_connection() as conn:
             cursor = conn.cursor()
             sql_query = (
                 "SELECT auth_value FROM user_auth WHERE datasource_id = %s AND user_id = %s;"
@@ -451,7 +366,7 @@ class SlackIndexer:
         -------
             int: The number of records loaded into Pinecone.
         """
-        index = index_name(
+        index = lorelai.pinecone.index_name(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_settings["environment"],

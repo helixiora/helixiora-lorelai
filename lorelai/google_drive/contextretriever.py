@@ -1,0 +1,115 @@
+"""
+Module provides classes for integrating / processing Google Drive documents with Pinecone & OpenAI.
+
+It includes OAuth handling, message retrieval, embedding generation, and loading data into Pinecone.
+
+Classes:
+    GoogleDriveContextRetriever: Handles Google Drive document retrieval using Pinecone and OpenAI.
+"""
+
+import logging
+
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import PineconeVectorStore
+from langchain_community.retrievers import FlashrankRerank
+from langchain_community.retrievers import ContextualCompressionRetriever
+from langchain_core.documents import Document
+
+from lorelai.pinecone import index_name
+from lorelai.contextretriever import ContextRetriever
+
+
+class GoogleDriveContextRetriever(ContextRetriever):
+    """Context retriever which retrieves context ie vectors stored in Google drive index."""
+
+    def __init__(self, org_name: str, user: str):
+        """
+        Initialize the GoogleDriveContextRetriever instance.
+
+        Parameters
+        ----------
+        org_name : str
+            The organization name, used for Pinecone index naming.
+        user : str
+            The user name, potentially used for logging or customization.
+        """
+        super().__init__(org_name, user)
+
+    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
+        """
+        Retrieve context for a given question from Google Drive using Pinecone and OpenAI.
+
+        Parameters
+        ----------
+        question : str
+            The question for which context is being retrieved.
+
+        Returns
+        -------
+        tuple[list[Document], list[dict[str, any]]]
+            A tuple containing the retrieval result and a list of sources for the context.
+        """
+        logging.info(f"Retrieving context for question: {question} and user: {self.user}")
+
+        index = index_name(
+            org=self.org_name,
+            datasource="googledrive",
+            environment=self.lorelai_creds["environment"],
+            env_name=self.lorelai_creds["environment_slug"],
+            version="v1",
+        )
+        logging.info(f"Using Pinecone index: {index}")
+        try:
+            vec_store = PineconeVectorStore.from_existing_index(
+                index_name=index, embedding=OpenAIEmbeddings()
+            )
+
+        except ValueError as e:
+            logging.error(f"Failed to connect to Pinecone: {e}")
+            if "not found in your Pinecone project. Did you mean one of the following" in str(e):
+                raise ValueError("Index not found. Please index something first.") from e
+            raise ValueError("Failed to retrieve context for the provided chat message.") from e
+
+        retriever = vec_store.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
+        )
+
+        # Reranker takes the result from base retriever than reranks those retrieved.
+        # flash reranker is used as its standalone, lightweight. and free and open source
+        compressor = FlashrankRerank(top_n=3, model="ms-marco-TinyBERT-L-2-v2")
+
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor, base_retriever=retriever
+        )
+
+        old_results = retriever.invoke(question)
+        logging.info(f"Old results: {old_results}")
+        for old_doc in old_results:
+            logging.info(f"Old doc: {old_doc}")
+
+        results = compression_retriever.invoke(question)
+        logging.info(
+            f"Retrieved {len(results)} documents from index {index} for question: {question}"
+        )
+
+        docs: list[Document] = []
+        sources: list[dict[str, any]] = []
+        for doc in results:
+            docs.append(doc)
+            # Create a source entry with title, source, and score (converted to percentage and
+            # stringified)
+            logging.info(
+                f"Doc: {doc.metadata['title']}, Relevance score: {doc.metadata['relevance_score']}"
+            )
+            logging.debug(f"Doc metadata: {doc.metadata}")
+
+            score = doc.metadata["relevance_score"] * 100
+            source_entry = {
+                "title": doc.metadata["title"],
+                "source": doc.metadata["source"],
+                "score": f"{score:.2f}",
+            }
+            sources.append(source_entry)
+        logging.debug(f"Context: {docs} Sources: {sources}")
+        return docs, sources
