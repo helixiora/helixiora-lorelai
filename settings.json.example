@@ -47,6 +47,13 @@
         "database": "the_name_of_your_db",
         "password": "the_password_for_your_user"
     },
+    "slack": {
+        "client_id": "xxxx",
+        "client_secret": "xxxx",
+        "redirect_uri": "https://redirectmeto.com/https://127.0.0.1:5000/slack/auth/callback",
+        "authorization_url": "https://slack.com/oauth/v2/authorize",
+        "token_url": "https://slack.com/api/oauth.v2.access"
+    },
     "features": {
         "slack":0,
         "google_drive":1
