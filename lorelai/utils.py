@@ -6,11 +6,7 @@ import os
 from pathlib import Path
 
 import mysql.connector
-from pinecone import Pinecone
-from pinecone.exceptions import NotFoundException
-from pinecone.core.openapi.data.model.describe_index_stats_response import (
-    DescribeIndexStatsResponse,
-)
+
 
 import jwt
 import datetime
@@ -180,48 +176,6 @@ def get_embedding_dimension(model_name) -> int:
     }
 
     return model_dimensions.get(model_name, -1)  # Return None if model is not found
-
-
-def get_index_stats(index_name: str) -> DescribeIndexStatsResponse | None:
-    """Retrieve the details for a specified index in Pinecone.
-
-    :param index_name: the name of the index for which to retrieve details
-
-    :return: a list of dictionaries containing the metadata for the specified index
-    """
-    pinecone = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
-    try:
-        index = pinecone.Index(index_name)
-    except NotFoundException:
-        logging.debug(f"Index {index_name} not found")
-        return None
-
-    if index:
-        index_stats = index.describe_index_stats()
-    logging.debug(f"Index description: ${index_stats}")
-
-    if index_stats:
-        return index_stats
-    return None
-
-
-def print_index_stats_diff(index_stats_before, index_stats_after) -> None:
-    """Print the difference in the index statistics.
-
-    Arguments
-    ---------
-        index_stats_before: The index statistics before the operation.
-        index_stats_after: The index statistics after the operation.
-    """
-    if index_stats_before and index_stats_after:
-        diff = {
-            "num_vectors/documents": index_stats_after.total_vector_count
-            - index_stats_before.total_vector_count,
-        }
-        logging.debug("Index statistics difference:")
-        logging.debug(diff)
-    else:
-        logging.debug("No index statistics to compare")
 
 
 def create_jwt_token_invite_user(invitee_email, org_admin_email, org_name):

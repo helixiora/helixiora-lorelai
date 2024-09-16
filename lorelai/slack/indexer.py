@@ -12,13 +12,13 @@ import logging
 from lorelai.indexer import Indexer
 import lorelai.utils
 
-import lorelai.pinecone
+from lorelai.pinecone import PineconeHelper
 
 import os
 import requests
 import uuid
-import pinecone
 from datetime import datetime
+import time
 from langchain_openai import OpenAIEmbeddings
 
 from lorelai.utils import get_embedding_dimension
@@ -38,16 +38,17 @@ class SlackIndexer(Indexer):
             org_name (str): The organization name.
         """
         # load API keys
-        self.pinecone_settings = lorelai.utils.load_config("pinecone")
+
         self.openai_creds = lorelai.utils.load_config("openai")
         self.lorelai_settings = lorelai.utils.load_config("lorelai")
-        os.environ["PINECONE_API_KEY"] = self.pinecone_settings["api_key"]
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
+
+        self.pinecone_helper = PineconeHelper()
 
         # init class with required parameters
         self.email = email
         self.org_name = org_name
-        self.access_token = self.retrieve_access_token(email)
+        self.access_token = self.retrieve_access_token(email=email)
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
@@ -55,6 +56,40 @@ class SlackIndexer(Indexer):
         self.userid_name_dict = self.get_userid_name()
 
         logging.debug(f"Slack Access Token: {self.access_token}")
+
+    def slack_api_call(self, url: str, headers: dict, params: dict, max_retries: int = 3) -> dict:
+        """
+        Make a Slack API call and handle the response, including rate limiting.
+
+        Args
+        ----
+            :param url (str): The URL to make the API call to.
+            :param headers (dict): The headers to include in the API call.
+            :param params (dict): The parameters to include in the API call.
+            :param max_retries (int): Maximum number of retries for rate limiting.
+
+        Returns
+        -------
+            dict: The response from the Slack API call.
+        """
+        for attempt in range(max_retries):
+            logging.debug(f"Making Slack API call to {url} with params: {params}\
+(Attempt {attempt + 1}/{max_retries})")
+            response = requests.get(url, headers=headers, params=params)
+
+            if response.ok:
+                logging.debug(f"Slack API call successful to {url} with params: {params}")
+                return response.json()
+            elif response.status_code == 429:  # Rate limited
+                retry_after = int(response.headers.get("Retry-After", 1)) + 1
+                logging.warning(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
+                time.sleep(retry_after)
+            else:
+                logging.error(f"Failed to make Slack API call. Error: {response.text}")
+                return None
+
+        logging.error(f"Max retries reached for Slack API call to {url}")
+        return None
 
     def retrieve_access_token(self, email):
         """
@@ -69,7 +104,10 @@ class SlackIndexer(Indexer):
         """
         datasource_id = get_datasource_id_by_name("Slack")
         user_id = get_user_id_by_email(email)
-        with lorelai.utils.get_db_connection() as conn:
+        conn = None
+        cursor = None
+        try:
+            conn = lorelai.utils.get_db_connection()
             cursor = conn.cursor()
             sql_query = (
                 "SELECT auth_value FROM user_auth WHERE datasource_id = %s AND user_id = %s;"
@@ -83,6 +121,14 @@ class SlackIndexer(Indexer):
 
             logging.debug("No Slack token found for the specified user_id.")
             return None
+        except Exception as e:
+            logging.error(f"Error retrieving access token: {e}")
+            return None
+        finally:
+            if cursor:
+                cursor.close()  # Close the cursor
+            if conn:
+                conn.close()  # Close the connection
 
     def get_userid_name(self):
         """
@@ -92,11 +138,10 @@ class SlackIndexer(Indexer):
         -------
             dict: A dictionary mapping user IDs to user names.
         """
-        url = "https://slack.com/api/users.list"
-        response = requests.get(url, headers=self.headers)
-        if response.ok:
-            logging.debug(response.json())
-            users = response.json()["members"]
+        data = self.slack_api_call("https://slack.com/api/users.list", self.headers, {})
+
+        if data:
+            users = data["members"]
             users_dict = {}
             for i in users:
                 users_dict[i["id"]] = i["name"]
@@ -138,9 +183,8 @@ class SlackIndexer(Indexer):
         channel_chat_history = []
 
         while True:
-            response = requests.get(url, headers=self.headers, params=params)
-            if response.ok:
-                data = response.json()
+            data = self.slack_api_call(url, headers=self.headers, params=params)
+            if data:
                 if "error" in data:
                     # see https://api.slack.com/methods/conversations.history#errors
                     logging.error(
@@ -220,18 +264,16 @@ class SlackIndexer(Indexer):
         logging.debug(f"Getting message of thread: {thread_id}")
         complete_thread = ""
         while True:
-            response = requests.get(url, headers=self.headers, params=params)
+            data = self.slack_api_call(url, headers=self.headers, params=params)
 
-            if response.ok:
-                history = response.json()
-                if "messages" in history:
-                    for msg in history["messages"]:
-                        logging.debug(msg)
+            if data:
+                if "messages" in data:
+                    for msg in data["messages"]:
                         msg_text = self.extract_message_text(msg)
                         complete_thread += msg_text + "\n"
 
-                if history.get("response_metadata", {}).get("next_cursor"):
-                    params["cursor"] = history["response_metadata"]["next_cursor"]
+                if data.get("response_metadata", {}).get("next_cursor"):
+                    params["cursor"] = data["response_metadata"]["next_cursor"]
                 else:
                     break
         return complete_thread
@@ -275,10 +317,9 @@ class SlackIndexer(Indexer):
         url = "https://slack.com/api/chat.getPermalink"
 
         params = {"channel": channel_id, "message_ts": message_ts}
-        response = requests.get(url, headers=self.headers, params=params)
-        if response.ok:
-            data = response.json()
-            if data["ok"]:
+        data = self.slack_api_call(url, headers=self.headers, params=params)
+        if data:
+            if data.get("ok"):
                 return data["permalink"]
             else:
                 logging.error(f"Error in response: {data['error']}")
@@ -305,10 +346,9 @@ class SlackIndexer(Indexer):
         channels_dict = {}
 
         while True:
-            response = requests.get(url, headers=self.headers, params=params)
-            if response.ok:
-                data = response.json()
-                if data["ok"]:
+            data = self.slack_api_call(url, headers=self.headers, params=params)
+            if data:
+                if data.get("ok"):
                     for channel in data["channels"]:
                         channels_dict[channel["id"]] = channel["name"]
                     if data.get("response_metadata", {}).get("next_cursor"):
@@ -367,26 +407,17 @@ class SlackIndexer(Indexer):
         -------
             int: The number of records loaded into Pinecone.
         """
-        index = lorelai.pinecone.index_name(
+        index = self.pinecone_helper.get_index(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_settings["environment"],
             env_name=self.lorelai_settings["environment_slug"],
             version="v1",
+            create_if_not_exists=True,
         )
 
-        pc = pinecone.Pinecone(api_key=self.pinecone_settings["api_key"])
+        index.upsert(complete_chat_history)
 
-        if index not in pc.list_indexes().names():
-            # Create a new index
-            pc.create_index(
-                name=index,
-                dimension=embedding_dimension,
-                metric="cosine",
-                spec=pinecone.ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"]),
-            )
-        pc_index = pc.Index(index)
-        pc_index.upsert(complete_chat_history)
         return len(complete_chat_history)
 
     def timestamp_to_date(self, timestamp):
@@ -492,6 +523,8 @@ class SlackIndexer(Indexer):
                 raise ValueError(
                     f"Could not find embedding dimension for model '{embedding_model}'"
                 )
+
+            # get the list of channels
             channel_ids_dict = self.dict_channel_ids()
 
             # this logic allows to process a single channel if passed as args
