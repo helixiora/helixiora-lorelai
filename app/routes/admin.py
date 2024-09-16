@@ -77,7 +77,7 @@ def job_status(job_id: str) -> str:
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
-    logging.info(job._status)
+    logging.info(f"Job {job_id} status: {job._status}")
     match job:
         case None:
             logging.error(f"Job {job_id} not found")

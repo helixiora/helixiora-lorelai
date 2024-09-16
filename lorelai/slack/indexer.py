@@ -54,7 +54,7 @@ class SlackIndexer(Indexer):
         }
         self.userid_name_dict = self.get_userid_name()
 
-        logging.debug(self.access_token)
+        logging.debug(f"Slack Access Token: {self.access_token}")
 
     def retrieve_access_token(self, email):
         """
@@ -78,7 +78,7 @@ class SlackIndexer(Indexer):
             result = cursor.fetchone()
             if result:
                 slack_token = result[0]
-                logging.debug("Slack Token:", slack_token)
+                logging.debug(f"Slack Token: {slack_token}")
                 return slack_token
 
             logging.debug("No Slack token found for the specified user_id.")
@@ -100,11 +100,9 @@ class SlackIndexer(Indexer):
             users_dict = {}
             for i in users:
                 users_dict[i["id"]] = i["name"]
-
-            logging.debug(f"Loaded user_dict {users_dict}")
             return users_dict
         else:
-            logging.debug(f"Failed to list users. Error: {response.text}")
+            logging.debug(f"Failed to list users. Error: {data.text}")
             return None
 
     def replace_userid_with_name(self, thread_text):
@@ -151,6 +149,8 @@ class SlackIndexer(Indexer):
                     )
 
                 if "messages" in data:
+                    logging.debug(f"Processing messages for channel: {channel_name} Start: \
+{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: {data['messages'][0]}")
                     for msg in data["messages"]:
                         try:
                             msg_ts = ""
@@ -187,19 +187,19 @@ class SlackIndexer(Indexer):
                                     "metadata": metadata,
                                 }
                             )
-                            logging.debug(metadata)
 
                         except Exception as e:
-                            logging.fatal(msg)
+                            logging.error(f"Error processing message: {msg}")
                             raise (e)
 
                 if data.get("response_metadata", {}).get("next_cursor"):
                     params["cursor"] = data["response_metadata"]["next_cursor"]
                     logging.debug(f"Next Page cursor: {params['cursor']}")
                 else:
+                    logging.debug(f"No more pages to retrieve for channel: {channel_name}")
                     break
             else:
-                logging.debug("Failed to retrieve channel history. Error:", response.text)
+                logging.error(f"Failed to retrieve channel history. Error: {data.text}")
         logging.debug(f"Total Messages in {channel_name}-{len(channel_chat_history)}")
         return channel_chat_history
 
@@ -281,10 +281,10 @@ class SlackIndexer(Indexer):
             if data["ok"]:
                 return data["permalink"]
             else:
-                logging.debug("Error in response:", data["error"])
+                logging.error(f"Error in response: {data['error']}")
                 return None
         else:
-            logging.debug("Failed to get permalink. Error:", response.text)
+            logging.error(f"Failed to get permalink. Error: {data.text}")
             return None
 
     def dict_channel_ids(self):
@@ -316,10 +316,10 @@ class SlackIndexer(Indexer):
                     else:
                         break
                 else:
-                    logging.debug("Error in response:", data["error"])
+                    logging.error(f"Error in response: {data['error']}")
                     return None
             else:
-                logging.debug("Failed to list channels. Error:", response.text)
+                logging.error(f"Failed to list channels. Error: {data.text}")
                 return None
         return channels_dict
 
