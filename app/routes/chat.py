@@ -134,7 +134,7 @@ def api_notifications():
         return jsonify(notifications), 200
     except Exception as e:
         # Log the error (you should set up proper logging)
-        print(f"Error fetching notifications: {str(e)}")
+        logging.error(f"Error fetching notifications: {str(e)}")
         return jsonify({"error": "Unable to fetch notifications"}), 500
 
 

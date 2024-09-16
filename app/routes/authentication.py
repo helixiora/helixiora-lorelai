@@ -45,7 +45,6 @@ from app.helpers.database import get_db_connection, get_query_result
 
 from lorelai.utils import load_config
 
-from lorelai.slack.oauth import SlackOAuth
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -530,20 +529,6 @@ def validate_id_token(idinfo: dict, csrf_token: str):
         raise exceptions.GoogleAuthError("Wrong issuer.")
     if not idinfo.get("email_verified"):
         raise exceptions.GoogleAuthError("Email not verified")
-
-
-@auth_bp.route("/slack/auth")
-def slack_auth():
-    """Slack OAuth route. Redirects to the Slack OAuth URL."""
-    slack_oauth = SlackOAuth()
-    return redirect(slack_oauth.get_auth_url())
-
-
-@auth_bp.route("/slack/auth/callback")
-def slack_callback():
-    """Slack OAuth callback route. Handles the Slack OAuth callback."""
-    slack_oauth = SlackOAuth()
-    return slack_oauth.auth_callback()
 
 
 @auth_bp.route("/logout", methods=["GET"])

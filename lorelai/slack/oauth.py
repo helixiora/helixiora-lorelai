@@ -10,7 +10,7 @@ Classes:
 
 import logging
 import requests
-from flask import redirect, request, session, url_for
+from flask import request, session
 
 from app.helpers.database import get_db_connection
 from app.helpers.datasources import get_datasource_id_by_name
@@ -22,7 +22,7 @@ class SlackOAuth:
 
     AUTH_URL = "https://slack.com/oauth/v2/authorize"
     TOKEN_URL = "https://slack.com/api/oauth.v2.access"
-    SCOPES = "channels:history,channels:read,chat:write"
+    SCOPES = "channels:history,channels:read,users:read"
 
     def __init__(self):
         """Initialize the SlackOAuth class with configuration settings."""
@@ -69,7 +69,7 @@ class SlackOAuth:
             return response.json()["access_token"]
         return None
 
-    def auth_callback(self):
+    def handle_callback(self) -> bool:
         """
         Handle the OAuth callback, exchange code for token.
 
@@ -77,25 +77,40 @@ class SlackOAuth:
 
         Returns
         -------
-            Response: A redirect response to the index page or an error message.
+            Bool: True if the callback was successful, False otherwise.
         """
         code = request.args.get("code")
-        access_token = self.get_access_token(code)
-        if access_token:
-            session["slack_access_token"] = access_token
-            datasource_id = get_datasource_id_by_name("Slack")
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                query = """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE
-                            auth_key = VALUES(auth_key),
-                            auth_value = VALUES(auth_value),
-                            auth_type = VALUES(auth_type);
-                        """  # noqa: E501
-                data = (session["user_id"], datasource_id, "access_token", access_token, "oauth")
-                cursor.execute(query, data)
-                conn.commit()
-                logging.debug(access_token)
-                return redirect(url_for("chat.index"))
-        return "Error", 400
+        access_token = None
+        try:
+            access_token = self.get_access_token(code)
+            if access_token:
+                session["slack_access_token"] = access_token
+                datasource_id = get_datasource_id_by_name("Slack")
+                if not datasource_id:
+                    raise ValueError("Slack datasource not found")
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    query = """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON DUPLICATE KEY UPDATE
+                                auth_key = VALUES(auth_key),
+                                auth_value = VALUES(auth_value),
+                                auth_type = VALUES(auth_type);
+                            """  # noqa: E501
+                    data = (
+                        session["user_id"],
+                        datasource_id,
+                        "access_token",
+                        access_token,
+                        "oauth",
+                    )
+                    cursor.execute(query, data)
+                    conn.commit()
+                    logging.debug(access_token)
+            return True  # Successful callback
+        except Exception as e:
+            logging.error(f"Error handling callback: {e}")
+            return False  # Callback failed
+        finally:
+            cursor.close()
+            conn.close()

@@ -22,6 +22,8 @@ from datetime import datetime
 from langchain_openai import OpenAIEmbeddings
 
 from lorelai.utils import get_embedding_dimension
+from app.helpers.datasources import get_datasource_id_by_name
+from app.helpers.users import get_user_id_by_email
 
 
 class SlackIndexer(Indexer):
@@ -65,8 +67,8 @@ class SlackIndexer(Indexer):
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = lorelai.utils.get_datasource_id_by_name("Slack")
-        user_id = lorelai.utils.get_user_id_by_email(email)
+        datasource_id = get_datasource_id_by_name("Slack")
+        user_id = get_user_id_by_email(email)
         with lorelai.utils.get_db_connection() as conn:
             cursor = conn.cursor()
             sql_query = (
@@ -93,7 +95,7 @@ class SlackIndexer(Indexer):
         url = "https://slack.com/api/users.list"
         response = requests.get(url, headers=self.headers)
         if response.ok:
-            print(response.json())
+            logging.debug(response.json())
             users = response.json()["members"]
             users_dict = {}
             for i in users:
@@ -140,14 +142,16 @@ class SlackIndexer(Indexer):
         while True:
             response = requests.get(url, headers=self.headers, params=params)
             if response.ok:
-                history = response.json()
-                if "error" in history:
-                    logging.warning(
-                        f"Error: {history['error']} - Channel: {channel_name} id: {channel_id} "
+                data = response.json()
+                if "error" in data:
+                    # see https://api.slack.com/methods/conversations.history#errors
+                    logging.error(
+                        f"Error: {data['error']} - Channel: {channel_name} Channel ID: {channel_id}\
+: see https://api.slack.com/methods/conversations.history#errors for more information"
                     )
 
-                if "messages" in history:
-                    for msg in history["messages"]:
+                if "messages" in data:
+                    for msg in data["messages"]:
                         try:
                             msg_ts = ""
                             thread_text = ""
@@ -184,20 +188,18 @@ class SlackIndexer(Indexer):
                                 }
                             )
                             logging.debug(metadata)
-                            logging.debug("--------------------")
 
                         except Exception as e:
                             logging.fatal(msg)
                             raise (e)
 
-                if history.get("response_metadata", {}).get("next_cursor"):
-                    params["cursor"] = history["response_metadata"]["next_cursor"]
+                if data.get("response_metadata", {}).get("next_cursor"):
+                    params["cursor"] = data["response_metadata"]["next_cursor"]
                     logging.debug(f"Next Page cursor: {params['cursor']}")
                 else:
                     break
             else:
                 logging.debug("Failed to retrieve channel history. Error:", response.text)
-        logging.debug("--------------")
         logging.debug(f"Total Messages in {channel_name}-{len(channel_chat_history)}")
         return channel_chat_history
 
@@ -222,10 +224,9 @@ class SlackIndexer(Indexer):
 
             if response.ok:
                 history = response.json()
-                # plogging.debug(history)
                 if "messages" in history:
                     for msg in history["messages"]:
-                        print(msg)
+                        logging.debug(msg)
                         msg_text = self.extract_message_text(msg)
                         complete_thread += msg_text + "\n"
 
@@ -503,10 +504,10 @@ class SlackIndexer(Indexer):
 
             # Process each channel
             for channel_id, channel_name in channel_ids_dict.items():
-                logging.info(f"Processing {channel_id} {channel_name}")
+                logging.info(f"Processing channel {channel_id} {channel_name}")
                 channel_chat_history = self.get_messages(channel_id, channel_name)
                 #
-                logging.info(f"Processing complete for {channel_id} {channel_name}")
+                logging.info(f"Processing complete for channel {channel_id} {channel_name}")
 
                 messages = self.chunk_and_merge_metadata(channel_chat_history, 100, 20)
 
@@ -523,9 +524,9 @@ class SlackIndexer(Indexer):
                     batch = messages[start_idx:end_idx]
                     logging.info(f"Creating embds for {channel_id} {channel_name}")
                     batch = self.add_embedding(embedding_model, batch)
-                    logging.info(f"loading to for {channel_id} {channel_name}")
+                    logging.info(f"Loading to pinecone for channel {channel_id} {channel_name}")
                     self.load_to_pinecone(embedding_dimension, batch)
-                    logging.info(f"Completed for {channel_id} {channel_name}")
+                    logging.info(f"Completed for channel {channel_id} {channel_name}")
 
             logging.info(
                 f"Slack Indexer ran successfully for org {self.org_name}, by user {self.email}"

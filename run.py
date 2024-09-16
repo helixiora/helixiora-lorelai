@@ -30,6 +30,7 @@ from flask import (
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
+from app.routes.slack.authorization import slack_bp
 from app.routes.google.authorization import googledrive_bp
 
 from lorelai.utils import load_config
@@ -80,6 +81,7 @@ app.register_blueprint(googledrive_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
+app.register_blueprint(slack_bp)
 
 db_settings = load_config("db")
 dbname = db_settings["database"]
