@@ -26,6 +26,37 @@ function hideLoadingIndicator() {
     }
 }
 
+// Move the deleteConversation function outside of the DOMContentLoaded event listener
+async function deleteConversation(threadId) {
+    fetch(`/api/conversation/${threadId}/delete`, {
+        method: 'DELETE',
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Conversation deleted successfully:', data);
+        // Remove the conversation from the list
+        const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${threadId}"]`);
+        if (conversationItem) {
+            conversationItem.remove();
+        }
+        // If we're currently viewing this conversation, clear the chat and reset the URL
+        if (window.location.pathname.includes(`/conversation/${threadId}`)) {
+            document.getElementById('messages').innerHTML = '';
+            history.pushState(null, '', '/');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting conversation:', error);
+        // Optionally, show an error message to the user
+        alert('Failed to delete conversation. Please try again.');
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const sendButton = document.getElementById('sendButton');
     const messageInput = document.getElementById('messageInput');
@@ -60,34 +91,6 @@ document.addEventListener('DOMContentLoaded', function() {
         messagesDiv.appendChild(messageContainerDiv); // Append the message to messagesDiv
         messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom of the chat
     }
-
-    function extractTextFromJSON(obj) {
-        let text = '';
-        if (typeof obj === 'object' && !Array.isArray(obj)) {
-            // If it's an object, iterate over its properties
-            for (let key in obj) {
-                if (typeof obj[key] === 'string') {
-                    // Add the string value as a paragraph
-                    let paragraphs = obj[key].split('. ').join('.\n\n');
-                    text += paragraphs.trim() + '\n\n';
-                } else {
-                    // If it's a nested structure, recursively process it
-                    text += extractTextFromJSON(obj[key]);
-                }
-            }
-        } else if (Array.isArray(obj)) {
-            // If it's an array, process each element
-            obj.forEach(item => {
-                text += extractTextFromJSON(item);
-            });
-        } else if (typeof obj === 'string') {
-            // If it's a string, just add it
-            let paragraphs = obj.split('. ').join('.\n\n');
-            text += paragraphs.trim() + '\n\n';
-        }
-        return text.replace(/[\r\n]{3,}/g, '\n\n'); // Replace 3 or more newlines with just two
-    }
-
 
     /**
      * Calculates the delay before making the next poll based on the attempt number.
@@ -203,95 +206,95 @@ document.addEventListener('DOMContentLoaded', function() {
         addMessage(message, false, false);
     }
 
+    /**
+     * Sends a message to the server and handles the response.
+     * Shows a loading indicator while waiting for the server's response.
+     * Upon receiving a response, it triggers fetching the result with the provided request ID.
+     * If an error occurs during the fetch operation, it logs the error and displays an error message.
+     * Handles 429 "Quota Exceeded" responses with a specific message and retry logic.
+     *
+     * @param {string} message The text message to send to the server.
+     */
+    async function sendMessage(message) {
+        const datasourceSelect = document.getElementById('datasourceSelect');
+        const selectedDatasource = datasourceSelect.value;
+        console.log('Selected Datasource:', selectedDatasource);
+        console.log('Sending message:', message);
+        addMessage(message, true); // Display the message as sent by the user
+        showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
-/**
- * Sends a message to the server and handles the response.
- * Shows a loading indicator while waiting for the server's response.
- * Upon receiving a response, it triggers fetching the result with the provided request ID.
- * If an error occurs during the fetch operation, it logs the error and displays an error message.
- * Handles 429 "Quota Exceeded" responses with a specific message and retry logic.
- *
- * @param {string} message The text message to send to the server.
- */
-async function sendMessage(message) {
-    const datasourceSelect = document.getElementById('datasourceSelect');
-    const selectedDatasource = datasourceSelect.value;
-    console.log('Selected Datasource:', selectedDatasource);
-    console.log('Sending message:', message);
-    addMessage(message, true); // Display the message as sent by the user
-    showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                body: JSON.stringify({message: message, datasource: selectedDatasource}),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
 
-    try {
-        const response = await fetch('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({message: message, datasource: selectedDatasource}),
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            hideLoadingIndicator();
-
-            if (response.status === 429) {
-                // Handle 429 Quota Exceeded
-                console.warn('Quota exceeded.');
+            if (!response.ok) {
                 hideLoadingIndicator();
-                addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
-            } else {
-                addMessage('Error: Unable to send the message. Please try again later.', false, false);
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
 
-        } else {
-
-            const data = await response.json();
-
-            // Check if the server has accepted the message and is processing it
-            if (data.job) {
-                pollForResponse(data.job); // Begin polling for the response based on the provided job ID
-            } else {
-                // Handle cases where the server response might not include a job ID due to an error or other issue
-                console.error('Server response did not include a job_id. Data received: ', data.job);
-                hideLoadingIndicator();
-                addMessage('Error: The message could not be processed at this time. Please try again later.', false, false); // Display a generic error message
-            }
-        }
-    } catch (error) {
-        // Handle network errors or issues with the fetch operation itself
-        console.error('Fetch error:', error);
-        hideLoadingIndicator(); // Hide the loading indicator as there's been an error
-        addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
-    }
-}
-
-
-async function get_conversation(conversationId) {
-    // add an API call here to fetch the conversation messages
-    console.log('Fetching conversation:', conversationId);
-    // get /api/conversation/conversationId
-    fetch(`/api/conversation/${conversationId}`)
-        .then(response => response.json())
-        .then(data => {
-            for (const message of data) {
-                if (message.sender == "user") {
-                    addMessage(
-                        content=message.message_content,
-                        isUser=true,
-                        isHTML=true,
-                        isSources=false
-                    );
+                if (response.status === 429) {
+                    // Handle 429 Quota Exceeded
+                    console.warn('Quota exceeded.');
+                    hideLoadingIndicator();
+                    addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
                 } else {
-                    addMessage(
-                        content=message.message_content,
-                        isUser=false,
-                        isHTML=true,
-                        isSources=false
-                    );
+                    addMessage('Error: Unable to send the message. Please try again later.', false, false);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+            } else {
+
+                const data = await response.json();
+
+                // Check if the server has accepted the message and is processing it
+                if (data.job) {
+                    pollForResponse(data.job); // Begin polling for the response based on the provided job ID
+                } else {
+                    // Handle cases where the server response might not include a job ID due to an error or other issue
+                    console.error('Server response did not include a job_id. Data received: ', data.job);
+                    hideLoadingIndicator();
+                    addMessage('Error: The message could not be processed at this time. Please try again later.', false, false); // Display a generic error message
                 }
             }
-        });
-}
+        } catch (error) {
+            // Handle network errors or issues with the fetch operation itself
+            console.error('Fetch error:', error);
+            hideLoadingIndicator(); // Hide the loading indicator as there's been an error
+            addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
+        }
+    }
+
+
+
+    async function get_conversation(conversationId) {
+        // add an API call here to fetch the conversation messages
+        console.log('Fetching conversation:', conversationId);
+        // get /api/conversation/conversationId
+        fetch(`/api/conversation/${conversationId}`)
+            .then(response => response.json())
+            .then(data => {
+                for (const message of data) {
+                    if (message.sender == "user") {
+                        addMessage(
+                            content=message.message_content,
+                            isUser=true,
+                            isHTML=true,
+                            isSources=false
+                        );
+                    } else {
+                        addMessage(
+                            content=message.message_content,
+                            isUser=false,
+                            isHTML=true,
+                            isSources=false
+                        );
+                    }
+                }
+            });
+    }
 
     // Add a welcoming message on page load
     const welcomeMessage = `## Welcome to Lorelai!

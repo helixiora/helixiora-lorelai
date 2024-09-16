@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+    let isPaused = false;
+
     const lorelai_tour = introJs().setOptions({
         steps: [
             {
@@ -6,60 +8,91 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             {
                 element: '#authorize_button',
-                intro: "Please connect your Google Drive here and select some documents to index."
+                intro: "Please connect your Google Drive by clicking this button.",
+                disableInteraction: true
             },
             {
                 element: '#select_button',
-                intro: "Thanks! Now please select some files from your Google Drive that you would like to have indexed."
+                intro: "Great! Now that we're connected to Google Drive, please select some folders or documents to index.",
+                disableInteraction: true
             },
             {
-                element: '#index_button',
-                intro: "Great! You have connected a data source and selected files and/or folders to be indexed by LorelAI. Now, let's run the indexer on the selected files."
+                element: '#index_user_button',
+                intro: "This button will index the selected files for your personal use.",
+                disableInteraction: true
+            },
+            {
+                element: '#index_org_button',
+                intro: "This button will index the selected files for your entire organization.",
+                disableInteraction: true
             }
         ],
         showStepNumbers: true,
         showBullets: false,
         showProgress: true,
-        dontShowAgain: true,
-        skipLabel: "x",
-        doneLabel: "Finish"
+        exitOnOverlayClick: false,
+        exitOnEsc: false,
+        disableInteraction: true
     });
 
-    // Start the tour if it's the first time or after resuming
-    if (!sessionStorage.getItem('tourStep')) {
-        if (!sessionStorage.getItem('tourCompleted')) {
-            lorelai_tour.start();
+    let currentStep = 0;
+
+    lorelai_tour.onbeforechange(function(targetElement) {
+        currentStep = this._currentStep;
+
+        if (currentStep === 1) { // Authorize button
+            pauseTour();
+            document.getElementById('authorize_button').addEventListener('click', handleAuthorizeClick, { once: true });
+        } else if (currentStep === 2) { // Select button
+            pauseTour();
+            document.getElementById('select_button').addEventListener('click', handleSelectClick, { once: true });
+        } else if (currentStep === 3 || currentStep === 4) { // Indexing buttons
+            pauseTour();
+            document.getElementById('index_user_button').addEventListener('click', handleIndexClick, { once: true });
+            document.getElementById('index_org_button').addEventListener('click', handleIndexClick, { once: true });
         }
-    } else {
-        lorelai_tour.goToStep(parseInt(sessionStorage.getItem('tourStep'), 10));
+    });
+
+    function handleAuthorizeClick() {
+        // Here you would typically check if the Google Drive connection was successful
+        // For this example, we'll just assume it was and continue the tour after a delay
+        setTimeout(() => {
+            resumeTour();
+            lorelai_tour.goToStep(3); // Go to select files step
+        }, 1000);
     }
 
-    // This function is called before the tour changes to the next step
-    lorelai_tour.onbeforechange(function(targetElement) {
+    function handleSelectClick() {
+        // Here you would typically check if files were selected
+        // For this example, we'll just assume they were and continue the tour after a delay
+        setTimeout(() => {
+            resumeTour();
+            lorelai_tour.goToStep(4); // Go to indexing buttons step
+        }, 1000);
+    }
 
-        if (['authorize_button', 'select_button', 'index_button'].includes(targetElement.id)) {
-            // Save the current step to session storage
-            sessionStorage.setItem('tourStep', lorelai_tour._currentStep + 1);
+    function pauseTour() {
+        isPaused = true;
+    }
 
-            // Pause the tour
-            lorelai_tour.exit(); // Pause the tour
-
-            // Add a click event listener to the target element
-            targetElement.addEventListener('click', function() {
-                lorelai_tour.nextStep(); // Resume the tour after the button click
-            }, { once: true }); // Use `{ once: true }` to ensure it only triggers once
-
-
+    function resumeTour() {
+        isPaused = false;
+        if (window.resumeTour) {
+            window.resumeTour();
+            window.resumeTour = null;
         }
+    }
 
-    });
-
-    // Clear tour progress when completed
-    lorelai_tour.oncomplete(function() {
-        sessionStorage.removeItem('tourStep');
+    function handleIndexClick() {
+        // Here you would typically start the indexing process
+        // For this example, we'll just end the tour and redirect to the main page
+        lorelai_tour.exit();
         sessionStorage.setItem('tourCompleted', 'true');
-    });
+        window.location.href = '/main'; // Replace with your main page URL
+    }
 
-    // Start the tour
-    lorelai_tour.start()
+    // Start the tour if it's not completed
+    if (!sessionStorage.getItem('tourCompleted')) {
+        // lorelai_tour.start();
+    }
 });

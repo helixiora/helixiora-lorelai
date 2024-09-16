@@ -144,8 +144,12 @@ def api_notifications_read(notification_id):
     logging.info(
         f"Marking notification {notification_id} as read for user {session.get('user_id')}"
     )
-    mark_notification_as_read(notification_id, session.get("user_id"))
-    return jsonify({"status": "success"}), 200
+    result = mark_notification_as_read(notification_id, session.get("user_id"))
+    logging.debug(f"Notification read result: {result}")
+    if isinstance(result, dict) and result.get("success", False):
+        return jsonify(result), 200
+    else:
+        return jsonify({"status": "error", "message": "Failed to mark notification as read"}), 400
 
 
 @chat_bp.route("/api/notifications/<int:notification_id>/dismiss", methods=["POST"])
@@ -154,8 +158,11 @@ def api_notifications_dismiss(notification_id):
     logging.info(
         f"Marking notification {notification_id} as dismissed for user {session.get('user_id')}"
     )
-    mark_notification_as_dismissed(notification_id, session.get("user_id"))
-    return jsonify({"status": "success"}), 200
+    result = mark_notification_as_dismissed(notification_id, session.get("user_id"))
+    if isinstance(result, dict) and result.get("success", False):
+        return jsonify(result), 200
+    else:
+        return jsonify({"status": "error", "message": "Failed to dismiss notification"}), 400
 
 
 @chat_bp.route("/conversation/<thread_id>", methods=["GET"])

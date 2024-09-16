@@ -76,35 +76,36 @@ def get_db_cursor(with_dict: bool = False) -> mysql.connector.cursor.MySQLCursor
         raise
 
 
-def get_query_result(
-    query: str, params: tuple = None, fetch_one: bool = False
-) -> list[dict] | None:
-    """Get the result of a query.
+def get_query_result(query, params=None, fetch_one=False):
+    """Get a query result from the database.
 
     Parameters
     ----------
     query : str
         The query to execute.
-    params : tuple, optional
+    params : list, optional
         The parameters to pass to the query.
     fetch_one : bool, optional
-        Whether to fetch one or all results.
+        Whether to fetch only one result.
 
     Returns
     -------
-    list or dict
-        A list of dictionaries containing the results of the query, or a single dictionary.
+    list
+        A list of results.
     """
+    conn = get_db_connection()
     try:
-        logging.debug(f"Executing query: {query}")
-        with get_db_connection() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(query, params)
-                result = cursor.fetchone() if fetch_one else cursor.fetchall()
-                return result
-    except mysql.connector.Error:
-        logging.exception("Database query failed")
-        raise
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(query, params)
+            if fetch_one:
+                result = cursor.fetchone()
+            else:
+                result = cursor.fetchall()
+            # Ensure all results are read
+            cursor.fetchall()
+        return result
+    finally:
+        conn.close()
 
 
 def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLConnection:
