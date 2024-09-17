@@ -12,7 +12,7 @@ Classes:
 import logging
 
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Pinecone
+from langchain_pinecone import PineconeVectorStore
 from langchain_community.document_compressors import FlashrankRerank
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_core.documents import Document
@@ -50,20 +50,26 @@ class SlackContextRetriever(ContextRetriever):
         tuple[list[Document], list[dict[str, any]]]
             A tuple containing the retrieval result and a list of sources for the context.
         """
-        logging.info(f"Retrieving context for question: {question} and user: {self.user}")
+        logging.info(
+            f"[SlackContextRetriever] Retrieving context for q: {question} and user: {self.user}"
+        )
 
-        index = self.pinecone_helper.index_name(
+        index = self.get_pinecone().get_index(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_creds["environment"],
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
         )
-        logging.info(f"Using Pinecone index: {index}")
-        vec_store = Pinecone.from_existing_index(index_name=index, embedding=OpenAIEmbeddings())
+        logging.info(f"[SlackContextRetriever] Using Pinecone index: {index}")
 
-        if vec_store is None:
-            raise ValueError(f"Index {index} not found.")
+        try:
+            vec_store = PineconeVectorStore(index=index, embedding=OpenAIEmbeddings())
+        except ValueError as e:
+            logging.error(f"[SlackContextRetriever] Failed to connect to Pinecone: {e}")
+            if "not found in your Pinecone project. Did you mean one of the following" in str(e):
+                raise ValueError("Index not found. Please index something first.") from e
+            raise ValueError("Failed to retrieve context for the provided chat message.") from e
 
         retriever = vec_store.as_retriever(
             search_type="similarity",
@@ -91,5 +97,4 @@ class SlackContextRetriever(ContextRetriever):
                 "score": f"{score:.2f}",
             }
             sources.append(source_entry)
-        logging.debug(f"Context: {docs} Sources: {sources}")
         return docs, sources

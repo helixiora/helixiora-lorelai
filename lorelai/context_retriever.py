@@ -90,7 +90,7 @@ class ContextRetriever:
             return instance
         except (ImportError, AttributeError) as exc:
             raise ValueError(
-                f"Exception in creating context retriever type: {retriever_type}, {class_}: {exc}"
+                f"Exception in creating context retriever type: {retriever_type}: {exc}"
             ) from exc
 
     def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:

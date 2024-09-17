@@ -4,6 +4,17 @@ from lorelai.context_retriever import ContextRetriever
 from lorelai.utils import load_config
 import importlib
 import logging
+from pydantic import BaseModel, ConfigDict
+
+
+class ContextFromDatasource(BaseModel):
+    """Class to keep context from a datasource."""
+
+    datasource: ContextRetriever
+    context: list
+    sources: list
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class Llm:
@@ -43,23 +54,51 @@ class Llm:
         self.organization = organization
 
         self.datasources = []
-        self.datasources.append(
-            ContextRetriever.create("GoogleDriveContextRetriever", user=user, org_name=organization)
-        )
-        self.datasources.append(
-            ContextRetriever.create("SlackContextRetriever", user=user, org_name=organization)
-        )
 
-    def get_answer(self, question):
-        """Retrieve an answer to a given question based on provided context."""
+        # the following code goes to every context retriever and creates an instance of it,
+        # and appends it to the datasources list
+        retriever_types = ["GoogleDriveContextRetriever", "SlackContextRetriever"]
+        for retriever_type in retriever_types:
+            try:
+                retriever = ContextRetriever.create(
+                    retriever_type, user=user, org_name=organization
+                )
+                self.datasources.append(retriever)
+            except ValueError as e:
+                logging.error(f"Failed to create {retriever_type}: {e}")
+
+    def get_answer(self, question: str) -> str:
+        """Retrieve an answer to a given question based on provided context.
+
+        This method is in the baseclass as it doesn't need to know which LLM is being used.
+        It's purpose is to retrieve context from all the datasources and pass the context to the
+        __ask_llm method, which is implemented in the derived classes.
+        """
         context = []
 
+        # retrieve context from all the datasources and append to context list
         for datasource in self.datasources:
-            context.append(datasource.retrieve_context(question))
+            datasource_context, datasource_sources = datasource.retrieve_context(question=question)
+            logging.debug("[Llm.get_answer] datasource type: %s", type(datasource))
+            logging.debug("[Llm.get_answer] datasource_context: %s", datasource_context)
+            logging.debug("[Llm.get_answer] datasource_sources: %s", datasource_sources)
 
-        answer = self.__ask_llm(question, context)
+            context_from_datasource = ContextFromDatasource(
+                datasource=datasource,
+                context=datasource_context,
+                sources=datasource_sources,
+            )
+            context.append(context_from_datasource)
+
+        logging.info(f"Context (get_answer): {context}")
+
+        # ask the LLM for an answer to the question
+        answer = self._ask_llm(question=question, sources=context)
         return answer
 
-    def __ask_llm(self, question, context):
-        """Ask the language model for an answer to a given question."""
+    def _ask_llm(self, question: str, sources: list[ContextFromDatasource]) -> str:
+        """Ask the language model for an answer to a given question.
+
+        This method is implemented in the derived classes.
+        """
         raise NotImplementedError

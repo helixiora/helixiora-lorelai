@@ -81,11 +81,6 @@ class GoogleDriveContextRetriever(ContextRetriever):
             base_compressor=compressor, base_retriever=retriever
         )
 
-        old_results = retriever.invoke(question)
-        logging.info(f"Old results: {old_results}")
-        for old_doc in old_results:
-            logging.info(f"Old doc: {old_doc}")
-
         results = compression_retriever.invoke(question)
         logging.info(
             f"Retrieved {len(results)} documents from index {index} for question: {question}"
@@ -109,5 +104,4 @@ class GoogleDriveContextRetriever(ContextRetriever):
                 "score": f"{score:.2f}",
             }
             sources.append(source_entry)
-        logging.debug(f"Context: {docs} Sources: {sources}")
         return docs, sources
