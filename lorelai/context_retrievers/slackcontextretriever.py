@@ -3,6 +3,8 @@ Module provides classes for integrating and processing Slack messages with Pinec
 
 It includes OAuth handling, message retrieval, embedding generation, and loading data into Pinecone.
 
+Note: filename is tied to the name of the class.
+
 Classes:
     SlackContextRetriever: Handles Slack message retrieval using Pinecone and OpenAI.
 """
@@ -10,19 +12,18 @@ Classes:
 import logging
 
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import PineconeVectorStore
-from langchain_community.retrievers import FlashrankRerank
-from langchain_community.retrievers import ContextualCompressionRetriever
+from langchain_community.vectorstores import Pinecone
+from langchain_community.document_compressors import FlashrankRerank
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_core.documents import Document
 
-from lorelai.pinecone import index_name
-from lorelai.contextretriever import ContextRetriever
+from lorelai.context_retriever import ContextRetriever
 
 
 class SlackContextRetriever(ContextRetriever):
     """Context retriever which retrieves context ie vectors stored in Slack index."""
 
-    def __init__(self, org_name: str, user: str):
+    def __init__(self, org_name: str, user_email: str):
         """
         Initialize the SlackContextRetriever instance.
 
@@ -30,10 +31,10 @@ class SlackContextRetriever(ContextRetriever):
         ----------
         org_name : str
             The organization name, used for Pinecone index naming.
-        user : str
-            The user name, potentially used for logging or customization.
+        user_email : str
+            The user email, potentially used for logging or customization.
         """
-        super().__init__(org_name, user)
+        super().__init__(org_name=org_name, user_email=user_email)
 
     def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
         """
@@ -51,7 +52,7 @@ class SlackContextRetriever(ContextRetriever):
         """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
-        index = index_name(
+        index = self.pinecone_helper.index_name(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_creds["environment"],
@@ -59,9 +60,7 @@ class SlackContextRetriever(ContextRetriever):
             version="v1",
         )
         logging.info(f"Using Pinecone index: {index}")
-        vec_store = PineconeVectorStore.from_existing_index(
-            index_name=index, embedding=OpenAIEmbeddings()
-        )
+        vec_store = Pinecone.from_existing_index(index_name=index, embedding=OpenAIEmbeddings())
 
         if vec_store is None:
             raise ValueError(f"Index {index} not found.")
@@ -71,7 +70,7 @@ class SlackContextRetriever(ContextRetriever):
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
         )
 
-        compressor = FlashrankRerank(top_n=3, model="ms-marco-MiniLM-L-12-v2")
+        compressor = FlashrankRerank(top_n=3, model=self.lorelai_creds["reranker"])
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )

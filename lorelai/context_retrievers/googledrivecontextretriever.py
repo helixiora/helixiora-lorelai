@@ -10,19 +10,19 @@ Classes:
 import logging
 
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import PineconeVectorStore
-from langchain_community.retrievers import FlashrankRerank
-from langchain_community.retrievers import ContextualCompressionRetriever
-from langchain_core.documents import Document
+from langchain_pinecone import PineconeVectorStore
 
-from lorelai.pinecone import index_name
-from lorelai.contextretriever import ContextRetriever
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_core.documents import Document
+from langchain_community.document_compressors import FlashrankRerank
+
+from lorelai.context_retriever import ContextRetriever
 
 
 class GoogleDriveContextRetriever(ContextRetriever):
     """Context retriever which retrieves context ie vectors stored in Google drive index."""
 
-    def __init__(self, org_name: str, user: str):
+    def __init__(self, org_name: str, user_email: str):
         """
         Initialize the GoogleDriveContextRetriever instance.
 
@@ -30,10 +30,10 @@ class GoogleDriveContextRetriever(ContextRetriever):
         ----------
         org_name : str
             The organization name, used for Pinecone index naming.
-        user : str
-            The user name, potentially used for logging or customization.
+        user_email : str
+            The user email, potentially used for logging or customization.
         """
-        super().__init__(org_name, user)
+        super().__init__(org_name=org_name, user_email=user_email)
 
     def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
         """
@@ -51,7 +51,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
         """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
-        index = index_name(
+        index = self.get_pinecone().get_index(
             org=self.org_name,
             datasource="googledrive",
             environment=self.lorelai_creds["environment"],
@@ -60,9 +60,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
         )
         logging.info(f"Using Pinecone index: {index}")
         try:
-            vec_store = PineconeVectorStore.from_existing_index(
-                index_name=index, embedding=OpenAIEmbeddings()
-            )
+            vec_store = PineconeVectorStore(index=index, embedding=OpenAIEmbeddings())
 
         except ValueError as e:
             logging.error(f"Failed to connect to Pinecone: {e}")
@@ -77,7 +75,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         # Reranker takes the result from base retriever than reranks those retrieved.
         # flash reranker is used as its standalone, lightweight. and free and open source
-        compressor = FlashrankRerank(top_n=3, model="ms-marco-TinyBERT-L-2-v2")
+        compressor = FlashrankRerank(top_n=3, model=self.lorelai_creds["reranker"])
 
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever

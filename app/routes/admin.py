@@ -31,7 +31,7 @@ from app.helpers.users import (
 )
 from app.helpers.database import get_db_connection, get_query_result, run_flyway_migrations
 
-from lorelai.contextretriever import ContextRetriever
+from lorelai.pinecone import PineconeHelper
 from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
 
 admin_bp = Blueprint("admin", __name__)
@@ -303,13 +303,8 @@ def list_indexes() -> str:
     str
         The rendered template of the list indexes page.
     """
-    enriched_context = ContextRetriever.create(
-        retriever_type="GoogleDriveContextRetriever",
-        org_name=session["org_name"],
-        user=session["user_email"],
-    )
-
-    indexes = enriched_context.get_all_indexes()
+    pinecone_helper = PineconeHelper()
+    indexes = pinecone_helper.list_indexes()
 
     return render_template(
         "admin/pinecone.html", indexes=indexes, is_admin=is_admin(session["user_id"])
@@ -320,12 +315,9 @@ def list_indexes() -> str:
 @role_required(["super_admin", "org_admin"])
 def index_details(host_name: str) -> str:
     """Return the index details page."""
-    enriched_context = ContextRetriever.create(
-        retriever_type="GoogleDriveContextRetriever",
-        org_name=session["org_name"],
-        user=session["user_email"],
-    )
-    index_metadata = enriched_context.get_index_details(index_host=host_name)
+    pinecone_helper = PineconeHelper()
+
+    index_metadata = pinecone_helper.get_index_details(index_host=host_name)
 
     return render_template(
         "admin/index_details.html",

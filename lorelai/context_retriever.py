@@ -7,10 +7,13 @@ OpenAI's embeddings and language models to generate responses based on the retri
 """
 
 from langchain_core.documents import Document
-from pinecone import Pinecone
-from pinecone.models.index_list import IndexList
 
 from lorelai.utils import load_config
+
+from lorelai.pinecone import PineconeHelper
+
+import importlib
+import logging
 
 
 class ContextRetriever:
@@ -34,12 +37,14 @@ class ContextRetriever:
             org_name (str): The organization name, used for Pinecone index naming.
             user (str): The user name, potentially used for logging or customization.
         """
-        if not self._allowed:
-            raise Exception("This class should be instantiated through a create() factory method.")
+        if not ContextRetriever._allowed:
+            raise ValueError("ContextRetriever is not allowed to be instantiated directly.")
 
         self.pinecone_creds = load_config("pinecone")
         if not self.pinecone_creds or len(self.pinecone_creds) == 0:
             raise ValueError("Pinecone credentials not found.")
+
+        self.__pinecone_helper = PineconeHelper()
 
         self.openai_creds = load_config("openai")
         if not self.openai_creds or len(self.openai_creds) == 0:
@@ -53,7 +58,7 @@ class ContextRetriever:
         self.user: str = user_email
 
     @staticmethod
-    def create(retriever_type="GoogleDriveContextRetriever", org_name="", user=""):
+    def create(retriever_type: str, org_name: str, user: str):
         """
         Create instance of derived class based on the class name.
 
@@ -71,18 +76,22 @@ class ContextRetriever:
         ContextRetriever
             An instance of the specified ContextRetriever subclass.
         """
-        ContextRetriever._allowed = True
-        class_ = globals().get(retriever_type)
-        if class_ is None or not issubclass(class_, ContextRetriever):
+        try:
+            module = importlib.import_module(f"lorelai.context_retrievers.{retriever_type.lower()}")
+            class_ = getattr(module, retriever_type)
+            if not issubclass(class_, ContextRetriever):
+                raise ValueError(f"Unsupported context retriever type: {retriever_type}, {class_}")
+            logging.debug(f"Creating {retriever_type} instance")
+            # Set _allowed to True for the specific class being instantiated
+            ContextRetriever._allowed = True
+            instance = class_(org_name=org_name, user_email=user)
+            logging.debug(f"Created {retriever_type} instance")
             ContextRetriever._allowed = False
-            raise ValueError(f"Unsupported model type: {retriever_type}")
-        instance = class_(org_name, user)
-        ContextRetriever._allowed = False
-        return instance
-
-    def list_subclasses():
-        """List all subclasses of ContextRetriever."""
-        return ContextRetriever.__subclasses__()
+            return instance
+        except (ImportError, AttributeError) as exc:
+            raise ValueError(
+                f"Exception in creating context retriever type: {retriever_type}, {class_}: {exc}"
+            ) from exc
 
     def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
         """
@@ -98,65 +107,13 @@ class ContextRetriever:
         """
         raise NotImplementedError
 
-    def get_all_indexes(self) -> IndexList:
+    def get_pinecone(self):
         """
-        Retrieve all indexes in Pinecone along with their metadata.
+        Get the PineconeHelper instance.
 
         Returns
         -------
-            list: A list of dictionaries containing the metadata for each index.
+        PineconeHelper
+            The PineconeHelper instance.
         """
-        pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
-
-        if pinecone is None:
-            raise ValueError("Failed to connect to Pinecone.")
-
-        return pinecone.list_indexes()
-
-    def get_index_details(self, index_host: str) -> list[dict[str, any]]:
-        """
-        Get details of a specific index.
-
-        Parameters
-        ----------
-        index_host : str
-            The host name of the index.
-
-        Returns
-        -------
-        list[dict[str, any]]
-            A list of dictionaries containing the metadata for each vector in the index.
-        """
-        pinecone = Pinecone(api_key=self.pinecone_creds["api_key"])
-
-        if pinecone is None:
-            raise ValueError("Failed to connect to Pinecone.")
-
-        index = pinecone.Index(host=index_host)
-        if index is None:
-            raise ValueError(f"Index {index_host} not found.")
-
-        result = []
-
-        try:
-            for ident in index.list():
-                vectors: FetchResponse = index.fetch(ids=ident)  # noqa: F821
-
-                for vector_id, vector_data in vectors.vectors.items():
-                    if isinstance(vector_data.metadata, dict):
-                        metadata = vector_data.metadata
-                        result.append(
-                            {
-                                "id": vector_id,
-                                "title": metadata["title"] if "title" in metadata else "No Title",
-                                "source": metadata["source"]
-                                if "source" in metadata
-                                else "No Source",
-                                "user": metadata["users"] if "users" in metadata else "No Users",
-                                "when": metadata["when"] if "when" in metadata else "No When",
-                            }
-                        )
-        except Exception as e:
-            raise ValueError(f"Failed to fetch index details: {e}") from e
-
-        return result
+        return self.__pinecone_helper

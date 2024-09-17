@@ -48,19 +48,17 @@ class PineconeHelper:
 
         logging.debug("Index name: %s", name)
 
+        found = False
         try:
             index = self.pinecone_client.Index(name)
+            found = True
         except pinecone.NotFoundException:
             logging.debug(f"Index {name} not found")
-            found = False
 
         if create_if_not_exists and not found:
             # todo get spec
             index = self.create_index(
-                name,
-                self.pinecone_settings["dimension"],
-                self.pinecone_settings["metric"],
-                self.pinecone_settings["spec"],
+                name, self.pinecone_settings["dimension"], self.pinecone_settings["metric"], spec={}
             )
 
         return index

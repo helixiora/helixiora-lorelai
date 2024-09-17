@@ -60,7 +60,6 @@ def load_config(service: str, config_file: str = "./settings.json") -> dict[str,
         dict: A dictionary containing the creds for the specified service.
 
     """
-    logging.debug(f"loading from full file path: {Path(config_file).absolute()}")
     if Path(config_file).is_file():
         with Path(config_file).open(encoding="utf-8") as f:
             try:
