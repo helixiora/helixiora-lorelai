@@ -41,7 +41,6 @@ def chat():
     logging.info(
         "Chat request received: %s from user %s", content["message"], session.get("user_email")
     )
-    logging.info("Datasource: %s", content["datasource"])
 
     lorelaicreds = load_config("lorelai")
     user_id = session.get("user_id")
@@ -81,7 +80,6 @@ def chat():
         session.get("user_email"),
         session.get("org_name"),
         llm_model,
-        datasource=content["datasource"],
         job_timeout=chat_task_timeout,
         description=f"Execute RAG+LLM model: {content['message']} for {session.get('user_email')} \
             using {llm_model}",
@@ -181,7 +179,6 @@ def conversation(thread_id):
         user_email=session["user_email"],
         recent_conversations=chat_template_requirements["recent_conversations"],
         is_admin=chat_template_requirements["is_admin_status"],
-        datasource_list=chat_template_requirements["datasources"],
         support_portal=lorelai_settings["support_portal"],
         support_email=lorelai_settings["support_email"],
     )
@@ -231,7 +228,6 @@ def index():
             user_email=session["user_email"],
             recent_conversations=chat_template_requirements["recent_conversations"],
             is_admin=chat_template_requirements["is_admin_status"],
-            datasource_list=chat_template_requirements["datasources"],
             support_portal=lorelai_settings["support_portal"],
             support_email=lorelai_settings["support_email"],
         )

@@ -4,7 +4,6 @@ import logging
 from datetime import datetime, timedelta
 
 from app.helpers.users import is_admin
-from app.helpers.datasources import get_datasources_name
 from app.helpers.database import get_db_connection
 
 
@@ -20,14 +19,11 @@ def get_chat_template_requirements(thread_id: str, user_id: int):
     -------
         dict: A dictionary containing the chat template requirements.
     """
-    datasources = get_datasources_name()
-
     recent_conversations = get_recent_threads(user_id)
 
     is_admin_status = is_admin(user_id)
 
     return {
-        "datasources": datasources,
         "recent_conversations": recent_conversations,
         "is_admin_status": is_admin_status,
     }

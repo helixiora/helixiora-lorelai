@@ -216,17 +216,14 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {string} message The text message to send to the server.
      */
     async function sendMessage(message) {
-        const datasourceSelect = document.getElementById('datasourceSelect');
-        const selectedDatasource = datasourceSelect.value;
-        console.log('Selected Datasource:', selectedDatasource);
-        console.log('Sending message:', message);
+       console.log('Sending message:', message);
         addMessage(message, true); // Display the message as sent by the user
         showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
         try {
             const response = await fetch('/api/chat', {
                 method: 'POST',
-                body: JSON.stringify({message: message, datasource: selectedDatasource}),
+                body: JSON.stringify({message: message}),
                 headers: {
                     'Content-Type': 'application/json'
                 }
