@@ -38,7 +38,8 @@
         "invite_template_id": "d-709a4aaf4af14541a9a31aba7c773bae"
     },
     "sentry": {
-        "dsn": "https://<<dsn here>>"
+        "dsn": "https://<<dsn here>>",
+        "environment": "the stage of this environment eg dev/prod/qa"
     },
     "db": {
         "host": "your_mysql_server",

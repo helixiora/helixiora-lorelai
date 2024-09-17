@@ -48,8 +48,10 @@ git_details = os.popen("git log --pretty=format:'%H %d %s' -n 1").read()
 print(f"Git details: {git_details}")
 logging.info(f"Git details: {git_details}")
 
+sentry = load_config("sentry")
 sentry_sdk.init(
-    dsn=load_config("sentry")["dsn"],
+    dsn=sentry["dsn"],
+    environment=sentry.get("environment", "unknown environment"),
     traces_sample_rate=1.0,
     profiles_sample_rate=1.0,
 )
@@ -199,7 +201,6 @@ def internal_server_error(e):
 @app.before_request
 def before_request():
     """Load the features before every request."""
-    logging.debug("Before request: " + request.url)
     g.features = load_config("features")
 
 
