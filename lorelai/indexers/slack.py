@@ -29,7 +29,7 @@ from app.helpers.users import get_user_id_by_email
 class SlackIndexer(Indexer):
     """Retrieves, processes, and loads Slack messages into Pinecone."""
 
-    def __init__(self, email, org_name) -> None:
+    def __init__(self, email: str, org_name: str) -> None:
         """
         Initialize the SlackIndexer class with required parameters and API keys.
 
@@ -57,7 +57,9 @@ class SlackIndexer(Indexer):
 
         logging.debug(f"Slack Access Token: {self.access_token}")
 
-    def slack_api_call(self, url: str, headers: dict, params: dict, max_retries: int = 3) -> dict:
+    def slack_api_call(
+        self, url: str, headers: dict, params: dict, max_retries: int = 3
+    ) -> dict | None:
         """
         Make a Slack API call and handle the response, including rate limiting.
 
@@ -73,13 +75,21 @@ class SlackIndexer(Indexer):
             dict: The response from the Slack API call.
         """
         for attempt in range(max_retries):
-            logging.debug(f"Making Slack API call to {url} with params: {params}\
+            if attempt > 0:
+                logging.debug(f"Making Slack API call to {url} with params: {params}\
 (Attempt {attempt + 1}/{max_retries})")
             response = requests.get(url, headers=headers, params=params)
 
+            # response.ok is true if status code is 200
             if response.ok:
-                logging.debug(f"Slack API call successful to {url} with params: {params}")
-                return response.json()
+                # even if response.ok is true, the response can still contain an error message
+                # in the response.json()
+                response_json = response.json()
+                if "ok" in response_json and not response_json["ok"]:
+                    logging.error(f"Slack API call failed to {url} with params: {params} \
+Error: {response_json['error']}")
+                    return response_json
+                return response_json
             elif response.status_code == 429:  # Rate limited
                 retry_after = int(response.headers.get("Retry-After", 1)) + 1
                 logging.warning(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
@@ -91,7 +101,7 @@ class SlackIndexer(Indexer):
         logging.error(f"Max retries reached for Slack API call to {url}")
         return None
 
-    def retrieve_access_token(self, email):
+    def retrieve_access_token(self, email: str) -> str | None:
         """
         Retrieve the Slack access token from the database for the given email.
 
@@ -130,7 +140,7 @@ class SlackIndexer(Indexer):
             if conn:
                 conn.close()  # Close the connection
 
-    def get_userid_name(self):
+    def get_userid_name(self) -> dict[str, str]:
         """
         Retrieve and return a dictionary mapping user IDs to user names from Slack.
 
@@ -150,7 +160,7 @@ class SlackIndexer(Indexer):
             logging.debug(f"Failed to list users. Error: {data.text}")
             return None
 
-    def replace_userid_with_name(self, thread_text):
+    def replace_userid_with_name(self, thread_text: str) -> str:
         """
         Replace user IDs with user names in the given text.
 
@@ -165,7 +175,7 @@ class SlackIndexer(Indexer):
             thread_text = thread_text.replace(user_id, user_name)
         return thread_text
 
-    def get_messages(self, channel_id, channel_name):
+    def get_messages(self, channel_id: str, channel_name: str) -> list[dict]:
         """
         Retrieve messages from a Slack channel and return them as a list of chat history records.
 
@@ -191,10 +201,12 @@ class SlackIndexer(Indexer):
                         f"Error: {data['error']} - Channel: {channel_name} Channel ID: {channel_id}\
 : see https://api.slack.com/methods/conversations.history#errors for more information"
                     )
+                    return False
 
                 if "messages" in data:
                     logging.debug(f"Processing messages for channel: {channel_name} Start: \
-{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: {data['messages'][0]}")
+{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
+{data['messages'][0]['text']}")
                     for msg in data["messages"]:
                         try:
                             msg_ts = ""
@@ -205,7 +217,6 @@ class SlackIndexer(Indexer):
                             if msg.get("reply_count") is None:
                                 thread_text = self.extract_message_text(msg)
                                 msg_ts = msg["ts"]
-
                             # get all thread msg
                             elif "reply_count" in msg:
                                 thread_text = self.get_thread(msg["ts"], channel_id)
@@ -244,10 +255,11 @@ class SlackIndexer(Indexer):
                     break
             else:
                 logging.error(f"Failed to retrieve channel history. Error: {data.text}")
-        logging.debug(f"Total Messages in {channel_name}-{len(channel_chat_history)}")
+                return False
+        logging.debug(f"Total Messages in {channel_name}: {len(channel_chat_history)}")
         return channel_chat_history
 
-    def get_thread(self, thread_id, channel_id):
+    def get_thread(self, thread_id: str, channel_id: str) -> str:
         """
         Retrieve and return the complete thread of messages from Slack.
 
@@ -261,7 +273,6 @@ class SlackIndexer(Indexer):
         """
         url = "https://slack.com/api/conversations.replies"
         params = {"channel": channel_id, "ts": thread_id, "limit": 200}
-        logging.debug(f"Getting message of thread: {thread_id}")
         complete_thread = ""
         while True:
             data = self.slack_api_call(url, headers=self.headers, params=params)
@@ -278,7 +289,7 @@ class SlackIndexer(Indexer):
                     break
         return complete_thread
 
-    def extract_message_text(self, message):
+    def extract_message_text(self, message: dict) -> str:
         """
         Extract the text body content from a Slack message.
 
@@ -302,7 +313,7 @@ class SlackIndexer(Indexer):
                 message_text += "\n" + i["fallback"]
         return message_text
 
-    def get_message_permalink(self, channel_id, message_ts):
+    def get_message_permalink(self, channel_id: str, message_ts: str) -> str | None:
         """
         Retrieve and return the permalink for a specific Slack message.
 
@@ -328,7 +339,7 @@ class SlackIndexer(Indexer):
             logging.error(f"Failed to get permalink. Error: {data.text}")
             return None
 
-    def dict_channel_ids(self):
+    def dict_channel_ids(self) -> dict[str, str]:
         """
         Retrieve and return a dictionary mapping channel IDs to channel names from Slack.
 
@@ -363,7 +374,9 @@ class SlackIndexer(Indexer):
                 return None
         return channels_dict
 
-    def add_embedding(self, embedding_model, chat_history):
+    def add_embedding(
+        self, embedding_model: OpenAIEmbeddings, chat_history: list[dict]
+    ) -> list[dict]:
         """
         Add embeddings to the complete chat history using the specified embedding model.
 
@@ -395,7 +408,7 @@ class SlackIndexer(Indexer):
 
         return chat_history
 
-    def load_to_pinecone(self, embedding_dimension, complete_chat_history):
+    def load_to_pinecone(self, embedding_dimension: int, complete_chat_history: list[dict]) -> int:
         """
         Load the complete chat history with embeddings into Pinecone.
 
@@ -420,7 +433,7 @@ class SlackIndexer(Indexer):
 
         return len(complete_chat_history)
 
-    def timestamp_to_date(self, timestamp):
+    def timestamp_to_date(self, timestamp: str) -> str:
         """
         Convert a string Unix timestamp (with fractional seconds) to a formatted date string.
 
@@ -438,7 +451,7 @@ class SlackIndexer(Indexer):
         formatted_date = dt.strftime("%Y-%m-%d %H:%M:%S")
         return formatted_date
 
-    def chunk_and_merge_metadata(self, lst, size, overlap_size):
+    def chunk_and_merge_metadata(self, lst: list[dict], size: int, overlap_size: int) -> list[dict]:
         """
         Chunks a list of dictionaries and merges their metadata.
 
@@ -506,7 +519,7 @@ class SlackIndexer(Indexer):
 
         return result
 
-    def process_slack_message(self, channel_id=None):
+    def process_slack_message(self, channel_id: str | None = None) -> bool | None:
         """
         Process Slack messages, generate embeddings, and load them into Pinecone.
 
@@ -538,19 +551,27 @@ class SlackIndexer(Indexer):
             # Process each channel
             for channel_id, channel_name in channel_ids_dict.items():
                 logging.info(f"Processing channel {channel_id} {channel_name}")
-                channel_chat_history = self.get_messages(channel_id, channel_name)
+
+                # 1. get all messages from the channel
+                channel_chat_history = self.get_messages(
+                    channel_id=channel_id, channel_name=channel_name
+                )
                 #
-                logging.info(f"Processing complete for channel {channel_id} {channel_name}")
+                if not channel_chat_history:
+                    logging.info(f"No messages found for channel {channel_id} {channel_name}")
+                    continue
 
-                messages = self.chunk_and_merge_metadata(channel_chat_history, 100, 20)
+                # 2. divide the messages into chunks with overlap
+                messages = self.chunk_and_merge_metadata(
+                    lst=channel_chat_history, size=80, overlap_size=15
+                )
 
-                # Batch size to adhere to pinecone and OpenAI api size limit
-                # Process in Batch
+                # 3. Process in Batch to adhere to pinecone and OpenAI api size limit
                 batch_size = 5
                 total_items = len(messages)
                 logging.info(
                     f"Getting Embeds and Inserting to DB for {total_items} \
-                        messages in batches of {batch_size}"
+messages in batches of {batch_size}"
                 )
                 for start_idx in range(0, total_items, batch_size):
                     end_idx = min(start_idx + batch_size, total_items)
