@@ -282,3 +282,213 @@ def delete_thread(thread_id: str):
         return False
     finally:
         cursor.close()
+
+
+def get_daily_message_limit(user_id):
+    """
+    Retrieve the daily message limit for an active plan of a given user.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        int or None: The daily message limit if an active plan is found, otherwise None.
+        False: If an error occurs.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+                SELECT
+                    p.message_limit_daily
+                FROM
+                    user_plans up
+                JOIN
+                    plans p ON up.plan_id = p.plan_id
+                WHERE
+                    up.user_id = %s
+                    AND up.is_active = TRUE
+                    AND CURDATE() BETWEEN up.start_date AND up.end_date;
+            """
+
+            cursor.execute(query, (user_id,))
+            result = cursor.fetchone()
+
+            if result:
+                return result[0]  # Return the daily message limit
+            else:
+                return None  # If no active plan is found
+
+    except Exception as e:
+        logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
+        return False
+    finally:
+        cursor.close()
+
+
+def get_and_reset_message_count(user_id):
+    """
+    Get and reset the message count for a user if the last update was over 24 hours ago.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        int: The message count if updated within 24 hours, otherwise 0 after resetting.
+        False: If an error occurs.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+
+            # SQL query to check if there's a record for the user in user_message_usage
+            query_select = """
+                SELECT message_count, updated_at
+                FROM user_message_usage
+                WHERE user_id = %s;
+            """
+
+            cursor.execute(query_select, (user_id,))
+            result = cursor.fetchone()
+
+            # If there's no record for the user, return 0
+            if result is None:
+                return 0
+
+            current_time = datetime.now()
+
+            message_count, updated_at = result
+
+            # Check if the last update was more than 24 hours ago
+            if current_time - updated_at > timedelta(hours=24):
+                # If more than 24 hours, reset the message count and update the table
+                query_update = """
+                    UPDATE user_message_usage
+                    SET message_count = 0
+                    WHERE user_id = %s;
+                """
+                cursor.execute(query_update, (user_id,))
+                db.commit()
+                return 0  # Return 0 as the message count has been reset
+            else:
+                # If within 24 hours, return the current message count
+                return message_count
+
+    except Exception as e:
+        logging.error(f"Error getting get_and_reset_message_count for userid {user_id}: {e}")
+        return False
+    finally:
+        cursor.close()
+
+
+def increment_message_count(user_id):
+    """
+    Increment the message count for a user or insert a new record if none exists.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        bool: True if the operation succeeds, otherwise False.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            # Increment the message count or insert a new record if none exists
+            query = """
+                INSERT INTO user_message_usage (user_id, message_count, updated_at)
+                VALUES (%s, 1, NOW())
+                ON DUPLICATE KEY UPDATE
+                    message_count = message_count + 1;
+            """
+
+            # Execute the query with the provided user_id
+            cursor.execute(query, (user_id,))
+            db.commit()
+
+            return True
+
+    except Exception as e:
+        logging.error(f"Error increment_message_count for userid {user_id}: {e}")
+        return False
+    finally:
+        cursor.close()
+
+
+def deduct_extra_message_if_available(user_id):
+    """
+    Deduct an extra message if available for the user.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        bool: True if the deduction was successful, otherwise False.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+
+            # Check the current quantity of extra messages
+            query_check = """
+                SELECT quantity
+                FROM extra_messages
+                WHERE user_id = %s
+                AND is_active = TRUE;
+            """
+            cursor.execute(query_check, (user_id,))
+            result = cursor.fetchone()
+
+            if result is None:
+                # No active extra messages for this user
+                return False
+            current_quantity = result[0]
+            if current_quantity <= 0:
+                return False
+            else:
+                new_quantity = current_quantity - 1
+
+                # Update the extra messages quantity
+                query_update = """
+                    UPDATE extra_messages
+                    SET quantity = %s
+                    WHERE user_id = %s
+                    AND is_active = TRUE;
+                """
+                cursor.execute(query_update, (new_quantity, user_id))
+                db.commit()
+                return True
+
+    except Exception as e:
+        logging.error(f"Error getting deduct_extra_message_if_available for userid {user_id}: {e}")
+        return False
+    finally:
+        cursor.close()
+
+
+def can_send_message(user_id):
+    """
+    Check if a user can send a message based on their daily limit and extra messages.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        bool: True if the user can send a message, otherwise False.
+    """
+    daily_limit = get_daily_message_limit(user_id)
+    message_usages = get_and_reset_message_count(
+        user_id
+    )  # resets only if 24 hr has passed from last messages  # noqa: E501
+    if message_usages < daily_limit:
+        increment_message_count(user_id)
+        return True
+
+    status = deduct_extra_message_if_available(user_id=user_id)
+    # status True if extra message is available  false if not
+    return status

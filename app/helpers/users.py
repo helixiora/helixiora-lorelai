@@ -1,6 +1,9 @@
 """User related helper functions."""
 
 import logging
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
 from functools import wraps
 import mysql
 
@@ -460,3 +463,76 @@ def validate_form(email: str, name: str, organisation: str):
         missing_fields.append("organisation")
 
     return missing_fields
+
+
+def get_user_current_plan(user_id):
+    """
+    Retrieve the current plan for a user or assign the 'free' plan if none exists.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        str: The current plan name. Returns 'free' if assigned or False if an error occurs.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+
+            # SQL query to get the current plan for the user
+            query = """
+                SELECT
+                    COALESCE(p.plan_name, 'free') AS plan_name
+                FROM
+                    user_plans up
+                JOIN
+                    plans p ON up.plan_id = p.plan_id
+                WHERE
+                    up.user_id = %s
+                    AND up.is_active = TRUE
+                    AND CURDATE() BETWEEN up.start_date AND up.end_date
+                LIMIT 1;
+            """
+
+            # Execute the query with the provided user_id
+            cursor.execute(query, (user_id,))
+            result = cursor.fetchone()
+
+            if result:
+                return result[0]  # Return the current plan_name
+            else:
+                # No active plan, assign the 'free' plan
+                # Get the free plan's plan_id and duration_months from the plans table
+                query_get_free_plan = """
+                    SELECT plan_id, duration_months
+                    FROM plans
+                    WHERE plan_name = 'free'
+                    LIMIT 1;
+                """
+                cursor.execute(query_get_free_plan)
+                free_plan_result = cursor.fetchone()
+
+                if free_plan_result:
+                    free_plan_id, duration_months = free_plan_result
+
+                    # Insert the free plan into the user_plans table
+                    start_date = datetime.now().date()
+                    end_date = (datetime.now() + relativedelta(months=duration_months)).date()
+
+                    query_insert_user_plan = """
+                        INSERT INTO user_plans (user_id, plan_id, start_date, end_date, is_active)
+                        VALUES (%s, %s, %s, %s, TRUE);
+                    """
+                    cursor.execute(
+                        query_insert_user_plan, (user_id, free_plan_id, start_date, end_date)
+                    )
+                    db.commit()
+
+                    return "free"  # Return 'free' as the assigned plan
+
+    except Exception as e:
+        logging.error(f"Error get_user_current_plan for userid {user_id}: {e}")
+        return False
+    finally:
+        cursor.close()
