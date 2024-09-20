@@ -4,6 +4,7 @@ import pinecone
 import logging
 import os
 import lorelai.utils
+from pinecone import ServerlessSpec
 
 
 class PineconeHelper:
@@ -18,6 +19,7 @@ class PineconeHelper:
 
     def get_index(
         self,
+        region: str,
         org: str,
         datasource: str,
         environment: str = "dev",
@@ -58,10 +60,22 @@ class PineconeHelper:
         if create_if_not_exists and not found:
             # todo get spec
             index = self.create_index(
-                name, self.pinecone_settings["dimension"], self.pinecone_settings["metric"], spec={}
+                name,
+                self.pinecone_settings["dimension"],
+                self.pinecone_settings["metric"],
+                ServerlessSpec(cloud="aws", region=region),
             )
 
-        return index
+        return index, name
+
+    def list_indexes(self) -> list[str]:
+        """List all indexes in Pinecone.
+
+        Returns
+        -------
+            list[str]: The list of index names.
+        """
+        return self.pinecone_client.list_indexes()
 
     def create_index(
         self, index_name: str, dimension: int, metric: str = "cosine", spec: dict = None
@@ -121,3 +135,58 @@ class PineconeHelper:
             logging.debug(diff)
         else:
             logging.debug("No index statistics to compare")
+
+    def get_index_details(self, index_host: str) -> list[dict[str, any]]:
+        """
+        Get details of a specific index.
+
+        Parameters
+        ----------
+        index_host : str
+            The host name of the index.
+
+        Returns
+        -------
+        list[dict[str, any]]
+            A list of dictionaries containing the metadata for each vector in the index.
+        """
+        index = self.pinecone_client.Index(host=index_host)
+        if index is None:
+            raise ValueError(f"Index {index_host} not found.")
+
+        result = []
+
+        try:
+            for ident in index.list():
+                vectors: FetchResponse = index.fetch(ids=ident)  # noqa: F821
+
+                for vector_id, vector_data in vectors.vectors.items():
+                    if isinstance(vector_data.metadata, dict):
+                        metadata = vector_data.metadata
+                        if isinstance(metadata, dict):
+                            if "title" in metadata:
+                                result.append(
+                                    {  # google driv
+                                        "id": vector_id,
+                                        "title": metadata["title"],
+                                        "source": metadata["source"],
+                                        "users": metadata["users"],
+                                        "text": metadata["text"],
+                                        "when": metadata["when"],
+                                    }
+                                )
+                            if "msg_ts" in metadata:
+                                result.append(
+                                    {  # slack
+                                        "id": vector_id,
+                                        "text": metadata["text"],
+                                        "source": metadata["source"],
+                                        "msg_ts": metadata["msg_ts"],
+                                        "channel_name": metadata["channel_name"],
+                                        "users": metadata["users"],
+                                    }
+                                )
+        except Exception as e:
+            raise ValueError(f"Failed to fetch index details: {e}") from e
+
+        return result

@@ -12,7 +12,7 @@ from app.helpers.notifications import add_notification
 # import the indexer
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
-from lorelai.indexers.slack import SlackIndexer
+from lorelai.indexers.slackindexer import SlackIndexer
 
 logging_format = os.getenv(
     "LOG_FORMAT",
@@ -207,6 +207,6 @@ def run_slack_indexer(user_email: str, org_name: str):
     job.save_meta()
 
     indexer = SlackIndexer(user_email, org_name)
-    indexer.process_slack_message()  # remove for prod
+    indexer.process_slack_message()
 
     logging.info(f"Slack Indexer Completed for {org_name}")

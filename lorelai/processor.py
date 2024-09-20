@@ -10,7 +10,7 @@ import numpy as np
 from rq import job
 
 import pinecone
-from pinecone import ServerlessSpec
+
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -24,7 +24,7 @@ from lorelai.utils import (
     save_google_creds_to_tempfile,
     get_db_connection,
 )
-from lorelai.pinecone import index_name
+from lorelai.pinecone import PineconeHelper
 
 
 class Processor:
@@ -32,18 +32,19 @@ class Processor:
 
     def __init__(self):
         """Initialize the Processor class."""
-        self.pinecone_settings = load_config("pinecone")
-        self.openai_creds = load_config("openai")
         self.lorelai_settings = load_config("lorelai")
 
-        self.pinecone_api_key = self.pinecone_settings["api_key"]
-        self.openai_api_key = self.openai_creds["api_key"]
-        # set env variable with openai api key
-        os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        os.environ["PINECONE_API_KEY"] = self.pinecone_api_key
+        # needed for the openai embeddings model
+        self.openai_settings = load_config("openai")
+        os.environ["OPENAI_API_KEY"] = self.openai_settings["api_key"]
+
+        self.pinecone_settings = load_config("pinecone")
+        os.environ["PINECONE_API_KEY"] = self.pinecone_settings["api_key"]
 
     def pinecone_filter_deduplicate_documents_list(
-        self, formatted_documents: Iterable[Document], pc_index
+        self,
+        formatted_documents: Iterable[Document],
+        pc_index: pinecone.Index,
     ) -> list:
         """Process the vectors and removes vector which exist in database.
 
@@ -146,7 +147,11 @@ class Processor:
         return formatted_documents
 
     def remove_nolonger_accessed_documents(
-        self, formatted_documents, pc_index, embedding_dimension, user_email
+        self,
+        formatted_documents: list[dict[str, any]],
+        pc_index: pinecone.Index,
+        embedding_dimension: int,
+        user_email: str,
     ):
         """Delete document which user no longer has access to from Pinecone.
 
@@ -235,16 +240,20 @@ class Processor:
         return count_updated, count_deleted
 
     def store_docs_in_pinecone(
-        self, docs: Iterable[Document], index_name: str, user_email: str, job: job.Job
-    ) -> None:
+        self, docs: Iterable[Document], user_email: str, job: job.Job, org_name: str
+    ) -> int:
         """Process the documents and index them in Pinecone.
 
         Arguments
         ---------
             :param docs: the documents to process
-            :param index_name: name of index
             :param user_email: the user to process
             :param job: the job object
+            :param org_name: the name of the organization
+
+        Returns
+        -------
+            :return: the number of new documents added to Pinecone
         """
 
         def chunks(iterable, batch_size=100):
@@ -258,6 +267,7 @@ class Processor:
         logging.info(f"Storing {len(docs)} documents for user: {user_email}")
         job.meta["logs"].append(f"Storing {len(docs)} documents for user: {user_email}")
 
+        # TODO: all code related to embedding model should be in a separate class
         embedding_settings = load_config("embeddings")
         if not embedding_settings:
             raise ValueError("Could not load embeddings configuration")
@@ -281,24 +291,18 @@ class Processor:
         if embedding_dimension == -1:
             raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
-        pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
-
         region = self.pinecone_settings["region"]
-        metric = self.pinecone_settings["metric"]
 
-        # somehow the PineconeVectorStore doesn't support creating a new index, so we use pinecone
-        # package directly. Check if the index already exists
-        if index_name not in pc.list_indexes().names():
-            # Create a new index
-            pc.create_index(
-                name=index_name,
-                dimension=embedding_dimension,
-                metric=metric,
-                spec=ServerlessSpec(cloud="aws", region=region),
-            )
-            logging.debug(f"Created new Pinecone index {index_name}")
-        else:
-            logging.debug(f"Pinecone index {index_name} already exists")
+        pinecone_helper = PineconeHelper()
+        pc_index, index_name = pinecone_helper.get_index(
+            region=region,
+            org=org_name,
+            datasource="googledrive",
+            environment=self.lorelai_settings["environment"],
+            env_name=self.lorelai_settings["environment_slug"],
+            version="v1",
+            create_if_not_exists=True,
+        )
 
         logging.info(
             f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
@@ -308,8 +312,6 @@ class Processor:
             f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
                 using:embedding_model:{embedding_model_name}"
         )
-
-        pc_index = pc.Index(index_name)
 
         # Format the document for insertion
         formatted_document_chunks = self.pinecone_format_vectors(document_chunks, embedding_model)
@@ -333,28 +335,16 @@ class Processor:
         logging.info(f"Total Number of Google Docs {len(docs)}")
         logging.info(f"Total Number of document chunks, ie after chunking {len(document_chunks)}")
         logging.info(
-            f"{already_exist_and_tagged} documents  already exist and tagged in index {index_name}"
+            f"{already_exist_and_tagged} documents  already exist / tagged in index {index_name}"
         )
         logging.info(
             f"Added user tag to {tagged_existing_doc_with_user} documents which already exist\
-                in index {index_name}"
+in index {index_name}"
         )
         logging.info(f"removed user tag to {count_removed_access} documents in index {index_name}")
         logging.info(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
         logging.info(
             f"Added {len(filtered_document_chunks)} new document chunks in index {index_name}"
-        )
-
-        job.meta["logs"].append(
-            f"Total Number of Google Docs {len(docs)}\n\
-                Total Number of document chunks, ie after chunking {len(document_chunks)}\n\
-                {already_exist_and_tagged} documents  already exist and tagged in index \
-                {index_name}\n\
-                Added user tag to {tagged_existing_doc_with_user} documents which already exist\
-                in index {index_name}\n\
-                removed user tag to {count_removed_access} documents in index {index_name}\n\
-                Deleted {count_deleted} documents in Pinecone index {index_name}\n\
-                Added {len(filtered_document_chunks)} new document chunks in index {index_name}"
         )
 
         return len(filtered_document_chunks)
@@ -484,18 +474,9 @@ for user: {doc_user_id}"  # noqa
                 )
                 loaded_doc.metadata["users"].append(user_email)
 
-        # indexname must consist of lower case alphanumeric characters or '-'"
-        index = index_name(
-            org=org_name,
-            datasource="googledrive",
-            environment=self.lorelai_settings["environment"],
-            env_name=self.lorelai_settings["environment_slug"],
-            version="v1",
-        )
-
         # store the documents in Pinecone
         new_docs_added = self.store_docs_in_pinecone(
-            docs, index_name=index, user_email=user_email, job=job
+            docs, user_email=user_email, job=job, org_name=org_name
         )
 
         self.update_last_indexed_for_docs(documents, job)

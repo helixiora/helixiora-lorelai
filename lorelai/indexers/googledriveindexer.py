@@ -10,7 +10,7 @@ Classes:
 import logging
 
 from lorelai.indexer import Indexer
-from lorelai.pinecone import Processor
+from lorelai.processor import Processor
 
 from rq import job
 

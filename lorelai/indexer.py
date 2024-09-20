@@ -6,7 +6,7 @@ Chunk them using Langchain, and then index them in Pinecone.
 import logging
 import os
 from rq import job
-
+import importlib
 import lorelai.utils
 
 # The scopes needed to read documents in Google Drive
@@ -20,7 +20,7 @@ class Indexer:
     _allowed = False  # Flag to control constructor access
 
     @staticmethod
-    def create(datasource: str = "GoogleDriveIndexer") -> "Indexer":
+    def create(indexer_type: str = "GoogleDriveIndexer") -> "Indexer":
         """Create instances of derived classes based on the class name.
 
         Arguments
@@ -34,10 +34,11 @@ class Indexer:
             An instance of the derived class.
         """
         Indexer._allowed = True
-        class_ = globals().get(datasource)
+        module = importlib.import_module(f"lorelai.indexers.{indexer_type.lower()}")
+        class_ = getattr(module, indexer_type)
         if class_ is None or not issubclass(class_, Indexer):
             Indexer._allowed = False
-            raise ValueError(f"Unsupported model type: {datasource}")
+            raise ValueError(f"Unsupported indexer type: {indexer_type}")
         instance = class_()
         Indexer._allowed = False
         return instance

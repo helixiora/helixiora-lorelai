@@ -8,20 +8,19 @@ Classes:
 """
 
 import logging
-
-from lorelai.indexer import Indexer
-import lorelai.utils
-
-from lorelai.pinecone import PineconeHelper
-
 import os
+import sys
 import requests
 import uuid
-from datetime import datetime
 import time
+from datetime import datetime
 from langchain_openai import OpenAIEmbeddings
 
+import lorelai.utils
+from lorelai.indexer import Indexer
+from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_embedding_dimension
+
 from app.helpers.datasources import get_datasource_id_by_name
 from app.helpers.users import get_user_id_by_email
 
@@ -562,25 +561,51 @@ Error: {response_json['error']}")
                     continue
 
                 # 2. divide the messages into chunks with overlap
+                # TODO: check the size in bytes of the channel_chat_history
                 messages = self.chunk_and_merge_metadata(
                     lst=channel_chat_history, size=80, overlap_size=15
                 )
 
                 # 3. Process in Batch to adhere to pinecone and OpenAI api size limit
-                batch_size = 5
                 total_items = len(messages)
                 logging.info(
                     f"Getting Embeds and Inserting to DB for {total_items} \
-messages in batches of {batch_size}"
+messages in batches"
                 )
-                for start_idx in range(0, total_items, batch_size):
-                    end_idx = min(start_idx + batch_size, total_items)
-                    batch = messages[start_idx:end_idx]
-                    logging.info(f"Creating embds for {channel_id} {channel_name}")
-                    batch = self.add_embedding(embedding_model, batch)
-                    logging.info(f"Loading to pinecone for channel {channel_id} {channel_name}")
-                    self.load_to_pinecone(embedding_dimension, batch)
-                    logging.info(f"Completed for channel {channel_id} {channel_name}")
+
+                for start_idx in range(0, total_items):
+                    batch = []
+                    batch_size_in_bytes = 0
+
+                    # Create a batch while respecting the 40KB limit
+                    while start_idx < total_items:
+                        message = messages[start_idx]
+                        message_size = sys.getsizeof(message)
+
+                        # Check if the message itself exceeds the limit
+                        if message_size > 40 * 1024:
+                            logging.warning(f"Message {start_idx} >= 40KB and will be skipped.")
+                            start_idx += 1
+                            continue
+
+                        # Check if adding this message exceeds the limit
+                        if batch_size_in_bytes + message_size > 40 * 1024:  # 40KB limit
+                            break
+
+                        batch.append(message)
+                        batch_size_in_bytes += message_size
+                        start_idx += 1
+
+                    logging.info(f"Batch size: {batch_size_in_bytes} bytes")
+
+                    if batch:  # Only process if the batch is not empty
+                        logging.info(f"Creating embds for {channel_id} {channel_name}")
+                        batch = self.add_embedding(embedding_model, batch)
+
+                        logging.info(f"Loading to pinecone for channel {channel_id} {channel_name}")
+                        self.load_to_pinecone(embedding_dimension, batch)
+
+                        logging.info(f"Completed for channel {channel_id} {channel_name}")
 
             logging.info(
                 f"Slack Indexer ran successfully for org {self.org_name}, by user {self.email}"
