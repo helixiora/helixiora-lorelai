@@ -291,11 +291,8 @@ class Processor:
         if embedding_dimension == -1:
             raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
-        region = self.pinecone_settings["region"]
-
         pinecone_helper = PineconeHelper()
         pc_index, index_name = pinecone_helper.get_index(
-            region=region,
             org=org_name,
             datasource="googledrive",
             environment=self.lorelai_settings["environment"],

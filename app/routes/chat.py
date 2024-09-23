@@ -17,7 +17,7 @@ from rq import Queue
 
 from app.helpers.users import user_is_logged_in
 from app.helpers.chat import get_chat_template_requirements, delete_thread
-from app.tasks import execute_rag_llm
+from app.tasks import get_answer_from_rag
 from app.helpers.chat import get_msg_count_last_24hr, get_all_thread_messages
 from app.helpers.notifications import (
     get_notifications,
@@ -73,7 +73,7 @@ def chat():
 
     # enqueue the chat task
     job = queue.enqueue(
-        execute_rag_llm,
+        get_answer_from_rag,
         thread_id,
         content["message"],
         session.get("user_id"),

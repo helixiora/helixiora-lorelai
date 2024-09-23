@@ -19,7 +19,6 @@ class PineconeHelper:
 
     def get_index(
         self,
-        region: str,
         org: str,
         datasource: str,
         environment: str = "dev",
@@ -43,6 +42,8 @@ class PineconeHelper:
 
         """
         parts = [environment, env_name, org, datasource, version]
+
+        region = self.pinecone_settings["region"]
 
         name = "-".join(parts)
 

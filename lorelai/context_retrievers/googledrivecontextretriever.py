@@ -81,7 +81,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
             base_compressor=compressor, base_retriever=retriever
         )
 
-        results = compression_retriever.invoke(question)
+        results = compression_retriever.invoke(input=question)
         logging.info(
             f"Retrieved {len(results)} documents from index {index} for question: {question}"
         )

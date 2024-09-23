@@ -22,7 +22,7 @@ log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format=logging_format)
 
 
-def execute_rag_llm(
+def get_answer_from_rag(
     thread_id: str,
     chat_message: str,
     user_id,
@@ -54,7 +54,7 @@ def execute_rag_llm(
     ValueError
         If the user or organisation is None.
     """
-    execute_rag_llm_start_time = time.time()
+    start_time = time.time()
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
@@ -80,7 +80,7 @@ def execute_rag_llm(
         response = llm.get_answer(question=chat_message)
         status = "success"
 
-        logging.info(f"Get Answer time {time.time()-execute_rag_llm_start_time}")
+        logging.info(f"Get Answer time {time.time()-start_time}")
 
         logging.info("Answer: %s", response)
         insert_message(thread_id=str(thread_id), sender="bot", message_content=response)
@@ -90,18 +90,9 @@ def execute_rag_llm(
             "status": status,
             "thread_id": thread_id,
         }
-
-    except ValueError as e:
-        logging.error("ValueError in execute_rag_llm task: %s", str(e))
-        json_data = {"error": str(e), "status": "Failed"}
-        return json_data
-    except Exception as e:
-        logging.error("Error in execute_rag_llm task: %s", str(e))
-        json_data = {"error": str(e), "status": "Failed"}
-        return json_data
     finally:
         end_time = time.time()
-        logging.info(f"Worker Exec time: {end_time - execute_rag_llm_start_time}")
+        logging.info(f"Worker Exec time: {end_time - start_time}")
 
     return json_data
 
