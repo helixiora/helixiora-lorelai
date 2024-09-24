@@ -465,7 +465,65 @@ def validate_form(email: str, name: str, organisation: str):
     return missing_fields
 
 
-def get_user_current_plan(user_id):
+def add_new_plan_user(user_id: int, plan_id: int):
+    """
+    Add a new plan for a user and update existing plans.
+
+    Args:
+        user_id (int): The ID of the user to whom the plan will be assigned.
+        plan_id (int): The ID of the plan to be assigned to the user.
+
+    Returns
+    -------
+        bool: True if the operation was successful, False otherwise.
+
+    Raises
+    ------
+        Exception: If there is an error during the database query.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+
+            # Fetch the duration_months for the specified plan
+            query = "SELECT duration_months FROM plans WHERE plan_id = %s;"
+            cursor.execute(query, (plan_id,))
+            result = cursor.fetchone()
+            if not result:
+                raise ValueError("Plan not found.")
+
+            duration_months = result[0]
+
+            # Calculate the start and end dates for the new plan
+            start_date = datetime.now().date()
+            end_date = (datetime.now() + relativedelta(months=duration_months)).date()
+
+            # Set is_active to FALSE for existing plans for the same user
+            update_existing_plans_query = """
+            UPDATE user_plans
+            SET is_active = FALSE
+            WHERE user_id = %s AND is_active = TRUE;
+            """
+            cursor.execute(update_existing_plans_query, (user_id,))
+
+            # Insert the new plan for the user
+            insert_new_plan_query = """
+            INSERT INTO user_plans (user_id, plan_id, start_date, end_date)
+            VALUES (%s, %s, %s, %s);
+            """
+            cursor.execute(insert_new_plan_query, (user_id, plan_id, start_date, end_date))
+
+            db.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error adding new plan for user {user_id}: {e}")
+        db.rollback()
+        raise e
+    finally:
+        cursor.close()
+
+
+def get_user_current_plan(user_id: int):
     """
     Retrieve the current plan for a user or assign the 'free' plan if none exists.
 
@@ -483,7 +541,7 @@ def get_user_current_plan(user_id):
             # SQL query to get the current plan for the user
             query = """
                 SELECT
-                    COALESCE(p.plan_name, 'free') AS plan_name
+                    p.plan_name AS plan_name
                 FROM
                     user_plans up
                 JOIN
@@ -505,7 +563,7 @@ def get_user_current_plan(user_id):
                 # No active plan, assign the 'free' plan
                 # Get the free plan's plan_id and duration_months from the plans table
                 query_get_free_plan = """
-                    SELECT plan_id, duration_months
+                    SELECT plan_id
                     FROM plans
                     WHERE plan_name = 'free'
                     LIMIT 1;
@@ -514,21 +572,8 @@ def get_user_current_plan(user_id):
                 free_plan_result = cursor.fetchone()
 
                 if free_plan_result:
-                    free_plan_id, duration_months = free_plan_result
-
-                    # Insert the free plan into the user_plans table
-                    start_date = datetime.now().date()
-                    end_date = (datetime.now() + relativedelta(months=duration_months)).date()
-
-                    query_insert_user_plan = """
-                        INSERT INTO user_plans (user_id, plan_id, start_date, end_date, is_active)
-                        VALUES (%s, %s, %s, %s, TRUE);
-                    """
-                    cursor.execute(
-                        query_insert_user_plan, (user_id, free_plan_id, start_date, end_date)
-                    )
-                    db.commit()
-
+                    free_plan_id = free_plan_result[0]
+                    add_new_plan_user(user_id=user_id, plan_id=free_plan_id)
                     return "free"  # Return 'free' as the assigned plan
 
     except Exception as e:

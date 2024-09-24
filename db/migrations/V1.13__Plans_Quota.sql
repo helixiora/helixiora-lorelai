@@ -43,12 +43,8 @@ CREATE TABLE extra_messages (
     FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE
 );
 
-CREATE TABLE user_message_usage (
-    user_id INT PRIMARY KEY,
-    message_count INT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES `user`(user_id)
-);
+ALTER TABLE chat_threads
+ADD COLUMN marked_deleted BOOLEAN DEFAULT FALSE;
 
 -- Add indexes for better query performance
 CREATE INDEX idx_user_plans_user_id ON user_plans(user_id);

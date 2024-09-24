@@ -158,8 +158,10 @@ def list_all_user_threads(user_id: int):
         with get_db_connection() as db:
             cursor = db.cursor()
             query = """
-            SELECT thread_id from chat_threads WHERE user_id = %s;
-                """
+            SELECT thread_id
+            FROM chat_threads
+            WHERE user_id = %s AND marked_deleted = FALSE;
+            """
             cursor.execute(query, (user_id,))
             thread_ids = cursor.fetchall()
             if thread_ids is None:
@@ -229,7 +231,7 @@ def get_recent_threads(user_id: int):
             last_messages_created_at
             FROM chat_threads ct
             LEFT JOIN chat_messages cm ON ct.thread_id = cm.thread_id
-            WHERE ct.user_id = %s
+            WHERE ct.user_id = %s AND ct.marked_deleted = FALSE
             GROUP BY ct.thread_id, ct.thread_name, ct.created_at
             HAVING max(cm.created_at) IS NOT NULL
             ORDER BY last_messages_created_at DESC
@@ -250,14 +252,14 @@ def get_recent_threads(user_id: int):
 
 def delete_thread(thread_id: str):
     """
-    Delete a thread and all its messages.
+    Mark a thread as deleted by setting marked_deleted to TRUE.
 
     Args:
-        thread_id (str): The ID of the thread to be deleted.
+        thread_id (str): The ID of the thread to be marked as deleted.
 
     Returns
     -------
-        bool: True if the deletion was successful, False otherwise.
+        bool: True if the operation was successful, False otherwise.
 
     Raises
     ------
@@ -266,25 +268,24 @@ def delete_thread(thread_id: str):
     try:
         with get_db_connection() as db:
             cursor = db.cursor()
-            # Delete messages first
-            delete_messages_query = "DELETE FROM chat_messages WHERE thread_id = %s;"
-            cursor.execute(delete_messages_query, (thread_id,))
 
-            # Then delete the thread
-            delete_thread_query = "DELETE FROM chat_threads WHERE thread_id = %s;"
-            cursor.execute(delete_thread_query, (thread_id,))
+            # Update the thread to mark it as deleted
+            mark_deleted_query = (
+                "UPDATE chat_threads SET marked_deleted = TRUE WHERE thread_id = %s;"
+            )
+            cursor.execute(mark_deleted_query, (thread_id,))
 
             db.commit()
             return True
     except Exception as e:
-        logging.error(f"Error deleting thread {thread_id}: {e}")
+        logging.error(f"Error marking thread {thread_id} as deleted: {e}")
         db.rollback()
         return False
     finally:
         cursor.close()
 
 
-def get_daily_message_limit(user_id):
+def get_daily_message_limit(user_id: int):
     """
     Retrieve the daily message limit for an active plan of a given user.
 
@@ -318,7 +319,7 @@ def get_daily_message_limit(user_id):
             if result:
                 return result[0]  # Return the daily message limit
             else:
-                return None  # If no active plan is found
+                return 0  # If no active plan is found
 
     except Exception as e:
         logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
@@ -327,98 +328,7 @@ def get_daily_message_limit(user_id):
         cursor.close()
 
 
-def get_and_reset_message_count(user_id):
-    """
-    Get and reset the message count for a user if the last update was over 24 hours ago.
-
-    Args:
-        user_id (int): The ID of the user.
-
-    Returns
-    -------
-        int: The message count if updated within 24 hours, otherwise 0 after resetting.
-        False: If an error occurs.
-    """
-    try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-
-            # SQL query to check if there's a record for the user in user_message_usage
-            query_select = """
-                SELECT message_count, updated_at
-                FROM user_message_usage
-                WHERE user_id = %s;
-            """
-
-            cursor.execute(query_select, (user_id,))
-            result = cursor.fetchone()
-
-            # If there's no record for the user, return 0
-            if result is None:
-                return 0
-
-            current_time = datetime.now()
-
-            message_count, updated_at = result
-
-            # Check if the last update was more than 24 hours ago
-            if current_time - updated_at > timedelta(hours=24):
-                # If more than 24 hours, reset the message count and update the table
-                query_update = """
-                    UPDATE user_message_usage
-                    SET message_count = 0
-                    WHERE user_id = %s;
-                """
-                cursor.execute(query_update, (user_id,))
-                db.commit()
-                return 0  # Return 0 as the message count has been reset
-            else:
-                # If within 24 hours, return the current message count
-                return message_count
-
-    except Exception as e:
-        logging.error(f"Error getting get_and_reset_message_count for userid {user_id}: {e}")
-        return False
-    finally:
-        cursor.close()
-
-
-def increment_message_count(user_id):
-    """
-    Increment the message count for a user or insert a new record if none exists.
-
-    Args:
-        user_id (int): The ID of the user.
-
-    Returns
-    -------
-        bool: True if the operation succeeds, otherwise False.
-    """
-    try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            # Increment the message count or insert a new record if none exists
-            query = """
-                INSERT INTO user_message_usage (user_id, message_count, updated_at)
-                VALUES (%s, 1, NOW())
-                ON DUPLICATE KEY UPDATE
-                    message_count = message_count + 1;
-            """
-
-            # Execute the query with the provided user_id
-            cursor.execute(query, (user_id,))
-            db.commit()
-
-            return True
-
-    except Exception as e:
-        logging.error(f"Error increment_message_count for userid {user_id}: {e}")
-        return False
-    finally:
-        cursor.close()
-
-
-def deduct_extra_message_if_available(user_id):
+def deduct_extra_message_if_available(user_id: int):
     """
     Deduct an extra message if available for the user.
 
@@ -470,7 +380,7 @@ def deduct_extra_message_if_available(user_id):
         cursor.close()
 
 
-def can_send_message(user_id):
+def can_send_message(user_id: int):
     """
     Check if a user can send a message based on their daily limit and extra messages.
 
@@ -482,13 +392,13 @@ def can_send_message(user_id):
         bool: True if the user can send a message, otherwise False.
     """
     daily_limit = get_daily_message_limit(user_id)
-    message_usages = get_and_reset_message_count(
+    message_usages = get_msg_count_last_24hr(
         user_id
     )  # resets only if 24 hr has passed from last messages  # noqa: E501
     if message_usages < daily_limit:
-        increment_message_count(user_id)
         return True
 
+    # In future we have to deduct extra message only if bot has replied. for now its ok.
     status = deduct_extra_message_if_available(user_id=user_id)
-    # status True if extra message is available  false if not
+    # status True if extra message is available false if not
     return status
