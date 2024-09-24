@@ -17,6 +17,7 @@ from langchain_core.documents import Document
 from langchain_community.document_compressors import FlashrankRerank
 
 from lorelai.context_retriever import ContextRetriever
+from lorelai.pinecone import PineconeHelper
 
 
 class GoogleDriveContextRetriever(ContextRetriever):
@@ -51,16 +52,16 @@ class GoogleDriveContextRetriever(ContextRetriever):
         """
         logging.info(f"Retrieving context for question: {question} and user: {self.user}")
 
-        index = self.get_pinecone().get_index(
+        name = PineconeHelper.get_index_name(
             org=self.org_name,
             datasource="googledrive",
             environment=self.lorelai_creds["environment"],
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
         )
-        logging.info(f"Using Pinecone index: {index}")
+        logging.info(f"Using Pinecone index: {name}")
         try:
-            vec_store = PineconeVectorStore(index=index, embedding=OpenAIEmbeddings())
+            vec_store = PineconeVectorStore(index_name=name, embedding=OpenAIEmbeddings())
 
         except ValueError as e:
             logging.error(f"Failed to connect to Pinecone: {e}")
@@ -83,7 +84,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         results = compression_retriever.invoke(input=question)
         logging.info(
-            f"Retrieved {len(results)} documents from index {index} for question: {question}"
+            f"Retrieved {len(results)} documents from index {name} for question: {question}"
         )
 
         docs: list[Document] = []

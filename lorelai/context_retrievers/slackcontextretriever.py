@@ -18,6 +18,7 @@ from langchain.retrievers.contextual_compression import ContextualCompressionRet
 from langchain_core.documents import Document
 
 from lorelai.context_retriever import ContextRetriever
+from lorelai.pinecone import PineconeHelper
 
 
 class SlackContextRetriever(ContextRetriever):
@@ -54,17 +55,17 @@ class SlackContextRetriever(ContextRetriever):
             f"[SlackContextRetriever] Retrieving context for q: {question} and user: {self.user}"
         )
 
-        index = self.get_pinecone().get_index(
+        index_name = PineconeHelper.get_index_name(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_creds["environment"],
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
         )
-        logging.info(f"[SlackContextRetriever] Using Pinecone index: {index}")
+        logging.info(f"[SlackContextRetriever] Using Pinecone index: {index_name}")
 
         try:
-            vec_store = PineconeVectorStore(index=index, embedding=OpenAIEmbeddings())
+            vec_store = PineconeVectorStore(index_name=index_name, embedding=OpenAIEmbeddings())
         except ValueError as e:
             logging.error(f"[SlackContextRetriever] Failed to connect to Pinecone: {e}")
             if "not found in your Pinecone project. Did you mean one of the following" in str(e):
@@ -83,7 +84,7 @@ class SlackContextRetriever(ContextRetriever):
 
         results = compression_retriever.invoke(question)
         logging.info(
-            f"Retrieved {len(results)} documents from index {index} for question: {question}"
+            f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
         )
 
         docs: list[Document] = []
