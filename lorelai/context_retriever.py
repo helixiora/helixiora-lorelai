@@ -15,6 +15,24 @@ from lorelai.pinecone import PineconeHelper
 import importlib
 import logging
 
+from pydantic import BaseModel
+
+
+class LorelaiContextRetrievalSource(BaseModel):
+    """A Pydantic model for context retrieval source."""
+
+    title: list[str]
+    source: list[str]
+    score: str
+
+
+class LorelaiContextRetrievalResponse(BaseModel):
+    """A Pydantic model for context retrieval."""
+
+    question: str
+    context: list[Document]
+    sources: list[LorelaiContextRetrievalSource]
+
 
 class ContextRetriever:
     """
@@ -93,7 +111,7 @@ class ContextRetriever:
                 f"Exception in creating context retriever type: {retriever_type}: {exc}"
             ) from exc
 
-    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
+    def retrieve_context(self, question: str) -> LorelaiContextRetrievalResponse:
         """
         Retrieve context for a given question using Pinecone and OpenAI.
 
@@ -107,7 +125,7 @@ class ContextRetriever:
         """
         raise NotImplementedError
 
-    def get_pinecone(self):
+    def get_pinecone(self) -> PineconeHelper:
         """
         Get the PineconeHelper instance.
 

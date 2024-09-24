@@ -15,9 +15,12 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain_community.document_compressors import FlashrankRerank
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
-from langchain_core.documents import Document
 
-from lorelai.context_retriever import ContextRetriever
+from lorelai.context_retriever import (
+    ContextRetriever,
+    LorelaiContextRetrievalResponse,
+    LorelaiContextRetrievalSource,
+)
 from lorelai.pinecone import PineconeHelper
 
 
@@ -37,7 +40,7 @@ class SlackContextRetriever(ContextRetriever):
         """
         super().__init__(org_name=org_name, user_email=user_email)
 
-    def retrieve_context(self, question: str) -> tuple[list[Document], list[dict[str, any]]]:
+    def retrieve_context(self, question: str) -> LorelaiContextRetrievalResponse:
         """
         Retrieve context for a given question from Slack using Pinecone and OpenAI.
 
@@ -72,6 +75,8 @@ class SlackContextRetriever(ContextRetriever):
                 raise ValueError("Index not found. Please index something first.") from e
             raise ValueError("Failed to retrieve context for the provided chat message.") from e
 
+        response = LorelaiContextRetrievalResponse(question=question, context=[], sources=[])
+
         retriever = vec_store.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
@@ -87,15 +92,18 @@ class SlackContextRetriever(ContextRetriever):
             f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
         )
 
-        docs: list[Document] = []
-        sources: list[dict[str, any]] = []
         for doc in results:
-            docs.append(doc)
+            response.context.append(doc)
             score = doc.metadata["relevance_score"] * 100
-            source_entry = {
-                "title": doc.metadata["channel_name"],
-                "source": doc.metadata["source"],
-                "score": f"{score:.2f}",
-            }
-            sources.append(source_entry)
-        return docs, sources
+            source_entry = LorelaiContextRetrievalSource(
+                title=doc.metadata["channel_name"]
+                if isinstance(doc.metadata["channel_name"], list)
+                else [doc.metadata["channel_name"]],
+                source=doc.metadata["source"]
+                if isinstance(doc.metadata["source"], list)
+                else [doc.metadata["source"]],
+                score=f"{score:.2f}",
+            )
+            response.sources.append(source_entry)
+
+        return response

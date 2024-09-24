@@ -1,20 +1,9 @@
 """Module to handle interaction with different language model APIs."""
 
-from lorelai.context_retriever import ContextRetriever
+from lorelai.context_retriever import ContextRetriever, LorelaiContextRetrievalResponse
 from lorelai.utils import load_config
 import importlib
 import logging
-from pydantic import BaseModel, ConfigDict
-
-
-class ContextFromDatasource(BaseModel):
-    """Class to keep context from a datasource."""
-
-    datasource: ContextRetriever
-    context: list
-    sources: list
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class Llm:
@@ -78,25 +67,16 @@ class Llm:
 
         # retrieve context from all the datasources and append to context list
         for datasource in self.datasources:
-            datasource_context, datasource_sources = datasource.retrieve_context(question=question)
-            logging.debug("[Llm.get_answer] datasource type: %s", type(datasource))
-            logging.debug("[Llm.get_answer] datasource_context: %s", datasource_context)
-            logging.debug("[Llm.get_answer] datasource_sources: %s", datasource_sources)
-
-            context_from_datasource = ContextFromDatasource(
-                datasource=datasource,
-                context=datasource_context,
-                sources=datasource_sources,
-            )
-            context.append(context_from_datasource)
+            response = datasource.retrieve_context(question=question)
+            context.append(response)
 
         logging.info(f"Context (get_answer): {context}")
 
         # ask the LLM for an answer to the question
-        answer = self._ask_llm(question=question, sources=context)
+        answer = self._ask_llm(question=question, context=context)
         return answer
 
-    def _ask_llm(self, question: str, sources: list[ContextFromDatasource]) -> str:
+    def _ask_llm(self, question: str, context: list[LorelaiContextRetrievalResponse]) -> str:
         """Ask the language model for an answer to a given question.
 
         This method is implemented in the derived classes.
