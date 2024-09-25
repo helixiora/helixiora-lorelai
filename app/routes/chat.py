@@ -18,7 +18,6 @@ from rq import Queue
 from app.helpers.users import user_is_logged_in
 from app.helpers.chat import get_chat_template_requirements, delete_thread
 from app.tasks import get_answer_from_rag
-from app.tasks import execute_rag_llm
 from app.helpers.chat import get_all_thread_messages, can_send_message
 from app.helpers.notifications import (
     get_notifications,
