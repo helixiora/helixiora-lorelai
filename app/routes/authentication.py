@@ -40,6 +40,7 @@ from app.helpers.users import (
     org_exists_by_name,
     validate_form,
     register_user_to_org,
+    get_user_current_plan,
 )
 from app.helpers.database import get_db_connection, get_query_result
 
@@ -456,6 +457,8 @@ def login_user(
 
     # Get the user's roles
     user_roles = get_user_role_by_id(user_id)
+    # get user # this also assign user to free plan if they have no plans
+    user_plan = get_user_current_plan(user_id)
     # Setup the session
     session["user_id"] = user_id
     session["user_email"] = user_email
@@ -464,6 +467,7 @@ def login_user(
     session["org_id"] = org_id
     session["org_name"] = org_name
     session["user_roles"] = user_roles
+    session["user_plan"] = user_plan
     if access_token:
         session["access_token"] = access_token
     if refresh_token:
