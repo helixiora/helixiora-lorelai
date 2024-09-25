@@ -19,8 +19,9 @@ from langchain.retrievers.contextual_compression import ContextualCompressionRet
 from lorelai.context_retriever import (
     ContextRetriever,
     LorelaiContextRetrievalResponse,
-    LorelaiContextRetrievalSource,
+    LorelaiContextDocument,
 )
+
 from lorelai.pinecone import PineconeHelper
 
 
@@ -75,8 +76,6 @@ class SlackContextRetriever(ContextRetriever):
                 raise ValueError("Index not found. Please index something first.") from e
             raise ValueError("Failed to retrieve context for the provided chat message.") from e
 
-        response = LorelaiContextRetrievalResponse(question=question, context=[], sources=[])
-
         retriever = vec_store.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
@@ -87,23 +86,21 @@ class SlackContextRetriever(ContextRetriever):
             base_compressor=compressor, base_retriever=retriever
         )
 
-        results = compression_retriever.invoke(question)
-        logging.info(
-            f"Retrieved {len(results)} documents from index {index_name} for question: {question}"
-        )
+        results = compression_retriever.invoke(input=question)
 
-        for doc in results:
-            response.context.append(doc)
-            score = doc.metadata["relevance_score"] * 100
-            source_entry = LorelaiContextRetrievalSource(
-                title=doc.metadata["channel_name"]
-                if isinstance(doc.metadata["channel_name"], list)
-                else [doc.metadata["channel_name"]],
-                source=doc.metadata["source"]
-                if isinstance(doc.metadata["source"], list)
-                else [doc.metadata["source"]],
-                score=f"{score:.2f}",
+        context_response = []
+        for result in results:
+            context_document = LorelaiContextDocument(
+                title=f"Thread in {result.metadata['channel_name']} on {result.metadata['msg_ts']}",
+                content=result.page_content,
+                link=result.metadata["source"],
+                when=result.metadata["msg_ts"],
+                relevance_score=result.metadata["relevance_score"],
+                raw_langchain_document=result,
             )
-            response.sources.append(source_entry)
+            context_response.append(context_document)
 
-        return response
+        return LorelaiContextRetrievalResponse(
+            datasource_name="slack",
+            context=context_response,
+        )

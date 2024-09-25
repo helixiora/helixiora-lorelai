@@ -170,28 +170,8 @@ document.addEventListener('DOMContentLoaded', function() {
         hideLoadingIndicator();
         console.log('Result:', result);
 
-        content = result.answer + '\n\n'
+        content = result.answer
 
-        if (result.datasource == 'Direct') {
-            content += '<br/><p><strong>Source:</strong> Direct answer from LLM</p>';
-        }
-        else if (result.source && result.source.length > 0) {
-            const sourceText = result.source.map(src => {
-                let score = parseFloat(src.score);
-                let scoreDisplay = 'N/A';
-                let warningSymbol = '';
-
-                if (!isNaN(score)) {
-                    scoreDisplay = score.toFixed(2);
-                    warningSymbol = score < 50 ? '⚠️ ' : ''; // Add warning symbol if score is less than 10
-                }
-
-                return `<li><a href="${src.source}">${src.title} (score: ${scoreDisplay}${warningSymbol})</a></li>`;
-            }).join('');
-            content += `<br/><p><strong>Sources (from ${result.datasource}):</strong></p><p><ol type='1' class='text-left list-decimal'>${sourceText}</ol></p>`;
-        } else {
-            content += 'No sources found.';
-        }
         addMessage(content=content, isUser=false, false); // Display the answer
 
     }

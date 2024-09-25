@@ -6,7 +6,7 @@ contexts for specified questions. It leverages Pinecone's vector search capabili
 OpenAI's embeddings and language models to generate responses based on the retrieved contexts.
 """
 
-from langchain_core.documents import Document
+from langchain.schema import Document
 
 from lorelai.utils import load_config
 
@@ -18,20 +18,22 @@ import logging
 from pydantic import BaseModel
 
 
-class LorelaiContextRetrievalSource(BaseModel):
-    """A Pydantic model for context retrieval source."""
+class LorelaiContextDocument(BaseModel):
+    """A Pydantic model for context retrieval."""
 
-    title: list[str]
-    source: list[str]
-    score: str
+    title: str
+    content: str
+    link: str
+    when: str
+    relevance_score: float
+    raw_langchain_document: Document
 
 
 class LorelaiContextRetrievalResponse(BaseModel):
     """A Pydantic model for context retrieval."""
 
-    question: str
-    context: list[Document]
-    sources: list[LorelaiContextRetrievalSource]
+    datasource_name: str
+    context: list[LorelaiContextDocument]
 
 
 class ContextRetriever:
@@ -121,7 +123,7 @@ class ContextRetriever:
 
         Returns
         -------
-            tuple: A tuple containing the retrieval result and a list of sources for the context.
+            list[Document]: The list of documents retrieved from Pinecone.
         """
         raise NotImplementedError
 

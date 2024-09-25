@@ -9,8 +9,15 @@ import logging
 class Llm:
     """Base class to handle interaction with different language model APIs."""
 
+    datasources: list[LorelaiContextRetrievalResponse] = []
     _prompt_template = """
-        Answer the following question based on the provided context alone. ":
+        Answer the following question based on the provided context alone. In the answer, refer to
+        the sources to provide evidence for the answer. Use numbered references [1], [2], [3] etc.
+        that link to the numbered sources list below. End the message with a list of sources per
+        datasource, and mention the relevance of that source to the answer as a percentage. Also
+        mentioned the relevance score of the source. Hyperlink to the source which opens in a new
+        tab.
+        Context":
         {context_doc_text}
 
         Question: {question}
@@ -63,20 +70,20 @@ class Llm:
         It's purpose is to retrieve context from all the datasources and pass the context to the
         __ask_llm method, which is implemented in the derived classes.
         """
-        context = []
+        context_list = []
 
         # retrieve context from all the datasources and append to context list
         for datasource in self.datasources:
-            response = datasource.retrieve_context(question=question)
-            context.append(response)
+            context_retrieval_response = datasource.retrieve_context(question=question)
+            context_list.append(context_retrieval_response)
 
-        logging.info(f"Context (get_answer): {context}")
+        logging.info(f"Context (get_answer): {context_list}")
 
         # ask the LLM for an answer to the question
-        answer = self._ask_llm(question=question, context=context)
+        answer = self._ask_llm(question=question, context_list=context_list)
         return answer
 
-    def _ask_llm(self, question: str, context: list[LorelaiContextRetrievalResponse]) -> str:
+    def _ask_llm(self, question: str, context_list: list[LorelaiContextRetrievalResponse]) -> str:
         """Ask the language model for an answer to a given question.
 
         This method is implemented in the derived classes.

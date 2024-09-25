@@ -22,22 +22,24 @@ class OpenAILlm(Llm):
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
         self.model = self.openai_creds["model"]
 
-    def _ask_llm(self, question: str, context: list[LorelaiContextRetrievalResponse]) -> str:
+    def _ask_llm(self, question: str, context_list: list[LorelaiContextRetrievalResponse]) -> str:
         """Get an answer specifically from the OpenAI models."""
         logging.info(f"[OpenAILlm.get_answer] Question: {question}")
 
         # concatenate all the context from the sources
         context_doc_text = ""
-        for source in context:
-            logging.info("[OpenAILlm.get_answer] Source type: %s", type(source))
-            for document in source.context:
-                logging.info("[OpenAILlm.get_answer] Document type: %s", type(document))
-                if isinstance(document, str):
-                    context_doc_text += document
-                elif hasattr(document, "page_content"):
-                    context_doc_text += document.page_content
-                else:
-                    logging.warning(f"Unexpected document type: {type(document)}")
+        for context_retrieval_response in context_list:
+            for document in context_retrieval_response.context:
+                context_doc_text += (
+                    f"Datasource: {context_retrieval_response.datasource_name} \n"
+                    + f"Title: {document.title} \n"
+                    + f"Relevance score: {document.relevance_score} \n"
+                    + f"Link: {document.link} \n"
+                    + f"When: {document.when} \n"
+                    + "Content: <<<START_CONTENT>>>\n"
+                    + document.content
+                    + "\n<<END_CONTENT>>>\n\n"
+                )
 
         logging.info("[OpenAILlm.get_answer] Prompt template: %s", self._prompt_template)
         logging.info("[OpenAILlm.get_answer] Context_doc_text: %s", context_doc_text)
