@@ -37,3 +37,8 @@ ADD COLUMN marked_deleted BOOLEAN DEFAULT FALSE;
 -- Add indexes for better query performance
 CREATE INDEX idx_user_plans_user_id ON user_plans(user_id);
 CREATE INDEX idx_user_plans_plan_id ON user_plans(plan_id);
+
+-- Give all existing users the free plan
+INSERT INTO user_plans (user_id, plan_id, start_date, end_date)
+SELECT user_id, 1, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 12 MONTH)
+FROM user;
