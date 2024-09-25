@@ -30,11 +30,14 @@
             <div class="card-body">
             {% if features.google_drive %}
                 {% include 'integrations/profile-google.html' %}
+            {% else %}
+                <p>Google Drive is not available in this environment.</p>
             {% endif %}
 
-            <!-- Slack Integration -->
-            {% if features.slack == 1 %}
+            {% if features.slack %}
                 {% include 'integrations/profile-slack.html' %}
+            {% else %}
+                <p>Slack is not available in this environment.</p>
             {% endif %}
         </div>
     {% endif %}

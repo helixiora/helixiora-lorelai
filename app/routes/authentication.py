@@ -192,7 +192,11 @@ def profile():
         logging.info(
             "Rendering profile page for user %s with access_token %s", user["email"], access_token
         )
-        logging.info("Google docs to index: %s", google_docs_to_index)
+
+        if int(g.features["slack"]) == 1:
+            logging.info("Slack feature is enabled.")
+        else:
+            logging.warning("Slack feature is disabled.")
         return render_template(
             "profile.html",
             user=user,
