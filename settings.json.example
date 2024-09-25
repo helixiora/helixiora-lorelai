@@ -26,8 +26,8 @@
         "chat_task_timeout": 20,
         "support_portal": "https://support.helixiora.com/support/solutions/201000092447",
         "support_email": "support@helixiora.com",
-        "free_msg_limit": 20,
-        "jwt_secret_key":"KEY"
+        "jwt_secret_key":"KEY",
+        "reranker": "ms-marco-TinyBERT-L-2-v2"
     },
     "embeddings": {
         "model": "text-embedding-ada-002",
