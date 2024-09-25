@@ -18,7 +18,8 @@ from rq import Queue
 from app.helpers.users import user_is_logged_in
 from app.helpers.chat import get_chat_template_requirements, delete_thread
 from app.tasks import get_answer_from_rag
-from app.helpers.chat import get_msg_count_last_24hr, get_all_thread_messages
+from app.tasks import execute_rag_llm
+from app.helpers.chat import get_all_thread_messages, can_send_message
 from app.helpers.notifications import (
     get_notifications,
     mark_notification_as_read,
@@ -42,12 +43,9 @@ def chat():
         "Chat request received: %s from user %s", content["message"], session.get("user_email")
     )
 
-    lorelaicreds = load_config("lorelai")
     user_id = session.get("user_id")
-    msg_count = get_msg_count_last_24hr(user_id=session.get("user_id"))
-    msg_limit = int(lorelaicreds["free_msg_limit"])
-    logging.info(f"{user_id} User id Msg Count last 24hr: {msg_count}")
-    if int(msg_count) >= int(msg_limit):
+    status = can_send_message(user_id=user_id)
+    if not status:
         return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
 
     redis = load_config("redis")

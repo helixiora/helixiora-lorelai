@@ -7,7 +7,7 @@ from app.helpers.users import is_admin
 from app.helpers.database import get_db_connection
 
 
-def get_chat_template_requirements(thread_id: str, user_id: int):
+def get_chat_template_requirements(thread_id: str, user_id: int) -> dict:
     """
     Retrieve the chat template requirements for a given thread.
 
@@ -29,7 +29,7 @@ def get_chat_template_requirements(thread_id: str, user_id: int):
     }
 
 
-def get_msg_count_last_24hr(user_id: int):
+def get_msg_count_last_24hr(user_id: int) -> int:
     """
     Retrieve the count of chat messages for a specified user from the last 24 hours.
 
@@ -100,7 +100,7 @@ def insert_thread_ignore(thread_id: str, user_id, thread_name=None):
         raise e
 
 
-def insert_message(thread_id: str, sender: str, message_content: str, sources: str = None):
+def insert_message(thread_id: str, sender: str, message_content: str, sources: str = None) -> bool:
     """
     Insert a new message into the chat_messages table.
 
@@ -134,7 +134,7 @@ def insert_message(thread_id: str, sender: str, message_content: str, sources: s
         raise e
 
 
-def list_all_user_threads(user_id: int):
+def list_all_user_threads(user_id: int) -> list:
     """
     Retrieve all thread IDs for a given user.
 
@@ -154,8 +154,10 @@ def list_all_user_threads(user_id: int):
         with get_db_connection() as db:
             cursor = db.cursor()
             query = """
-            SELECT thread_id from chat_threads WHERE user_id = %s;
-                """
+            SELECT thread_id
+            FROM chat_threads
+            WHERE user_id = %s AND marked_deleted = FALSE;
+            """
             cursor.execute(query, (user_id,))
             thread_ids = cursor.fetchall()
             if thread_ids is None:
@@ -166,7 +168,7 @@ def list_all_user_threads(user_id: int):
         raise e
 
 
-def get_all_thread_messages(thread_id: str):
+def get_all_thread_messages(thread_id: str) -> list:
     """
     Retrieve all messages for a given thread, ordered by creation time.
 
@@ -201,7 +203,7 @@ def get_all_thread_messages(thread_id: str):
         raise e
 
 
-def get_recent_threads(user_id: int):
+def get_recent_threads(user_id: int) -> list:
     """
     Retrieve the most recent threads for a given user.
 
@@ -225,7 +227,7 @@ def get_recent_threads(user_id: int):
             last_messages_created_at
             FROM chat_threads ct
             LEFT JOIN chat_messages cm ON ct.thread_id = cm.thread_id
-            WHERE ct.user_id = %s
+            WHERE ct.user_id = %s AND ct.marked_deleted = FALSE
             GROUP BY ct.thread_id, ct.thread_name, ct.created_at
             HAVING max(cm.created_at) IS NOT NULL
             ORDER BY last_messages_created_at DESC
@@ -244,16 +246,16 @@ def get_recent_threads(user_id: int):
         db.close()
 
 
-def delete_thread(thread_id: str):
+def delete_thread(thread_id: str) -> bool:
     """
-    Delete a thread and all its messages.
+    Mark a thread as deleted by setting marked_deleted to TRUE.
 
     Args:
-        thread_id (str): The ID of the thread to be deleted.
+        thread_id (str): The ID of the thread to be marked as deleted.
 
     Returns
     -------
-        bool: True if the deletion was successful, False otherwise.
+        bool: True if the operation was successful, False otherwise.
 
     Raises
     ------
@@ -262,19 +264,80 @@ def delete_thread(thread_id: str):
     try:
         with get_db_connection() as db:
             cursor = db.cursor()
-            # Delete messages first
-            delete_messages_query = "DELETE FROM chat_messages WHERE thread_id = %s;"
-            cursor.execute(delete_messages_query, (thread_id,))
 
-            # Then delete the thread
-            delete_thread_query = "DELETE FROM chat_threads WHERE thread_id = %s;"
-            cursor.execute(delete_thread_query, (thread_id,))
+            # Update the thread to mark it as deleted
+            mark_deleted_query = (
+                "UPDATE chat_threads SET marked_deleted = TRUE WHERE thread_id = %s;"
+            )
+            cursor.execute(mark_deleted_query, (thread_id,))
 
             db.commit()
             return True
     except Exception as e:
-        logging.error(f"Error deleting thread {thread_id}: {e}")
+        logging.error(f"Error marking thread {thread_id} as deleted: {e}")
         db.rollback()
-        return False
+        raise e
     finally:
         cursor.close()
+
+
+def get_daily_message_limit(user_id: int) -> int:
+    """
+    Retrieve the daily message limit for an active plan of a given user.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        int : The daily message limit if an active plan is found, otherwise 0.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            query = """
+                SELECT
+                    p.message_limit_daily
+                FROM
+                    user_plans up
+                JOIN
+                    plans p ON up.plan_id = p.plan_id
+                WHERE
+                    up.user_id = %s
+                    AND up.is_active = TRUE
+                    AND CURDATE() BETWEEN up.start_date AND up.end_date;
+            """
+
+            cursor.execute(query, (user_id,))
+            result = cursor.fetchone()
+
+            if result:
+                return result[0]  # Return the daily message limit
+            else:
+                return 0  # If no active plan is found
+
+    except Exception as e:
+        logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
+        raise e
+    finally:
+        cursor.close()
+
+
+def can_send_message(user_id: int) -> bool:
+    """
+    Check if a user can send a message based on their daily limit and extra messages.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        bool: True if the user can send a message, otherwise False.
+    """
+    daily_limit = get_daily_message_limit(user_id)
+
+    message_usages = get_msg_count_last_24hr(
+        user_id
+    )  # resets only if 24 hr has passed from last messages  # noqa: E501
+    if message_usages < daily_limit:
+        return True

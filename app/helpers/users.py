@@ -1,6 +1,8 @@
 """User related helper functions."""
 
 import logging
+from datetime import datetime
+
 from functools import wraps
 import mysql
 
@@ -460,3 +462,111 @@ def validate_form(email: str, name: str, organisation: str):
         missing_fields.append("organisation")
 
     return missing_fields
+
+
+def add_new_plan_user(user_id: int, plan_id: int):
+    """
+    Add a new plan for a user and update existing plans.
+
+    Args:
+        user_id (int): The ID of the user to whom the plan will be assigned.
+        plan_id (int): The ID of the plan to be assigned to the user.
+
+    Returns
+    -------
+        bool: True if the operation was successful, False otherwise.
+
+    Raises
+    ------
+        Exception: If there is an error during the database query.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+
+            # Calculate the start and end dates for the new plan
+            start_date = datetime.now().date()
+
+            # Set is_active to FALSE for existing plans for the same user
+            update_existing_plans_query = """
+            UPDATE user_plans
+            SET is_active = FALSE
+            WHERE user_id = %s AND is_active = TRUE;
+            """
+            cursor.execute(update_existing_plans_query, (user_id,))
+
+            # Insert the new plan for the user
+            insert_new_plan_query = """
+            INSERT INTO user_plans (user_id, plan_id, start_date)
+            VALUES (%s, %s, %s);
+            """
+            cursor.execute(insert_new_plan_query, (user_id, plan_id, start_date))
+
+            db.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error adding new plan for user {user_id}: {e}")
+        db.rollback()
+        raise e
+    finally:
+        cursor.close()
+
+
+def get_user_current_plan(user_id: int):
+    """
+    Retrieve the current plan for a user or assign the 'free' plan if none exists.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        str: The current plan name. Returns 'free' if assigned or False if an error occurs.
+    """
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+
+            # SQL query to get the current plan for the user
+            query = """
+                SELECT
+                    p.plan_name AS plan_name
+                FROM
+                    user_plans up
+                JOIN
+                    plans p ON up.plan_id = p.plan_id
+                WHERE
+                    up.user_id = %s
+                    AND up.is_active = TRUE
+                    AND CURDATE() BETWEEN up.start_date AND up.end_date
+                LIMIT 1;
+            """
+
+            # Execute the query with the provided user_id
+            cursor.execute(query, (user_id,))
+            result = cursor.fetchone()
+
+            if result:
+                return result[0]  # Return the current plan_name
+            else:
+                # No active plan, assign the 'free' plan
+                # Get the free plan's plan_id from the plans table
+                query_get_free_plan = """
+                    SELECT plan_id
+                    FROM plans
+                    WHERE plan_name = 'free'
+                    LIMIT 1;
+                """
+                cursor.execute(query_get_free_plan)
+                free_plan_result = cursor.fetchone()
+
+                if free_plan_result:
+                    free_plan_id = free_plan_result[0]
+                    add_new_plan_user(user_id=user_id, plan_id=free_plan_id)
+                    return "free"  # Return 'free' as the assigned plan
+
+    except Exception as e:
+        logging.error(f"Error get_user_current_plan for userid {user_id}: {e}")
+        return False
+    finally:
+        cursor.close()
