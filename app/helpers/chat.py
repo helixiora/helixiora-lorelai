@@ -8,7 +8,7 @@ from app.helpers.datasources import get_datasources_name
 from app.helpers.database import get_db_connection
 
 
-def get_chat_template_requirements(thread_id: str, user_id: int):
+def get_chat_template_requirements(thread_id: str, user_id: int) -> dict:
     """
     Retrieve the chat template requirements for a given thread.
 
@@ -33,7 +33,7 @@ def get_chat_template_requirements(thread_id: str, user_id: int):
     }
 
 
-def get_msg_count_last_24hr(user_id: int):
+def get_msg_count_last_24hr(user_id: int) -> int:
     """
     Retrieve the count of chat messages for a specified user from the last 24 hours.
 
@@ -104,7 +104,7 @@ def insert_thread_ignore(thread_id: str, user_id, thread_name=None):
         raise e
 
 
-def insert_message(thread_id: str, sender: str, message_content: str, sources: str = None):
+def insert_message(thread_id: str, sender: str, message_content: str, sources: str = None) -> bool:
     """
     Insert a new message into the chat_messages table.
 
@@ -138,7 +138,7 @@ def insert_message(thread_id: str, sender: str, message_content: str, sources: s
         raise e
 
 
-def list_all_user_threads(user_id: int):
+def list_all_user_threads(user_id: int) -> list:
     """
     Retrieve all thread IDs for a given user.
 
@@ -172,7 +172,7 @@ def list_all_user_threads(user_id: int):
         raise e
 
 
-def get_all_thread_messages(thread_id: str):
+def get_all_thread_messages(thread_id: str) -> list:
     """
     Retrieve all messages for a given thread, ordered by creation time.
 
@@ -207,7 +207,7 @@ def get_all_thread_messages(thread_id: str):
         raise e
 
 
-def get_recent_threads(user_id: int):
+def get_recent_threads(user_id: int) -> list:
     """
     Retrieve the most recent threads for a given user.
 
@@ -250,7 +250,7 @@ def get_recent_threads(user_id: int):
         db.close()
 
 
-def delete_thread(thread_id: str):
+def delete_thread(thread_id: str) -> bool:
     """
     Mark a thread as deleted by setting marked_deleted to TRUE.
 
@@ -280,12 +280,12 @@ def delete_thread(thread_id: str):
     except Exception as e:
         logging.error(f"Error marking thread {thread_id} as deleted: {e}")
         db.rollback()
-        return False
+        raise e
     finally:
         cursor.close()
 
 
-def get_daily_message_limit(user_id: int):
+def get_daily_message_limit(user_id: int) -> int:
     """
     Retrieve the daily message limit for an active plan of a given user.
 
@@ -294,8 +294,7 @@ def get_daily_message_limit(user_id: int):
 
     Returns
     -------
-        int or None: The daily message limit if an active plan is found, otherwise None.
-        False: If an error occurs.
+        int : The daily message limit if an active plan is found, otherwise 0.
     """
     try:
         with get_db_connection() as db:
@@ -323,12 +322,12 @@ def get_daily_message_limit(user_id: int):
 
     except Exception as e:
         logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
-        return False
+        raise e
     finally:
         cursor.close()
 
 
-def deduct_extra_message_if_available(user_id: int):
+def deduct_extra_message_if_available(user_id: int) -> bool:
     """
     Deduct an extra message if available for the user.
 
@@ -380,7 +379,7 @@ def deduct_extra_message_if_available(user_id: int):
         cursor.close()
 
 
-def can_send_message(user_id: int):
+def can_send_message(user_id: int) -> bool:
     """
     Check if a user can send a message based on their daily limit and extra messages.
 
@@ -392,6 +391,7 @@ def can_send_message(user_id: int):
         bool: True if the user can send a message, otherwise False.
     """
     daily_limit = get_daily_message_limit(user_id)
+
     message_usages = get_msg_count_last_24hr(
         user_id
     )  # resets only if 24 hr has passed from last messages  # noqa: E501
