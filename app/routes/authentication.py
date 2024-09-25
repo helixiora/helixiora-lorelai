@@ -46,7 +46,6 @@ from app.helpers.database import get_db_connection, get_query_result
 
 from lorelai.utils import load_config
 
-from lorelai.slack.slack_processor import SlackOAuth
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -432,11 +431,13 @@ def login_user(
         conn.close()
 
     # get the user's access token and refresh token
+
     access_token_query = get_query_result(
-        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token'",
+        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token' AND datasource_id = 2",  # noqa: E501
         (user_id,),
         fetch_one=True,
     )
+
     if not access_token_query:
         logging.warning("No access token found for user %s", user_id)
         access_token = None
@@ -444,7 +445,7 @@ def login_user(
         access_token = access_token_query["auth_value"]
 
     refresh_token_query = get_query_result(
-        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'refresh_token'",
+        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'refresh_token' AND datasource_id = 2",  # noqa: E501
         (user_id,),
         fetch_one=True,
     )
@@ -532,20 +533,6 @@ def validate_id_token(idinfo: dict, csrf_token: str):
         raise exceptions.GoogleAuthError("Wrong issuer.")
     if not idinfo.get("email_verified"):
         raise exceptions.GoogleAuthError("Email not verified")
-
-
-@auth_bp.route("/slack/auth")
-def slack_auth():
-    """Slack OAuth route. Redirects to the Slack OAuth URL."""
-    slack_oauth = SlackOAuth()
-    return redirect(slack_oauth.get_auth_url())
-
-
-@auth_bp.route("/slack/auth/callback")
-def slack_callback():
-    """Slack OAuth callback route. Handles the Slack OAuth callback."""
-    slack_oauth = SlackOAuth()
-    return slack_oauth.auth_callback()
 
 
 @auth_bp.route("/logout", methods=["GET"])

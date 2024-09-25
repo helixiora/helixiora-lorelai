@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     let isPaused = false;
 
-    const lorelai_tour = introJs().setOptions({
+    const lorelai_tour = introJs.tour().setOptions({
         steps: [
             {
                 intro: "Welcome to LorelAI! \n\nThis is your profile page. Before you can ask questions, we first need to add a data source and run the indexer on them."

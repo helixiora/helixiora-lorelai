@@ -8,18 +8,33 @@
             <tr>
                 <th>Title</th>
                 <th>Source</th>
-                <th>User</th>
+                <th>Users</th>
+                <th>Text</th>
+                <th>When</th>
                 <th>ID</th>
             </tr>
         </thead>
         <tbody>
             {% for item in metadata %}
-                <tr>
-                    <td>{{ item.title }}</td>
-                    <td>{{ item.source }}</td>
-                    <td>{{ item.user }}</td>
-                    <td>{{ item.id }}</td>
-                </tr>
+                {% if item.title %}
+                    <tr>
+                        <td>{{ item.title }}</td>
+                        <td>{{ item.source }}</td>
+                        <td>{{ item.users }}</td>
+                        <td>{{ item.text }}</td>
+                        <td>{{ item.when }}</td>
+                        <td>{{ item.id }}</td>
+                    </tr>
+                {% elif item.msg_ts %}
+                    <tr>
+                        <td>{{ item.channel_name }}</td>
+                        <td>{{ item.source }}</td>
+                        <td>{{ item.users }}</td>
+                        <td>{{ item.text }}</td>
+                        <td>{{ item.msg_ts }}</td>
+                        <td>{{ item.id }}</td>
+                    </tr>
+                {% endif %}
             {% endfor %}
         </tbody>
     </table>
@@ -27,12 +42,21 @@
 </div>
 
 <script>
-$(document).ready(function() {
-    $('#metadataTable').DataTable({
-        "pagingType": "simple_numbers", // Enables simple pagination
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]], // Sets the number of rows per page
-        "order": [[0, "asc"]] // Sorts the table by the first column in ascending order
+    document.addEventListener('DOMContentLoaded', function() {
+        $(document).ready(function() {
+            $('#metadataTable').DataTable({
+                "pagingType": "simple_numbers", // Enables simple pagination
+                "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]], // Sets the number of rows per page
+                "order": [[0, "asc"]], // Sorts the table by the first column in ascending order
+                "columnDefs": [
+                    { "targets": 3, "render": function(data, type, row) {
+                        return type === 'display' && data.length > 100 ?
+                        '<span title="' + data + '">' + data.substr(0, 100) + '...</span>' :
+                        data;
+                    } }
+                ]
+            });
+        });
     });
-});
 </script>
 {% endblock %}

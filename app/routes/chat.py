@@ -17,7 +17,7 @@ from rq import Queue
 
 from app.helpers.users import user_is_logged_in
 from app.helpers.chat import get_chat_template_requirements, delete_thread
-from app.tasks import execute_rag_llm
+from app.tasks import get_answer_from_rag
 from app.helpers.chat import get_all_thread_messages, can_send_message
 from app.helpers.notifications import (
     get_notifications,
@@ -41,7 +41,6 @@ def chat():
     logging.info(
         "Chat request received: %s from user %s", content["message"], session.get("user_email")
     )
-    logging.info("Datasource: %s", content["datasource"])
 
     user_id = session.get("user_id")
     status = can_send_message(user_id=user_id)
@@ -71,14 +70,13 @@ def chat():
 
     # enqueue the chat task
     job = queue.enqueue(
-        execute_rag_llm,
+        get_answer_from_rag,
         thread_id,
         content["message"],
         session.get("user_id"),
         session.get("user_email"),
         session.get("org_name"),
         llm_model,
-        datasource=content["datasource"],
         job_timeout=chat_task_timeout,
         description=f"Execute RAG+LLM model: {content['message']} for {session.get('user_email')} \
             using {llm_model}",
@@ -131,7 +129,7 @@ def api_notifications():
         return jsonify(notifications), 200
     except Exception as e:
         # Log the error (you should set up proper logging)
-        print(f"Error fetching notifications: {str(e)}")
+        logging.error(f"Error fetching notifications: {str(e)}")
         return jsonify({"error": "Unable to fetch notifications"}), 500
 
 
@@ -178,7 +176,6 @@ def conversation(thread_id):
         user_email=session["user_email"],
         recent_conversations=chat_template_requirements["recent_conversations"],
         is_admin=chat_template_requirements["is_admin_status"],
-        datasource_list=chat_template_requirements["datasources"],
         support_portal=lorelai_settings["support_portal"],
         support_email=lorelai_settings["support_email"],
     )
@@ -228,7 +225,6 @@ def index():
             user_email=session["user_email"],
             recent_conversations=chat_template_requirements["recent_conversations"],
             is_admin=chat_template_requirements["is_admin_status"],
-            datasource_list=chat_template_requirements["datasources"],
             support_portal=lorelai_settings["support_portal"],
             support_email=lorelai_settings["support_email"],
         )

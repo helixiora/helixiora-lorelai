@@ -1,20 +1,18 @@
 """Contains the tasks that are executed asynchronously."""
 
-import json
 import logging
 import os
 import time
 
 from rq import get_current_job
 
-from app.helpers.datasources import get_datasources_name
 from app.helpers.chat import insert_message, insert_thread_ignore
 from app.helpers.notifications import add_notification
 
 # import the indexer
-from lorelai.contextretriever import ContextRetriever
 from lorelai.indexer import Indexer
 from lorelai.llm import Llm
+from lorelai.indexers.slackindexer import SlackIndexer
 
 logging_format = os.getenv(
     "LOG_FORMAT",
@@ -24,7 +22,7 @@ log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format=logging_format)
 
 
-def execute_rag_llm(
+def get_answer_from_rag(
     thread_id: str,
     chat_message: str,
     user_id,
@@ -45,8 +43,6 @@ def execute_rag_llm(
         The organisation name.
     model_type : str, optional
         The model type to use (OpenAI, Llama3, etc). Default is "OpenAILlm".
-    datasource : str, optional
-        The datasource to use (Slack, Google Drive, Direct, etc). Default is None.
 
     Returns
     -------
@@ -58,17 +54,12 @@ def execute_rag_llm(
     ValueError
         If the user or organisation is None.
     """
-    execute_rag_llm_start_time = time.time()
+    start_time = time.time()
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
     logging.info("Task ID: %s, Message: %s", chat_message, job.id)
     logging.info("Session: %s, %s, %s", user_id, user, organisation)
-    logging.debug("Datasource %s", datasource)
-
-    db_datasource_list = get_datasources_name()
-    if datasource not in db_datasource_list:
-        raise ValueError(f"Invalid datasource provided. Received: {datasource}")
 
     try:
         # create model
@@ -76,8 +67,6 @@ def execute_rag_llm(
 
         if user is None or organisation is None:
             raise ValueError("User and organisation cannot be None.")
-
-        llm = Llm.create(model_type=model_type)
 
         # insert chat thread
         insert_thread_ignore(
@@ -87,84 +76,24 @@ def execute_rag_llm(
         # insert message
         insert_message(thread_id=str(thread_id), sender="user", message_content=chat_message)
 
-        # Get the context for the question
-        if datasource == "Direct":
-            answer = llm.get_answer_direct(question=chat_message)
-            source = None
-            status = "Success"
-        else:
-            # have to change Retriever type based on data source.
-            enriched_context = ContextRetriever.create(
-                retriever_type="GoogleDriveContextRetriever",
-                org_name=organisation,
-                user=user,
-            )
-            try:
-                start_time = time.time()
-                context, source = enriched_context.retrieve_context(chat_message)
-                logging.debug(f"Source: {source}")
+        llm = Llm.create(model_type=model_type, user=user, organization=organisation)
+        response = llm.get_answer(question=chat_message)
+        status = "success"
 
-                # remove any sources with less than 0.5 score, they are irrelevant
-                source = [
-                    source_item for source_item in source if float(source_item["score"]) >= 0.5
-                ]
-                logging.debug(f"Filtered Source: {source}")
-                logging.info(f"Context Retriever time {time.time()-start_time}")
-                if source is None or len(source) == 0:
-                    no_relevant_source = True
-                else:
-                    no_relevant_source = False
+        logging.info(f"Get Answer time {time.time()-start_time}")
 
-                if context is None:
-                    raise ValueError("Failed to retrieve context for the provided chat message.")
-            except ValueError as e:
-                logging.error("(ValueError): Error in retrieving context: %s", str(e))
-                if "Index not found: " in str(e):
-                    raise ValueError("Index not found. Please index something first.") from e
-                raise  # Re-raise the ValueError to be caught by the outer except block
-            except Exception as e:
-                logging.error(f"Error in retrieving context: {str(e)}")
-                raise Exception("Something went wrong") from e
-
-            start_time = time.time()
-            if no_relevant_source:
-                answer = ""
-                status = "No Relevant Source"
-            else:
-                answer = llm.get_answer(question=chat_message, context=context)
-                status = "Success"
-            logging.info(f"Get Answer time {time.time()-start_time}")
-
-        logging.info("Answer: %s", answer)
-        logging.info("Source: %s", source)
-        logging.debug(f"Source Type: {type(source)}")
+        logging.info("Answer: %s", response)
+        insert_message(thread_id=str(thread_id), sender="bot", message_content=response)
 
         json_data = {
-            "answer": answer,
-            "source": source,
+            "answer": response,
             "status": status,
-            "datasource": datasource,
             "thread_id": thread_id,
         }
-
-    except ValueError as e:
-        logging.error("ValueError in execute_rag_llm task: %s", str(e))
-        json_data = {"error": str(e), "status": "Failed"}
-        return json_data
-    except Exception as e:
-        logging.error("Error in execute_rag_llm task: %s", str(e))
-        json_data = {"error": str(e), "status": "Failed"}
-        return json_data
     finally:
         end_time = time.time()
-        logging.info(f"Worker Exec time: {end_time - execute_rag_llm_start_time}")
+        logging.info(f"Worker Exec time: {end_time - start_time}")
 
-    insert_message(
-        thread_id=str(thread_id),
-        sender="bot",
-        message_content=answer if answer else "No Response",
-        sources=json.dumps(source),
-    )
     return json_data
 
 
@@ -243,3 +172,32 @@ def run_indexer(
         job.set_status("failed")
 
         return job.meta["progress"]
+
+
+def run_slack_indexer(user_email: str, org_name: str):
+    """
+    Run the Slack indexer for a given user and organization.
+
+    This function retrieves the current job, logs task information, and initializes
+    the indexing progress. It then creates a SlackIndexer instance for the specified
+    user and organization, and starts processing Slack messages.
+
+    Args:
+        user_email (str): The email of the user running the indexer.
+        org_name (str): The name of the organization for which the Slack data is being indexed.
+    """
+    job = get_current_job()
+    if job is None:
+        raise ValueError("Could not get the current job.")
+
+    logging.info(f"Task ID -> Run Slack Indexer: {job.id} for {org_name}")
+
+    # Initialize job meta with logs
+    job.meta["progress"] = {"current": 0, "total": 100, "status": "Initializing indexing..."}
+    job.meta["logs"] = []
+    job.save_meta()
+
+    indexer = SlackIndexer(user_email, org_name)
+    indexer.process_slack_message()
+
+    logging.info(f"Slack Indexer Completed for {org_name}")

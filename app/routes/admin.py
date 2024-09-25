@@ -18,7 +18,7 @@ from flask import (
 from redis import Redis
 from rq import Queue
 
-from app.tasks import run_indexer
+from app.tasks import run_indexer, run_slack_indexer
 
 from app.helpers.users import (
     is_super_admin,
@@ -31,7 +31,7 @@ from app.helpers.users import (
 )
 from app.helpers.database import get_db_connection, get_query_result, run_flyway_migrations
 
-from lorelai.contextretriever import ContextRetriever
+from lorelai.pinecone import PineconeHelper
 from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
 
 admin_bp = Blueprint("admin", __name__)
@@ -77,7 +77,7 @@ def job_status(job_id: str) -> str:
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
-    print(job._status)
+    logging.info(f"Job {job_id} status: {job._status}")
     match job:
         case None:
             logging.error(f"Job {job_id} not found")
@@ -254,6 +254,45 @@ def start_indexing(type) -> str:
         return jsonify({"error": "Failed to start indexing"}), 500
 
 
+@admin_bp.route("/admin/startslackindex", methods=["POST"])
+@role_required(["super_admin", "org_admin"])
+# For Slack it logical that only org admin can run the indexer as the bot need to be added to slack then added to channel  # noqa: E501
+def start_slack_indexing() -> str:
+    """Start slack indexing the data for the organization of the logged-in user.
+
+    Returns
+    -------
+    str
+        The job_id of the indexing job.
+
+    Raises
+    ------
+    ConnectionError
+        If the connection to the Redis server or the database fails.
+    """
+    try:
+        jobs = []
+        redis_config = load_config("redis")
+        redis_conn = Redis.from_url(redis_config["url"])
+        queue = Queue(connection=redis_conn)
+        user_email = session["user_email"]
+        org_name = session["org_name"]
+        job = queue.enqueue(
+            run_slack_indexer,
+            user_email=user_email,
+            org_name=org_name,
+            job_timeout=3600 * 2,
+            description=f"Indexing Slack: for {org_name}",
+        )
+        job_id = job.get_id()
+        jobs.append(job_id)
+        logging.info("Started Slack Indexer")
+        return jsonify({"jobs": jobs}), 202
+    except Exception as e:
+        logging.error(f"Error starting Slack indexing: {e}")
+        return jsonify({"error": "Failed to start Slack indexing"}), 500
+
+
 @admin_bp.route("/admin/pinecone")
 @role_required(["super_admin", "org_admin"])
 def list_indexes() -> str:
@@ -264,13 +303,8 @@ def list_indexes() -> str:
     str
         The rendered template of the list indexes page.
     """
-    enriched_context = ContextRetriever.create(
-        retriever_type="GoogleDriveContextRetriever",
-        org_name=session["org_name"],
-        user=session["user_email"],
-    )
-
-    indexes = enriched_context.get_all_indexes()
+    pinecone_helper = PineconeHelper()
+    indexes = pinecone_helper.list_indexes()
 
     return render_template(
         "admin/pinecone.html", indexes=indexes, is_admin=is_admin(session["user_id"])
@@ -281,12 +315,9 @@ def list_indexes() -> str:
 @role_required(["super_admin", "org_admin"])
 def index_details(host_name: str) -> str:
     """Return the index details page."""
-    enriched_context = ContextRetriever.create(
-        retriever_type="GoogleDriveContextRetriever",
-        org_name=session["org_name"],
-        user=session["user_email"],
-    )
-    index_metadata = enriched_context.get_index_details(index_host=host_name)
+    pinecone_helper = PineconeHelper()
+
+    index_metadata = pinecone_helper.get_index_details(index_host=host_name)
 
     return render_template(
         "admin/index_details.html",

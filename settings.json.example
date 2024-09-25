@@ -38,7 +38,8 @@
         "invite_template_id": "d-709a4aaf4af14541a9a31aba7c773bae"
     },
     "sentry": {
-        "dsn": "https://<<dsn here>>"
+        "dsn": "https://<<dsn here>>",
+        "environment": "the stage of this environment eg dev/prod/qa"
     },
     "db": {
         "host": "your_mysql_server",
@@ -46,6 +47,14 @@
         "user": "the_db_user",
         "database": "the_name_of_your_db",
         "password": "the_password_for_your_user"
+    },
+    "slack": {
+        "client_id": "xxxx",
+        "client_secret": "xxxx",
+        "redirect_uri": "https://127.0.0.1:5000/slack/auth/callback",
+        "authorization_url": "https://slack.com/oauth/v2/authorize",
+        "token_url": "https://slack.com/api/oauth.v2.access",
+        "scopes": "channels:history,channels:read,users:read"
     },
     "features": {
         "slack":0,

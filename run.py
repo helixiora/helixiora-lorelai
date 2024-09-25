@@ -30,6 +30,7 @@ from flask import (
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
+from app.routes.slack.authorization import slack_bp
 from app.routes.google.authorization import googledrive_bp
 
 from lorelai.utils import load_config
@@ -47,8 +48,10 @@ git_details = os.popen("git log --pretty=format:'%H %d %s' -n 1").read()
 print(f"Git details: {git_details}")
 logging.info(f"Git details: {git_details}")
 
+sentry = load_config("sentry")
 sentry_sdk.init(
-    dsn=load_config("sentry")["dsn"],
+    dsn=sentry["dsn"],
+    environment=sentry.get("environment", "unknown environment"),
     traces_sample_rate=1.0,
     profiles_sample_rate=1.0,
 )
@@ -80,6 +83,7 @@ app.register_blueprint(googledrive_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
+app.register_blueprint(slack_bp)
 
 db_settings = load_config("db")
 dbname = db_settings["database"]
@@ -197,7 +201,6 @@ def internal_server_error(e):
 @app.before_request
 def before_request():
     """Load the features before every request."""
-    logging.debug("Before request: " + request.url)
     g.features = load_config("features")
 
 
