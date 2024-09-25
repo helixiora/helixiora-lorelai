@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 
 from functools import wraps
 import mysql
@@ -485,18 +484,8 @@ def add_new_plan_user(user_id: int, plan_id: int):
         with get_db_connection() as db:
             cursor = db.cursor()
 
-            # Fetch the duration_months for the specified plan
-            query = "SELECT duration_months FROM plans WHERE plan_id = %s;"
-            cursor.execute(query, (plan_id,))
-            result = cursor.fetchone()
-            if not result:
-                raise ValueError("Plan not found.")
-
-            duration_months = result[0]
-
             # Calculate the start and end dates for the new plan
             start_date = datetime.now().date()
-            end_date = (datetime.now() + relativedelta(months=duration_months)).date()
 
             # Set is_active to FALSE for existing plans for the same user
             update_existing_plans_query = """
@@ -508,10 +497,10 @@ def add_new_plan_user(user_id: int, plan_id: int):
 
             # Insert the new plan for the user
             insert_new_plan_query = """
-            INSERT INTO user_plans (user_id, plan_id, start_date, end_date)
-            VALUES (%s, %s, %s, %s);
+            INSERT INTO user_plans (user_id, plan_id, start_date)
+            VALUES (%s, %s, %s);
             """
-            cursor.execute(insert_new_plan_query, (user_id, plan_id, start_date, end_date))
+            cursor.execute(insert_new_plan_query, (user_id, plan_id, start_date))
 
             db.commit()
             return True
@@ -561,7 +550,7 @@ def get_user_current_plan(user_id: int):
                 return result[0]  # Return the current plan_name
             else:
                 # No active plan, assign the 'free' plan
-                # Get the free plan's plan_id and duration_months from the plans table
+                # Get the free plan's plan_id from the plans table
                 query_get_free_plan = """
                     SELECT plan_id
                     FROM plans

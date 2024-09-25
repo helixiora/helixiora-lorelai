@@ -327,58 +327,6 @@ def get_daily_message_limit(user_id: int) -> int:
         cursor.close()
 
 
-def deduct_extra_message_if_available(user_id: int) -> bool:
-    """
-    Deduct an extra message if available for the user.
-
-    Args:
-        user_id (int): The ID of the user.
-
-    Returns
-    -------
-        bool: True if the deduction was successful, otherwise False.
-    """
-    try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-
-            # Check the current quantity of extra messages
-            query_check = """
-                SELECT quantity
-                FROM extra_messages
-                WHERE user_id = %s
-                AND is_active = TRUE;
-            """
-            cursor.execute(query_check, (user_id,))
-            result = cursor.fetchone()
-
-            if result is None:
-                # No active extra messages for this user
-                return False
-            current_quantity = result[0]
-            if current_quantity <= 0:
-                return False
-            else:
-                new_quantity = current_quantity - 1
-
-                # Update the extra messages quantity
-                query_update = """
-                    UPDATE extra_messages
-                    SET quantity = %s
-                    WHERE user_id = %s
-                    AND is_active = TRUE;
-                """
-                cursor.execute(query_update, (new_quantity, user_id))
-                db.commit()
-                return True
-
-    except Exception as e:
-        logging.error(f"Error getting deduct_extra_message_if_available for userid {user_id}: {e}")
-        return False
-    finally:
-        cursor.close()
-
-
 def can_send_message(user_id: int) -> bool:
     """
     Check if a user can send a message based on their daily limit and extra messages.
@@ -397,8 +345,3 @@ def can_send_message(user_id: int) -> bool:
     )  # resets only if 24 hr has passed from last messages  # noqa: E501
     if message_usages < daily_limit:
         return True
-
-    # In future we have to deduct extra message only if bot has replied. for now its ok.
-    status = deduct_extra_message_if_available(user_id=user_id)
-    # status True if extra message is available false if not
-    return status
