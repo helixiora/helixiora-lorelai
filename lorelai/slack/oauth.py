@@ -29,6 +29,7 @@ class SlackOAuth:
         self.client_id = self.config["client_id"]
         self.client_secret = self.config["client_secret"]
         self.redirect_uri = self.config["redirect_uri"]
+        self.datasource_id = get_datasource_id_by_name("Slack")
 
     def get_auth_url(self):
         """
@@ -65,8 +66,14 @@ class SlackOAuth:
         }
         response = requests.post(self.token_url, data=payload)
         if response.status_code == 200:
-            return response.json()["access_token"]
-        return None
+            data = response.json()
+            if "ok" in data and data["ok"]:
+                if "access_token" in data:
+                    return data["access_token"]
+            else:
+                raise Exception(f"Error retrieving access token (ok == False): {data['error']}")
+        else:
+            raise Exception(f"Error retrieving access token: {response.text}")
 
     def handle_callback(self) -> bool:
         """
@@ -78,14 +85,16 @@ class SlackOAuth:
         -------
             Bool: True if the callback was successful, False otherwise.
         """
+        # get code from request
         code = request.args.get("code")
         access_token = None
         try:
+            # get access token from slack code
             access_token = self.get_access_token(code)
             if access_token:
                 session["slack_access_token"] = access_token
-                datasource_id = get_datasource_id_by_name("Slack")
-                if not datasource_id:
+
+                if not self.datasource_id:
                     raise ValueError("Slack datasource not found")
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
@@ -98,7 +107,7 @@ class SlackOAuth:
                             """  # noqa: E501
                     data = (
                         session["user_id"],
-                        datasource_id,
+                        self.datasource_id,
                         "access_token",
                         access_token,
                         "oauth",
@@ -106,10 +115,18 @@ class SlackOAuth:
                     cursor.execute(query, data)
                     conn.commit()
                     logging.debug(access_token)
-            return True  # Successful callback
+                    return True  # Successful callback
+            else:
+                logging.error("No access token received from Slack, removing from user_auth table")
+                # remove slack access token from user_auth table
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    query = """DELETE FROM user_auth WHERE user_id = %s AND datasource_id = %s AND auth_type = %s;"""  # noqa: E501
+                    data = (session["user_id"], self.datasource_id, "oauth")
+                    cursor.execute(query, data)
+                    conn.commit()
+                return False
+
         except Exception as e:
             logging.error(f"Error handling callback: {e}")
             return False  # Callback failed
-        finally:
-            cursor.close()
-            conn.close()

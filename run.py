@@ -237,6 +237,7 @@ def set_security_headers(response):
         "https://accounts.google.com/gsi/",
         "https://csi.gstatic.com/csi",
         "https://cdn.datatables.net/",
+        "https://platform.slack-edge.com/",
     ]
 
     script_src_elem = [

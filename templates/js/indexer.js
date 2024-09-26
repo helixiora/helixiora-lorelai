@@ -28,6 +28,7 @@ function startIndexing(type) {
 }
 
 function checkStatus(jobStatus, type, jobStatuses) {
+    console.log(jobStatus);
     fetch(`/admin/job-status/${jobStatus.jobId}`)
         .then(response => {
             if (response.ok) {
@@ -81,6 +82,7 @@ function startSlackIndexing() {
             if (response.ok) {
                 return response.json();
             } else {
+                console.log(response);
                 return response.json().then(data => {
                     throw new Error(data.error || 'Unknown error');
                 });
@@ -92,12 +94,14 @@ function startSlackIndexing() {
             // Initialize job statuses
             let jobStatuses = data.jobs.map(job => ({ jobId: job, state: 'pending' }));
 
+            console.log(jobStatuses);
+
             // Check the status of each job returned
             jobStatuses.forEach(jobStatus => {
-                checkStatus(jobStatus, type, jobStatuses);
+                checkStatus(jobStatus, 'Slack', jobStatuses);
             });
         })
         .catch(error => {
-            $('#statusMessage').removeClass('alert-info').addClass('alert-danger').text(`Failed to start ${type} indexing: ` + error.message);
+            $('#statusMessage').removeClass('alert-info').addClass('alert-danger').text(`Failed to start Slack indexing: ` + error.message);
         });
 }
