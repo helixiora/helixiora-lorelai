@@ -14,21 +14,15 @@ import pinecone
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_google_community.drive import GoogleDriveLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from lorelai.utils import (
-    get_embedding_dimension,
-    load_config,
-    save_google_creds_to_tempfile,
-    get_db_connection,
-)
+from lorelai.utils import get_embedding_dimension, load_config
 from lorelai.pinecone import PineconeHelper
 
 
 class Processor:
-    """Used to process the Google Drive documents and index them in Pinecone."""
+    """Used to process the langchain documents and index them in Pinecone."""
 
     def __init__(self):
         """Initialize the Processor class."""
@@ -194,7 +188,7 @@ class Processor:
                 i["metadata"]["source"]
             ]["ids"] + [i["id"]]
 
-        logging.info(f"Google document in pinecone {len(db_vector_dict)}")
+        logging.info(f"Documents in pinecone {len(db_vector_dict)}")
         # Compare current doc list accessible by user to the doc in the db.
         # only keep which is not accessible by user
         logging.info(f"FORMATTED DOC SIZE {len(formatted_documents)}")
@@ -240,13 +234,18 @@ class Processor:
         return count_updated, count_deleted
 
     def store_docs_in_pinecone(
-        self, docs: Iterable[Document], user_email: str, job: job.Job, org_name: str
+        self,
+        docs: Iterable[Document],
+        user_email: str,
+        job: job.Job,
+        org_name: str,
+        datasource: str,
     ) -> int:
         """Process the documents and index them in Pinecone.
 
         Arguments
         ---------
-            :param docs: the documents to process
+            :param docs: the langchaindocuments to process
             :param user_email: the user to process
             :param job: the job object
             :param org_name: the name of the organization
@@ -281,10 +280,8 @@ class Processor:
 
         # Iterate over documents and split each document's text into chunks
         document_chunks = splitter.split_documents(docs)
-        logging.info(f"Converted {len(docs)} Google Docs into {len(document_chunks)} Chunks")
-        job.meta["logs"].append(
-            f"Converted {len(docs)} Google Docs into {len(document_chunks)} Chunks"
-        )
+        logging.info(f"Converted {len(docs)} docs into {len(document_chunks)} Chunks")
+        job.meta["logs"].append(f"Converted {len(docs)} docs into {len(document_chunks)} Chunks")
 
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
@@ -294,7 +291,7 @@ class Processor:
         pinecone_helper = PineconeHelper()
         pc_index, index_name = pinecone_helper.get_index(
             org=org_name,
-            datasource="googledrive",
+            datasource=datasource,
             environment=self.lorelai_settings["environment"],
             env_name=self.lorelai_settings["environment_slug"],
             version="v1",
@@ -329,7 +326,7 @@ class Processor:
                 response = pc_index.upsert(vectors=chunk)
                 logging.debug(f"Upsert response: {response}")
 
-        logging.info(f"Total Number of Google Docs {len(docs)}")
+        logging.info(f"Total Number of langchain documents {len(docs)}")
         logging.info(f"Total Number of document chunks, ie after chunking {len(document_chunks)}")
         logging.info(
             f"{already_exist_and_tagged} documents  already exist / tagged in index {index_name}"
@@ -345,139 +342,3 @@ in index {index_name}"
         )
 
         return len(filtered_document_chunks)
-
-    def update_last_indexed_for_docs(self, documents, job):
-        """Update the last indexed timestamp for the documents in the database.
-
-        :param documents: the documents to update
-        :param job: the job object
-        """
-        for doc in documents:
-            doc_id = doc["google_drive_id"]
-            logging.info(f"Updating last indexed timestamp for document: {doc_id}")
-
-            # update the last indexed timestamp for the document in the database
-            db = get_db_connection()
-            cursor = db.cursor()
-            try:
-                cursor.execute(
-                    "UPDATE google_drive_items SET last_indexed_at = NOW() \
-                        WHERE google_drive_id = %s",
-                    (doc_id,),
-                )
-                db.commit()
-            finally:
-                cursor.close()
-                db.close()
-
-        job.meta["logs"].append(f"Updated last indexed timestamp for {len(documents)} documents")
-
-    def google_docs_to_pinecone_docs(
-        self: None,
-        documents: list[str],
-        access_token: str,
-        refresh_token: str,
-        expires_at: int,
-        org_name: str,
-        user_email: str,
-        job: job.Job,
-    ) -> None:
-        """Process the Google Drive documents and divide them into pinecone compatible chunks.
-
-        :param documents: the list of google document ids to process
-        :param access_token: the access token to use for Google Drive API
-        :param refresh_token: the refresh token to use for Google Drive API
-        :param expires_at: the expiry time of the access token
-        :param org_name: the name of the organization
-        :param user_email: the user to process
-        :param job: the job object
-
-        :return: None
-        """
-        google_creds = load_config("google")
-
-        # save the google creds to a tempfile as they are needed by the langchain google drive
-        # loader until this issue is fixed: https://github.com/langchain-ai/langchain/issues/15058
-        save_google_creds_to_tempfile(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_uri="https://oauth2.googleapis.com/token",
-            client_id=google_creds["client_id"],
-            client_secret=google_creds["client_secret"],
-        )
-
-        docs = []
-        # documents contain a list of dictionaries with the following keys:
-        # user_id, google_drive_id, item_type, item_name
-        # loop through the documents and load them from Google Drive
-        for doc in documents:
-            doc_user_id = doc["user_id"]
-            doc_google_drive_id = doc["google_drive_id"]
-            doc_item_type = doc["item_type"]
-            doc_item_name = doc["item_name"]
-
-            if doc_item_type not in ["document", "folder"]:
-                logging.error(f"Invalid item type: {doc_item_type}")
-                raise ValueError(f"Invalid item type: {doc_item_type}")
-
-            logging.info(
-                f"Loading {doc_item_type}: {doc_item_name} ({doc_google_drive_id}) \
-for user: {doc_user_id}"  # noqa
-            )
-            if doc_item_type == "document":
-                drive_loader = GoogleDriveLoader(document_ids=[doc_google_drive_id])
-            elif doc_item_type == "folder":
-                drive_loader = GoogleDriveLoader(
-                    folder_id=doc_google_drive_id, recursive=True, include_folders=True
-                )
-
-            # use langchain google drive loader to load the content of the docs from google drive
-            docs_loaded = drive_loader.load()
-
-            # if the docs_loaded is not None, add the loaded docs to the docs list
-            if docs_loaded:
-                docs.extend(docs_loaded)
-                logging.info(f"Loaded {len(docs_loaded)} Google docs from Google Drive \
-                    {doc_item_type} {doc_item_name}")
-                job.meta["logs"].append(f"Loaded {len(docs_loaded)} Google docs from Google Drive \
-                    {doc_item_type} {doc_item_name}")
-
-                # if the doc_item_type is a folder, log the loaded docs
-                if doc_item_type == "folder":
-                    for loaded_doc in docs_loaded:
-                        logging.info(
-                            f"Loaded Google doc: {loaded_doc.metadata['title']} \
-                                (source: {loaded_doc.metadata['source']})"
-                        )
-                        job.meta["logs"].append(
-                            f"Loaded Google doc: {loaded_doc.metadata['title']} \
-                                (source: {loaded_doc.metadata['source']})"
-                        )
-
-        logging.debug(f"Loaded {len(docs)} Google docs from Google Drive")
-
-        # go through all docs. For each doc, see if the user is already in the metadata. If not,
-        # add the user to the metadata
-        for loaded_doc in docs:
-            logging.info(f"Checking metadata users for Google doc: {loaded_doc.metadata['title']}")
-            # check if the user key is in the metadata
-            if "users" not in loaded_doc.metadata:
-                loaded_doc.metadata["users"] = []
-            # check if the user is in the metadata
-            if user_email not in loaded_doc.metadata["users"]:
-                logging.info(
-                    f"Adding user {user_email} to doc.metadata['users'] for \
- metadata.users ${loaded_doc.metadata['users']}"
-                )
-                loaded_doc.metadata["users"].append(user_email)
-
-        # store the documents in Pinecone
-        new_docs_added = self.store_docs_in_pinecone(
-            docs, user_email=user_email, job=job, org_name=org_name
-        )
-
-        self.update_last_indexed_for_docs(documents, job)
-
-        logging.info(f"Processed {len(docs)} documents for user: {user_email}")
-        job.meta["logs"].append(f"Processed {len(docs)} documents for user: {user_email}")
-        return {"new_docs_added": new_docs_added}
