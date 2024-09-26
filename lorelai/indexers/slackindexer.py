@@ -149,14 +149,14 @@ Error: {response_json['error']}")
         """
         data = self.slack_api_call("https://slack.com/api/users.list", self.headers, {})
 
-        if data:
+        if data and "ok" in data and data["ok"] and "members" in data:
             users = data["members"]
             users_dict = {}
             for i in users:
                 users_dict[i["id"]] = i["name"]
             return users_dict
         else:
-            logging.debug(f"Failed to list users. Error: {data.text}")
+            logging.debug(f"Failed to list users. Error: {data.error}")
             return None
 
     def replace_userid_with_name(self, thread_text: str) -> str:
@@ -203,7 +203,7 @@ Error: {response_json['error']}")
                     return False
 
                 if "messages" in data:
-                    logging.debug(f"Processing messages for channel: {channel_name} Start: \
+                    logging.info(f"Processing messages for channel: {channel_name} Start: \
 {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
 {data['messages'][0]['text']}")
                     for msg in data["messages"]:
@@ -407,7 +407,7 @@ Error: {response_json['error']}")
 
         return chat_history
 
-    def load_to_pinecone(self, embedding_dimension: int, complete_chat_history: list[dict]) -> int:
+    def load_to_pinecone(self, complete_chat_history: list[dict]) -> int:
         """
         Load the complete chat history with embeddings into Pinecone.
 
@@ -419,7 +419,7 @@ Error: {response_json['error']}")
         -------
             int: The number of records loaded into Pinecone.
         """
-        index = self.pinecone_helper.get_index(
+        index, name = self.pinecone_helper.get_index(
             org=self.org_name,
             datasource="slack",
             environment=self.lorelai_settings["environment"],
@@ -428,7 +428,7 @@ Error: {response_json['error']}")
             create_if_not_exists=True,
         )
 
-        index.upsert(complete_chat_history)
+        index.upsert(vectors=complete_chat_history)
 
         return len(complete_chat_history)
 
@@ -600,10 +600,11 @@ messages in batches"
 
                     if batch:  # Only process if the batch is not empty
                         logging.info(f"Creating embds for {channel_id} {channel_name}")
+                        # TODO: parameters ??!!
                         batch = self.add_embedding(embedding_model, batch)
 
                         logging.info(f"Loading to pinecone for channel {channel_id} {channel_name}")
-                        self.load_to_pinecone(embedding_dimension, batch)
+                        self.load_to_pinecone(batch)
 
                         logging.info(f"Completed for channel {channel_id} {channel_name}")
 

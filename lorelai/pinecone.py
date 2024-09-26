@@ -53,7 +53,7 @@ class PineconeHelper:
         env_name: str = "lorelai",
         version: str = "v1",
         create_if_not_exists: bool = True,
-    ) -> pinecone.Index:
+    ) -> tuple[pinecone.Index, str]:
         """Return the pinecone index name for the org.
 
         Arguments:
