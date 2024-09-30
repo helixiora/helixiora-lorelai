@@ -156,7 +156,7 @@ Error: {response_json['error']}")
                 users_dict[i["id"]] = i["name"]
             return users_dict
         else:
-            logging.debug(f"Failed to list users. Error: {data.error}")
+            logging.error(f"Failed to list users. Error: {data}")
             return None
 
     def replace_userid_with_name(self, thread_text: str) -> str:
@@ -203,9 +203,8 @@ Error: {response_json['error']}")
                     return False
 
                 if "messages" in data:
-                    logging.info(f"Processing messages for channel: {channel_name} Start: \
-{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
-{data['messages'][0]['text']}")
+                    logging.info(f"Retrieving messages from Slack: Channel: {channel_name} \
+Start: {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}")
                     for msg in data["messages"]:
                         try:
                             msg_ts = ""

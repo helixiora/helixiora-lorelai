@@ -94,6 +94,7 @@ class GoogleDriveIndexer(Indexer):
                 continue
 
             if user_data_row["item_type"] not in ["document", "folder"]:
+                logging.error(f"Invalid item type: {user_data_row['item_type']}")
                 continue
 
             # add information about the document to the list
@@ -108,9 +109,6 @@ class GoogleDriveIndexer(Indexer):
 
         if not documents or len(documents) == 0:
             logging.warn(f"No Google Drive documents found for user: {user_row['email']}")
-            job.meta["logs"].append(
-                f"No Google Drive documents found for user: {user_row['email']}"
-            )
             # return True, f"No Google Drive documents found for user: {user_row['email']}"
 
         # 5. Process the Google Drive documents and index them in Pinecone
