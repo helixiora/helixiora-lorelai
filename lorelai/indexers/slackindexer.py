@@ -21,7 +21,7 @@ from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_embedding_dimension
 
-from app.helpers.datasources import get_datasource_id_by_name
+from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
 from app.helpers.users import get_user_id_by_email
 
 
@@ -111,7 +111,7 @@ Error: {response_json['error']}")
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = get_datasource_id_by_name("Slack")
+        datasource_id = get_datasource_id_by_name(DATASOURCE_SLACK)
         user_id = get_user_id_by_email(email)
         conn = None
         cursor = None
@@ -420,7 +420,7 @@ Start: {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}")
         """
         index, name = self.pinecone_helper.get_index(
             org=self.org_name,
-            datasource="slack",
+            datasource=DATASOURCE_SLACK,
             environment=self.lorelai_settings["environment"],
             env_name=self.lorelai_settings["environment_slug"],
             version="v1",

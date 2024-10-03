@@ -21,7 +21,7 @@ from lorelai.context_retriever import (
     LorelaiContextRetrievalResponse,
     LorelaiContextDocument,
 )
-
+from app.helpers.datasources import DATASOURCE_SLACK
 from lorelai.pinecone import PineconeHelper
 
 
@@ -61,7 +61,7 @@ class SlackContextRetriever(ContextRetriever):
 
         index_name = PineconeHelper.get_index_name(
             org=self.org_name,
-            datasource="slack",
+            datasource=DATASOURCE_SLACK,
             environment=self.lorelai_creds["environment"],
             env_name=self.lorelai_creds["environment_slug"],
             version="v1",
@@ -101,6 +101,6 @@ class SlackContextRetriever(ContextRetriever):
             context_response.append(context_document)
 
         return LorelaiContextRetrievalResponse(
-            datasource_name="slack",
+            datasource_name=DATASOURCE_SLACK,
             context=context_response,
         )

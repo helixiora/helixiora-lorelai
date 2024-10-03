@@ -27,7 +27,7 @@ from oauthlib.oauth2.rfc6749.errors import (
 )
 
 from app.helpers.database import get_db_connection
-from app.helpers.datasources import get_datasource_id_by_name
+from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_GOOGLE_DRIVE
 from lorelai.utils import load_config
 
 
@@ -140,13 +140,12 @@ def save_tokens_to_db(flow, user_id):
     logging.debug(f"Expires at: {expires_at}")
 
     try:
-        data_source_name = "Google Drive"
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        datasource_id = get_datasource_id_by_name(data_source_name)
+        datasource_id = get_datasource_id_by_name(DATASOURCE_GOOGLE_DRIVE)
         if datasource_id is None:
-            raise ValueError(f"{data_source_name} is missing from datasource table in db")
+            raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db")
 
         insert_or_update_token(cursor, user_id, datasource_id, "access_token", access_token)
         insert_or_update_token(cursor, user_id, datasource_id, "refresh_token", refresh_token)
@@ -199,7 +198,7 @@ def deauthorize():
     if not user_id:
         return jsonify_error("User not logged in or session expired", 401)
 
-    data_source_name = "Google Drive"
+    data_source_name = DATASOURCE_GOOGLE_DRIVE
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
