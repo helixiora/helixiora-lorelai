@@ -94,10 +94,7 @@ def refresh_google_token_if_needed(access_token):
         token_response = lib_requests.post(token_url, data=payload)
         if token_response.status_code == 200:
             new_tokens = token_response.json()
-            session["access_token"] = new_tokens["access_token"]
-            if "refresh_token" in new_tokens:
-                session["refresh_token"] = new_tokens["refresh_token"]
-            else:
+            if "refresh_token" not in new_tokens:
                 # If the refresh token is not returned, use the existing one
                 new_tokens["refresh_token"] = refresh_token
 
@@ -172,7 +169,6 @@ def profile():
         if access_token:
             # Check if the token is still valid and refresh if necessary
             access_token = refresh_google_token_if_needed(access_token)
-            session["access_token"] = access_token
 
         if int(g.features["google_drive"]) == 1:
             google_docs_to_index = get_query_result(
@@ -411,8 +407,8 @@ def login_user(
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # We May need to change this logic, as we are setting same thing every time user logs in.
-        # Update the user's Google ID in the database
+        # TODO: We May need to change this logic, as we are setting same thing every time user logs
+        # in. Update the user's Google ID in the database
         cursor.execute(
             "UPDATE user SET google_id = %s, user_name = %s, full_name = %s \
             WHERE user_id = %s",
@@ -434,32 +430,6 @@ def login_user(
         cursor.close()
         conn.close()
 
-    # get the user's access token and refresh token
-
-    access_token_query = get_query_result(
-        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token' AND datasource_id = 2",  # noqa: E501
-        (user_id,),
-        fetch_one=True,
-    )
-
-    if not access_token_query:
-        logging.warning("No access token found for user %s", user_id)
-        access_token = None
-    else:
-        access_token = access_token_query["auth_value"]
-
-    refresh_token_query = get_query_result(
-        "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'refresh_token' AND datasource_id = 2",  # noqa: E501
-        (user_id,),
-        fetch_one=True,
-    )
-
-    if not refresh_token_query:
-        logging.warning("No refresh token found for user %s", user_id)
-        refresh_token = None
-    else:
-        refresh_token = refresh_token_query["auth_value"]
-
     # Get the user's roles
     user_roles = get_user_role_by_id(user_id)
     # get user # this also assign user to free plan if they have no plans
@@ -473,10 +443,6 @@ def login_user(
     session["org_name"] = org_name
     session["user_roles"] = user_roles
     session["user_plan"] = user_plan
-    if access_token:
-        session["access_token"] = access_token
-    if refresh_token:
-        session["refresh_token"] = refresh_token
 
 
 def is_username_available(username: str) -> bool:
