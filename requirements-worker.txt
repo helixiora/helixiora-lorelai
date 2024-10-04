@@ -1,1 +1,2 @@
 python-dotenv==1.0.1
+setproctitle==1.3.3 # for rq worker process titles
