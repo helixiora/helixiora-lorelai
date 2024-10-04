@@ -450,7 +450,61 @@ Error: {response_json['error']}")
         formatted_date = dt.strftime("%Y-%m-%d %H:%M:%S")
         return formatted_date
 
-    def chunk_and_merge_metadata(self, lst: list[dict], size: int, overlap_size: int) -> list[dict]:
+    def get_channel_member_emails(self, channel_id: str) -> list[str]:
+        """
+        Retrieve a list of email addresses for all users who have access to a specific Slack channel.
+
+        Args
+        ----
+            :param channel_id (str): The ID of the Slack channel.
+
+        Returns
+        -------
+            list: A list of email addresses of the users in the specified channel.
+        """  # noqa: E501
+        # Step 1: Get all user IDs in the channel using conversations.members
+        members_data = self.slack_api_call(
+            url="https://slack.com/api/conversations.members",
+            headers=self.headers,
+            params={"channel": channel_id},
+        )
+
+        if (
+            members_data
+            and "ok" in members_data
+            and members_data["ok"]
+            and "members" in members_data
+        ):  # noqa: E501
+            user_ids = members_data["members"]
+        else:
+            logging.error(f"Failed to retrieve members for channel {channel_id}. \
+                Error: {members_data['error'] if members_data else 'Unknown error'}")
+            return []
+
+        emails = []
+
+        # Step 2: Loop through each user ID and get their email using users.info
+        for user_id in user_ids:
+            user_data = self.slack_api_call(
+                url="https://slack.com/api/users.info",
+                headers=self.headers,
+                params={"user": user_id},
+            )
+
+            if user_data and "ok" in user_data and user_data["ok"] and "user" in user_data:
+                user_info = user_data["user"]
+                # Check if the user has an email field and add it to the list
+                if "profile" in user_info and "email" in user_info["profile"]:
+                    emails.append(user_info["profile"]["email"])
+            else:
+                logging.warning(f"Failed to retrieve user info for user ID {user_id}. \
+                    Error: {user_data['error'] if user_data else 'Unknown error'}")
+
+        return emails
+
+    def chunk_and_merge_metadata(
+        self, lst: list[dict], size: int, overlap_size: int, channel_id: str
+    ) -> list[dict]:
         """
         Chunks a list of dictionaries and merges their metadata.
 
@@ -464,6 +518,7 @@ Error: {response_json['error']}")
                                 - users (list): A list of users
             size (int): Number of items in each chunk.
             overlap_size (int): Number of overlapping items between chunks.
+            channel_id (str): channel id, to get the members email for vector storage
 
         Returns
         -------
@@ -475,6 +530,7 @@ Error: {response_json['error']}")
         Example:
             merged_chunks = chunk_and_merge_metadata(lst, size=2, overlap_size=1)
         """
+        user_emails = self.get_channel_member_emails(channel_id)
         result = []
         start = 0
 
@@ -485,13 +541,11 @@ Error: {response_json['error']}")
             # Initialize merged metadata fields
             merged_text = ""
             merged_channel_names = set()
-            merged_users = set()
 
             # Merge the metadata from all items in the chunk
             for item in chunk:
                 merged_text += item["metadata"]["text"] + " "
                 merged_channel_names.add(item["metadata"]["channel_name"])
-                merged_users.update(item["metadata"]["users"])
 
             # Remove trailing space from concatenated text
             merged_text = merged_text.strip()
@@ -507,7 +561,7 @@ Error: {response_json['error']}")
                     "source": last_item["metadata"]["source"],
                     "msg_ts": last_item["metadata"]["msg_ts"],
                     "channel_name": list(merged_channel_names),  # Convert set to list
-                    "users": list(merged_users),  # Convert set to list
+                    "users": list(user_emails),
                 },
             }
 
@@ -563,7 +617,7 @@ Error: {response_json['error']}")
                 # 2. divide the messages into chunks with overlap
                 # TODO: check the size in bytes of the channel_chat_history
                 messages = self.chunk_and_merge_metadata(
-                    lst=channel_chat_history, size=80, overlap_size=15
+                    lst=channel_chat_history, size=80, overlap_size=15, channel_id=channel_id
                 )
 
                 # 3. Process in Batch to adhere to pinecone and OpenAI api size limit
