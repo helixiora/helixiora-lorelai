@@ -11,6 +11,7 @@ import logging
 
 # from pathlib import Path
 from google.oauth2 import credentials
+from google.auth.credentials import TokenState
 from lorelai.indexer import Indexer
 from lorelai.processor import Processor
 from langchain_googledrive.document_loaders import GoogleDriveLoader
@@ -130,6 +131,13 @@ class GoogleDriveIndexer(Indexer):
             client_id=google_creds["client_id"],
             client_secret=google_creds["client_secret"],
         )
+
+        # test the credentials object
+        if credentials_object.token_state == TokenState.INVALID:
+            logging.error("Credentials object is invalid")
+            return False
+        else:
+            logging.info("Credentials object state: %s", credentials_object.token_state)
 
         # convert the documents to langchain documents
         langchain_docs = self.google_docs_to_langchain_docs(
