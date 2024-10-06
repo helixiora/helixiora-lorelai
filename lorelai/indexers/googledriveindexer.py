@@ -19,6 +19,8 @@ from langchain_core.documents import Document
 from lorelai.utils import load_config, get_db_connection
 from rq import job
 
+ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
+
 
 class GoogleDriveIndexer(Indexer):
     """Used to process the Google Drive documents and index them in Pinecone."""
@@ -97,7 +99,7 @@ class GoogleDriveIndexer(Indexer):
             if user_data_row["user_id"] != user_row["user_id"]:
                 continue
 
-            if user_data_row["item_type"] not in ["document", "folder"]:
+            if user_data_row["item_type"] not in ALLOWED_ITEM_TYPES:
                 logging.error(f"Invalid item type: {user_data_row['item_type']}")
                 continue
 
@@ -117,9 +119,6 @@ class GoogleDriveIndexer(Indexer):
 
         # 5. Process the Google Drive documents and index them in Pinecone
         logging.info(f"Processing {len(documents)} Google documents for user: {user_row['email']}")
-        job.meta["logs"].append(
-            f"Processing {len(documents)} Google documents for user: {user_row['email']}"
-        )
 
         google_creds = load_config("google")
 
@@ -162,7 +161,6 @@ class GoogleDriveIndexer(Indexer):
 
         self.update_last_indexed_for_docs(documents, job)
         logging.info(f"Indexing complete for user: {user_row['email']}")
-        job.meta["logs"].append(f"Indexing complete for user: {user_row['email']}")
 
         return True
 
@@ -178,14 +176,15 @@ class GoogleDriveIndexer(Indexer):
         # add the user to the metadata
         for loaded_doc in langchain_docs:
             logging.info(f"Checking metadata users for Google doc: {loaded_doc.metadata['title']}")
+
             # check if the user key is in the metadata
             if "users" not in loaded_doc.metadata:
                 loaded_doc.metadata["users"] = []
+
             # check if the user is in the metadata
             if user_email not in loaded_doc.metadata["users"]:
                 logging.info(
-                    f"Adding user {user_email} to doc.metadata['users'] for \
- metadata.users ${loaded_doc.metadata['users']}"
+                    f"Adding user {user_email} to metadata.users for {loaded_doc.metadata['title']}"
                 )
                 loaded_doc.metadata["users"].append(user_email)
 
@@ -213,14 +212,19 @@ class GoogleDriveIndexer(Indexer):
             doc_google_drive_id = doc["google_drive_id"]
             doc_item_type = doc["item_type"]
 
-            if doc_item_type not in ["document", "folder"]:
-                logging.error(f"Invalid item type: {doc_item_type}")
+            if doc_item_type not in ALLOWED_ITEM_TYPES:
+                logging.error(
+                    f"Invalid item type: {doc_item_type} for document ID: {doc_google_drive_id}"
+                )
                 raise ValueError(f"Invalid item type: {doc_item_type}")
 
-            logging.info(f"Loading Google Drive {doc_item_type}: {doc_google_drive_id}")
+            logging.info(
+                f"Loading Google Drive {doc_item_type}: {doc_google_drive_id} for document ID: \
+{doc_google_drive_id}"
+            )
 
             # use langchain google drive loader to load the content of the docs from google drive
-            if doc_item_type == "document":
+            if doc_item_type in ["document", "file"]:
                 loader = GoogleDriveLoader(
                     file_ids=[doc_google_drive_id], credentials=credentials_object
                 )
@@ -231,21 +235,27 @@ class GoogleDriveIndexer(Indexer):
                     include_folders=True,
                     credentials=credentials_object,
                 )
+            else:
+                raise ValueError(f"Invalid item type: {doc_item_type}")
 
             docs_loaded = loader.load()
 
-            logging.info(f"Loaded {len(docs_loaded)} Google docs from Google Drive \
-{doc_item_type}")
+            logging.info(
+                f"Loaded {len(docs_loaded)} Google docs from Google Drive {doc_item_type} with ID: \
+{doc_google_drive_id}"
+            )
 
             # if the docs_loaded is not None, add the loaded docs to the docs list
             if docs_loaded:
                 docs.extend(docs_loaded)
 
                 for loaded_doc in docs_loaded:
-                    logging.info(f"Loaded Google doc: {loaded_doc.metadata['title']} \
-(metadata: {loaded_doc.metadata})")
+                    logging.info(
+                        f"Loaded Google doc: {loaded_doc.metadata['title']} with ID: \
+{doc_google_drive_id}"
+                    )
 
-        logging.debug(f"Loaded {len(docs)} Google docs from Google Drive using langchain")
+        logging.debug(f"Total {len(docs)} Google docs loaded from Google Drive using langchain")
 
         return docs
 
@@ -272,5 +282,3 @@ WHERE google_drive_id = %s",
             finally:
                 cursor.close()
                 db.close()
-
-        job.meta["logs"].append(f"Updated last indexed timestamp for {len(documents)} documents")
