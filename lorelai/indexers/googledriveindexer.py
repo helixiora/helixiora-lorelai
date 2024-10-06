@@ -113,7 +113,7 @@ class GoogleDriveIndexer(Indexer):
 
         if not documents or len(documents) == 0:
             logging.warn(f"No Google Drive documents found for user: {user_row['email']}")
-            # return True, f"No Google Drive documents found for user: {user_row['email']}"
+            return True
 
         # 5. Process the Google Drive documents and index them in Pinecone
         logging.info(f"Processing {len(documents)} Google documents for user: {user_row['email']}")
@@ -241,7 +241,6 @@ class GoogleDriveIndexer(Indexer):
             if docs_loaded:
                 docs.extend(docs_loaded)
 
-                # if the doc_item_type is a folder, log the loaded docs
                 for loaded_doc in docs_loaded:
                     logging.info(f"Loaded Google doc: {loaded_doc.metadata['title']} \
 (metadata: {loaded_doc.metadata})")

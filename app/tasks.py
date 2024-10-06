@@ -200,6 +200,8 @@ def run_slack_indexer(user_email: str, org_name: str):
     job.save_meta()
 
     indexer = SlackIndexer(user_email, org_name)
+
+    # this should be a generic function that can be called for any indexer
     indexer.process_slack_message()
 
     logging.info(f"Slack Indexer Completed for {org_name}")

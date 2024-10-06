@@ -14,6 +14,7 @@ import requests
 import uuid
 import time
 from datetime import datetime
+from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 
 import lorelai.utils
@@ -174,7 +175,7 @@ Error: {response_json['error']}")
             thread_text = thread_text.replace(user_id, user_name)
         return thread_text
 
-    def get_messages(self, channel_id: str, channel_name: str) -> list[dict]:
+    def get_messages_from_channel(self, channel_id: str, channel_name: str) -> list[dict]:
         """
         Retrieve messages from a Slack channel and return them as a list of chat history records.
 
@@ -220,9 +221,12 @@ Start: {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}")
                                 thread_text = self.get_thread(msg["ts"], channel_id)
                                 msg_ts = msg["ts"]  # thread_ts
 
+                            # get the permalink for the message
                             msg_link = self.get_message_permalink(channel_id, msg_ts)
 
+                            # convert the timestamp to a date
                             msg_datetime = self.timestamp_to_date(msg_ts)
+
                             # Slack uses user_id not names
                             thread_text = self.replace_userid_with_name(thread_text)
                             thread_text = f"{str(msg_datetime)} : {thread_text}"
@@ -372,9 +376,7 @@ Start: {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}")
                 return None
         return channels_dict
 
-    def add_embedding(
-        self, embedding_model: OpenAIEmbeddings, chat_history: list[dict]
-    ) -> list[dict]:
+    def add_embedding(self, embedding_model: Embeddings, chat_history: list[dict]) -> list[dict]:
         """
         Add embeddings to the complete chat history using the specified embedding model.
 
@@ -551,7 +553,7 @@ Start: {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}")
                 logging.info(f"Processing channel {channel_id} {channel_name}")
 
                 # 1. get all messages from the channel
-                channel_chat_history = self.get_messages(
+                channel_chat_history = self.get_messages_from_channel(
                     channel_id=channel_id, channel_name=channel_name
                 )
                 #
@@ -582,10 +584,11 @@ messages in batches"
                         message_size = sys.getsizeof(message)
 
                         # Check if the message itself exceeds the limit
-                        if message_size > 40 * 1024:
+                        if message_size > (40 * 1024):
                             logging.warning(f"Message {start_idx} >= 40KB and will be skipped.")
                             start_idx += 1
                             continue
+                        logging.info(f"Message {start_idx} size: {message_size} bytes")
 
                         # Check if adding this message exceeds the limit
                         if batch_size_in_bytes + message_size > 40 * 1024:  # 40KB limit
@@ -598,9 +601,14 @@ messages in batches"
                     logging.info(f"Batch size: {batch_size_in_bytes} bytes")
 
                     if batch:  # Only process if the batch is not empty
-                        logging.info(f"Creating embds for {channel_id} {channel_name}")
+                        logging.info(f"Creating embeddings for {channel_id} {channel_name}")
                         # TODO: parameters ??!!
-                        batch = self.add_embedding(embedding_model, batch)
+                        batch = self.add_embedding(
+                            embedding_model=embedding_model, chat_history=batch
+                        )
+
+                        batch_size_in_bytes = sys.getsizeof(batch)
+                        logging.info(f"Batch size: {batch_size_in_bytes} bytes")
 
                         logging.info(f"Loading to pinecone for channel {channel_id} {channel_name}")
                         self.load_to_pinecone(batch)
