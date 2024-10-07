@@ -143,7 +143,10 @@ class GoogleDriveIndexer(Indexer):
             try:
                 drive_service = build("drive", "v3", credentials=credentials_object)
                 drive_service.files().list(pageSize=1).execute()
-                logging.info("Credentials are valid and working")
+                logging.info(
+                    f"Google Drive credentials are valid and working for user: \
+{user_row['email']}"
+                )
             except Exception as e:
                 logging.error(f"Failed to validate Google Drive credentials for user: \
 {user_row['email']} with a simple API call: {e}")
@@ -229,32 +232,44 @@ class GoogleDriveIndexer(Indexer):
                 )
                 raise ValueError(f"Invalid item type: {doc_item_type}")
 
-            logging.info(
-                f"Loading Google Drive {doc_item_type}: {doc_google_drive_id} for document ID: \
-{doc_google_drive_id}"
-            )
-
             # use langchain google drive loader to load the content of the docs from google drive
-            if doc_item_type in ["document", "file"]:
+            if doc_item_type == "file":
+                logging.info(
+                    f"Loading Google Drive file ID {doc_google_drive_id} of type {doc_item_type}"
+                )
                 loader = GoogleDriveLoader(
                     file_ids=[doc_google_drive_id], credentials=credentials_object
                 )
+                docs_loaded = loader.load()
+                logging.info(f"Loaded {len(docs_loaded)} docs")
+            elif doc_item_type == "document":
+                logging.info(
+                    f"Loading Google Drive doc ID {doc_google_drive_id} of type {doc_item_type}"
+                )
+                loader = GoogleDriveLoader(
+                    document_ids=[doc_google_drive_id], credentials=credentials_object
+                )
+                docs_loaded = loader.load()
+                logging.info(f"Loaded {len(docs_loaded)} docs")
             elif doc_item_type == "folder":
+                logging.info(
+                    f"Loading Google Drive folder ID {doc_google_drive_id} of type {doc_item_type}"
+                )
                 loader = GoogleDriveLoader(
                     folder_id=doc_google_drive_id,
                     recursive=True,
                     include_folders=True,
+                    includeItemsFromAllDrives=True,
+                    corpora="allDrives",
                     credentials=credentials_object,
                 )
+                docs_loaded = loader.load()
+                logging.info(
+                    f"Loaded {len(docs_loaded)} Google docs from folder: {doc_google_drive_id}"
+                )
+
             else:
                 raise ValueError(f"Invalid item type: {doc_item_type}")
-
-            docs_loaded = loader.load()
-
-            logging.info(
-                f"Loaded {len(docs_loaded)} Google docs from Google Drive {doc_item_type} with ID: \
-{doc_google_drive_id}"
-            )
 
             # if the docs_loaded is not None, add the loaded docs to the docs list
             if docs_loaded:
@@ -265,6 +280,11 @@ class GoogleDriveIndexer(Indexer):
                         f"Loaded Google doc: {loaded_doc.metadata['title']} with ID: \
 {doc_google_drive_id}"
                     )
+            else:
+                logging.error(
+                    f"No documents loaded from Google Drive {doc_item_type} with ID: \
+{doc_google_drive_id}"
+                )
 
         logging.debug(f"Total {len(docs)} Google docs loaded from Google Drive using langchain")
 
