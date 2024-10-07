@@ -1,10 +1,6 @@
-"""Creates a class to process Google Drive documents using the Google Drive API.
-
-Chunk them using Langchain, and then index them in Pinecone.
-"""
+"""Abstract class for an indexer that indexes data into Pinecone."""
 
 import logging
-import os
 from rq import job
 import importlib
 import lorelai.utils
@@ -46,11 +42,7 @@ class Indexer:
     def __init__(self):
         if not self._allowed:
             raise Exception("This class should be instantiated through a create() factory method.")
-
-        self.pinecone_creds = lorelai.utils.load_config("pinecone")
         self.settings = lorelai.utils.load_config("lorelai")
-
-        os.environ["PINECONE_API_KEY"] = self.pinecone_creds["api_key"]
 
     def get_indexer_name(self) -> str:
         """Retrieve the name of the indexer."""
