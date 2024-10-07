@@ -11,6 +11,7 @@ import logging
 
 # from pathlib import Path
 from google.oauth2 import credentials
+from googleapiclient.discovery import build
 from google.auth.credentials import TokenState
 from lorelai.indexer import Indexer
 from lorelai.processor import Processor
@@ -137,6 +138,16 @@ class GoogleDriveIndexer(Indexer):
             return False
         else:
             logging.info("Credentials object state: %s", credentials_object.token_state)
+
+            # Perform a simple API operation to ensure the credentials are working
+            try:
+                drive_service = build("drive", "v3", credentials=credentials_object)
+                drive_service.files().list(pageSize=1).execute()
+                logging.info("Credentials are valid and working")
+            except Exception as e:
+                logging.error(f"Failed to validate Google Drive credentials for user: \
+{user_row['email']} with a simple API call: {e}")
+                return False
 
         # convert the documents to langchain documents
         langchain_docs = self.google_docs_to_langchain_docs(
