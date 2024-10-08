@@ -198,6 +198,6 @@ def run_slack_indexer(user_email: str, org_name: str):
     job.save_meta()
 
     indexer = SlackIndexer(user_email, org_name)
-    indexer.process_slack_message()
+    indexer.process_slack_message("C07E0KF9UCA")
 
     logging.info(f"Slack Indexer Completed for {org_name}")

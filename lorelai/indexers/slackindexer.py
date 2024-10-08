@@ -566,7 +566,7 @@ Error: {response_json['error']}")
             }
 
             result.append(merged_dict)
-
+            print("Metadata size:", sys.getsizeof(merged_dict["metadata"]))
             # Move the start index for the next chunk
             start += size - overlap_size
 
@@ -617,7 +617,7 @@ Error: {response_json['error']}")
                 # 2. divide the messages into chunks with overlap
                 # TODO: check the size in bytes of the channel_chat_history
                 messages = self.chunk_and_merge_metadata(
-                    lst=channel_chat_history, size=80, overlap_size=15, channel_id=channel_id
+                    lst=channel_chat_history, size=5, overlap_size=2, channel_id=channel_id
                 )
 
                 # 3. Process in Batch to adhere to pinecone and OpenAI api size limit
@@ -637,13 +637,13 @@ messages in batches"
                         message_size = sys.getsizeof(message)
 
                         # Check if the message itself exceeds the limit
-                        if message_size > 40 * 1024:
+                        if message_size > 10 * 1024:
                             logging.warning(f"Message {start_idx} >= 40KB and will be skipped.")
                             start_idx += 1
                             continue
 
                         # Check if adding this message exceeds the limit
-                        if batch_size_in_bytes + message_size > 40 * 1024:  # 40KB limit
+                        if batch_size_in_bytes + message_size > 10 * 1024:  # 40KB limit
                             break
 
                         batch.append(message)
@@ -653,12 +653,18 @@ messages in batches"
                     logging.info(f"Batch size: {batch_size_in_bytes} bytes")
 
                     if batch:  # Only process if the batch is not empty
+                        print("Batch Len: ", len(batch))
+                        print("Size byte: ", sys.getsizeof(batch))
                         logging.info(f"Creating embds for {channel_id} {channel_name}")
                         # TODO: parameters ??!!
                         batch = self.add_embedding(embedding_model, batch)
 
                         logging.info(f"Loading to pinecone for channel {channel_id} {channel_name}")
-                        self.load_to_pinecone(batch)
+                        try:
+                            self.load_to_pinecone(batch)
+                        except Exception as e:
+                            print("failed to load to pinecone", e)
+                            print(batch)
 
                         logging.info(f"Completed for channel {channel_id} {channel_name}")
 
