@@ -17,7 +17,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from lorelai.utils import get_embedding_dimension, load_config
+from lorelai.utils import get_embedding_dimension, load_config, clean_text_for_vector
 from lorelai.pinecone import PineconeHelper
 
 
@@ -111,8 +111,9 @@ class Processor:
         # Get Text
         text_docs = []
         for doc in documents:
-            texts = doc.page_content.replace("\n", " ").replace("\r", " ")
-            texts = f"Documents Title: {doc.metadata['title']}: \n {texts}"
+            texts = doc.page_content
+            texts = f"Documents Title: {doc.metadata['title']}: {texts}"
+            texts = clean_text_for_vector(texts)
             text_docs.append(texts)
         embeds = embeddings_model.embed_documents(text_docs)
 
