@@ -188,6 +188,7 @@ def run_slack_indexer(user_email: str, org_name: str):
         user_email (str): The email of the user running the indexer.
         org_name (str): The name of the organization for which the Slack data is being indexed.
     """
+    start_time = time.time()
     job = get_current_job()
     if job is None:
         raise ValueError("Could not get the current job.")
@@ -205,3 +206,4 @@ def run_slack_indexer(user_email: str, org_name: str):
     indexer.process_slack_message()
 
     logging.info(f"Slack Indexer Completed for {org_name}")
+    logging.info(f"run_slack_indexer for {user_email} took {(time.time()-start_time)/60} mins")

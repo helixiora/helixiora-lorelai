@@ -4,9 +4,9 @@ import json
 import logging
 import os
 from pathlib import Path
-
+import sys
 import mysql.connector
-
+import re
 
 import jwt
 import datetime
@@ -292,3 +292,66 @@ body: {response.body}, headers: {response.headers}")
     except Exception as e:
         logging.debug(e.message)
         return False
+
+
+def get_size(obj, seen=None):
+    """
+    Recursively calculate the memory size of an object, including its nested elements.
+
+    This function computes the total memory size of an object by traversing its contents. It handles
+    common data structures like dictionaries, lists, sets, and custom objects that may contain
+    nested elements. To avoid counting the same object multiple times, it tracks processed objects
+    using their IDs.
+
+    Args:
+        obj: The object whose size is to be calculated.
+        seen (set, optional): A set of object IDs that have already been processed. This prevents
+                              double-counting in case of circular references. Defaults to None.
+
+    Returns
+    -------
+        int: The total memory size of the object in bytes.
+    """
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    seen.add(obj_id)
+    size = sys.getsizeof(obj)
+    if isinstance(obj, dict):
+        size += sum(get_size(v, seen) for v in obj.values())
+        size += sum(get_size(k, seen) for k in obj.keys())
+    elif hasattr(obj, "__dict__"):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, bytearray)):  # noqa: UP038
+        size += sum(get_size(i, seen) for i in obj)
+    return size
+
+
+def clean_text_for_vector(text):
+    """
+    Clean a given text string by removing HTML tags, control characters, extra whitespace.
+
+    and repeated punctuation.
+
+    This function is useful for preprocessing text before vectorization or other natural language
+    processing tasks. It removes unnecessary elements like HTML tags, newlines, tabs, and repeated
+    punctuation, while also ensuring the text is trimmed of excess whitespace.
+
+    Args:
+        text (str): The input string to be cleaned.
+
+    Returns
+    -------
+        str: The cleaned version of the input text.
+    """
+    # Remove HTML tags
+    text = re.sub("<[^<]+?>", "", text)
+    # Remove control characters (newline, tab, carriage return)
+    text = re.sub(r"[\n\t\r]+", " ", text)
+    # Remove extra whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+    # Remove repeated punctuation
+    text = re.sub(r"([!?.]){2,}", r"\1", text)
+    return text
