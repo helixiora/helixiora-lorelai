@@ -123,7 +123,10 @@ class PineconeHelper:
             pinecone.Index: The pinecone index.
 
         """
-        self.pinecone_client.create_index(index_name, dimension, metric, spec)
+        spec = ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"])
+        self.pinecone_client.create_index(
+            name=index_name, dimension=dimension, metric=metric, spec=spec
+        )
         return self.pinecone_client.Index(index_name)
 
     def get_index_stats(self, index_name: str) -> pinecone.DescribeIndexStatsResponse | None:
