@@ -53,20 +53,19 @@ class SlackIndexer(Indexer):
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
         }
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
         self.userid_name_dict = self.get_userid_name()
 
         logging.debug(f"Slack Access Token: {self.access_token}")
 
-    def slack_api_call(
-        self, url: str, headers: dict, params: dict, max_retries: int = 3
-    ) -> dict | None:
+    def slack_api_call(self, url: str, params: dict = None, max_retries: int = 3) -> dict | None:
         """
         Make a Slack API call and handle the response, including rate limiting.
 
         Args
         ----
             :param url (str): The URL to make the API call to.
-            :param headers (dict): The headers to include in the API call.
             :param params (dict): The parameters to include in the API call.
             :param max_retries (int): Maximum number of retries for rate limiting.
 
@@ -76,9 +75,9 @@ class SlackIndexer(Indexer):
         """
         for attempt in range(max_retries):
             if attempt > 0:
-                logging.debug(f"Making Slack API call to {url} with params: {params}\
-(Attempt {attempt + 1}/{max_retries})")
-            response = requests.get(url, headers=headers, params=params)
+                logging.debug(f"Making Slack API call to {url} with params: {params} \
+                                        (Attempt {attempt + 1}/{max_retries})")
+            response = self.session.get(url, params=params or {})
 
             # response.ok is true if status code is 200
             if response.ok:
@@ -87,7 +86,7 @@ class SlackIndexer(Indexer):
                 response_json = response.json()
                 if "ok" in response_json and not response_json["ok"]:
                     logging.error(f"Slack API call failed to {url} with params: {params} \
-Error: {response_json['error']}")
+                                    Error: {response_json['error']}")
                     return response_json
                 return response_json
             elif response.status_code == 429:  # Rate limited
@@ -148,7 +147,7 @@ Error: {response_json['error']}")
         -------
             dict: A dictionary mapping user IDs to user names.
         """
-        data = self.slack_api_call("https://slack.com/api/users.list", self.headers, {})
+        data = self.slack_api_call("https://slack.com/api/users.list")
 
         if data and "ok" in data and data["ok"] and "members" in data:
             users = data["members"]
@@ -193,7 +192,7 @@ Error: {response_json['error']}")
         channel_chat_history = []
 
         while True:
-            data = self.slack_api_call(url, headers=self.headers, params=params)
+            data = self.slack_api_call(url, params=params)
             if data:
                 if "error" in data:
                     # see https://api.slack.com/methods/conversations.history#errors
@@ -277,7 +276,7 @@ Error: {response_json['error']}")
         params = {"channel": channel_id, "ts": thread_id, "limit": 200}
         complete_thread = ""
         while True:
-            data = self.slack_api_call(url, headers=self.headers, params=params)
+            data = self.slack_api_call(url, params=params)
 
             if data:
                 if "messages" in data:
@@ -330,7 +329,7 @@ Error: {response_json['error']}")
         url = "https://slack.com/api/chat.getPermalink"
 
         params = {"channel": channel_id, "message_ts": message_ts}
-        data = self.slack_api_call(url, headers=self.headers, params=params)
+        data = self.slack_api_call(url, params=params)
         if data:
             if data.get("ok"):
                 return data["permalink"]
@@ -359,7 +358,7 @@ Error: {response_json['error']}")
         channels_dict = {}
 
         while True:
-            data = self.slack_api_call(url, headers=self.headers, params=params)
+            data = self.slack_api_call(url, params=params)
             if data:
                 if data.get("ok"):
                     for channel in data["channels"]:
@@ -471,7 +470,6 @@ Error: {response_json['error']}")
         # Step 1: Get all user IDs in the channel using conversations.members
         members_data = self.slack_api_call(
             url="https://slack.com/api/conversations.members",
-            headers=self.headers,
             params={"channel": channel_id},
         )
 
@@ -493,7 +491,6 @@ Error: {response_json['error']}")
         for user_id in user_ids:
             user_data = self.slack_api_call(
                 url="https://slack.com/api/users.info",
-                headers=self.headers,
                 params={"user": user_id},
             )
 
@@ -572,8 +569,8 @@ Error: {response_json['error']}")
 
             # Merge the metadata from all items in the chunk
             for item in chunk:
-                logging.info(f'length of chunk {len(item["metadata"]["text"])}')
-                logging.info(f'words in chunk {len(item["metadata"]["text"].split())}')
+                logging.debug(f'length of chunk {len(item["metadata"]["text"])}')
+                logging.debug(f'words in chunk {len(item["metadata"]["text"].split())}')
                 if len(item["metadata"]["text"]) > 30000:
                     print(item["metadata"]["text"])
                 merged_text += item["metadata"]["text"] + " "
@@ -599,8 +596,8 @@ Error: {response_json['error']}")
 
             result.append(merged_dict)
 
-            logging.info(f"how many message added: {len(chunk)}")
-            logging.info(f"length of merged text: {len(merged_text)}")
+            logging.debug(f"how many message added: {len(chunk)}")
+            logging.debug(f"length of merged text: {len(merged_text)}")
             # Calculate overlap for the next chunk based on word_overlap
             if word_overlap > 0:
                 words_in_current_chunk = merged_text.split()
@@ -671,6 +668,8 @@ Error: {response_json['error']}")
                     f"Getting Embeds and Inserting to DB for {total_items} \
                             messages in batches batch_size: {batch_size}, total messages: {total_items}"  # noqa: E501
                 )
+                # now doing without size as just batch with 1 element
+                # TODO find accurate size then do size
                 for start_idx in range(0, total_items, batch_size):
                     end_idx = min(start_idx + batch_size, total_items)
                     batch = messages[start_idx:end_idx]
@@ -682,27 +681,27 @@ Error: {response_json['error']}")
                         # TODO: parameters ??!!
                         batch = self.add_embedding(embedding_model, batch)
 
-                        logging.info(f"size of metadata: {get_size(batch[0]['metadata'])}")
-                        logging.info(
+                        logging.debug(f"size of metadata: {get_size(batch[0]['metadata'])}")
+                        logging.debug(
                             f"size of metadata text: {get_size(batch[0]['metadata']['text'])}"
                         )
-                        logging.info(
+                        logging.debug(
                             f"size of metadata text length: {len(batch[0]['metadata']['text'])}"
                         )
 
-                        logging.info(
+                        logging.debug(
                             f"number of words in text: {len(batch[0]['metadata']['text'].split())}"
                         )
-                        logging.info(
+                        logging.debug(
                             f"size of metadata: msg_ts {get_size(batch[0]['metadata']['msg_ts'])}"
                         )
-                        logging.info(
+                        logging.debug(
                             f"size of metadata source: {get_size(batch[0]['metadata']['source'])}"
                         )
-                        logging.info(
+                        logging.debug(
                             f"size of metadata channel_name: {get_size(batch[0]['metadata']['channel_name'])}"  # noqa: E501
                         )
-                        logging.info(
+                        logging.debug(
                             f"size of metadata users: {get_size(batch[0]['metadata']['users'])}"
                         )
 
@@ -710,7 +709,7 @@ Error: {response_json['error']}")
                         try:
                             self.load_to_pinecone(batch)
                         except Exception as e:
-                            print("failed to load to pinecone for current batch", e)
+                            logging.critical("failed to load to pinecone for current batch", e)
 
                         logging.info(f"Completed batch {start_idx} to {end_idx} of {total_items}")
                 logging.info(
