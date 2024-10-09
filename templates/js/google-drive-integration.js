@@ -64,19 +64,19 @@ function handleSignoutClick() {
 async function createPicker() {
     const shareddrivesview = new google.picker.DocsView(google.picker.ViewId.DOCS)
         .setEnableDrives(true)
-        .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder')
+        // .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder', 'application/vnd.google-apps.spreadsheet', 'application/vnd.google-apps.presentation')
         .setSelectFolderEnabled(true)
         .setOwnedByMe(false)
         .setIncludeFolders(true); // creates just the shared drives view
 
     const sharedwithmeview = new google.picker.DocsView(google.picker.ViewId.DOCS)
-        .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder')
+        // .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder', 'application/vnd.google-apps.spreadsheet', 'application/vnd.google-apps.presentation')
         .setSelectFolderEnabled(true)
         .setIncludeFolders(true)
         .setOwnedByMe(false); // creates just the shared with me view
 
     const mydriveview = new google.picker.DocsView(google.picker.ViewId.DOCS)
-        .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder')
+        // .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder', 'application/vnd.google-apps.spreadsheet', 'application/vnd.google-apps.presentation')
         .setSelectFolderEnabled(true)
         .setOwnedByMe(true)
         .setParent('root')
