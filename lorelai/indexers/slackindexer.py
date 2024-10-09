@@ -9,17 +9,18 @@ Classes:
 
 import logging
 import os
-import sys
 import requests
 import uuid
 import time
 from datetime import datetime
 from langchain_openai import OpenAIEmbeddings
+import copy
+import openai
 
 import lorelai.utils
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
-from lorelai.utils import get_embedding_dimension
+from lorelai.utils import get_embedding_dimension, get_size, clean_text_for_vector
 
 from app.helpers.datasources import get_datasource_id_by_name
 from app.helpers.users import get_user_id_by_email
@@ -204,8 +205,8 @@ Error: {response_json['error']}")
 
                 if "messages" in data:
                     logging.info(f"Processing messages for channel: {channel_name} Start: \
-{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
-{data['messages'][0]['text']}")
+                        {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
+                        {data['messages'][0]['text']}")
                     for msg in data["messages"]:
                         try:
                             msg_ts = ""
@@ -226,7 +227,9 @@ Error: {response_json['error']}")
                             msg_datetime = self.timestamp_to_date(msg_ts)
                             # Slack uses user_id not names
                             thread_text = self.replace_userid_with_name(thread_text)
+                            # add datetime
                             thread_text = f"{str(msg_datetime)} : {thread_text}"
+                            thread_text = clean_text_for_vector(thread_text)
                             metadata = {
                                 "text": thread_text,
                                 "source": msg_link,
@@ -305,11 +308,11 @@ Error: {response_json['error']}")
             user = message["user"]
 
         if "text" in message:
-            message_text = f"{user}:  {message['text']}"
+            message_text = f"{user}:  {message['text']}."
 
         if "attachments" in message and message.get("subtype") == "bot_message":
             for i in message["attachments"]:
-                message_text += "\n" + i["fallback"]
+                message_text += "\n" + i["fallback"] + "."
         return message_text
 
     def get_message_permalink(self, channel_id: str, message_ts: str) -> str | None:
@@ -373,15 +376,13 @@ Error: {response_json['error']}")
                 return None
         return channels_dict
 
-    def add_embedding(
-        self, embedding_model: OpenAIEmbeddings, chat_history: list[dict]
-    ) -> list[dict]:
+    def add_embedding(self, embedding_model: OpenAIEmbeddings, dict_list: list[dict]) -> list[dict]:
         """
-        Add embeddings to the complete chat history using the specified embedding model.
+        Add embeddings to the dict_list using the specified embedding model.
 
         Args:
             embedding_model (OpenAIEmbeddings): The embedding model to use.
-            chat_history (list): chat history.
+            dict_list (list): list of dict without vector.
 
         Returns
         -------
@@ -390,22 +391,27 @@ Error: {response_json['error']}")
         Raises
         ------
             Exception: If there is an error during embedding.
-            ValueError: If the length of embeddings and chat history do not match.
+            ValueError: If the length of embeddings and dict_list do not match.
         """
+        new_dict_list = copy.deepcopy(dict_list)
         try:
-            text = [chat["metadata"]["text"] for chat in chat_history]
+            text = [chat["metadata"]["text"] for chat in dict_list]
         except Exception as e:
             raise e
 
-        embeds = embedding_model.embed_documents(text)
-        if len(chat_history) != len(embeds):
+        resp = openai.embeddings.create(input=text, model="text-embedding-ada-002")
+        resp = resp.data
+
+        embeds = [i.embedding for i in resp]
+
+        if len(new_dict_list) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
-
+        abc = dict_list[0]["metadata"]["text"]
         # will delete one, 2 method does same thing
+        print("2nd", get_size(abc))
         for i in range(len(embeds)):
-            chat_history[i]["values"] = embeds[i]
-
-        return chat_history
+            new_dict_list[i]["values"] = embeds[i]
+        return new_dict_list
 
     def load_to_pinecone(self, complete_chat_history: list[dict]) -> int:
         """
@@ -503,10 +509,21 @@ Error: {response_json['error']}")
         return emails
 
     def chunk_and_merge_metadata(
-        self, lst: list[dict], size: int, overlap_size: int, channel_id: str
+        self,
+        lst: list[dict],
+        word_limit: int,
+        word_overlap: int,
+        channel_id: str,
+        channel_name: str,
     ) -> list[dict]:
         """
-        Chunks a list of dictionaries and merges their metadata.
+        Chunk a list of dictionaries based on word count of 'metadata.text' and merge their metadata.
+
+        This function processes a list of dictionaries, each containing metadata like text, source,
+        timestamp, and channel information. It merges these dictionaries into chunks, each containing
+        up to `word_limit` words. Additionally, the function ensures there is an overlap of
+        `word_overlap` words between consecutive chunks.
+
 
         Args:
             lst (list of dict): List of dictionaries, each containing 'id', 'values',
@@ -516,39 +533,54 @@ Error: {response_json['error']}")
                                 - msg_ts (str): A timestamp
                                 - channel_name (str): A channel name
                                 - users (list): A list of users
-            size (int): Number of items in each chunk.
-            overlap_size (int): Number of overlapping items between chunks.
-            channel_id (str): channel id, to get the members email for vector storage
+            word_limit (int): Maximum number of words in each chunk's concatenated text.
+            word_overlap (int): Number of overlapping words between chunks.
+            channel_id (str): channel id, to get the members email for vector storage.
+            channel_name (str): channel_name id, to store in metadata.
 
         Returns
         -------
-            list of dict: A list of new dictionaries with merged metadata:
-                        - text: Concatenated text from the chunk
-                        - source, msg_ts: Taken from the last item in the chunk
-                        - channel_name, users: Unique sets converted to lists.
+                list of dict: A list of new dictionaries with merged metadata:
+                            - text: Concatenated text from the chunk
+                            - source, msg_ts: Taken from the last item in the chunk
+                            - channel_name, users: Unique sets converted to lists.
 
         Example:
-            merged_chunks = chunk_and_merge_metadata(lst, size=2, overlap_size=1)
-        """
+            merged_chunks = chunk_and_merge_metadata(lst, word_limit=4000, word_overlap=200)
+        """  # noqa: E501
         user_emails = self.get_channel_member_emails(channel_id)
         result = []
         start = 0
+        overlap_words = []  # List to store the overlapping words from the previous chunk
 
         while start < len(lst):
-            end = start + size
-            chunk = lst[start:end]
+            chunk = []
+            word_count = len(overlap_words)  # Start with overlap word count
+
+            # Collect items into a chunk until the word limit is reached
+            while start < len(lst) and word_count < word_limit:
+                item = lst[start]
+                chunk.append(item)
+
+                # Count words in the current item's metadata['text']
+                word_count += len(item["metadata"]["text"].split())
+
+                start += 1
 
             # Initialize merged metadata fields
-            merged_text = ""
-            merged_channel_names = set()
+            merged_text = " ".join(overlap_words) + " " if overlap_words else ""
 
             # Merge the metadata from all items in the chunk
             for item in chunk:
+                logging.info(f'length of chunk {len(item["metadata"]["text"])}')
+                logging.info(f'words in chunk {len(item["metadata"]["text"].split())}')
+                if len(item["metadata"]["text"]) > 30000:
+                    print(item["metadata"]["text"])
                 merged_text += item["metadata"]["text"] + " "
-                merged_channel_names.add(item["metadata"]["channel_name"])
 
             # Remove trailing space from concatenated text
             merged_text = merged_text.strip()
+
             # Get the source and msg_ts from the last item in the chunk
             last_item = chunk[-1]
 
@@ -560,15 +592,21 @@ Error: {response_json['error']}")
                     "text": merged_text,
                     "source": last_item["metadata"]["source"],
                     "msg_ts": last_item["metadata"]["msg_ts"],
-                    "channel_name": list(merged_channel_names),  # Convert set to list
+                    "channel_name": channel_name,
                     "users": list(user_emails),
                 },
             }
 
             result.append(merged_dict)
-            print("Metadata size:", sys.getsizeof(merged_dict["metadata"]))
-            # Move the start index for the next chunk
-            start += size - overlap_size
+
+            logging.info(f"how many message added: {len(chunk)}")
+            logging.info(f"length of merged text: {len(merged_text)}")
+            # Calculate overlap for the next chunk based on word_overlap
+            if word_overlap > 0:
+                words_in_current_chunk = merged_text.split()
+                overlap_words = words_in_current_chunk[
+                    -word_overlap:
+                ]  # Get the last 'word_overlap' words
 
         return result
 
@@ -617,57 +655,67 @@ Error: {response_json['error']}")
                 # 2. divide the messages into chunks with overlap
                 # TODO: check the size in bytes of the channel_chat_history
                 messages = self.chunk_and_merge_metadata(
-                    lst=channel_chat_history, size=5, overlap_size=2, channel_id=channel_id
+                    lst=channel_chat_history,
+                    word_limit=3000,
+                    word_overlap=1000,
+                    channel_id=channel_id,
+                    channel_name=channel_name,
                 )
 
                 # 3. Process in Batch to adhere to pinecone and OpenAI api size limit
                 total_items = len(messages)
+                # Process in Batch
+                batch_size = 1
+                total_items = len(messages)
                 logging.info(
                     f"Getting Embeds and Inserting to DB for {total_items} \
-messages in batches"
+                            messages in batches batch_size: {batch_size}, total messages: {total_items}"  # noqa: E501
                 )
-
-                for start_idx in range(0, total_items):
-                    batch = []
-                    batch_size_in_bytes = 0
-
-                    # Create a batch while respecting the 40KB limit
-                    while start_idx < total_items:
-                        message = messages[start_idx]
-                        message_size = sys.getsizeof(message)
-
-                        # Check if the message itself exceeds the limit
-                        if message_size > 10 * 1024:
-                            logging.warning(f"Message {start_idx} >= 40KB and will be skipped.")
-                            start_idx += 1
-                            continue
-
-                        # Check if adding this message exceeds the limit
-                        if batch_size_in_bytes + message_size > 10 * 1024:  # 40KB limit
-                            break
-
-                        batch.append(message)
-                        batch_size_in_bytes += message_size
-                        start_idx += 1
-
-                    logging.info(f"Batch size: {batch_size_in_bytes} bytes")
+                for start_idx in range(0, total_items, batch_size):
+                    end_idx = min(start_idx + batch_size, total_items)
+                    batch = messages[start_idx:end_idx]
 
                     if batch:  # Only process if the batch is not empty
-                        print("Batch Len: ", len(batch))
-                        print("Size byte: ", sys.getsizeof(batch))
-                        logging.info(f"Creating embds for {channel_id} {channel_name}")
+                        logging.info(f"processing batch {start_idx} to {end_idx} of {total_items} ")
+                        logging.info("Creating embeds for batch for current batch")
+
                         # TODO: parameters ??!!
                         batch = self.add_embedding(embedding_model, batch)
 
-                        logging.info(f"Loading to pinecone for channel {channel_id} {channel_name}")
+                        logging.info(f"size of metadata: {get_size(batch[0]['metadata'])}")
+                        logging.info(
+                            f"size of metadata text: {get_size(batch[0]['metadata']['text'])}"
+                        )
+                        logging.info(
+                            f"size of metadata text length: {len(batch[0]['metadata']['text'])}"
+                        )
+
+                        logging.info(
+                            f"number of words in text: {len(batch[0]['metadata']['text'].split())}"
+                        )
+                        logging.info(
+                            f"size of metadata: msg_ts {get_size(batch[0]['metadata']['msg_ts'])}"
+                        )
+                        logging.info(
+                            f"size of metadata source: {get_size(batch[0]['metadata']['source'])}"
+                        )
+                        logging.info(
+                            f"size of metadata channel_name: {get_size(batch[0]['metadata']['channel_name'])}"  # noqa: E501
+                        )
+                        logging.info(
+                            f"size of metadata users: {get_size(batch[0]['metadata']['users'])}"
+                        )
+
+                        logging.info("Loading to pinecone for current batch")
                         try:
                             self.load_to_pinecone(batch)
                         except Exception as e:
-                            print("failed to load to pinecone", e)
-                            print(batch)
+                            print("failed to load to pinecone for current batch", e)
 
-                        logging.info(f"Completed for channel {channel_id} {channel_name}")
-
+                        logging.info(f"Completed batch {start_idx} to {end_idx} of {total_items}")
+                logging.info(
+                    f"Completed indexing for channel {channel_name} with channel_id {channel_id}"
+                )
             logging.info(
                 f"Slack Indexer ran successfully for org {self.org_name}, by user {self.email}"
             )
