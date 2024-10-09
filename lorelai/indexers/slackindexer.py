@@ -13,7 +13,6 @@ import requests
 import uuid
 import time
 from datetime import datetime
-from langchain_openai import OpenAIEmbeddings
 import copy
 import openai
 
@@ -38,16 +37,18 @@ class SlackIndexer(Indexer):
             org_name (str): The organization name.
         """
         # load API keys
-
         self.openai_creds = lorelai.utils.load_config("openai")
         self.lorelai_settings = lorelai.utils.load_config("lorelai")
         os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
 
+        # setup pinecone helper
         self.pinecone_helper = PineconeHelper()
 
         # init class with required parameters
         self.email = email
         self.org_name = org_name
+
+        # Config for slack api
         self.access_token = self.retrieve_access_token(email=email)
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -55,6 +56,15 @@ class SlackIndexer(Indexer):
         }
         self.session = requests.Session()
         self.session.headers.update(self.headers)
+
+        # setup embedding model
+        self.embedding_model_name = "text-embedding-ada-002"
+        self.embedding_model_dimension = get_embedding_dimension(self.embedding_model_name)
+        if self.embedding_model_dimension == -1:
+            raise ValueError(
+                f"Could not find embedding dimension for model '{self.embedding_model_name}'"
+            )
+
         self.userid_name_dict = self.get_userid_name()
 
         logging.debug(f"Slack Access Token: {self.access_token}")
@@ -375,13 +385,15 @@ class SlackIndexer(Indexer):
                 return None
         return channels_dict
 
-    def add_embedding(self, embedding_model: OpenAIEmbeddings, dict_list: list[dict]) -> list[dict]:
+    def add_embedding(
+        self, embedding_model_name: str, messages_dict_list: list[dict]
+    ) -> list[dict]:
         """
         Add embeddings to the dict_list using the specified embedding model.
 
         Args:
-            embedding_model (OpenAIEmbeddings): The embedding model to use.
-            dict_list (list): list of dict without vector.
+            embedding_model_name (str): The embedding model name.
+            messages_dict_list (list): list of messages dict without vector.
 
         Returns
         -------
@@ -392,25 +404,22 @@ class SlackIndexer(Indexer):
             Exception: If there is an error during embedding.
             ValueError: If the length of embeddings and dict_list do not match.
         """
-        new_dict_list = copy.deepcopy(dict_list)
+        new_messages_dict_list = copy.deepcopy(messages_dict_list)
         try:
-            text = [chat["metadata"]["text"] for chat in dict_list]
+            text = [chat["metadata"]["text"] for chat in messages_dict_list]
         except Exception as e:
             raise e
 
-        resp = openai.embeddings.create(input=text, model="text-embedding-ada-002")
-        resp = resp.data
+        response = openai.embeddings.create(input=text, model=embedding_model_name)
+        response_data = response.data
+        embeds = [i.embedding for i in response_data]  # list of vector
 
-        embeds = [i.embedding for i in resp]
-
-        if len(new_dict_list) != len(embeds):
+        if len(new_messages_dict_list) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
-        abc = dict_list[0]["metadata"]["text"]
-        # will delete one, 2 method does same thing
-        print("2nd", get_size(abc))
+
         for i in range(len(embeds)):
-            new_dict_list[i]["values"] = embeds[i]
-        return new_dict_list
+            new_messages_dict_list[i]["values"] = embeds[i]
+        return new_messages_dict_list
 
     def load_to_pinecone(self, complete_chat_history: list[dict]) -> int:
         """
@@ -571,8 +580,6 @@ class SlackIndexer(Indexer):
             for item in chunk:
                 logging.debug(f'length of chunk {len(item["metadata"]["text"])}')
                 logging.debug(f'words in chunk {len(item["metadata"]["text"].split())}')
-                if len(item["metadata"]["text"]) > 30000:
-                    print(item["metadata"]["text"])
                 merged_text += item["metadata"]["text"] + " "
 
             # Remove trailing space from concatenated text
@@ -616,15 +623,6 @@ class SlackIndexer(Indexer):
             Defaults to None.
         """
         try:
-            # Setup embedding config:
-            embedding_model_name = "text-embedding-ada-002"
-            embedding_model = OpenAIEmbeddings(model=embedding_model_name)
-            embedding_dimension = get_embedding_dimension(embedding_model_name)
-            if embedding_dimension == -1:
-                raise ValueError(
-                    f"Could not find embedding dimension for model '{embedding_model}'"
-                )
-
             # get the list of channels
             channel_ids_dict = self.dict_channel_ids()
 
@@ -679,7 +677,7 @@ class SlackIndexer(Indexer):
                         logging.info("Creating embeds for batch for current batch")
 
                         # TODO: parameters ??!!
-                        batch = self.add_embedding(embedding_model, batch)
+                        batch = self.add_embedding(self.embedding_model_name, batch)
 
                         logging.debug(f"size of metadata: {get_size(batch[0]['metadata'])}")
                         logging.debug(
