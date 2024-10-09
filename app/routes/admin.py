@@ -2,7 +2,7 @@
 
 import logging
 import os
-
+from datetime import datetime
 import mysql.connector
 from flask import (
     Blueprint,
@@ -241,7 +241,8 @@ def start_indexing(type) -> str:
                         user_data_rows=user_data_rows,
                         started_by_user_id=user_id,
                         job_timeout=3600,
-                        description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']}",
+                        description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']} \
+- Start time: {datetime.now()}",
                     )
 
                     # Add the job to the list of started jobs

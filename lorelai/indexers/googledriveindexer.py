@@ -241,7 +241,7 @@ class GoogleDriveIndexer(Indexer):
                     file_ids=[doc_google_drive_id], credentials=credentials_object
                 )
                 docs_loaded = loader.load()
-                logging.info(f"Loaded {len(docs_loaded)} docs")
+                logging.info(f"Loaded {len(docs_loaded)} docs from file: {doc_google_drive_id}")
             elif doc_item_type == "document":
                 logging.info(
                     f"Loading Google Drive doc ID {doc_google_drive_id} of type {doc_item_type}"
@@ -250,7 +250,7 @@ class GoogleDriveIndexer(Indexer):
                     document_ids=[doc_google_drive_id], credentials=credentials_object
                 )
                 docs_loaded = loader.load()
-                logging.info(f"Loaded {len(docs_loaded)} docs")
+                logging.info(f"Loaded {len(docs_loaded)} docs from doc: {doc_google_drive_id}")
             elif doc_item_type == "folder":
                 logging.info(
                     f"Loading Google Drive folder ID {doc_google_drive_id} of type {doc_item_type}"

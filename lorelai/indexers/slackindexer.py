@@ -592,6 +592,7 @@ messages in batches"
 
                         # Check if adding this message exceeds the limit
                         if batch_size_in_bytes + message_size > 40 * 1024:  # 40KB limit
+                            logging.info(f"Batch size: {batch_size_in_bytes} bytes")
                             break
 
                         batch.append(message)
