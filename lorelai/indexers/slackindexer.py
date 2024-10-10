@@ -54,6 +54,7 @@ class SlackIndexer(Indexer):
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
         }
+        self.test_slack_token()
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
@@ -68,6 +69,34 @@ class SlackIndexer(Indexer):
         self.userid_name_dict = self.get_userid_name()
 
         logging.debug(f"Slack Access Token: {self.access_token}")
+
+    def test_slack_token(self):
+        """
+        Verify if the Slack access token is valid.
+
+        Makes a request to the `auth.test` endpoint. Raises RuntimeError if the token is invalid
+        or an HTTP error occurs.
+
+        Raises
+        ------
+            RuntimeError: If the token is invalid or there's an HTTP error.
+
+        Returns
+        -------
+            bool: True if the token is valid.
+        """
+        url = "https://slack.com/api/auth.test"
+        response = requests.get(url, headers=self.headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("ok"):
+                print("Slack token is valid!")
+                return True
+            else:
+                raise RuntimeError(f"Slack token test failed: {data.get('error')}")
+        else:
+            raise RuntimeError(f"HTTP Error: {response.status_code} - {response.text}")
 
     def slack_api_call(self, url: str, params: dict = None, max_retries: int = 3) -> dict | None:
         """
