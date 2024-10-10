@@ -90,7 +90,7 @@ class PineconeHelper:
             # todo get spec
             index = self.create_index(
                 name,
-                self.pinecone_settings["dimension"],
+                int(self.pinecone_settings["dimension"]),
                 self.pinecone_settings["metric"],
                 ServerlessSpec(cloud="aws", region=region),
             )
@@ -124,7 +124,11 @@ class PineconeHelper:
 
         """
         if spec is None:
-            spec = ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"])
+            spec = ServerlessSpec(
+                cloud="aws",
+                region=self.pinecone_settings["region"],
+                dimension=int(self.pinecone_settings["dimension"]),
+            )
         else:
             if not isinstance(spec, ServerlessSpec):
                 raise ValueError("spec must be a ServerlessSpec")
