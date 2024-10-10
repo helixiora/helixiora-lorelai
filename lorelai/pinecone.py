@@ -107,7 +107,7 @@ class PineconeHelper:
         return self.pinecone_client.list_indexes()
 
     def create_index(
-        self, index_name: str, dimension: int, metric: str = "cosine", spec: dict = None
+        self, index_name: str, dimension: int, metric: str = "cosine", spec: ServerlessSpec = None
     ) -> pinecone.Index:
         """Create a new index in Pinecone.
 
@@ -116,14 +116,19 @@ class PineconeHelper:
             index_name (str): The name of the index to create.
             dimension (int): The dimension of the index.
             metric (str): The metric of the index.
-            spec (dict): The spec of the index.
+            spec (ServerlessSpec): The spec of the index.
 
         Returns
         -------
             pinecone.Index: The pinecone index.
 
         """
-        spec = ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"])
+        if spec is None:
+            spec = ServerlessSpec(cloud="aws", region=self.pinecone_settings["region"])
+        else:
+            if not isinstance(spec, ServerlessSpec):
+                raise ValueError("spec must be a ServerlessSpec")
+
         self.pinecone_client.create_index(
             name=index_name, dimension=dimension, metric=metric, spec=spec
         )

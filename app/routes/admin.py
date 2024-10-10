@@ -2,7 +2,7 @@
 
 import logging
 import os
-
+from datetime import datetime
 import mysql.connector
 from flask import (
     Blueprint,
@@ -30,6 +30,7 @@ from app.helpers.users import (
     create_invited_user_in_db,
 )
 from app.helpers.database import get_db_connection, get_query_result, run_flyway_migrations
+from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_GOOGLE_DRIVE
 
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
@@ -155,6 +156,7 @@ def start_indexing(type) -> str:
         redis_conn = Redis.from_url(redis_config["url"])
         queue = Queue(connection=redis_conn)
 
+        datasource_id = get_datasource_id_by_name(DATASOURCE_GOOGLE_DRIVE)
         user_id = session["user_id"]
         org_id = session.get("org_id")
         if not org_id and type != "all":
@@ -207,8 +209,8 @@ def start_indexing(type) -> str:
                     user_auth_rows_for_user = get_query_result(
                         "SELECT user_id, auth_key, auth_value, auth_type \
                             FROM user_auth \
-                                WHERE user_id = %s",
-                        (user_row["user_id"],),
+                                WHERE user_id = %s AND datasource_id = %s",
+                        (user_row["user_id"], datasource_id),
                     )
                     user_auth_rows.extend(user_auth_rows_for_user)
 
@@ -239,7 +241,8 @@ def start_indexing(type) -> str:
                         user_data_rows=user_data_rows,
                         started_by_user_id=user_id,
                         job_timeout=3600,
-                        description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']}",
+                        description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']} \
+- Start time: {datetime.now()}",
                     )
 
                     # Add the job to the list of started jobs

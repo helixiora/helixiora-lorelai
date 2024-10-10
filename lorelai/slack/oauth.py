@@ -13,7 +13,7 @@ import requests
 from flask import request, session
 
 from app.helpers.database import get_db_connection
-from app.helpers.datasources import get_datasource_id_by_name
+from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
 from lorelai.utils import load_config
 
 
@@ -29,7 +29,7 @@ class SlackOAuth:
         self.client_id = self.config["client_id"]
         self.client_secret = self.config["client_secret"]
         self.redirect_uri = self.config["redirect_uri"]
-        self.datasource_id = get_datasource_id_by_name("Slack")
+        self.datasource_id = get_datasource_id_by_name(DATASOURCE_SLACK)
 
     def get_auth_url(self):
         """

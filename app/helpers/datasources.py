@@ -4,9 +4,16 @@ import logging
 
 from app.helpers.database import get_db_connection, get_query_result
 
+# List of datasource names
+DATASOURCE_GOOGLE_DRIVE = "Google Drive"
+DATASOURCE_SLACK = "Slack"
+
 
 def get_datasource_id_by_name(datasource_name: str):
-    """Get the organization name by ID."""
+    """Get the datasource ID by name."""
+    if datasource_name not in [DATASOURCE_GOOGLE_DRIVE, DATASOURCE_SLACK]:
+        raise ValueError(f"Invalid datasource name: {datasource_name}")
+
     datasource_name_result = get_query_result(
         "SELECT datasource_id FROM datasource WHERE datasource_name = %s",
         (datasource_name,),

@@ -93,7 +93,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
                 title=result.metadata["title"],
                 content=result.page_content,
                 link=result.metadata["source"],
-                when=result.metadata["when"],
+                when=result.metadata["modifiedTime"],
                 relevance_score=result.metadata["relevance_score"],
                 raw_langchain_document=result,
             )

@@ -21,7 +21,7 @@ from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_embedding_dimension, get_size, clean_text_for_vector
 
-from app.helpers.datasources import get_datasource_id_by_name
+from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
 from app.helpers.users import get_user_id_by_email
 
 
@@ -121,7 +121,7 @@ class SlackIndexer(Indexer):
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = get_datasource_id_by_name("Slack")
+        datasource_id = get_datasource_id_by_name(DATASOURCE_SLACK)
         user_id = get_user_id_by_email(email)
         conn = None
         cursor = None
@@ -166,7 +166,7 @@ class SlackIndexer(Indexer):
                 users_dict[i["id"]] = i["name"]
             return users_dict
         else:
-            logging.debug(f"Failed to list users. Error: {data.error}")
+            logging.error(f"Failed to list users. Error: {data}")
             return None
 
     def replace_userid_with_name(self, thread_text: str) -> str:
@@ -184,7 +184,7 @@ class SlackIndexer(Indexer):
             thread_text = thread_text.replace(user_id, user_name)
         return thread_text
 
-    def get_messages(self, channel_id: str, channel_name: str) -> list[dict]:
+    def get_messages_from_channel(self, channel_id: str, channel_name: str) -> list[dict]:
         """
         Retrieve messages from a Slack channel and return them as a list of chat history records.
 
@@ -214,8 +214,8 @@ class SlackIndexer(Indexer):
 
                 if "messages" in data:
                     logging.info(f"Processing messages for channel: {channel_name} Start: \
-                        {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
-                        {data['messages'][0]['text']}")
+{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
+{data['messages'][0]['text']}")
                     for msg in data["messages"]:
                         try:
                             msg_ts = ""
@@ -231,9 +231,12 @@ class SlackIndexer(Indexer):
                                 thread_text = self.get_thread(msg["ts"], channel_id)
                                 msg_ts = msg["ts"]  # thread_ts
 
+                            # get the permalink for the message
                             msg_link = self.get_message_permalink(channel_id, msg_ts)
 
+                            # convert the timestamp to a date
                             msg_datetime = self.timestamp_to_date(msg_ts)
+
                             # Slack uses user_id not names
                             thread_text = self.replace_userid_with_name(thread_text)
                             # add datetime
@@ -435,7 +438,7 @@ class SlackIndexer(Indexer):
         """
         index, name = self.pinecone_helper.get_index(
             org=self.org_name,
-            datasource="slack",
+            datasource=DATASOURCE_SLACK,
             environment=self.lorelai_settings["environment"],
             env_name=self.lorelai_settings["environment_slug"],
             version="v1",
@@ -639,7 +642,7 @@ class SlackIndexer(Indexer):
                 logging.info(f"Processing channel {channel_id} {channel_name}")
 
                 # 1. get all messages from the channel
-                channel_chat_history = self.get_messages(
+                channel_chat_history = self.get_messages_from_channel(
                     channel_id=channel_id, channel_name=channel_name
                 )
                 #
@@ -666,6 +669,7 @@ class SlackIndexer(Indexer):
                     f"Getting Embeds and Inserting to DB for {total_items} \
                             messages in batches batch_size: {batch_size}, total messages: {total_items}"  # noqa: E501
                 )
+
                 # now doing without size as just batch with 1 element
                 # TODO find accurate size then do size
                 for start_idx in range(0, total_items, batch_size):

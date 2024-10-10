@@ -137,7 +137,8 @@ def run_indexer(
         job.meta["status"] = "Indexing"
         job.meta["logs"].append("Starting indexing...")
         job.save_meta()
-        logging.info(f"{org_row},{user_rows},{user_auth_rows},{job},")
+        logging.debug(f"{org_row},{user_rows},{user_auth_rows},{job},")
+
         # Perform indexing
         results = indexer.index_org(
             user_rows=user_rows,
@@ -146,6 +147,7 @@ def run_indexer(
             org_row=org_row,
             job=job,
         )
+
         for result in results:
             logging.debug(result)
             job.meta["logs"].append(result)
@@ -199,7 +201,9 @@ def run_slack_indexer(user_email: str, org_name: str):
     job.save_meta()
 
     indexer = SlackIndexer(user_email, org_name)
-    indexer.process_slack_message()  # "C07E0KF9UCA" lorelai channel for test
+
+    # this should be a generic function that can be called for any indexer
+    indexer.process_slack_message()
 
     logging.info(f"Slack Indexer Completed for {org_name}")
     logging.info(f"run_slack_indexer for {user_email} took {(time.time()-start_time)/60} mins")
