@@ -74,8 +74,11 @@ class Llm:
 
         # retrieve context from all the datasources and append to context list
         for datasource in self.datasources:
-            context_retrieval_response = datasource.retrieve_context(question=question)
-            context_list.append(context_retrieval_response)
+            try:
+                context_retrieval_response = datasource.retrieve_context(question=question)
+                context_list.append(context_retrieval_response)
+            except Exception as e:
+                logging.error(f"Failed to retrieve context from {datasource}: {e}")
 
         logging.info(f"Context (get_answer): {context_list}")
 
