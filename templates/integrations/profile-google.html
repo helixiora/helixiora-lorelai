@@ -41,8 +41,10 @@
                                     <button class="btn btn-primary btn-sm mb-2" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove from Index</button>
                                     {% if doc.item_type == 'document' %}
                                         <button class="btn btn-primary btn-sm" onclick="window.open('https://docs.google.com/document/d/{{ doc.google_drive_id }}', '_blank')">View File</button>
-                                    {% else %}
+                                    {% elif doc.item_type == 'folder' %}
                                         <button class="btn btn-primary btn-sm" onclick="window.open('https://drive.google.com/drive/folders/{{ doc.google_drive_id }}', '_blank')">Open Folder</button>
+                                    {% elif doc.item_type == 'file' %}
+                                        <button class="btn btn-primary btn-sm" onclick="window.open('https://drive.google.com/file/d/{{ doc.google_drive_id }}', '_blank')">View File</button>
                                     {% endif %}
                                 </td>
                             </tr>
