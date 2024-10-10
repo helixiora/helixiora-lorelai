@@ -54,7 +54,7 @@
         "redirect_uri": "https://127.0.0.1:5000/slack/auth/callback",
         "authorization_url": "https://slack.com/oauth/v2/authorize",
         "token_url": "https://slack.com/api/oauth.v2.access",
-        "scopes": "channels:history,channels:read,users:read"
+        "scopes": "channels:history,channels:read,users:read,users:read.email"
     },
     "features": {
         "slack":0,
