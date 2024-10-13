@@ -15,6 +15,56 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
 
+def get_query_result(query, params=None, fetch_one=False):
+    """Get a query result from the database.
+
+    Parameters
+    ----------
+    query : str
+        The query to execute.
+    params : list, optional
+        The parameters to pass to the query.
+    fetch_one : bool, optional
+        Whether to fetch only one result.
+
+    Returns
+    -------
+    list
+        A list of results.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(query, params)
+            if fetch_one:
+                result = cursor.fetchone()
+            else:
+                result = cursor.fetchall()
+            # Ensure all results are read
+            cursor.fetchall()
+        return result
+    finally:
+        conn.close()
+
+
+def get_user_id_by_email(email: str) -> int:
+    """
+    Get the user ID by email.
+
+    Parameters
+    ----------
+    email : str
+        The email of the user.
+
+    Returns
+    -------
+    int
+        The user ID.
+    """
+    result = get_query_result("SELECT user_id FROM user WHERE email = %s", (email,), fetch_one=True)
+    return result["user_id"] if result else None
+
+
 def get_config_from_os(service: str) -> dict[str, str]:
     """Load credentials from OS env vars.
 

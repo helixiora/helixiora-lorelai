@@ -29,7 +29,6 @@ def get_answer_from_rag(
     user: str,
     organisation: str,
     model_type: str = "OpenAILlm",
-    datasource: str = None,
 ) -> dict:
     """Execute the RAG+LLM model.
 

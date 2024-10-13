@@ -22,7 +22,7 @@ from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_embedding_dimension, get_size, clean_text_for_vector
 
 from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
-from app.helpers.users import get_user_id_by_email
+from lorelai.utils import get_user_id_by_email
 
 
 class SlackIndexer(Indexer):

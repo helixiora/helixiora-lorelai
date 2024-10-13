@@ -1,97 +1,20 @@
 """Database related helper functions."""
 
 import logging
+from datetime import date
 
 import mysql.connector
 import redis
+from sqlalchemy.exc import SQLAlchemyError
 
 from lorelai.utils import load_config
-
-
-def get_db_cursor(with_dict: bool = False) -> mysql.connector.cursor.MySQLCursor:
-    """Get a database cursor.
-
-    Parameters
-    ----------
-    with_dict : bool, optional
-        Whether to return rows as dictionaries.
-
-    Returns
-    -------
-    mysql.connector.cursor.MySQLCursor
-        A cursor to the database.
-    """
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=with_dict)
-        return cursor
-    except mysql.connector.Error:
-        logging.exception("Database connection failed")
-        raise
-
-
-def get_query_result(query, params=None, fetch_one=False):
-    """Get a query result from the database.
-
-    Parameters
-    ----------
-    query : str
-        The query to execute.
-    params : list, optional
-        The parameters to pass to the query.
-    fetch_one : bool, optional
-        Whether to fetch only one result.
-
-    Returns
-    -------
-    list
-        A list of results.
-    """
-    conn = get_db_connection()
-    try:
-        with conn.cursor(dictionary=True) as cursor:
-            cursor.execute(query, params)
-            if fetch_one:
-                result = cursor.fetchone()
-            else:
-                result = cursor.fetchall()
-            # Ensure all results are read
-            cursor.fetchall()
-        return result
-    finally:
-        conn.close()
-
-
-def get_db_connection(with_db: bool = True) -> mysql.connector.connection.MySQLConnection:
-    """Get a database connection.
-
-    Parameters
-    ----------
-    with_db : bool, optional
-        Whether to connect to a database or just the server.
-
-    Returns
-    -------
-    mysql.connector.connection.MySQLConnection
-        A connection to the database.
-    """
-    try:
-        creds = load_config("db")
-        if with_db:
-            conn = mysql.connector.connect(
-                host=creds["host"],
-                user=creds["user"],
-                password=creds["password"],
-                database=creds["database"],
-            )
-        else:
-            conn = mysql.connector.connect(
-                host=creds["host"], user=creds["user"], password=creds["password"]
-            )
-        return conn
-    except mysql.connector.Error:
-        logging.exception("Database connection failed")
-        raise
+from app.models import (
+    db,
+    User,
+    Role,
+    Organisation,
+    Profile,
+)
 
 
 def check_mysql() -> tuple[bool, str]:
@@ -103,7 +26,7 @@ def check_mysql() -> tuple[bool, str]:
         A tuple with a boolean indicating success and a string with the message.
     """
     try:
-        get_query_result("SELECT 1", fetch_one=True)
+        db.session.execute("SELECT 1")
         return True, "MySQL is up and running."
     except mysql.connector.Error as e:
         logging.exception("MySQL check failed")
@@ -148,3 +71,81 @@ def perform_health_checks() -> list[str]:
         else:
             logging.debug(f"Health check passed ({check.__name__}): {message}")
     return errors
+
+
+def create_user(
+    email: str,
+    full_name: str | None = None,
+    org_name: str | None = None,
+    roles: list[str] | None = None,
+) -> User:
+    """Create a user."""
+    session = db.session
+    try:
+        user = User(email=email, full_name=full_name)
+        if org_name:
+            org = Organisation.query.filter_by(name=org_name).first()
+            if not org:
+                org = Organisation(name=org_name)
+                session.add(org)
+            user.organisation = org
+
+        if roles:
+            for role_name in roles:
+                role = Role.query.filter_by(name=role_name).first()
+                if role:
+                    user.roles.append(role)
+
+        session.add(user)
+        session.commit()
+
+        # Create an empty profile for the user
+        profile = Profile(user_id=user.id)
+        session.add(profile)
+        session.commit()
+
+        return user
+    except SQLAlchemyError as e:
+        session.rollback()
+        logging.exception("Failed to create user")
+        raise e
+
+
+def get_user_by_id(user_id: int) -> User | None:
+    """Get a user by their ID."""
+    return User.query.get(user_id)
+
+
+def update_user_profile(
+    user_id: int,
+    bio: str | None = None,
+    location: str | None = None,
+    birth_date: date | None = None,
+    avatar_url: str | None = None,
+) -> Profile:
+    """Update a user's profile."""
+    session = db.session
+    try:
+        profile = Profile.query.filter_by(user_id=user_id).first()
+        if not profile:
+            profile = Profile(user_id=user_id)
+            session.add(profile)
+
+        if bio is not None:
+            profile.bio = bio
+        if location is not None:
+            profile.location = location
+        if birth_date is not None:
+            profile.birth_date = birth_date
+        if avatar_url is not None:
+            profile.avatar_url = avatar_url
+
+        session.commit()
+        return profile
+    except SQLAlchemyError as e:
+        session.rollback()
+        logging.exception("Failed to update user profile")
+        raise e
+
+
+# Additional helper functions can be similarly refactored to use ORM

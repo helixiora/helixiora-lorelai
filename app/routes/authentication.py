@@ -26,26 +26,20 @@ from flask import Blueprint, flash, g, jsonify, redirect, render_template, reque
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from flask_login import login_required, login_user, logout_user, current_user
 import time
 
 import requests as lib_requests
 
+from app.models import User, UserLogin, UserAuth, db, GoogleDriveItem, Organisation
+
 from app.helpers.users import (
-    user_is_logged_in,
     is_admin,
-    get_org_id_by_userid,
-    get_organisation_by_org_id,
-    get_user_id_by_email,
-    get_user_role_by_id,
-    org_exists_by_name,
     validate_form,
     register_user_to_org,
-    get_user_current_plan,
 )
-from app.helpers.database import get_db_connection, get_query_result
 
 from lorelai.utils import load_config
-
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -71,12 +65,9 @@ def refresh_google_token_if_needed(access_token):
         refresh_token = session.get("refresh_token")
         logging.debug("Refreshing token for user %s: %s", session["user_id"], refresh_token)
         if not refresh_token or refresh_token is None:
-            result = get_query_result(
-                "SELECT auth_value FROM user_auth WHERE user_id = %s AND \
-                    auth_key = 'refresh_token'",
-                (session["user_id"],),
-                fetch_one=True,
-            )
+            result = UserAuth.query.filter_by(
+                user_id=current_user.id, auth_key="refresh_token"
+            ).first()
             if not result:
                 logging.error("No refresh token found for user %s", session["user_id"])
                 return None
@@ -98,31 +89,44 @@ def refresh_google_token_if_needed(access_token):
                 # If the refresh token is not returned, use the existing one
                 new_tokens["refresh_token"] = refresh_token
 
+            user_auth = UserAuth.query.filter_by(
+                user_id=current_user.id, auth_key="refresh_token"
+            ).first()
+            if user_auth:
+                user_auth.auth_value = new_tokens["refresh_token"]
+            else:
+                user_auth = UserAuth(
+                    user_id=current_user.id,
+                    auth_key="refresh_token",
+                    auth_value=new_tokens["refresh_token"],
+                )
+                db.session.add(user_auth)
+
+            db.session.commit()
+
+            return new_tokens["access_token"]
+        else:
             store_access_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
                 AND auth_key = 'access_token'"
             store_refresh_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
                 AND auth_key = 'refresh_token'"
-            db = get_db_connection()
-            cursor = db.cursor()
             try:
-                cursor.execute(
+                db.session.execute(
                     store_access_token_query, (new_tokens["access_token"], session["user_id"])
                 )
-                cursor.execute(
+                db.session.execute(
                     store_refresh_token_query, (new_tokens["refresh_token"], session["user_id"])
                 )
-                db.commit()
+                db.session.commit()
             finally:
-                cursor.close()
                 db.close()
 
             return new_tokens["access_token"]
-        else:
-            return None
     return access_token
 
 
 @auth_bp.route("/profile")
+@login_required
 def profile():
     """Return the profile page.
 
@@ -131,15 +135,15 @@ def profile():
         str: The profile page.
     """
     # only proceed if the user is logged in
-    if user_is_logged_in(session):
-        is_admin_status = is_admin(session["user_id"])
+    if current_user.is_authenticated:
+        is_admin_status = is_admin(current_user.id)
         user = {
-            "user_id": session["user_id"],
-            "email": session["user_email"],
-            "username": session["user_username"],
-            "full_name": session["user_fullname"],
-            "organisation": session.get("org_name"),
-            "roles": session.get("user_roles"),
+            "user_id": current_user.id,
+            "email": current_user.email,
+            "username": current_user.user_name,
+            "full_name": current_user.full_name,
+            "organisation": current_user.organisation.name,
+            "roles": current_user.roles,
         }
         googlesettings = load_config("google")
         google_client_id = googlesettings["client_id"]
@@ -150,20 +154,19 @@ def profile():
 
         # Get the user's Google access token from the database if it's not in the session
         if session.get("access_token") is None:
-            result = get_query_result(
-                "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token'",
-                (session["user_id"],),
-                fetch_one=True,
-            )
+            result = UserAuth.query.filter_by(
+                user_id=current_user.id, auth_key="access_token"
+            ).first()
+
             # if there is no result, the user has not authenticated with Google (yet)
             if result:
-                logging.info("Access token found in user_auth for user %s", session["user_id"])
-                access_token = result["auth_value"]
+                logging.info("Access token found in user_auth for user %s", current_user.id)
+                access_token = result.auth_value
             else:
-                logging.info("No access token found in user_auth for user %s", session["user_id"])
+                logging.info("No access token found in user_auth for user %s", current_user.id)
                 access_token = None
         else:
-            logging.info("Access token found in session for user %s", session["user_id"])
+            logging.info("Access token found in session for user %s", current_user.id)
             access_token = session.get("access_token")
 
         if access_token:
@@ -171,12 +174,8 @@ def profile():
             access_token = refresh_google_token_if_needed(access_token)
 
         if int(g.features["google_drive"]) == 1:
-            google_docs_to_index = get_query_result(
-                query="SELECT google_drive_id, item_name, mime_type, item_type, last_indexed_at \
-                    FROM google_drive_items WHERE user_id = %s",
-                params=(session["user_id"],),
-                fetch_one=False,
-            )
+            google_docs_to_index = GoogleDriveItem.query.filter_by(user_id=current_user.id).all()
+
             logging.info(
                 "Google Drive feature is enabled. Found %s items to index.",
                 len(google_docs_to_index),
@@ -250,7 +249,9 @@ def register_post():
 
     logging.info("Registering user: %s with google_id: %s", email, google_id)
 
-    if org_exists_by_name(organisation):
+    org = Organisation.query.filter_by(name=organisation).first()
+    if not org:
+        flash("Organisation does not exist. Please contact admin.", "danger")
         return redirect(url_for("org_exists"))
 
     missing = validate_form(email=email, name=full_name, organisation=organisation)
@@ -304,57 +305,15 @@ def login():
     id_token_received = request.form.get("credential")
     csrf_token = request.form.get("g_csrf_token")
 
-    # use this token to verify the user's identity
-    idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
-
-    if not idinfo:
-        raise exceptions.GoogleAuthError("Invalid token")
-
-    # this function will raise an exception if the token is invalid
-    validate_id_token(idinfo, csrf_token=csrf_token)
-
-    # get some values from the info we got from google
-    logging.info("Info from token: %s", idinfo)
-    user_email = idinfo["email"]
-    username = idinfo["name"]
-    user_full_name = idinfo["name"]
-    google_id = idinfo["sub"]
-
-    # check if the user is already registered
-    user_id = get_user_id_by_email(user_email)
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
     try:
-        org_id = get_org_id_by_userid(cursor, user_id)
-        organisation = get_organisation_by_org_id(cursor, org_id)
+        # use this token to verify the user's identity
+        idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
 
-        # if we can't find the user, it means they are not registered
-        # redirect them to the registration page
-        if not user_id:
-            logging.info("User not registered: %s", user_email)
-            return redirect(
-                url_for(
-                    "auth.register_get", email=user_email, full_name=username, google_id=google_id
-                )
-            )
+        if not idinfo:
+            raise exceptions.GoogleAuthError("Invalid token")
 
-        # if we're still here, it means we found the user, so we log them in
-        logging.info("User logging in: %s", user_email)
-        login_user(
-            user_id=user_id,
-            user_email=user_email,
-            google_id=google_id,
-            username=username,
-            full_name=user_full_name,
-            org_id=org_id,
-            org_name=organisation,
-        )
-
-        logging.debug("Session: %s", session)
-
-        return redirect(url_for("chat.index"))
+        # this function will raise an exception if the token is invalid
+        validate_id_token(idinfo, csrf_token=csrf_token)
 
     except ValueError as e:
         logging.error("Invalid token: %s", e)
@@ -365,27 +324,53 @@ def login():
     except Exception as e:
         logging.exception("An error occurred: %s", e)
         return jsonify({"message": "An error occurred: " + str(e)}), 401
-    finally:
-        cursor.close()
-        conn.close()
+
+    # get some values from the info we got from google
+    logging.info("Info from token: %s", idinfo)
+    user_email = idinfo["email"]
+    username = idinfo["name"]
+    user_full_name = idinfo["name"]
+    google_id = idinfo["sub"]
+
+    # check if the user is already registered
+    user = User.query.filter_by(google_id=google_id).first()
+
+    if not user:
+        # if we can't find the user, it means they are not registered
+        # redirect them to the registration page
+        return redirect(
+            url_for("auth.register_get", email=user_email, full_name=username, google_id=google_id)
+        )
+
+    # if we're still here, it means we found the user, so we log them in
+    logging.info("User logging in: %s", user_email)
+    login_user_function(
+        user=user,
+        user_email=user_email,
+        google_id=google_id,
+        username=username,
+        full_name=user_full_name,
+    )
+
+    logging.debug("Session: %s", session)
+
+    return redirect(url_for("chat.index"))
 
 
-def login_user(
-    user_id: int,
+def login_user_function(
+    user: User,
     user_email: str,
     google_id: str,
     username: str,
     full_name: str,
-    org_id: int,
-    org_name: str,
 ):
     """
     Create a session for the user and update the user's Google ID in the database.
 
     Parameters
     ----------
-    user_id : int
-        The user ID.
+    user : User
+        The user.
     user_email : str
         The user email.
     google_id : str
@@ -394,55 +379,37 @@ def login_user(
         The username.
     full_name : str
         The full name.
-    org_id : int
-        The organisation ID.
-    org_name : str
-        The organisation name.
     """
     # Ensure all details are provided
-    if not all([user_id, user_email, google_id, username, full_name, org_id, org_name]):
+    if not all(
+        [
+            user,
+            user_email,
+            google_id,
+            username,
+            full_name,
+            user.organisation.id,
+            user.organisation.name,
+        ]
+    ):
         raise ValueError("All user and organization details must be provided.")
 
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        # TODO: We May need to change this logic, as we are setting same thing every time user logs
-        # in. Update the user's Google ID in the database
-        cursor.execute(
-            "UPDATE user SET google_id = %s, user_name = %s, full_name = %s \
-            WHERE user_id = %s",
-            (google_id, username, full_name, user_id),
-        )
+        user.google_id = google_id
+        user.user_name = username
+        user.full_name = full_name
+        db.session.commit()
 
         # login_type, it is not necessary now but in future when we add multiple login method
-        cursor.execute(
-            "INSERT INTO user_login (user_id, login_type) \
-            VALUES (%s, %s)",
-            (user_id, "google-oauth"),
-        )
-        conn.commit()
+        user_login = UserLogin(user_id=user.id, login_type="google-oauth")
+
+        db.session.add(user_login)
+        db.session.commit()
+        login_user(user)
 
     except Exception as e:
-        conn.rollback()
+        db.session.rollback()
         raise e
-    finally:
-        cursor.close()
-        conn.close()
-
-    # Get the user's roles
-    user_roles = get_user_role_by_id(user_id)
-    # get user # this also assign user to free plan if they have no plans
-    user_plan = get_user_current_plan(user_id)
-    # Setup the session
-    session["user_id"] = user_id
-    session["user_email"] = user_email
-    session["user_username"] = username
-    session["user_fullname"] = full_name
-    session["org_id"] = org_id
-    session["org_name"] = org_name
-    session["user_roles"] = user_roles
-    session["user_plan"] = user_plan
 
 
 def is_username_available(username: str) -> bool:
@@ -459,8 +426,11 @@ def is_username_available(username: str) -> bool:
     bool
         True if the username is available, False otherwise.
     """
-    user = get_query_result("SELECT 1 FROM user WHERE username = %s", (username,), fetch_one=True)
-    return not user
+    # check if the username is already taken
+    user = User.query.filter_by(user_name=username).first()
+    if user:
+        return False
+    return True
 
 
 def validate_id_token(idinfo: dict, csrf_token: str):
@@ -506,6 +476,7 @@ def validate_id_token(idinfo: dict, csrf_token: str):
 
 
 @auth_bp.route("/logout", methods=["GET"])
+@login_required
 def logout():
     """
     Logout route.
@@ -518,6 +489,7 @@ def logout():
         Redirects to the index page.
     """
     session.clear()
+    logout_user()
     flash("You have been logged out.")
 
     return redirect(url_for("chat.index"))

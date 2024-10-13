@@ -6,14 +6,15 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+
 # Association table for User and Role
-user_roles = db.Table(
-    "user_roles",
-    db.Column("user_id", db.Integer, db.ForeignKey("user.user_id"), primary_key=True),
-    db.Column(
-        "role_id", db.Integer, db.ForeignKey("roles.role_id"), primary_key=True
-    ),  # Ensure this references the correct table
-)
+class UserRole(db.Model):
+    """Model for a user role."""
+
+    __tablename__ = "user_roles"
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), primary_key=True)
+    role_id = db.Column(db.Integer, db.ForeignKey("roles.role_id"), primary_key=True)
 
 
 class ChatMessage(db.Model):
@@ -79,7 +80,7 @@ class Organisation(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(255), unique=True, nullable=False)
 
-    users = db.relationship("User", backref="organisation", lazy=True)
+    users = db.relationship("User", back_populates="organisation", lazy=True)
 
     def __repr__(self):
         """Return a string representation of the organisation."""
@@ -133,7 +134,7 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, name="role_id")
     name = db.Column(db.String(255), unique=True, nullable=False, name="role_name")
 
-    users = db.relationship("User", secondary=user_roles, back_populates="roles")
+    users = db.relationship("User", secondary="user_roles", back_populates="roles")
 
     def __repr__(self):
         """Return a string representation of the role."""
@@ -155,10 +156,12 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     profile = db.relationship("Profile", back_populates="user", uselist=False)
-    roles = db.relationship("Role", secondary=user_roles, back_populates="users")
+    roles = db.relationship("Role", secondary="user_roles", back_populates="users")
     # api_tokens = db.relationship("APIToken", backref="owner", lazy=True)
     user_plans = db.relationship("UserPlan", backref="user", lazy=True)
     logins = db.relationship("UserLogin", backref="user", lazy=True)
+
+    organisation = db.relationship("Organisation", back_populates="users", lazy=True)
 
     def __repr__(self):
         """Return a string representation of the user."""
@@ -169,10 +172,25 @@ class User(UserMixin, db.Model):
         return any(role.name == role_name for role in self.roles)
 
 
+class UserAuth(db.Model):
+    """Model for a user auth."""
+
+    __tablename__ = "user_auth"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True, name="user_auth_id")
+    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
+    datasource_id = db.Column(
+        db.Integer, db.ForeignKey("datasources.datasource_id"), nullable=False
+    )
+    auth_key = db.Column(db.String(255), nullable=False)
+    auth_value = db.Column(db.String(255), nullable=False)
+    auth_type = db.Column(db.String(255), nullable=False)
+
+
 class UserLogin(db.Model):
     """Model for a user login."""
 
-    __tablename__ = "user_logins"
+    __tablename__ = "user_login"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)

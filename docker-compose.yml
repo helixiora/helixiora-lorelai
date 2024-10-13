@@ -46,8 +46,8 @@ services:
       - DB_DATABASE=lorelai
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./cert.pem:/app/cert.pem
-      - ./key.pem:/app/key.pem
+      - ./cert.pem:/cert.pem
+      - ./key.pem:/key.pem
       - ./:/app
     ports:
       - "127.0.0.1:5000:5000"

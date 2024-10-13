@@ -4,11 +4,10 @@ import logging
 from datetime import datetime
 
 from functools import wraps
-import mysql
 
 from flask import redirect, session, url_for
 
-from app.helpers.database import get_db_connection, get_query_result
+from app.models import User, Organisation, Profile, Role, UserRole, db
 
 
 def is_org_admin(user_id: int) -> bool:
@@ -24,9 +23,8 @@ def is_org_admin(user_id: int) -> bool:
     bool
         True if the user is an organization admin, False otherwise.
     """
-    if "org_admin" in session["user_roles"]:
-        return True
-    return False
+    user = User.query.get(user_id)
+    return user.has_role("org_admin") if user else False
 
 
 def is_super_admin(user_id: int) -> bool:
@@ -42,9 +40,8 @@ def is_super_admin(user_id: int) -> bool:
     bool
         True if the user is a super admin, False otherwise.
     """
-    if "super_admin" in session["user_roles"]:
-        return True
-    return False
+    user = User.query.get(user_id)
+    return user.has_role("super_admin") if user else False
 
 
 def is_admin(user_id: int) -> bool:
@@ -60,10 +57,8 @@ def is_admin(user_id: int) -> bool:
     bool
         True if the user is an admin (both super and org), False otherwise.
     """
-    admin_roles = ["org_admin", "super_admin"]
-    if any(role in admin_roles for role in session["user_roles"]):
-        return True
-    return False
+    user = User.query.get(user_id)
+    return user.has_role("org_admin") or user.has_role("super_admin") if user else False
 
 
 def role_required(role_name_list):
@@ -87,211 +82,6 @@ def role_required(role_name_list):
         return decorated_function
 
     return wrapper
-
-
-def get_user_role_by_id(user_id: str):
-    """Get the role of a user by email."""
-    with get_db_connection() as db:
-        try:
-            cursor = db.cursor()
-            query = """
-                SELECT roles.role_name
-                FROM user
-                JOIN user_roles ON user.user_id = user_roles.user_id
-                JOIN roles ON user_roles.role_id = roles.role_id
-                WHERE user.user_id = %s;
-            """
-            cursor.execute(query, (user_id,))
-            roles = cursor.fetchall()
-            role_names = [role[0] for role in roles]
-            return role_names
-
-        except Exception:
-            logging.critical(f"{user_id} has no role assigned")
-            raise ValueError(f"{user_id} has no role assigned") from None
-
-
-def user_is_logged_in(session) -> bool:
-    """Check if the user is logged in.
-
-    Yhis is very simple now but might be more complex later. Using a function for maintainability
-
-    Parameters
-    ----------
-    session : dict
-        The session object.
-
-    Returns
-    -------
-    bool
-        True if the user is logged in, False otherwise.
-    """
-    return "user_id" in session
-
-
-def get_users(org_id: int = None) -> list[dict] | None:
-    """Get the list of users from the user table.
-
-    If an org_id is provided, only users from that organization are returned.
-
-    Parameters
-    ----------
-    org_id : int, optional
-        The organization ID.
-
-    Returns
-    -------
-    list[dict] | None
-        A list of dictionaries containing the users.
-    """
-    if org_id:
-        users = get_query_result(
-            "SELECT u.user_id, u.email, u.user_name, o.name as organisation \
-            FROM \
-                user u \
-            LEFT JOIN \
-                organisation o on u.org_id = o.id \
-            WHERE \
-                u.org_id = %s",
-            (org_id,),
-        )
-    else:
-        users = get_query_result(
-            "SELECT \
-                u.user_id, u.email, u.user_name, o.name as organisation \
-            FROM \
-                user u \
-            LEFT JOIN \
-                organisation o on u.org_id = o.id"
-        )
-
-    # go through all users and add their roles as a list
-    for user in users:
-        user["roles"] = get_user_role_by_id(user["user_id"])
-
-    return users if users else None
-
-
-def get_user_id_by_email(email: str) -> int:
-    """
-    Get the user ID by email.
-
-    Parameters
-    ----------
-    email : str
-        The email of the user.
-
-    Returns
-    -------
-    int
-        The user ID.
-    """
-    result = get_query_result("SELECT user_id FROM user WHERE email = %s", (email,), fetch_one=True)
-    return result["user_id"] if result else None
-
-
-def get_organisation_by_org_id(cursor, org_id: int):
-    """Get the organization name by ID."""
-    org_result = get_query_result(
-        "SELECT name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
-    )
-    if org_result:
-        return org_result["name"]
-
-    return None
-
-
-def get_org_id_by_userid(cursor, user_id: int):
-    """Get the organization ID for a user."""
-    org_result = get_query_result(
-        "SELECT org_id FROM user WHERE user_id = %s", (user_id,), fetch_one=True
-    )
-
-    if org_result:
-        return org_result["org_id"]
-
-    return None
-
-
-def get_org_id_by_organisation(
-    conn: mysql.connector.connection.MySQLConnection,
-    organisation: str,
-    create_if_not_exists: bool = False,
-) -> (int, bool):
-    """
-    Get the organization ID, inserting the organization if it does not exist.
-
-    Parameters
-    ----------
-    conn : mysql.connector.connection.MySQLConnection
-        The connection to the database.
-    organisation : str
-        The name of the organisation.
-    create_if_not_exists : bool, optional
-        Whether to create the organisation if it does not exist (default is False).
-
-    Returns
-    -------
-    tuple
-        A tuple containing:
-        - int: The organisation ID.
-        - bool: Whether the organisation was created.
-    """
-    try:
-        cursor = conn.cursor(dictionary=True)
-        # Query to find the organization by name
-        query = "SELECT id FROM organisation WHERE name = %s"
-        cursor.execute(query, (organisation,))
-        org_result = cursor.fetchone()
-
-        if org_result:
-            logging.debug("Organisation found: %s", org_result["id"])
-            return org_result["id"], False
-
-        if create_if_not_exists:
-            logging.debug("Creating organisation: %s", organisation)
-            cursor = conn.cursor(dictionary=False)
-            insert_query = "INSERT INTO organisation (name) VALUES (%s)"
-            cursor.execute(insert_query, (organisation,))
-            conn.commit()
-            return cursor.lastrowid, True
-
-        logging.debug("Organisation not found and not created: %s", organisation)
-        return None, False
-
-    except Exception as e:
-        logging.error("Error occurred while getting or creating organisation: %s", e)
-        raise
-
-
-def get_user_email_by_id(cursor, user_id: int):
-    """Get the email of a user by ID."""
-    cursor.execute("SELECT email FROM user WHERE user_id = %s", (user_id,))
-    user_result = cursor.fetchone()
-    if user_result:
-        return user_result["email"]
-
-    logging.error("No user found for user id: %s", user_id)
-    raise ValueError(f"No user found for user id: {user_id}")
-
-
-def org_exists_by_name(org_name):
-    """Get the list of datasources from datasource table."""
-    with get_db_connection() as db:
-        try:
-            cursor = db.cursor()
-            query = """
-                SELECT name
-                FROM organisation WHERE name = %s;
-            """
-            cursor.execute(query, (org_name,))
-            result = cursor.fetchone()
-
-            return result is not None
-
-        except Exception as e:
-            logging.error(e)
-            raise e
 
 
 def create_invited_user_in_db(email: str, org_name: str):
@@ -322,31 +112,13 @@ def create_invited_user_in_db(email: str, org_name: str):
         Exception: If any other error occurs during the database operations.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            org_id, _ = get_org_id_by_organisation(db, org_name)
-            if org_id is None:
-                raise ValueError(f"Org_id for {org_name} not found")
+        # create the user
+        user = User(email=email, organisation=org_name)
+        user.roles.append(Role.query.filter_by(name="user").first())
+        db.session.add(user)
+        db.session.commit()
 
-            # user table
-            query = "INSERT IGNORE INTO user (org_id, email) VALUES (%s, %s)"
-            user_data = (
-                org_id,
-                email,
-            )
-            cursor.execute(query, user_data)
-            user_id = cursor.lastrowid
-
-            # user role
-            query = "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)"
-            role_data = (
-                user_id,
-                3,
-            )
-            cursor.execute(query, role_data)
-
-            db.commit()
-            return True
+        return True
     except Exception as e:
         logging.error(e)
         raise e
@@ -375,64 +147,57 @@ def register_user_to_org(
         A tuple containing a boolean indicating success, a message, the user ID, and the
         organisation ID.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
     try:
         # check if the organisation exists
-        org_id, created_new_org = get_org_id_by_organisation(
-            conn=conn, organisation=organisation, create_if_not_exists=True
-        )
+        org = Organisation.query.filter_by(name=organisation).first()
+        if not org:
+            # create the organisation
+            try:
+                org = Organisation(name=organisation)
+                db.session.add(org)
+                db.session.commit()
+                created_new_org = True
+
+            except Exception as e:
+                created_new_org = False
+                db.session.rollback()
+                logging.error(e)
+                raise e
+        else:
+            created_new_org = False
 
         # insert the user
-        user_id, user_created_success = insert_user(
-            cursor, org_id, full_name, email, full_name, google_id
-        )
+        try:
+            user = User(email=email, organisation=org)
+            user.roles.append(Role.query.filter_by(name="user").first())
+            db.session.add(user)
+            db.session.commit()
+            user_created_success = True
+        except Exception as e:
+            user_created_success = False
+            db.session.rollback()
+            logging.error(e)
+            raise e
 
         # if created = True, this is the first user of the org so make them an org_admin by
         # inserting a record in the user_roles table
         if user_created_success and created_new_org:
             # get the role_id of the org_admin role
-            cursor.execute("SELECT role_id FROM roles WHERE role_name = 'org_admin'")
-            result = cursor.fetchone()
-            if not result:
+            role = Role.query.filter_by(name="org_admin").first()
+            if not role:
                 raise ValueError("Role 'org_admin' not found in the database.")
-            role_id = result["role_id"]
+            role_id = role.id
 
-            cursor.execute(
-                "INSERT INTO user_roles (user_id, role_id) VALUES (%s, %s)",
-                (user_id, role_id),
-            )
+            user_role = UserRole(user_id=user.id, role_id=role_id)
+            db.session.add(user_role)
+            db.session.commit()
 
-        conn.commit()
-
-        return True, "Registration successful!", user_id, org_id
+        return True, "Registration successful!", user.id, org.id
 
     except Exception as e:
         logging.error("An error occurred: %s", e)
-        conn.rollback()
+        db.session.rollback()
         return False, f"An error occurred: {e}", -1
-
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def insert_user(
-    cursor, org_id: int, name: str, email: str, full_name: str, google_id: str
-) -> (int, bool):
-    """Insert a new user and return the user ID."""
-    cursor.execute(
-        "INSERT INTO user (org_id, user_name, email, full_name, google_id) \
-            VALUES (%s, %s, %s, %s, %s)",
-        (org_id, name, email, full_name, google_id),
-    )
-
-    # return lastrowid if the insert was successful
-    user_id = cursor.lastrowid
-    if user_id:
-        return user_id, True
-    return -1, False
 
 
 def validate_form(email: str, name: str, organisation: str):
@@ -481,35 +246,30 @@ def add_new_plan_user(user_id: int, plan_id: int):
         Exception: If there is an error during the database query.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
+        # Calculate the start and end dates for the new plan
+        start_date = datetime.now().date()
 
-            # Calculate the start and end dates for the new plan
-            start_date = datetime.now().date()
+        # Set is_active to FALSE for existing plans for the same user
+        update_existing_plans_query = """
+        UPDATE user_plans
+        SET is_active = FALSE
+        WHERE user_id = %s AND is_active = TRUE;
+        """
+        db.session.execute(update_existing_plans_query, (user_id,))
 
-            # Set is_active to FALSE for existing plans for the same user
-            update_existing_plans_query = """
-            UPDATE user_plans
-            SET is_active = FALSE
-            WHERE user_id = %s AND is_active = TRUE;
-            """
-            cursor.execute(update_existing_plans_query, (user_id,))
+        # Insert the new plan for the user
+        insert_new_plan_query = """
+        INSERT INTO user_plans (user_id, plan_id, start_date)
+        VALUES (%s, %s, %s);
+        """
+        db.session.execute(insert_new_plan_query, (user_id, plan_id, start_date))
 
-            # Insert the new plan for the user
-            insert_new_plan_query = """
-            INSERT INTO user_plans (user_id, plan_id, start_date)
-            VALUES (%s, %s, %s);
-            """
-            cursor.execute(insert_new_plan_query, (user_id, plan_id, start_date))
-
-            db.commit()
-            return True
+        db.session.commit()
+        return True
     except Exception as e:
         logging.error(f"Error adding new plan for user {user_id}: {e}")
-        db.rollback()
+        db.session.rollback()
         raise e
-    finally:
-        cursor.close()
 
 
 def get_user_current_plan(user_id: int):
@@ -524,49 +284,158 @@ def get_user_current_plan(user_id: int):
         str: The current plan name. Returns 'free' if assigned or False if an error occurs.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
+        # SQL query to get the current plan for the user
+        query = """
+            SELECT
+                p.plan_name AS plan_name
+            FROM
+                user_plans up
+            JOIN
+                plans p ON up.plan_id = p.plan_id
+            WHERE
+                up.user_id = %s
+                AND up.is_active = TRUE
+                AND CURDATE() BETWEEN up.start_date AND up.end_date
+            LIMIT 1;
+        """
 
-            # SQL query to get the current plan for the user
-            query = """
-                SELECT
-                    p.plan_name AS plan_name
-                FROM
-                    user_plans up
-                JOIN
-                    plans p ON up.plan_id = p.plan_id
-                WHERE
-                    up.user_id = %s
-                    AND up.is_active = TRUE
-                    AND CURDATE() BETWEEN up.start_date AND up.end_date
+        # Execute the query with the provided user_id
+        result = db.session.execute(query, (user_id,)).fetchone()
+
+        if result:
+            return result[0]  # Return the current plan_name
+        else:
+            # No active plan, assign the 'free' plan
+            # Get the free plan's plan_id from the plans table
+            query_get_free_plan = """
+                SELECT plan_id
+                FROM plans
+                WHERE plan_name = 'free'
                 LIMIT 1;
             """
+            free_plan_result = db.session.execute(query_get_free_plan).fetchone()
 
-            # Execute the query with the provided user_id
-            cursor.execute(query, (user_id,))
-            result = cursor.fetchone()
-
-            if result:
-                return result[0]  # Return the current plan_name
-            else:
-                # No active plan, assign the 'free' plan
-                # Get the free plan's plan_id from the plans table
-                query_get_free_plan = """
-                    SELECT plan_id
-                    FROM plans
-                    WHERE plan_name = 'free'
-                    LIMIT 1;
-                """
-                cursor.execute(query_get_free_plan)
-                free_plan_result = cursor.fetchone()
-
-                if free_plan_result:
-                    free_plan_id = free_plan_result[0]
-                    add_new_plan_user(user_id=user_id, plan_id=free_plan_id)
-                    return "free"  # Return 'free' as the assigned plan
+            if free_plan_result:
+                free_plan_id = free_plan_result[0]
+                add_new_plan_user(user_id=user_id, plan_id=free_plan_id)
+                return "free"  # Return 'free' as the assigned plan
 
     except Exception as e:
         logging.error(f"Error get_user_current_plan for userid {user_id}: {e}")
         return False
-    finally:
-        cursor.close()
+
+
+def create_user(email, full_name=None, org_name=None, roles=None):
+    """Create a user."""
+    user = User(email=email, full_name=full_name)
+    if org_name:
+        org = Organisation.query.filter_by(name=org_name).first()
+        if not org:
+            org = Organisation(name=org_name)
+            db.session.add(org)
+        user.organisation = org
+
+    if roles:
+        for role_name in roles:
+            role = Role.query.filter_by(name=role_name).first()
+            if role:
+                user.roles.append(role)
+
+    db.session.add(user)
+    db.session.commit()
+
+    # Create an empty profile for the user
+    profile = Profile(user_id=user.id)
+    db.session.add(profile)
+    db.session.commit()
+
+    return user
+
+
+def get_user_profile(user_id):
+    """Get a user's profile."""
+    return Profile.query.filter_by(user_id=user_id).first()
+
+
+def update_user_profile(user_id, bio=None, location=None, birth_date=None, avatar_url=None):
+    """Update a user's profile."""
+    profile = Profile.query.filter_by(user_id=user_id).first()
+    if not profile:
+        profile = Profile(user_id=user_id)
+        db.session.add(profile)
+
+    if bio is not None:
+        profile.bio = bio
+    if location is not None:
+        profile.location = location
+    if birth_date is not None:
+        profile.birth_date = datetime.strptime(birth_date, "%Y-%m-%d").date()
+    if avatar_url is not None:
+        profile.avatar_url = avatar_url
+
+    db.session.commit()
+    return profile
+
+
+def get_user_roles(user_id):
+    """Get a user's roles."""
+    user = User.query.get(user_id)
+    return [role.name for role in user.roles] if user else []
+
+
+def add_user_role(user_id, role_name):
+    """Add a role to a user."""
+    user = User.query.get(user_id)
+    role = Role.query.filter_by(name=role_name).first()
+    if user and role:
+        user.roles.append(role)
+        db.session.commit()
+        return True
+    return False
+
+
+def remove_user_role(user_id, role_name):
+    """Remove a role from a user."""
+    user = User.query.get(user_id)
+    role = Role.query.filter_by(name=role_name).first()
+    if user and role and role in user.roles:
+        user.roles.remove(role)
+        db.session.commit()
+        return True
+    return False
+
+
+# def create_api_token(user_id, token_name, expires_in_days=30):
+#     """Create an API token for a user."""
+#     user = User.query.get(user_id)
+#     if user:
+#         token = APIToken(user=user, name=token_name, expires_in_days=expires_in_days)
+#         db.session.add(token)
+#         db.session.commit()
+#         return token
+#     return None
+
+
+# def get_user_api_tokens(user_id):
+#     """Get a user's API tokens."""
+#     return APIToken.query.filter_by(user_id=user_id).all()
+
+
+# def revoke_api_token(token_id, user_id):
+#     """Revoke an API token for a user."""
+#     token = APIToken.query.filter_by(id=token_id, user_id=user_id).first()
+#     if token:
+#         db.session.delete(token)
+#         db.session.commit()
+#         return True
+#     return False
+
+
+# def validate_api_token(token):
+#     """Validate an API token."""
+#     api_token = APIToken.query.filter_by(token=token).first()
+#     if api_token and api_token.is_valid():
+#         api_token.last_used_at = datetime.utcnow()
+#         db.session.commit()
+#         return api_token.user
+#     return None

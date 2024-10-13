@@ -1,12 +1,10 @@
 """Contains the routes for the admin page."""
 
 import logging
-import os
+
 from datetime import datetime
-import mysql.connector
 from flask import (
     Blueprint,
-    current_app,
     jsonify,
     render_template,
     session,
@@ -15,8 +13,13 @@ from flask import (
     flash,
     redirect,
 )
+
+from flask_login import login_required, current_user
 from redis import Redis
 from rq import Queue
+from sqlalchemy.exc import SQLAlchemyError
+
+import mysql
 
 from app.tasks import run_indexer, run_slack_indexer
 
@@ -24,38 +27,75 @@ from app.helpers.users import (
     is_super_admin,
     is_org_admin,
     is_admin,
-    user_is_logged_in,
-    get_users,
     role_required,
     create_invited_user_in_db,
+    update_user_profile,
+    get_user_profile,
+    get_user_roles,
+    add_user_role,
+    remove_user_role,
 )
-from app.helpers.database import get_db_connection, get_query_result, run_flyway_migrations
+from app.helpers.database import create_user
 from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_GOOGLE_DRIVE
 
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
+from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem
+from app.schemas import UserSchema
+from pydantic import ValidationError
 
 admin_bp = Blueprint("admin", __name__)
 
 
-@admin_bp.route("/admin")
-@role_required(["super_admin", "org_admin"])
-def admin():
+@admin_bp.route("/admin", methods=["GET"])
+@login_required
+def admin_dashboard():
     """Return the admin page.
 
     This page is only accessible to users who are admins.
     """
-    if is_super_admin(session["user_id"]):
-        users = get_users()
-    elif is_org_admin(session["user_id"]):
-        users = get_users(org_id=session["org_id"])
-    else:
-        users = None
+    if not current_user.is_admin:
+        return redirect(url_for("index"))
 
-    if user_is_logged_in(session) and is_admin(session["user_id"]):
-        return render_template("admin.html", is_admin=True, users=users)
+    try:
+        if current_user.has_role("super_admin"):
+            users = User.query.all()
+        elif current_user.has_role("org_admin"):
+            users = User.query.filter_by(org_id=current_user.org_id).all()
+        else:
+            users = []
 
-    return "You are not logged in!"
+        users_schema = [UserSchema.from_orm(user).dict() for user in users]
+        return render_template("admin.html", is_admin=True, users=users_schema)
+    except SQLAlchemyError:
+        flash("Failed to retrieve users.", "error")
+        return render_template("admin.html", is_admin=True, users=[])
+
+
+@admin_bp.route("/admin/create_user", methods=["POST"])
+@login_required
+def create_new_user():
+    """Create a new user."""
+    if not current_user.is_admin:
+        flash("Unauthorized access.", "error")
+        return redirect(url_for("index"))
+
+    data = request.get_json()
+    try:
+        user_data = UserSchema(**data)
+    except ValidationError as e:
+        return jsonify({"status": "error", "message": e.errors()}), 400
+
+    try:
+        user = create_user(
+            email=user_data.email,
+            full_name=user_data.full_name,
+            org_name=data.get("org_name"),
+            roles=[role.name for role in user_data.roles],
+        )
+        return jsonify({"status": "success", "user": UserSchema.from_orm(user).dict()}), 201
+    except SQLAlchemyError:
+        return jsonify({"status": "error", "message": "Failed to create user."}), 500
 
 
 @admin_bp.route("/admin/job-status/<job_id>")
@@ -170,15 +210,13 @@ def start_indexing(type) -> str:
         # we only need the current org
 
         if type in ["user", "organisation"]:
-            org_rows = get_query_result(
-                "SELECT id, name FROM organisation WHERE id = %s", (org_id,), fetch_one=True
-            )
+            org_rows = Organisation.query.filter_by(id=org_id)
             if not org_rows:
                 return jsonify({"error": "Organisation not found"}), 404
             org_rows = [org_rows]  # Ensure it's a list for consistent handling
         # If the type is all, we get all organisations
         elif type == "all":
-            org_rows = get_query_result("SELECT id, name FROM organisation")
+            org_rows = Organisation.query.all()
             if not org_rows:
                 return jsonify({"error": "No organisations found"}), 404
 
@@ -191,48 +229,31 @@ def start_indexing(type) -> str:
         for org_row in org_rows:
             # If the type is organisation or all, we get all users in the organisation
             if type in ["organisation", "all"]:
-                user_rows = get_query_result(
-                    "SELECT user_id, email FROM user WHERE org_id = %s", (org_row["id"],)
-                )
+                user_rows = User.query.filter_by(org_id=org_row.id)
             # If the type is user, we only get the current user
             elif type == "user":
-                user_rows = get_query_result(
-                    "SELECT user_id, email FROM user WHERE user_id = %s AND org_id = %s",
-                    (user_id, org_id),
-                )
+                user_rows = User.query.filter_by(user_id=user_id, org_id=org_id)
+
             # Only continue if we have users
             if user_rows:
                 user_auth_rows = []
                 user_data_rows = []
                 for user_row in user_rows:
                     # Get the user auth rows for the user
-                    user_auth_rows_for_user = get_query_result(
-                        "SELECT user_id, auth_key, auth_value, auth_type \
-                            FROM user_auth \
-                                WHERE user_id = %s AND datasource_id = %s",
-                        (user_row["user_id"], datasource_id),
+                    user_auth_rows_for_user = UserAuth.query.filter_by(
+                        user_id=user_row.user_id, datasource_id=datasource_id
                     )
                     user_auth_rows.extend(user_auth_rows_for_user)
 
-                    user_data_rows_for_user = get_query_result(
-                        "SELECT \
-                            user_id, \
-                            google_drive_id, \
-                            item_name, \
-                            mime_type, \
-                            item_type, \
-                            last_indexed_at \
-                        FROM \
-                            google_drive_items \
-                        WHERE \
-                            user_id = %s",
-                        (user_row["user_id"],),
+                    user_data_rows_for_user = GoogleDriveItem.query.filter_by(
+                        user_id=user_row.user_id, datasource_id=datasource_id
                     )
                     user_data_rows.extend(user_data_rows_for_user)
 
                     logging.debug(
-                        f"Starting indexing for user {user_row['email']} in org {org_row['name']}"
+                        f"Starting indexing for user {user_row.email} in org {org_row.name}"
                     )
+
                     job = queue.enqueue(
                         run_indexer,
                         org_row=org_row,
@@ -372,49 +393,49 @@ def setup_post() -> str:
     """
     msg = "<strong>Creating the database and running Flyway migrations.</strong><br/>"
     msg += "<pre style='font-family: monospace;'>"
-    cursor = None
-    conn = None
+    # cursor = None
+    # conn = None
 
     try:
         msg += "Connecting to MySQL...<br/>"
-        conn = get_db_connection(with_db=False)
-        msg += f"MySQL connection successful.<br/>{conn.get_server_info()}<br/>"
+        #     conn = get_db_connection(with_db=False)
+        #     msg += f"MySQL connection successful.<br/>{conn.get_server_info()}<br/>"
 
-        db_config = load_config("db")
-        db_name = db_config["database"]
-        dir_path = os.path.dirname(os.path.realpath(__file__ + "/../.."))
-        baseline_schema_path = os.path.join(dir_path, "db", "baseline_schema.sql")
+        #     db_config = load_config("db")
+        #     db_name = db_config["database"]
+        #     dir_path = os.path.dirname(os.path.realpath(__file__ + "/../.."))
+        #     baseline_schema_path = os.path.join(dir_path, "db", "baseline_schema.sql")
 
-        if not os.path.exists(baseline_schema_path):
-            raise FileNotFoundError(f"Baseline schema file not found at {baseline_schema_path}")
+        #     if not os.path.exists(baseline_schema_path):
+        #       raise FileNotFoundError(f"Baseline schema file not found at {baseline_schema_path}")
 
-        with open(baseline_schema_path) as file:
-            baseline_schema = file.read()
+        #     with open(baseline_schema_path) as file:
+        #         baseline_schema = file.read()
 
-        msg += "Creating the database...<br/>"
-        msg += f"Baseline schema loaded:<br/>{baseline_schema}<br/>"
+        #     msg += "Creating the database...<br/>"
+        #     msg += f"Baseline schema loaded:<br/>{baseline_schema}<br/>"
 
-        cursor = conn.cursor()
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
-        cursor.execute(f"USE {db_name}")
-        for result in cursor.execute(baseline_schema, multi=True):
-            if result.with_rows:
-                msg += f"Affected {result.rowcount} rows<br/>"
+        #     cursor = conn.cursor()
+        #     cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+        #     cursor.execute(f"USE {db_name}")
+        #     for result in cursor.execute(baseline_schema, multi=True):
+        #         if result.with_rows:
+        #             msg += f"Affected {result.rowcount} rows<br/>"
 
-        cursor.close()
-        conn.close()
+        #     cursor.close()
+        #     conn.close()
 
-        flyway_success, flyway_result = run_flyway_migrations(
-            db_config["host"],
-            db_name,
-            db_config["user"],
-            db_config["password"],
-        )
-        if flyway_success:
-            current_app.config["LORELAI_SETUP"] = False
-        msg += f"Flyway migrations completed. Flyway result:<br/>{flyway_result}<br/>"
+        #     flyway_success, flyway_result = run_flyway_migrations(
+        #         db_config["host"],
+        #         db_name,
+        #         db_config["user"],
+        #         db_config["password"],
+        #     )
+        #     if flyway_success:
+        #         current_app.config["LORELAI_SETUP"] = False
+        #     msg += f"Flyway migrations completed. Flyway result:<br/>{flyway_result}<br/>"
 
-        msg += "</pre>"
+        # msg += "</pre>"
         return msg
 
     except FileNotFoundError as fnf_error:
@@ -426,11 +447,11 @@ def setup_post() -> str:
     except Exception as e:
         logging.error(f"An error occurred: {e}")
         return jsonify({"error": f"An error occurred: {e}"}), 500
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+    # finally:
+    #     if cursor:
+    #         cursor.close()
+    #     if conn:
+    #         conn.close()
 
 
 @admin_bp.route("/admin/invite_user", methods=["POST"])
@@ -495,25 +516,87 @@ def test_connection() -> str:
         If the connection to the MySQL database fails.
     """
     try:
-        conn = get_db_connection(with_db=False)
-        db_config = load_config("db")
-        msg = "<strong>Testing MySQL credentials without selecting the database.</strong><br/>"
-        msg += "MySQL connection successful with user credentials.<br/>"
-        msg += f"User: {db_config['user']}<br/>"
-        msg += f"Host: {db_config['host']}<br/>"
-
-        conn.database = db_config["database"]
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        msg += "MySQL database is found and can be connected to.<br/>"
-        cursor.close()
-        conn.close()
-
-        msg += "Please proceed to press 'Create Database'."
-        return msg
+        if db.session.execute("SELECT 1").fetchone():
+            return "Connected to database"
+        else:
+            return "Failed to connect to database"
     except mysql.connector.Error as e:
         if e.errno == 1049:
-            msg = f"{e.msg} (error {str(e.errno)})<br/>"
+            return f"{e.msg} (error {str(e.errno)})"
         else:
             raise
-    return msg
+
+
+@admin_bp.route("/profile", methods=["GET", "POST"])
+@login_required
+def user_profile():
+    """Manage the current user's profile."""
+    if request.method == "POST":
+        bio = request.form.get("bio")
+        location = request.form.get("location")
+        birth_date = request.form.get("birth_date")
+        avatar_url = request.form.get("avatar_url")
+
+        update_user_profile(current_user.id, bio, location, birth_date, avatar_url)
+        flash("Profile updated successfully", "success")
+        return redirect(url_for("admin.user_profile"))
+
+    profile = get_user_profile(current_user.id)
+    return render_template("admin/profile.html", profile=profile)
+
+
+@admin_bp.route("/admin/user/<int:user_id>/roles", methods=["GET", "POST"])
+@login_required
+@role_required(["super_admin", "org_admin"])
+def manage_user_roles(user_id):
+    """Manage user roles for a user."""
+    user = User.query.get_or_404(user_id)
+    all_roles = Role.query.all()
+
+    if request.method == "POST":
+        new_roles = request.form.getlist("roles")
+        current_roles = get_user_roles(user_id)
+
+        # Add new roles
+        for role in new_roles:
+            if role not in current_roles:
+                add_user_role(user_id, role)
+
+        # Remove roles that are not in the new list
+        for role in current_roles:
+            if role not in new_roles:
+                remove_user_role(user_id, role)
+
+        flash("User roles updated successfully", "success")
+        return redirect(url_for("admin.manage_user_roles", user_id=user_id))
+
+    user_roles = get_user_roles(user_id)
+    return render_template(
+        "admin/manage_user_roles.html", user=user, all_roles=all_roles, user_roles=user_roles
+    )
+
+
+# @admin_bp.route("/api-tokens", methods=["GET", "POST"])
+# @login_required
+# def manage_api_tokens():
+#     """Manage API tokens for the current user."""
+#     if request.method == "POST":
+#         token_name = request.form.get("token_name")
+#         if token_name:
+#             token = create_api_token(current_user.id, token_name)
+#           flash(f"API token '{token_name}' created successfully. Token: {token.token}", "success")
+#         return redirect(url_for("admin.manage_api_tokens"))
+
+#     tokens = get_user_api_tokens(current_user.id)
+#     return render_template("admin/api_tokens.html", tokens=tokens)
+
+
+# @admin_bp.route("/api-tokens/<int:token_id>/revoke", methods=["POST"])
+# @login_required
+# def revoke_token(token_id):
+#     """Revoke an API token for the current user."""
+#     if revoke_api_token(token_id, current_user.id):
+#         flash("API token revoked successfully", "success")
+#     else:
+#         flash("Failed to revoke API token", "error")
+#     return redirect(url_for("admin.manage_api_tokens"))

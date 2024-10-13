@@ -22,6 +22,11 @@ from flask import (
     request,
     url_for,
 )
+from flask_login import LoginManager
+
+from authlib.integrations.flask_client import OAuth
+
+from flask_wtf.csrf import generate_csrf
 
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
@@ -29,7 +34,7 @@ from app.routes.chat import chat_bp
 from app.routes.slack.authorization import slack_bp
 from app.routes.google.authorization import googledrive_bp
 
-from app.models import db
+from app.models import db, User
 from lorelai.utils import load_config
 
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -63,12 +68,26 @@ app.template_folder = "app/templates"
 app.static_folder = "app/static"
 
 
+# Initialize SQLAlchemy with the app
+db_settings = load_config("db")
+
+SQLALCHEMY_DATABASE_URI = f"mysql+mysqlconnector://{db_settings['user']}:{db_settings['password']}@{db_settings['host']}/{db_settings['database']}"
+app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
+
+db.init_app(app)
+
 # Apply ProxyFix to handle X-Forwarded-* headers
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
 # Get the log level from the environment variable
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
 
+# set up login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "chat.index"
+
+oauth = OAuth(app)
 
 # Set the log level using the mapping, defaulting to logging.INFO if not found
 app.logger.setLevel(logging.getLevelName(log_level))
@@ -88,20 +107,6 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(slack_bp)
 
-db_settings = load_config("db")
-
-# Initialize SQLAlchemy with the app
-SQLALCHEMY_DATABASE_URI = f"mysql+mysqlconnector://{db_settings['user']}:{db_settings['password']}@{db_settings['host']}/{db_settings['database']}"
-app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
-db.init_app(app)
-
-# run startup health checks. If there is a dependent service that is not running, we want to
-# know it asap and stop the app from running
-logging.debug("Running startup checks...")
-errors = perform_health_checks()
-if errors:
-    sys.exit(f"Startup checks failed: {errors}")
-
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
@@ -114,6 +119,21 @@ logging.info(
         "BASE_URL", "http://" + os.getenv("HOST", "localhost") + ":" + os.getenv("PORT", "5000")
     ),
 )
+
+
+# Move the health check inside a function that will be called after the app is fully initialized
+def run_health_checks():
+    """Run the health checks."""
+    with app.app_context():
+        errors = perform_health_checks()
+        if errors:
+            sys.exit(f"Startup checks failed: {errors}")
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Load the user from the database."""
+    return User.query.get(int(user_id))
 
 
 @app.route("/js/<script_name>.js")
@@ -274,6 +294,8 @@ def set_security_headers(response):
     response.headers["Cross-Origin-Opener-Policy"] = cross_origin_opener_policy
     response.headers["Content-Security-Policy"] = content_security_policy
 
+    response.set_cookie("csrf_token", value=generate_csrf(), secure=True, samesite="Strict")
+
     return response
 
 
@@ -329,5 +351,5 @@ def org_exists():
 
 
 if __name__ == "__main__":
-    logging.debug("Starting the app...")
+    run_health_checks()  # Run health checks before starting the app
     app.run(ssl_context=("cert.pem", "key.pem"))

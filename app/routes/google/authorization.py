@@ -26,10 +26,8 @@ from oauthlib.oauth2.rfc6749.errors import (
     InvalidRedirectURIError,
 )
 
-from app.helpers.database import get_db_connection
 from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_GOOGLE_DRIVE
-from lorelai.utils import load_config
-
+from lorelai.utils import load_config, get_db_connection
 
 googledrive_bp = Blueprint("googledrive", __name__)
 

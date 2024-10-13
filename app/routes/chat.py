@@ -14,8 +14,8 @@ from flask import (
 )
 from redis import Redis
 from rq import Queue
+from flask_login import login_required, current_user
 
-from app.helpers.users import user_is_logged_in
 from app.helpers.chat import get_chat_template_requirements, delete_thread
 from app.tasks import get_answer_from_rag
 from app.helpers.chat import get_all_thread_messages, can_send_message
@@ -24,65 +24,84 @@ from app.helpers.notifications import (
     mark_notification_as_read,
     mark_notification_as_dismissed,
 )
+from app.helpers.users import role_required
 from lorelai.utils import load_config
-from ulid import ULID
+from app.models import ChatThread, ChatMessage
+from pydantic import ValidationError
+from datetime import datetime
+import uuid
+from app.models import db
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
 
-# a get and post route for the chat page
+# a post route for chat messages
 @chat_bp.route("/api/chat", methods=["POST"])
+@role_required(["user", "org_admin", "super_admin"])
+@login_required
 def chat():
-    """Post messages to rq to process."""
-    content = request.get_json()
-    if not content or "message" not in content:
-        return jsonify({"status": "ERROR", "message": "Message is required"}), 400
+    """Post messages to RQ to process."""
+    try:
+        content = request.get_json()
+        if not content or "message" not in content:
+            return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
-    logging.info(
-        "Chat request received: %s from user %s", content["message"], session.get("user_email")
-    )
+        message_content = content["message"]
+        logging.info("Chat request received: %s from user %s", message_content, current_user.email)
 
-    user_id = session.get("user_id")
-    status = can_send_message(user_id=user_id)
-    if not status:
-        return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
+        user_id = current_user.id
+        if not can_send_message(user_id=user_id):
+            return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
 
-    redis = load_config("redis")
-    redis_host = redis["url"]
-    if not redis_host:
-        return jsonify({"status": "ERROR", "message": "Redis URL is not set"}), 500
-    redis_conn = Redis.from_url(redis_host)
-    queue = Queue(connection=redis_conn)
+        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
+        queue = Queue(connection=redis_conn)
 
-    lorelai_config = load_config("lorelai")
-    # set the chat task timeout to 20 seconds if not set
-    chat_task_timeout = lorelai_config["chat_task_timeout"] or 20
-
-    llm_model = "OpenAILlm"
-    # llm_model = "OllamaLlama3"
-
-    # if the thread_id is set in the session, use it; otherwise, create a new one
-    if "thread_id" in session:
-        thread_id = session["thread_id"]
-    else:
-        thread_id = str(ULID().to_uuid())
+        # Create or retrieve chat thread
+        thread_id = session.get("thread_id") or str(uuid.uuid4())
         session["thread_id"] = thread_id
 
-    # enqueue the chat task
-    job = queue.enqueue(
-        get_answer_from_rag,
-        thread_id,
-        content["message"],
-        session.get("user_id"),
-        session.get("user_email"),
-        session.get("org_name"),
-        llm_model,
-        job_timeout=chat_task_timeout,
-        description=f"Execute RAG+LLM model: {content['message']} for {session.get('user_email')} \
-            using {llm_model}",
-    )
+        thread = ChatThread.query.filter_by(thread_id=thread_id).first()
+        if not thread:
+            thread = ChatThread(thread_id=thread_id, user_id=user_id)
+            db.session.add(thread)
+            db.session.commit()
 
-    return jsonify({"job": job.get_id()}), 202
+        # Create chat message
+        chat_message = ChatMessage(
+            thread_id=thread_id,
+            sender="user",
+            message_content=message_content,
+            created_at=datetime.utcnow(),
+        )
+        db.session.add(chat_message)
+        db.session.commit()
+
+        # Enqueue task
+        job = queue.enqueue(
+            get_answer_from_rag,
+            thread_id,
+            message_content,
+            current_user.id,
+            current_user.email,
+            current_user.organisation,
+            model_type="OpenAILlm",
+        )
+        logging.info("Enqueued job for chat message %s", chat_message.id)
+
+        return jsonify(
+            {
+                "status": "success",
+                "message": "Your message is being processed.",
+                "job": job.id,
+                "thread_id": thread_id,
+            }
+        ), 200
+
+    except ValidationError as e:
+        return jsonify({"status": "ERROR", "message": e.errors()}), 400
+    except Exception:
+        logging.exception("An error occurred while processing chat message")
+        return jsonify({"status": "ERROR", "message": "An internal error occurred."}), 500
 
 
 @chat_bp.route("/api/chat", methods=["GET"])
@@ -213,16 +232,16 @@ def index():
         logging.info("App is not set up. Redirecting to /admin/setup")
         return redirect(url_for("admin.setup"))
 
-    # if the user_id is in the session, the user is logged in
-    # render the index_logged_in page
-    if user_is_logged_in(session):
+    # check if the user is logged in
+    if current_user.is_authenticated:
+        # render the index_logged_in page
         lorelai_settings = load_config("lorelai")
         thread_id = session.get("thread_id")
-        chat_template_requirements = get_chat_template_requirements(thread_id, session["user_id"])
+        chat_template_requirements = get_chat_template_requirements(thread_id, current_user.id)
 
         return render_template(
             "index_logged_in.html",
-            user_email=session["user_email"],
+            user_email=current_user.email,
             recent_conversations=chat_template_requirements["recent_conversations"],
             is_admin=chat_template_requirements["is_admin_status"],
             support_portal=lorelai_settings["support_portal"],
