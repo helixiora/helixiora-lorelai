@@ -6,15 +6,11 @@ import logging
 import os
 import sys
 
-import mysql.connector
 
 import sentry_sdk
 
 import app.helpers.notifications
 from app.helpers.database import (
-    get_db_connection,
-    run_flyway_migrations,
-    check_flyway,
     perform_health_checks,
 )
 
@@ -33,9 +29,8 @@ from app.routes.chat import chat_bp
 from app.routes.slack.authorization import slack_bp
 from app.routes.google.authorization import googledrive_bp
 
+from app.models import db
 from lorelai.utils import load_config
-
-from flask_debugtoolbar import DebugToolbarExtension
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -85,9 +80,7 @@ logging.basicConfig(format=logging_format)
 
 lorelai_settings = load_config("lorelai")
 app.secret_key = lorelai_settings["secret_key"]
-
-toolbar = DebugToolbarExtension(app)
-app.config["DEBUG_TB_PROFILER_ENABLED"] = True
+app.config["SECRET_KEY"] = lorelai_settings["secret_key"]
 
 app.register_blueprint(googledrive_bp)
 app.register_blueprint(admin_bp)
@@ -96,47 +89,18 @@ app.register_blueprint(chat_bp)
 app.register_blueprint(slack_bp)
 
 db_settings = load_config("db")
-dbname = db_settings["database"]
-# check if the database can be connected to
-db_exists = False
-try:
-    db = get_db_connection()
-    db_exists = True
-except mysql.connector.Error as e:
-    if e.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
-        print(f"Database does not exist: {e}")
-        app.config["LORELAI_SETUP"] = True
-    else:
-        raise
 
-if db_exists:
-    logging.info("Database connection successful, checking flyway version...")
-    flyway_ok, error = check_flyway()
-    # if the flyway is not ok, and the error contains 'not up to date with last migration'
-    # we will run the migrations
-    if not flyway_ok and "not up to date with" in error:
-        logging.info(f"Flyway not OK ({error}). Running flyway migrations...")
-        success, log = run_flyway_migrations(
-            host=db_settings["host"],
-            database=db_settings["database"],
-            user=db_settings["user"],
-            password=db_settings["password"],
-        )
+# Initialize SQLAlchemy with the app
+SQLALCHEMY_DATABASE_URI = f"mysql+mysqlconnector://{db_settings['user']}:{db_settings['password']}@{db_settings['host']}/{db_settings['database']}"
+app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
+db.init_app(app)
 
-        if not success:
-            logging.error(f"Flyway migrations failed: {log}")
-            sys.exit("Flyway migrations failed, exiting")
-        else:
-            logging.info("Flyway migrations successful")
-    else:
-        logging.info(f"Flyway is ok ({flyway_ok}) and up to date ({error})")
-
-    # run startup health checks. If there is a dependent service that is not running, we want to
-    # know it asap and stop the app from running
-    logging.debug("Running startup checks...")
-    errors = perform_health_checks()
-    if errors:
-        sys.exit(f"Startup checks failed: {errors}")
+# run startup health checks. If there is a dependent service that is not running, we want to
+# know it asap and stop the app from running
+logging.debug("Running startup checks...")
+errors = perform_health_checks()
+if errors:
+    sys.exit(f"Startup checks failed: {errors}")
 
 # Allow OAuthlib to use HTTP for local testing only
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
