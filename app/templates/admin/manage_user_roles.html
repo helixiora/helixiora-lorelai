@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Manage Roles for {{ user.email }}</h1>
+<form method="POST">
+    {% for role in all_roles %}
+    <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="roles" value="{{ role.name }}" id="role_{{ role.id }}"
+               {% if role.name in user_roles %}checked{% endif %}>
+        <label class="form-check-label" for="role_{{ role.id }}">
+            {{ role.name }}
+        </label>
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary mt-3">Update Roles</button>
+</form>
+{% endblock %}
