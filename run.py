@@ -58,6 +58,16 @@ sentry_sdk.init(
 
 app = Flask(__name__)
 
+# adjust the app name to be lorelai
+app.name = "lorelai"
+
+# adjust the location of the templates to be in the app folder
+app.template_folder = "app/templates"
+
+# adjust the location of the static folder to be in the app folder
+app.static_folder = "app/static"
+
+
 # Apply ProxyFix to handle X-Forwarded-* headers
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
