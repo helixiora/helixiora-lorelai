@@ -54,7 +54,8 @@ def admin_dashboard():
 
     This page is only accessible to users who are admins.
     """
-    UserSchema.model_validate(current_user)
+    UserSchema.model_validate(current_user)  # it does modify the current_user object in place
+
     if not current_user.is_admin:
         return redirect(url_for("index"))
 
