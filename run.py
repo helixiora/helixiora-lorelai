@@ -40,6 +40,11 @@ from lorelai.utils import load_config
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+# set the SCARF_NO_ANALYTICS environment variable to true to disable analytics
+# (among possible others the unstructured library uses to track usage)
+os.environ["SCARF_NO_ANALYTICS"] = "true"
+
+
 # this is a print on purpose (not a logger statement) to show that the app is loading
 # get the git commit hash, branch name and first line of the commit message and print it out
 print("Loading the app...")
