@@ -54,6 +54,7 @@ def admin_dashboard():
 
     This page is only accessible to users who are admins.
     """
+    UserSchema.model_validate(current_user)
     if not current_user.is_admin:
         return redirect(url_for("index"))
 
@@ -65,7 +66,8 @@ def admin_dashboard():
         else:
             users = []
 
-        users_schema = [UserSchema.from_orm(user).dict() for user in users]
+        users_schema = [UserSchema.model_validate(user).model_dump() for user in users]
+        print(users_schema)
         return render_template("admin.html", is_admin=True, users=users_schema)
     except SQLAlchemyError:
         flash("Failed to retrieve users.", "error")

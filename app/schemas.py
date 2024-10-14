@@ -1,7 +1,7 @@
 """Schemas for the app."""
 
 from datetime import date, datetime
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
 
 
 class ProfileSchema(BaseModel):
@@ -42,6 +42,16 @@ class UserSchema(BaseModel):
     is_admin: bool
     created_at: datetime
     roles: list[RoleSchema]
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_admin(cls, user: "UserSchema") -> "UserSchema":
+        """Check if the user has admin role."""
+        # Use dot notation to access the roles
+        roles = user.roles if user.roles else []
+        is_admin = any(role.name in ("org_admin", "super_admin") for role in roles)
+        user.is_admin = is_admin
+        return user
 
     class Config:
         """Config for the user schema."""
