@@ -23,6 +23,7 @@ from flask import (
     url_for,
 )
 from flask_login import LoginManager
+from flask_migrate import Migrate
 
 from authlib.integrations.flask_client import OAuth
 
@@ -75,6 +76,7 @@ SQLALCHEMY_DATABASE_URI = f"mysql+mysqlconnector://{db_settings['user']}:{db_set
 app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
 
 db.init_app(app)
+migrate = Migrate(app, db)
 
 # Apply ProxyFix to handle X-Forwarded-* headers
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
