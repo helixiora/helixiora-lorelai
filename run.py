@@ -5,8 +5,8 @@
 import logging
 import os
 import sys
-
-
+from datetime import timedelta
+from flask import jsonify
 import sentry_sdk
 
 import app.helpers.notifications
@@ -39,6 +39,8 @@ from app.models import db, User
 from lorelai.utils import load_config
 
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from flask_jwt_extended import JWTManager
 
 # set the SCARF_NO_ANALYTICS environment variable to true to disable analytics
 # (among possible others the unstructured library uses to track usage)
@@ -74,6 +76,20 @@ app.template_folder = "app/templates"
 app.static_folder = "app/static"
 
 
+# Initialize JWT
+app.config["JWT_SECRET_KEY"] = load_config("lorelai")[
+    "jwt_secret_key"
+]  # You need to add this to your config
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+app.config["JWT_COOKIE_SECURE"] = True
+app.config["JWT_COOKIE_SAMESITE"] = "Strict"
+app.config["JWT_COOKIE_HTTPONLY"] = True
+app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
+app.config["JWT_COOKIE_CSRF_PROTECT"] = True
+app.config["JWT_CSRF_CHECK_FORM"] = True
+jwt = JWTManager(app)
+
 # Initialize SQLAlchemy with the app
 db_settings = load_config("db")
 
@@ -82,6 +98,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
 
 db.init_app(app)
 migrate = Migrate(app, db)
+jwt = JWTManager(app)
 
 # Apply ProxyFix to handle X-Forwarded-* headers
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
@@ -355,6 +372,48 @@ def org_exists():
         </script>
     """  # noqa: E501
     )
+
+
+@jwt.unauthorized_loader
+def custom_unauthorized_response(_err):
+    """Handle unauthorized access."""
+    logging.error("Unauthorized access: %s", _err)
+    return jsonify({"msg": "Missing Authorization Header"}), 401
+
+
+@jwt.invalid_token_loader
+def custom_invalid_token_response(error_string):
+    """Handle invalid token."""
+    logging.error("Invalid token: %s", error_string)
+    return jsonify({"msg": f"Invalid token: {error_string}"}), 401
+
+
+@jwt.expired_token_loader
+def custom_expired_token_response(jwt_header, jwt_payload):
+    """Handle expired token."""
+    logging.error("Expired token: %s", jwt_payload)
+    return jsonify({"msg": "Token has expired"}), 401
+
+
+@jwt.needs_fresh_token_loader
+def custom_needs_fresh_token_response(error_string):
+    """Handle needs fresh token."""
+    logging.error("Needs fresh token: %s", error_string)
+    return jsonify({"msg": f"Needs fresh token: {error_string}"}), 401
+
+
+@jwt.revoked_token_loader
+def custom_revoked_token_response(error_string):
+    """Handle revoked token."""
+    logging.error("Revoked token: %s", error_string)
+    return jsonify({"msg": f"Revoked token: {error_string}"}), 401
+
+
+@jwt.user_lookup_loader
+def custom_user_lookup_loader(jwt_header, jwt_payload):
+    """Handle user lookup."""
+    logging.error("User lookup: %s", jwt_payload)
+    return jsonify({"msg": f"User lookup: {jwt_payload}"}), 401
 
 
 if __name__ == "__main__":

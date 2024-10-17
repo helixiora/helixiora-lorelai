@@ -22,7 +22,18 @@ References
 
 import logging
 
-from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    flash,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+    make_response,
+)
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
@@ -40,6 +51,13 @@ from app.helpers.users import (
 )
 
 from lorelai.utils import load_config
+
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    jwt_required,
+    get_jwt_identity,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -292,38 +310,35 @@ def login():
     Login route.
 
     This route is used to authenticate a user using Google's Identity Verification API.
-    The user sends a POST request with a JSON object containing the ID token received from Google.
+    The user sends a POST request with the ID token received from Google.
     The ID token is verified using Google's Identity Verification API and the user is authenticated.
     If the user is not registered, they are redirected to the registration page.
+    If authentication is successful, the user is redirected to the profile page.
+    If authentication fails, the user is redirected to the index page with an error message.
 
     Returns
     -------
-        JSON: A JSON object with a message indicating whether the user was authenticated
-        successfully.
+        redirect: Redirects to the appropriate page based on the authentication result.
     """
-    # get the received token from the JSON data that came from the web client
     id_token_received = request.form.get("credential")
-    csrf_token = request.form.get("g_csrf_token")
+    csrf_token = request.form.get("csrf_token")
 
     try:
-        # use this token to verify the user's identity
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
 
         if not idinfo:
             raise exceptions.GoogleAuthError("Invalid token")
 
-        # this function will raise an exception if the token is invalid
         validate_id_token(idinfo, csrf_token=csrf_token)
 
-    except ValueError as e:
-        logging.error("Invalid token: %s", e)
-        return jsonify({"message": "Error: " + str(e)}), 401
-    except exceptions.GoogleAuthError as e:
-        logging.error("Google Auth Error: %s", e)
-        return jsonify({"message": "Google Auth Error: " + str(e)}), 401
+    except (ValueError, exceptions.GoogleAuthError) as e:
+        logging.error("Authentication error: %s", str(e))
+        flash("Authentication failed: " + str(e), "error")
+        return redirect(url_for("chat.index"))
     except Exception as e:
-        logging.exception("An error occurred: %s", e)
-        return jsonify({"message": "An error occurred: " + str(e)}), 401
+        logging.exception("An unexpected error occurred: %s", e)
+        flash("An unexpected error occurred. Please try again later.", "error")
+        return redirect(url_for("chat.index"))
 
     # get some values from the info we got from google
     logging.info("Info from token: %s", idinfo)
@@ -342,9 +357,8 @@ def login():
             url_for("auth.register_get", email=user_email, full_name=username, google_id=google_id)
         )
 
-    # if we're still here, it means we found the user, so we log them in
     logging.info("User logging in: %s", user_email)
-    login_user_function(
+    login_success = login_user_function(
         user=user,
         user_email=user_email,
         google_id=google_id,
@@ -352,9 +366,43 @@ def login():
         full_name=user_full_name,
     )
 
-    logging.debug("Session: %s", session)
+    if login_success:
+        response = make_response(redirect(url_for("auth.profile")))
+        response.set_cookie(
+            key="access_token_cookie",
+            value=session["access_token"],
+            httponly=True,
+            secure=True,
+            samesite="Strict",
+        )
+        response.set_cookie(
+            key="refresh_token_cookie",
+            value=session["refresh_token"],
+            httponly=True,
+            secure=True,
+            samesite="Strict",
+        )
 
-    return redirect(url_for("chat.index"))
+        flash("Login successful!", "success")
+        return response
+    else:
+        flash("Login failed. Please try again.", "error")
+        return redirect(url_for("chat.index"))
+
+
+@auth_bp.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh():
+    """
+    Refresh the access token.
+
+    Returns
+    -------
+        str: The new access token.
+    """
+    current_user = get_jwt_identity()
+    new_access_token = create_access_token(identity=current_user)
+    return jsonify(access_token=new_access_token), 200
 
 
 def login_user_function(
@@ -365,7 +413,9 @@ def login_user_function(
     full_name: str,
 ):
     """
-    Create a session for the user and update the user's Google ID in the database.
+    Create a session for the user, update the user's Google ID in the database.
+
+    also create access and refresh tokens.
 
     Parameters
     ----------
@@ -379,6 +429,11 @@ def login_user_function(
         The username.
     full_name : str
         The full name.
+
+    Returns
+    -------
+    bool
+        True if login was successful, False otherwise.
     """
     # Ensure all details are provided
     if not all(
@@ -392,7 +447,8 @@ def login_user_function(
             user.organisation.name,
         ]
     ):
-        raise ValueError("All user and organization details must be provided.")
+        logging.error("Missing user or organization details")
+        return False
 
     try:
         user.google_id = google_id
@@ -400,17 +456,32 @@ def login_user_function(
         user.full_name = full_name
         db.session.commit()
 
+        # Create access and refresh tokens
+        # duration is determined by the JWT_ACCESS_TOKEN_EXPIRES and JWT_REFRESH_TOKEN_EXPIRES
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
+
         # login_type, it is not necessary now but in future when we add multiple login method
         user_login = UserLogin(user_id=user.id, login_type="google-oauth")
-
         db.session.add(user_login)
         db.session.commit()
+
+        # login_user is a Flask-Login function that sets the current user to the user object
         login_user(user)
+
+        # store the user's roles in the session
         session["user_roles"] = [role.name for role in user.roles]
+
+        # store the access and refresh tokens in the session
+        session["access_token"] = access_token
+        session["refresh_token"] = refresh_token
+
+        return True
 
     except Exception as e:
         db.session.rollback()
-        raise e
+        logging.error(f"Error during login: {str(e)}")
+        return False
 
 
 def is_username_available(username: str) -> bool:
@@ -456,7 +527,7 @@ def validate_id_token(idinfo: dict, csrf_token: str):
     if not csrf_token:
         raise exceptions.GoogleAuthError("No CSRF token in post body.")
 
-    csrf_token_cookie = request.cookies.get("g_csrf_token")
+    csrf_token_cookie = request.cookies.get("csrf_token")
     if not csrf_token_cookie:
         raise exceptions.GoogleAuthError("No CSRF token in cookie.")
 

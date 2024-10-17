@@ -14,7 +14,8 @@ from flask import (
 )
 from redis import Redis
 from rq import Queue
-from flask_login import login_required, current_user
+from flask_login import current_user
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.helpers.chat import get_chat_template_requirements, delete_thread
 from app.tasks import get_answer_from_rag
@@ -24,23 +25,27 @@ from app.helpers.notifications import (
     mark_notification_as_read,
     mark_notification_as_dismissed,
 )
-from app.helpers.users import role_required
 from lorelai.utils import load_config
 from app.models import ChatThread, ChatMessage
 from pydantic import ValidationError
 from datetime import datetime
 import uuid
 from app.models import db
+from app.models import User
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
 
 # a post route for chat messages
 @chat_bp.route("/api/chat", methods=["POST"])
-@role_required(["user", "org_admin", "super_admin"])
-@login_required
+@jwt_required(optional=False, locations=["cookies"])
 def chat():
     """Post messages to RQ to process."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"status": "ERROR", "message": "User not found"}), 404
+
     try:
         content = request.get_json()
         if not content or "message" not in content:
