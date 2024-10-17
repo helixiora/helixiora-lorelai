@@ -39,6 +39,7 @@ class UserSchema(BaseModel):
     full_name: str | None
     google_id: str | None
     org_id: int | None
+    org_name: str | None
     is_admin: bool
     created_at: datetime
     roles: list[RoleSchema]
@@ -51,6 +52,13 @@ class UserSchema(BaseModel):
         roles = user.roles if user.roles else []
         is_admin = any(role.name in ("org_admin", "super_admin") for role in roles)
         user.is_admin = is_admin
+        return user
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_org_name(cls, user: "UserSchema") -> "UserSchema":
+        """Set the organisation name for the user."""
+        user.org_name = user.organisation.name if user.organisation else None
         return user
 
     class Config:
