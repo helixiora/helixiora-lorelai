@@ -406,6 +406,7 @@ def login_user_function(
         db.session.add(user_login)
         db.session.commit()
         login_user(user)
+        session["user_roles"] = [role.name for role in user.roles]
 
     except Exception as e:
         db.session.rollback()
