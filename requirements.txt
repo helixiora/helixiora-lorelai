@@ -1,5 +1,6 @@
 FlashRank==0.2.9
 Flask==3.0.3
+flask-jwt-extended==4.6.0
 flask-login==0.6.3
 Flask-Migrate==4.0.7
 flask-sqlalchemy==3.1.1
@@ -16,13 +17,13 @@ langchain-pinecone==0.2.0
 mysql-connector-python==9.0.0
 mysqlclient==2.2.4
 pinecone==5.3.1
-pydantic[email]==2.8.2
 pydantic==2.9.2
+pydantic[email]==2.8.2
 PyJWT==2.9.0
 python-ulid==3.0.0
 redis==5.1.1
 rq==1.16.2
 sendgrid==6.11.0
-sqlalchemy==2.0.27
 sentry-sdk==2.16.0
+sqlalchemy==2.0.27
 werkzeug==3.0.4
