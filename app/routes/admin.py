@@ -332,9 +332,7 @@ def list_indexes() -> str:
     pinecone_helper = PineconeHelper()
     indexes = pinecone_helper.list_indexes()
 
-    return render_template(
-        "admin/pinecone.html", indexes=indexes, is_admin=is_admin(session["user_id"])
-    )
+    return render_template("admin/pinecone.html", indexes=indexes, is_admin=session["id"])
 
 
 @admin_bp.route("/admin/pinecone/<host_name>")
