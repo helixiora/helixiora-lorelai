@@ -12,6 +12,7 @@ from flask import (
     request,
     flash,
     redirect,
+    g,
 )
 
 from flask_login import login_required, current_user
@@ -542,8 +543,14 @@ def user_profile():
         flash("Profile updated successfully", "success")
         return redirect(url_for("admin.user_profile"))
 
+    UserSchema.model_validate(current_user)
     profile = get_user_profile(current_user.id)
-    return render_template("admin/profile.html", profile=profile)
+    return render_template(
+        "profile.html",
+        profile=profile,
+        user=current_user,
+        features=g.features,
+    )
 
 
 @admin_bp.route("/admin/user/<int:user_id>/roles", methods=["GET", "POST"])
@@ -553,7 +560,6 @@ def manage_user_roles(user_id):
     """Manage user roles for a user."""
     user = User.query.get_or_404(user_id)
     all_roles = Role.query.all()
-
     if request.method == "POST":
         new_roles = request.form.getlist("roles")
         current_roles = get_user_roles(user_id)
