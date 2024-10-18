@@ -224,20 +224,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         headers: {
                             'X-CSRFToken': csrfToken
                         }
-                });
+                    });
 
-                if (refreshResponse.ok) {
-                    // Token refreshed, retry the original request
-                    response = await fetch('/api/chat', {
+                    if (refreshResponse.ok) {
+                        // Token refreshed, retry the original request
+                        response = await fetch('/api/chat', {
                         method: 'POST',
                         body: JSON.stringify({message: message}),
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRFToken': csrfToken
-                        }
-                    });
+                            }
+                        });
+                    } else {
+                        throw new Error('Token refresh failed');
+                    }
                 } else {
-                    throw new Error('Token refresh failed');
+                    throw new Error('Token expired');
                 }
             }
 
