@@ -404,7 +404,15 @@ def refresh():
     """
     current_user = get_jwt_identity()
     new_access_token = create_access_token(identity=current_user)
-    return jsonify(access_token=new_access_token), 200
+    response = make_response(jsonify(access_token=new_access_token), 200)
+    response.set_cookie(
+        key="access_token_cookie",
+        value=new_access_token,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+    )
+    return response
 
 
 def login_user_function(
