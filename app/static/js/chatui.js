@@ -62,6 +62,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('messageInput');
     const messagesDiv = document.getElementById('messages');
 
+    // Add this line at the beginning of the DOMContentLoaded event listener
+    const username = document.body.dataset.username;
+
     function addMessage(content, isUser = true, isHTML = false, isSources = false) {
         // Convert markdown content to HTML
         content = marked.parse(content);
@@ -81,8 +84,6 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContentDiv.style.overflowWrap = 'break-word';
         // Use innerHTML for bot messages that need to render HTML content
         if (isUser) {
-            // get the user_username from the session
-            const username = '{{ session.get('user_username') }}';
             messageContentDiv.innerHTML = '<strong>' + username + '</strong>: ' + content;
         } else {
             messageContentDiv.innerHTML = '<strong>Lorelai</strong>: ' + content;
