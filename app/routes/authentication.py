@@ -49,6 +49,7 @@ from app.helpers.users import (
     validate_form,
     register_user_to_org,
 )
+from app.schemas import UserSchema
 
 from lorelai.utils import load_config
 
@@ -485,6 +486,11 @@ def login_user_function(
         # store the access and refresh tokens in the session
         session["access_token"] = access_token
         session["refresh_token"] = refresh_token
+        user_schema = UserSchema.model_validate(user).model_dump()
+
+        for key, value in user_schema.items():
+            print(f"{key} : {value}")
+            session[key] = value
 
         return True
 
