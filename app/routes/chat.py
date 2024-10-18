@@ -58,7 +58,8 @@ def chat():
         if not can_send_message(user_id=user_id):
             return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
 
-        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
+        redis_settings = load_config("redis")
+        redis_conn = Redis.from_url(redis_settings["url"])
         queue = Queue(connection=redis_conn)
 
         # Create or retrieve chat thread
@@ -91,7 +92,9 @@ def chat():
             current_user.organisation,
             model_type="OpenAILlm",
         )
-        logging.info("Enqueued job for chat message %s", chat_message.id)
+        logging.info(
+            "Enqueued job for chat, message %s, thread %s", chat_message.message_id, thread_id
+        )
 
         return jsonify(
             {

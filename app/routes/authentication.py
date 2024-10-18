@@ -321,7 +321,9 @@ def login():
         redirect: Redirects to the appropriate page based on the authentication result.
     """
     id_token_received = request.form.get("credential")
-    csrf_token = request.form.get("csrf_token")
+    # even thouugh we use csrf_token for our own token, we still need to use g_csrf_token
+    # because google expects it
+    csrf_token = request.form.get("g_csrf_token")
 
     try:
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
@@ -527,7 +529,7 @@ def validate_id_token(idinfo: dict, csrf_token: str):
     if not csrf_token:
         raise exceptions.GoogleAuthError("No CSRF token in post body.")
 
-    csrf_token_cookie = request.cookies.get("csrf_token")
+    csrf_token_cookie = request.cookies.get("g_csrf_token")
     if not csrf_token_cookie:
         raise exceptions.GoogleAuthError("No CSRF token in cookie.")
 

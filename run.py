@@ -86,8 +86,13 @@ app.config["JWT_COOKIE_SECURE"] = True
 app.config["JWT_COOKIE_SAMESITE"] = "Strict"
 app.config["JWT_COOKIE_HTTPONLY"] = True
 app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
-app.config["JWT_COOKIE_CSRF_PROTECT"] = True
-app.config["JWT_CSRF_CHECK_FORM"] = True
+app.config["JWT_COOKIE_CSRF_PROTECT"] = False
+app.config["JWT_CSRF_CHECK_FORM"] = False
+app.config["JWT_ACCESS_CSRF_COOKIE_NAME"] = "csrf_token"
+app.config["JWT_REFRESH_CSRF_COOKIE_NAME"] = "csrf_token"
+app.config["JWT_COOKIE_DOMAIN"] = None
+app.config["JWT_COOKIE_PATH"] = "/"
+
 jwt = JWTManager(app)
 
 # Initialize SQLAlchemy with the app
@@ -378,7 +383,7 @@ def org_exists():
 def custom_unauthorized_response(_err):
     """Handle unauthorized access."""
     logging.error("Unauthorized access: %s", _err)
-    return jsonify({"msg": "Missing Authorization Header"}), 401
+    return jsonify({"msg": f"Unauthorized access: {_err}"}), 401
 
 
 @jwt.invalid_token_loader
@@ -392,7 +397,7 @@ def custom_invalid_token_response(error_string):
 def custom_expired_token_response(jwt_header, jwt_payload):
     """Handle expired token."""
     logging.error("Expired token: %s", jwt_payload)
-    return jsonify({"msg": "Token has expired"}), 401
+    return jsonify({"msg": f"Expired token: {jwt_payload}"}), 401
 
 
 @jwt.needs_fresh_token_loader
@@ -407,13 +412,6 @@ def custom_revoked_token_response(error_string):
     """Handle revoked token."""
     logging.error("Revoked token: %s", error_string)
     return jsonify({"msg": f"Revoked token: {error_string}"}), 401
-
-
-@jwt.user_lookup_loader
-def custom_user_lookup_loader(jwt_header, jwt_payload):
-    """Handle user lookup."""
-    logging.error("User lookup: %s", jwt_payload)
-    return jsonify({"msg": f"User lookup: {jwt_payload}"}), 401
 
 
 if __name__ == "__main__":
