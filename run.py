@@ -23,7 +23,7 @@ from flask import (
     url_for,
 )
 from flask_login import LoginManager
-from flask_migrate import Migrate
+from flask_migrate import Migrate, upgrade
 
 from authlib.integrations.flask_client import OAuth
 
@@ -103,6 +103,11 @@ app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
 
 db.init_app(app)
 migrate = Migrate(app, db)
+
+logging.info("Migrating the database to make sure it's up to date")
+with app.app_context():
+    upgrade()
+
 jwt = JWTManager(app)
 
 # Apply ProxyFix to handle X-Forwarded-* headers

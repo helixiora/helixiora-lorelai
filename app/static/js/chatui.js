@@ -62,6 +62,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('messageInput');
     const messagesDiv = document.getElementById('messages');
 
+    // Add this line at the beginning of the DOMContentLoaded event listener
+    const username = document.body.dataset.username;
+
     function addMessage(content, isUser = true, isHTML = false, isSources = false) {
         // Convert markdown content to HTML
         content = marked.parse(content);
@@ -81,8 +84,6 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContentDiv.style.overflowWrap = 'break-word';
         // Use innerHTML for bot messages that need to render HTML content
         if (isUser) {
-            // get the user_username from the session
-            const username = '{{ session.get('user_username') }}';
             messageContentDiv.innerHTML = '<strong>' + username + '</strong>: ' + content;
         } else {
             messageContentDiv.innerHTML = '<strong>Lorelai</strong>: ' + content;
@@ -203,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const csrfToken = getCookie('csrf_token');
             console.log('CSRF Token:', csrfToken);
-            const response = await fetch('/api/chat', {
+            let response = await fetch('/api/chat', {
                 method: 'POST',
                 body: JSON.stringify({message: message}),
                 headers: {
@@ -211,6 +212,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': csrfToken
                 }
             });
+
+            // if the token is expired, the body contains "Expired token"
+            if (response.status === 401) {
+                const responseData = await response.json();
+                // check if the responseData.msg starts with "Expired token"
+                if (responseData.msg.startsWith("Expired token")) {
+                    // Token expired, try to refresh
+                    const refreshResponse = await fetch('/refresh', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                });
+
+                if (refreshResponse.ok) {
+                    // Token refreshed, retry the original request
+                    response = await fetch('/api/chat', {
+                        method: 'POST',
+                        body: JSON.stringify({message: message}),
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        }
+                    });
+                } else {
+                    throw new Error('Token refresh failed');
+                }
+            }
 
             if (!response.ok) {
                 hideLoadingIndicator();
@@ -220,6 +249,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.warn('Quota exceeded.');
                     hideLoadingIndicator();
                     addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
+                } else if (response.status === 401) {
+                    addMessage('Your session has expired. Please log in again.', false, false);
                 } else {
                     addMessage('Error: Unable to send the message. Please try again later.', false, false);
                     throw new Error(`HTTP error! status: ${response.status}`);
