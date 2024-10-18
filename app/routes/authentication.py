@@ -48,6 +48,8 @@ from app.helpers.users import (
     is_admin,
     validate_form,
     register_user_to_org,
+    update_user_profile,
+    get_user_profile,
 )
 from app.schemas import UserSchema
 
@@ -75,76 +77,71 @@ def refresh_google_token_if_needed(access_token):
     Returns
     -------
     str
-        The refreshed access token.
+        The refreshed access token or None if refresh failed.
     """
     token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
     response = lib_requests.get(token_info_url)
-    if response.status_code != 200 or "error" in response.json():
-        # Token is invalid or expired, refresh it
-        refresh_token = session.get("refresh_token")
-        logging.debug("Refreshing token for user %s: %s", session["user_id"], refresh_token)
-        if not refresh_token or refresh_token is None:
-            result = UserAuth.query.filter_by(
-                user_id=current_user.id, auth_key="refresh_token"
-            ).first()
-            if not result:
-                logging.error("No refresh token found for user %s", session["user_id"])
-                return None
-            refresh_token = result["auth_value"]
+    if response.status_code == 200 and "error" not in response.json():
+        return access_token  # Token is still valid
 
-        google_settings = load_config("google")
+    # Token is invalid or expired, refresh it
+    refresh_token = session.get("refresh_token")
+    if not refresh_token:
+        result = UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").first()
+        if not result:
+            logging.error("No refresh token found for user %s", current_user.id)
+            return None
+        refresh_token = result.auth_value
 
-        token_url = "https://oauth2.googleapis.com/token"
-        payload = {
-            "client_id": google_settings["client_id"],
-            "client_secret": google_settings["client_secret"],
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        }
-        token_response = lib_requests.post(token_url, data=payload)
-        if token_response.status_code == 200:
-            new_tokens = token_response.json()
-            if "refresh_token" not in new_tokens:
-                # If the refresh token is not returned, use the existing one
-                new_tokens["refresh_token"] = refresh_token
+    logging.debug("Refreshing token for user %s", current_user.id)
+    google_settings = load_config("google")
 
-            user_auth = UserAuth.query.filter_by(
-                user_id=current_user.id, auth_key="refresh_token"
-            ).first()
-            if user_auth:
-                user_auth.auth_value = new_tokens["refresh_token"]
-            else:
-                user_auth = UserAuth(
-                    user_id=current_user.id,
-                    auth_key="refresh_token",
-                    auth_value=new_tokens["refresh_token"],
-                )
-                db.session.add(user_auth)
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "client_id": google_settings["client_id"],
+        "client_secret": google_settings["client_secret"],
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    }
+    token_response = lib_requests.post(token_url, data=payload)
+    if token_response.status_code != 200:
+        logging.error("Failed to refresh token: %s", token_response.text)
+        return None
 
-            db.session.commit()
+    new_tokens = token_response.json()
+    new_access_token = new_tokens["access_token"]
 
-            return new_tokens["access_token"]
-        else:
-            store_access_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
-                AND auth_key = 'access_token'"
-            store_refresh_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
-                AND auth_key = 'refresh_token'"
-            try:
-                db.session.execute(
-                    store_access_token_query, (new_tokens["access_token"], session["user_id"])
-                )
-                db.session.execute(
-                    store_refresh_token_query, (new_tokens["refresh_token"], session["user_id"])
-                )
-                db.session.commit()
-            finally:
-                db.close()
+    # Update the access token in the database
+    UserAuth.query.filter_by(user_id=current_user.id, auth_key="access_token").update(
+        {"auth_value": new_access_token}
+    )
 
-            return new_tokens["access_token"]
-    return access_token
+    # Update the refresh token if a new one was provided
+    if "refresh_token" in new_tokens:
+        UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").update(
+            {"auth_value": new_tokens["refresh_token"]}
+        )
+
+    db.session.commit()
+    return new_access_token
 
 
-@auth_bp.route("/profile")
+@auth_bp.route("/profile", methods=["POST"])
+@login_required
+def user_profile():
+    """Manage the current user's profile."""
+    if request.method == "POST":
+        bio = request.form.get("bio")
+        location = request.form.get("location")
+        birth_date = request.form.get("birth_date")
+        avatar_url = request.form.get("avatar_url")
+
+        update_user_profile(current_user.id, bio, location, birth_date, avatar_url)
+        flash("Profile updated successfully", "success")
+        return redirect(url_for("auth.profile"))
+
+
+@auth_bp.route("/profile", methods=["GET"])
 @login_required
 def profile():
     """Return the profile page.
@@ -164,6 +161,8 @@ def profile():
             "organisation": current_user.organisation.name,
             "roles": current_user.roles,
         }
+
+        profile = get_user_profile(current_user.id)
         googlesettings = load_config("google")
         google_client_id = googlesettings["client_id"]
         google_api_key = googlesettings["api_key"]
@@ -221,6 +220,7 @@ def profile():
             google_app_id=google_app_id,
             google_drive_access_token=access_token,
             features=g.features,
+            profile=profile,
         )
     return "You are not logged in!", 403
 

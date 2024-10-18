@@ -12,7 +12,6 @@ from flask import (
     request,
     flash,
     redirect,
-    g,
 )
 
 from flask_login import login_required, current_user
@@ -30,8 +29,6 @@ from app.helpers.users import (
     is_admin,
     role_required,
     create_invited_user_in_db,
-    update_user_profile,
-    get_user_profile,
     get_user_roles,
     add_user_role,
     remove_user_role,
@@ -525,30 +522,6 @@ def test_connection() -> str:
             return f"{e.msg} (error {str(e.errno)})"
         else:
             raise
-
-
-@admin_bp.route("/profile", methods=["GET", "POST"])
-@login_required
-def user_profile():
-    """Manage the current user's profile."""
-    if request.method == "POST":
-        bio = request.form.get("bio")
-        location = request.form.get("location")
-        birth_date = request.form.get("birth_date")
-        avatar_url = request.form.get("avatar_url")
-
-        update_user_profile(current_user.id, bio, location, birth_date, avatar_url)
-        flash("Profile updated successfully", "success")
-        return redirect(url_for("admin.user_profile"))
-
-    UserSchema.model_validate(current_user)
-    profile = get_user_profile(current_user.id)
-    return render_template(
-        "profile.html",
-        profile=profile,
-        user=current_user,
-        features=g.features,
-    )
 
 
 @admin_bp.route("/admin/user/<int:user_id>/roles", methods=["GET", "POST"])
