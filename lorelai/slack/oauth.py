@@ -10,10 +10,11 @@ Classes:
 
 import logging
 import requests
-from flask import request, session
+from flask import request, session, current_app
 
-from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
-from lorelai.utils import load_config, get_db_connection
+from app.helpers.datasources import DATASOURCE_SLACK
+from app.models import db, UserAuth, Datasource
+from sqlalchemy.exc import SQLAlchemyError
 
 
 class SlackOAuth:
@@ -21,14 +22,15 @@ class SlackOAuth:
 
     def __init__(self):
         """Initialize the SlackOAuth class with configuration settings."""
-        self.config = load_config("slack")
-        self.authorization_url = self.config["authorization_url"]
-        self.token_url = self.config["token_url"]
-        self.scopes = self.config["scopes"]
-        self.client_id = self.config["client_id"]
-        self.client_secret = self.config["client_secret"]
-        self.redirect_uri = self.config["redirect_uri"]
-        self.datasource_id = get_datasource_id_by_name(DATASOURCE_SLACK)
+        self.authorization_url = current_app.config["SLACK_AUTHORIZATION_URL"]
+        self.token_url = current_app.config["SLACK_TOKEN_URL"]
+        self.scopes = current_app.config["SLACK_SCOPES"]
+        self.client_id = current_app.config["SLACK_CLIENT_ID"]
+        self.client_secret = current_app.config["SLACK_CLIENT_SECRET"]
+        self.redirect_uri = current_app.config["SLACK_REDIRECT_URI"]
+        self.datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+        if not self.datasource:
+            raise ValueError(f"{DATASOURCE_SLACK} is missing from datasource table in db")
 
     def get_auth_url(self):
         """
@@ -93,39 +95,42 @@ class SlackOAuth:
             if access_token:
                 session["slack_access_token"] = access_token
 
-                if not self.datasource_id:
-                    raise ValueError("Slack datasource not found")
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    query = """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-                            VALUES (%s, %s, %s, %s, %s)
-                            ON DUPLICATE KEY UPDATE
-                                auth_key = VALUES(auth_key),
-                                auth_value = VALUES(auth_value),
-                                auth_type = VALUES(auth_type);
-                            """  # noqa: E501
-                    data = (
-                        session["user_id"],
-                        self.datasource_id,
-                        "access_token",
-                        access_token,
-                        "oauth",
+                user_auth = UserAuth.query.filter_by(
+                    user_id=session["user_id"],
+                    datasource_id=self.datasource.datasource_id,
+                    auth_key="access_token",
+                ).first()
+
+                if user_auth:
+                    user_auth.auth_value = access_token
+                else:
+                    new_auth = UserAuth(
+                        user_id=session["user_id"],
+                        datasource_id=self.datasource.datasource_id,
+                        auth_key="access_token",
+                        auth_value=access_token,
+                        auth_type="oauth",
                     )
-                    cursor.execute(query, data)
-                    conn.commit()
-                    logging.debug(access_token)
-                    return True  # Successful callback
+                    db.session.add(new_auth)
+
+                db.session.commit()
+                logging.debug(access_token)
+                return True  # Successful callback
             else:
                 logging.error("No access token received from Slack, removing from user_auth table")
                 # remove slack access token from user_auth table
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    query = """DELETE FROM user_auth WHERE user_id = %s AND datasource_id = %s AND auth_type = %s;"""  # noqa: E501
-                    data = (session["user_id"], self.datasource_id, "oauth")
-                    cursor.execute(query, data)
-                    conn.commit()
+                UserAuth.query.filter_by(
+                    user_id=session["user_id"],
+                    datasource_id=self.datasource.datasource_id,
+                    auth_type="oauth",
+                ).delete()
+                db.session.commit()
                 return False
 
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            logging.error(f"Database error handling callback: {e}")
+            return False  # Callback failed
         except Exception as e:
             logging.error(f"Error handling callback: {e}")
             return False  # Callback failed

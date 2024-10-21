@@ -8,8 +8,6 @@ OpenAI's embeddings and language models to generate responses based on the retri
 
 from langchain.schema import Document
 
-from lorelai.utils import load_config
-
 from lorelai.pinecone import PineconeHelper
 
 import importlib
@@ -60,19 +58,7 @@ class ContextRetriever:
         if not ContextRetriever._allowed:
             raise ValueError("ContextRetriever is not allowed to be instantiated directly.")
 
-        self.pinecone_creds = load_config("pinecone")
-        if not self.pinecone_creds or len(self.pinecone_creds) == 0:
-            raise ValueError("Pinecone credentials not found.")
-
         self.__pinecone_helper = PineconeHelper()
-
-        self.openai_creds = load_config("openai")
-        if not self.openai_creds or len(self.openai_creds) == 0:
-            raise ValueError("OpenAI credentials not found.")
-
-        self.lorelai_creds = load_config("lorelai")
-        if not self.lorelai_creds or len(self.lorelai_creds) == 0:
-            raise ValueError("Lorelai credentials not found.")
 
         self.org_name: str = org_name
         self.user: str = user_email

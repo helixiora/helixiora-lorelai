@@ -16,10 +16,12 @@ from datetime import datetime
 import copy
 import openai
 
+from flask import current_app
+
 import lorelai.utils
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
-from lorelai.utils import get_embedding_dimension, get_size, clean_text_for_vector
+from lorelai.utils import get_size, clean_text_for_vector
 
 from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
 from lorelai.utils import get_user_id_by_email
@@ -37,9 +39,7 @@ class SlackIndexer(Indexer):
             org_name (str): The organization name.
         """
         # load API keys
-        self.openai_creds = lorelai.utils.load_config("openai")
-        self.lorelai_settings = lorelai.utils.load_config("lorelai")
-        os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
+        os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
 
         # setup pinecone helper
         self.pinecone_helper = PineconeHelper()
@@ -59,8 +59,8 @@ class SlackIndexer(Indexer):
         self.session.headers.update(self.headers)
 
         # setup embedding model
-        self.embedding_model_name = "text-embedding-ada-002"
-        self.embedding_model_dimension = get_embedding_dimension(self.embedding_model_name)
+        self.embedding_model_name = current_app.config["EMBEDDING_MODEL"]
+        self.embedding_model_dimension = current_app.config["EMBEDDING_DIMENSION"]
         if self.embedding_model_dimension == -1:
             raise ValueError(
                 f"Could not find embedding dimension for model '{self.embedding_model_name}'"
@@ -468,8 +468,8 @@ class SlackIndexer(Indexer):
         index, name = self.pinecone_helper.get_index(
             org=self.org_name,
             datasource=DATASOURCE_SLACK,
-            environment=self.lorelai_settings["environment"],
-            env_name=self.lorelai_settings["environment_slug"],
+            environment=current_app.config["ENVIRONMENT"],
+            env_name=current_app.config["ENVIRONMENT_SLUG"],
             version="v1",
             create_if_not_exists=True,
         )

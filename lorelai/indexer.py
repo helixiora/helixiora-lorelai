@@ -3,7 +3,6 @@
 import logging
 from rq import job
 import importlib
-import lorelai.utils
 
 # The scopes needed to read documents in Google Drive
 # (see: https://developers.google.com/drive/api/guides/api-specific-auth)
@@ -42,7 +41,6 @@ class Indexer:
     def __init__(self):
         if not self._allowed:
             raise Exception("This class should be instantiated through a create() factory method.")
-        self.settings = lorelai.utils.load_config("lorelai")
 
     def get_indexer_name(self) -> str:
         """Retrieve the name of the indexer."""

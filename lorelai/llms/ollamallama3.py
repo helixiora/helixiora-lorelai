@@ -9,8 +9,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 from ollama import Ollama
-
-from lorelai.utils import load_config
+from flask import current_app
 from lorelai.llm import Llm
 
 
@@ -19,10 +18,7 @@ class OllamaLlama3(Llm):
 
     def __init__(self):
         super().__init__()
-        self.llama_creds = load_config("llama_local")
-        self.api_url = self.llama_creds.get(
-            "api_url", "http://localhost:8000"
-        )  # Default to localhost
+        self.api_url = current_app.config["OLLAMA_API_URL"]  # Default to localhost
         self.model = "llama3-7b"  # Model identifier
 
     def get_answer(self, question, context):

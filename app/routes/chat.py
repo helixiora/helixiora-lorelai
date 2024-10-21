@@ -25,7 +25,6 @@ from app.helpers.notifications import (
     mark_notification_as_read,
     mark_notification_as_dismissed,
 )
-from lorelai.utils import load_config
 from app.models import ChatThread, ChatMessage
 from pydantic import ValidationError
 from datetime import datetime
@@ -58,8 +57,7 @@ def chat():
         if not can_send_message(user_id=user_id):
             return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
 
-        redis_settings = load_config("redis")
-        redis_conn = Redis.from_url(redis_settings["url"])
+        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
         queue = Queue(connection=redis_conn)
 
         # Create or retrieve chat thread
@@ -122,10 +120,7 @@ def fetch_chat_result():
 
     logging.debug("Fetching job result for job ID: %s", job_id)
 
-    redis = load_config("redis")
-    redis_host = redis["url"]
-
-    redis_conn = Redis.from_url(redis_host)
+    redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
@@ -196,15 +191,14 @@ def conversation(thread_id):
         string: the conversation page
     """
     session["thread_id"] = thread_id
-    lorelai_settings = load_config("lorelai")
     chat_template_requirements = get_chat_template_requirements(thread_id, session["user_id"])
     return render_template(
         template_name_or_list="index_logged_in.html",
         user_email=session["user_email"],
         recent_conversations=chat_template_requirements["recent_conversations"],
         is_admin=chat_template_requirements["is_admin_status"],
-        support_portal=lorelai_settings["support_portal"],
-        support_email=lorelai_settings["support_email"],
+        support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],
+        support_email=current_app.config["LORELAI_SUPPORT_EMAIL"],
     )
 
 
@@ -243,17 +237,17 @@ def index():
     # check if the user is logged in
     if current_user.is_authenticated:
         # render the index_logged_in page
-        lorelai_settings = load_config("lorelai")
         thread_id = session.get("thread_id")
         chat_template_requirements = get_chat_template_requirements(thread_id, current_user.id)
 
         return render_template(
             "index_logged_in.html",
             user_email=current_user.email,
+            user_name=current_user.user_name,
             recent_conversations=chat_template_requirements["recent_conversations"],
             is_admin=chat_template_requirements["is_admin_status"],
-            support_portal=lorelai_settings["support_portal"],
-            support_email=lorelai_settings["support_email"],
+            support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],
+            support_email=current_app.config["LORELAI_SUPPORT_EMAIL"],
         )
 
     # if we're still here, there was no user_id in the session meaning we are not logged in
@@ -262,5 +256,4 @@ def index():
     # will handle the login using the /login route in auth.py.
     # Depending on the output of that route, it's redirecting to /register if need be
 
-    secrets = load_config("google")
-    return render_template("index.html", google_client_id=secrets["client_id"])
+    return render_template("index.html", google_client_id=current_app.config["GOOGLE_CLIENT_ID"])

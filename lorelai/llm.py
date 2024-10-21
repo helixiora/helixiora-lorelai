@@ -1,7 +1,7 @@
 """Module to handle interaction with different language model APIs."""
 
+from flask import current_app
 from lorelai.context_retriever import ContextRetriever, LorelaiContextRetrievalResponse
-from lorelai.utils import load_config
 import importlib
 import logging
 
@@ -43,8 +43,7 @@ class Llm:
         #    raise Exception("This class should be instantiated through a create() factory method.")
         # self._allowed = False  # Reset the flag after successful instantiation
 
-        config = load_config("lorelai")
-        self.prompt_template = config.get("prompt_template", self._prompt_template)
+        self.prompt_template = current_app.config.get("prompt_template", self._prompt_template)
 
         self.user = user
         self.organization = organization

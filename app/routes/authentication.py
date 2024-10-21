@@ -25,7 +25,6 @@ import logging
 from flask import (
     Blueprint,
     flash,
-    g,
     jsonify,
     redirect,
     render_template,
@@ -42,6 +41,8 @@ import time
 
 import requests as lib_requests
 
+from flask import current_app
+
 from app.models import User, UserLogin, UserAuth, db, GoogleDriveItem, Organisation
 
 from app.helpers.users import (
@@ -52,8 +53,6 @@ from app.helpers.users import (
     get_user_profile,
 )
 from app.schemas import UserSchema
-
-from lorelai.utils import load_config
 
 from flask_jwt_extended import (
     create_access_token,
@@ -94,12 +93,11 @@ def refresh_google_token_if_needed(access_token):
         refresh_token = result.auth_value
 
     logging.debug("Refreshing token for user %s", current_user.id)
-    google_settings = load_config("google")
 
     token_url = "https://oauth2.googleapis.com/token"
     payload = {
-        "client_id": google_settings["client_id"],
-        "client_secret": google_settings["client_secret"],
+        "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+        "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
         "refresh_token": refresh_token,
         "grant_type": "refresh_token",
     }
@@ -163,9 +161,8 @@ def profile():
         }
 
         profile = get_user_profile(current_user.id)
-        googlesettings = load_config("google")
-        google_client_id = googlesettings["client_id"]
-        google_api_key = googlesettings["api_key"]
+        google_client_id = current_app.config["GOOGLE_CLIENT_ID"]
+        google_api_key = current_app.config["GOOGLE_API_KEY"]
 
         # app id is everything before the first dash in the client id
         google_app_id = google_client_id.split("-")[0]
@@ -191,7 +188,7 @@ def profile():
             # Check if the token is still valid and refresh if necessary
             access_token = refresh_google_token_if_needed(access_token)
 
-        if int(g.features["google_drive"]) == 1:
+        if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
             google_docs_to_index = GoogleDriveItem.query.filter_by(user_id=current_user.id).all()
 
             logging.info(
@@ -206,7 +203,7 @@ def profile():
             "Rendering profile page for user %s with access_token %s", user["email"], access_token
         )
 
-        if int(g.features["slack"]) == 1:
+        if int(current_app.config["FEATURE_SLACK"]) == 1:
             logging.info("Slack feature is enabled.")
         else:
             logging.warning("Slack feature is disabled.")
@@ -219,7 +216,10 @@ def profile():
             google_docs_to_index=google_docs_to_index,
             google_app_id=google_app_id,
             google_drive_access_token=access_token,
-            features=g.features,
+            features={
+                "google_drive": int(current_app.config["FEATURE_GOOGLE_DRIVE"]),
+                "slack": int(current_app.config["FEATURE_SLACK"]),
+            },
             profile=profile,
         )
     return "You are not logged in!", 403
@@ -550,8 +550,7 @@ def validate_id_token(idinfo: dict, csrf_token: str):
     if csrf_token != csrf_token_cookie:
         raise exceptions.GoogleAuthError("CSRF token mismatch.")
 
-    googlesettings = load_config("google")
-    if idinfo["aud"] not in googlesettings["client_id"]:
+    if idinfo["aud"] not in current_app.config["GOOGLE_CLIENT_ID"]:
         raise exceptions.GoogleAuthError("Wrong client ID.")
 
     if idinfo["exp"] < time.time():

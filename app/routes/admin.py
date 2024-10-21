@@ -12,6 +12,7 @@ from flask import (
     request,
     flash,
     redirect,
+    current_app,
 )
 
 from flask_login import login_required, current_user
@@ -37,7 +38,7 @@ from app.helpers.database import create_user
 from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_GOOGLE_DRIVE
 
 from lorelai.pinecone import PineconeHelper
-from lorelai.utils import load_config, send_invite_email, create_jwt_token_invite_user
+from lorelai.utils import send_invite_email, create_jwt_token_invite_user
 from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem
 from app.schemas import UserSchema
 from pydantic import ValidationError
@@ -112,8 +113,7 @@ def job_status(job_id: str) -> str:
     str
         The status of the job.
     """
-    redis_config = load_config("redis")
-    redis_conn = Redis.from_url(redis_config["url"])
+    redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
@@ -191,8 +191,7 @@ def start_indexing(type) -> str:
         return jsonify({"error": "Invalid type"}), 400
 
     try:
-        redis_config = load_config("redis")
-        redis_conn = Redis.from_url(redis_config["url"])
+        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
         queue = Queue(connection=redis_conn)
 
         datasource_id = get_datasource_id_by_name(DATASOURCE_GOOGLE_DRIVE)
@@ -295,8 +294,7 @@ def start_slack_indexing() -> str:
     """
     try:
         jobs = []
-        redis_config = load_config("redis")
-        redis_conn = Redis.from_url(redis_config["url"])
+        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
         queue = Queue(connection=redis_conn)
         user_email = session["user_email"]
         org_name = session["org_name"]
@@ -362,12 +360,12 @@ def setup() -> str:
     str
         The rendered template of the setup page.
     """
-    db_config = load_config("db")
+    conn_string = current_app.config["DB_URL"]
     return render_template(
         "admin/setup.html",
         setup_url=url_for("admin.setup_post"),
         test_connection_url=url_for("admin.test_connection"),
-        db=db_config,
+        db=conn_string,
     )
 
 

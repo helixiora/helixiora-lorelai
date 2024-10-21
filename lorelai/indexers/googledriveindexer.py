@@ -8,6 +8,7 @@ Classes:
 """
 
 import logging
+from flask import current_app
 
 # from pathlib import Path
 from google.oauth2 import credentials
@@ -17,8 +18,9 @@ from lorelai.indexer import Indexer
 from lorelai.processor import Processor
 from langchain_googledrive.document_loaders import GoogleDriveLoader
 from langchain_core.documents import Document
-from lorelai.utils import load_config, get_db_connection
 from rq import job
+from app.models import db, GoogleDriveItem
+from sqlalchemy.exc import SQLAlchemyError
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 
@@ -121,15 +123,13 @@ class GoogleDriveIndexer(Indexer):
         # 5. Process the Google Drive documents and index them in Pinecone
         logging.info(f"Processing {len(documents)} Google documents for user: {user_row['email']}")
 
-        google_creds = load_config("google")
-
         # create a credentials object
         credentials_object = credentials.Credentials(
             token=access_token,
             refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=google_creds["client_id"],
-            client_secret=google_creds["client_secret"],
+            client_id=current_app.config["GOOGLE_CLIENT_ID"],
+            client_secret=current_app.config["GOOGLE_CLIENT_SECRET"],
         )
 
         # test the credentials object
@@ -300,16 +300,17 @@ class GoogleDriveIndexer(Indexer):
             doc_id = doc["google_drive_id"]
             logging.info(f"Updating last indexed timestamp for document: {doc_id}")
 
-            # update the last indexed timestamp for the document in the database
-            db = get_db_connection()
-            cursor = db.cursor()
             try:
-                cursor.execute(
-                    "UPDATE google_drive_items SET last_indexed_at = NOW() \
-WHERE google_drive_id = %s",
-                    (doc_id,),
+                google_drive_item = GoogleDriveItem.query.filter_by(google_drive_id=doc_id).first()
+                if google_drive_item:
+                    google_drive_item.last_indexed_at = db.func.now()
+                    db.session.commit()
+                else:
+                    logging.warning(f"Document with ID {doc_id} not found in the database")
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                logging.error(f"Error updating last indexed timestamp for document {doc_id}: {e}")
+            except Exception as e:
+                logging.error(
+                    f"Unexpected error updating last indexed timestamp for document {doc_id}: {e}"
                 )
-                db.commit()
-            finally:
-                cursor.close()
-                db.close()

@@ -7,7 +7,6 @@ import mysql.connector
 import redis
 from sqlalchemy.exc import SQLAlchemyError
 
-from lorelai.utils import load_config
 from app.models import (
     db,
     User,
@@ -15,6 +14,7 @@ from app.models import (
     Organisation,
     Profile,
 )
+from flask import current_app
 
 
 def check_mysql() -> tuple[bool, str]:
@@ -34,17 +34,10 @@ def check_mysql() -> tuple[bool, str]:
 
 
 def check_redis() -> tuple[bool, str]:
-    """Check if the Redis server is up and running.
-
-    Returns
-    -------
-    tuple
-        A tuple with a boolean indicating success and a string with the message.
-    """
+    """Check if the Redis server is up and running."""
     try:
-        redis_config = load_config("redis")
-        logging.debug(f"Connecting to Redis: {redis_config['url']}")
-        r = redis.Redis.from_url(redis_config["url"])
+        logging.debug(f"Connecting to Redis: {current_app.config['REDIS_URL']}")
+        r = redis.Redis.from_url(current_app.config["REDIS_URL"])
         r.ping()
         return True, "Redis is reachable."
     except redis.ConnectionError as e:

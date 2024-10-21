@@ -8,8 +8,7 @@ import os
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-
-from lorelai.utils import load_config
+from flask import current_app
 from lorelai.llm import Llm, LorelaiContextRetrievalResponse
 
 
@@ -18,9 +17,8 @@ class OpenAILlm(Llm):
 
     def __init__(self, user: str, organization: str) -> None:
         super().__init__(user, organization)
-        self.openai_creds = load_config("openai")
-        os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
-        self.model = self.openai_creds["model"]
+        os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
+        self.model = current_app.config["OPENAI_MODEL"]
 
     def _ask_llm(self, question: str, context_list: list[LorelaiContextRetrievalResponse]) -> str:
         """Get an answer specifically from the OpenAI models."""

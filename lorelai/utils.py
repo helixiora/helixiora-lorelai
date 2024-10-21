@@ -1,12 +1,10 @@
 """Contains utility functions for the Lorelai package."""
 
-import json
 import logging
-import os
-from pathlib import Path
 import sys
-import mysql.connector
 import re
+
+from flask import current_app
 
 import jwt
 import datetime
@@ -14,37 +12,7 @@ import datetime
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
-
-def get_query_result(query, params=None, fetch_one=False):
-    """Get a query result from the database.
-
-    Parameters
-    ----------
-    query : str
-        The query to execute.
-    params : list, optional
-        The parameters to pass to the query.
-    fetch_one : bool, optional
-        Whether to fetch only one result.
-
-    Returns
-    -------
-    list
-        A list of results.
-    """
-    conn = get_db_connection()
-    try:
-        with conn.cursor(dictionary=True) as cursor:
-            cursor.execute(query, params)
-            if fetch_one:
-                result = cursor.fetchone()
-            else:
-                result = cursor.fetchall()
-            # Ensure all results are read
-            cursor.fetchall()
-        return result
-    finally:
-        conn.close()
+from app.models import User
 
 
 def get_user_id_by_email(email: str) -> int:
@@ -61,147 +29,8 @@ def get_user_id_by_email(email: str) -> int:
     int
         The user ID.
     """
-    result = get_query_result("SELECT user_id FROM user WHERE email = %s", (email,), fetch_one=True)
-    return result["user_id"] if result else None
-
-
-def get_config_from_os(service: str) -> dict[str, str]:
-    """Load credentials from OS env vars.
-
-    Arguments
-    ---------
-    service (str): The name of the service (e.g 'openai', 'pinecone')
-        for which to load
-
-    Returns
-    -------
-        dict: A dictionary containing the creds for the specified service.
-
-    """
-    config = {}
-    # loop through the env vars
-    for k in os.environ:
-        # check if the service is in the env var
-        # eg. GOOGLE_CLIENT_ID
-        if service.upper() in k:
-            # remove the service name and convert to lower case
-            # eg. GOOGLE_CLIENT_ID -> client_id
-            n_k = k.lower().replace(f"{service}_", "")
-            config[n_k] = os.environ[k]
-
-    return config
-
-
-def load_config(service: str, config_file: str = "./settings.json") -> dict[str, str]:
-    """Load credentials for a specified service from settings.json.
-
-    If file is non-existent or has syntax errors will try to pull from
-    OS env vars.
-
-    Arguments
-    ---------
-        service (str): The name of the service (e.g 'openai', 'pinecone')
-        for which to load credentials.
-
-        config_file (str): The path to the settings.json file.
-
-    Returns
-    -------
-        dict: A dictionary containing the creds for the specified service.
-
-    """
-    if Path(config_file).is_file():
-        with Path(config_file).open(encoding="utf-8") as f:
-            try:
-                config = json.load(f).get(service, {})
-
-                if service != "google" or service != "lorelai":
-                    os.environ[f"{service.upper()}_API_KEY"] = config.get("api_key", "")
-
-            except ValueError as e:
-                logging.debug(f"There was an error in your JSON:\n    {e}")
-                logging.debug("Trying to fallbak to env vars...")
-                config = get_config_from_os(service)
-    else:
-        config = get_config_from_os(service)
-
-    # if config is {} we need to fail
-    if not config:
-        raise ValueError(f"No config found in {config_file} under {service}")
-
-    # if config is {} we need to fail
-    if not config:
-        raise ValueError(f"No config found in {config_file} or OS env var under {service}")
-
-    return config
-
-
-def get_db_connection() -> mysql.connector.connection.MySQLConnection:
-    """Get a database connection.
-
-    Returns
-    -------
-        conn: a connection to the database
-
-    """
-    try:
-        creds = load_config("db")
-        conn = mysql.connector.connect(
-            host=creds["host"],
-            user=creds["user"],
-            password=creds["password"],
-            database=creds["database"],
-        )
-        return conn
-    except mysql.connector.Error:
-        logging.exception("Database connection failed")
-        raise
-
-
-def save_google_creds_to_tempfile(
-    refresh_token: str,
-    access_token: str,
-    token_uri: str,
-    client_id: str,
-    client_secret: str,
-    tempfile: str = ".credentials/token.json",
-) -> None:
-    """Load the google creds to a tempfile.
-
-    This is needed because the GoogleDriveLoader uses
-    the Credentials.from_authorized_user_file method to load the credentials
-
-    Arguments
-    ---------
-        refresh_token (str): The refresh token
-        token_uri (str): The token uri
-        client_id (str): The client id
-        client_secret (str): The client secret
-        tempfile (str): The path to the tempfile
-    """
-    tempfile = f"{Path.home()}/{tempfile}"
-
-    # create a file: Path.home() / ".credentials" / "token.json" to store the credentials so
-    # they can be loaded by GoogleDriveLoader's auth process (this uses
-    # Credentials.from_authorized_user_file)
-    if not os.path.exists(tempfile):
-        # get the directory
-        dir = os.path.dirname(tempfile)
-        os.makedirs(dir, exist_ok=True)
-
-    with open(tempfile, "w", encoding="utf-8") as f:
-        f.write(
-            json.dumps(
-                {
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_uri": token_uri,
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                }
-            )
-        )
-        f.close()
+    user = User.query.filter_by(email=email).first()
+    return user.id if user else None
 
 
 def get_embedding_dimension(model_name) -> int:
@@ -224,7 +53,7 @@ def get_embedding_dimension(model_name) -> int:
         # Add new models and their dimensions here as they become available
     }
 
-    return model_dimensions.get(model_name, -1)  # Return None if model is not found
+    return model_dimensions.get(model_name, -1)  # Return -1 if model is not found
 
 
 def create_jwt_token_invite_user(invitee_email, org_admin_email, org_name):
@@ -246,10 +75,8 @@ def create_jwt_token_invite_user(invitee_email, org_admin_email, org_name):
     -------
         str: A JWT token as a string.
     """
-    lorelai_config = load_config("lorelai")
-
     # Create JWT token
-    jwt_secret_key = lorelai_config["jwt_secret_key"]
+    jwt_secret_key = current_app.config["LORELAI_JWT_SECRET_KEY"]
     token = jwt.encode(
         {
             "invitee_email": invitee_email,
@@ -281,8 +108,7 @@ def send_invite_email(org_admin_email, invitee_email, invite_url):
     -------
         bool: True if the email was sent successfully, False otherwise.
     """
-    sendgridconfig = load_config("sendgrid")
-    template_id = sendgridconfig["invite_template_id"]
+    template_id = current_app.config["SENDGRID_INVITE_TEMPLATE_ID"]
 
     return send_templated_email(
         from_addr=org_admin_email,
@@ -329,8 +155,7 @@ def send_templated_email(
     message.template_id = template_id
     message.dynamic_template_data = template_data
 
-    sendgridconfig = load_config("sendgrid")
-    sendgridapikey = sendgridconfig["api_key"]
+    sendgridapikey = current_app.config["SENDGRID_API_KEY"]
 
     try:
         sg = SendGridAPIClient(sendgridapikey)
