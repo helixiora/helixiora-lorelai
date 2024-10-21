@@ -92,7 +92,7 @@ def refresh_google_token_if_needed(access_token):
             return None
         refresh_token = result.auth_value
 
-    logging.debug("Refreshing token for user %s", current_user.id)
+    logging.info("Refreshing token for user %s", current_user.id)
 
     token_url = "https://oauth2.googleapis.com/token"
     payload = {
