@@ -58,7 +58,7 @@ class SlackIndexer(Indexer):
         self.session.headers.update(self.headers)
 
         # setup embedding model
-        self.embedding_model_name = current_app.config["EMBEDDING_MODEL"]
+        self.embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
         self.embedding_model_dimension = current_app.config["EMBEDDING_DIMENSION"]
         if self.embedding_model_dimension == -1:
             raise ValueError(

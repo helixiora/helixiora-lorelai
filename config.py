@@ -75,6 +75,7 @@ class Config:
     # Embeddings settings
     EMBEDDINGS_MODEL = os.environ.get("EMBEDDINGS_MODEL", "text-embedding-3-small")
     EMBEDDINGS_CHUNK_SIZE = int(os.environ.get("EMBEDDINGS_CHUNK_SIZE", 4000))
+    EMBEDDING_DIMENSION = int(os.environ.get("EMBEDDING_DIMENSION", 1536))
 
     # SendGrid settings
     SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
