@@ -111,7 +111,7 @@ class Indexer:
                 job=job,
             )
 
-            message = f"User {user_row.email} indexing {'succeeded' if success else 'failed'}"
+            message = f"User {user_row['email']} indexing {'succeeded' if success else 'failed'}"
             logging.info(message)
 
             if job:
@@ -132,7 +132,7 @@ class Indexer:
                 }
             )
 
-        logging.debug(f"Indexing complete for org: {org_row.name}. Results: {result}")
+        logging.debug(f"Indexing complete for org: {org_row['name']}. Results: {result}")
         return result
 
     def index_user(
