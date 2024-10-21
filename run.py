@@ -3,8 +3,8 @@
 
 from app.factory import create_app
 import sys
-from app.health import perform_health_checks
-from jinja2 import render_template_string
+from app.helpers.database import perform_health_checks
+from flask.templating import render_template_string
 from flask import request, url_for
 
 app = create_app()
