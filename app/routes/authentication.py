@@ -83,7 +83,7 @@ def refresh_google_token_if_needed(access_token):
     if response.status_code == 200 and "error" not in response.json():
         return access_token  # Token is still valid
 
-    # Token is invalid or expired, refresh it
+    # If we're still here, the token is invalid or expired, refresh it
     refresh_token = session.get("refresh_token")
     if not refresh_token:
         result = UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").first()
@@ -92,7 +92,7 @@ def refresh_google_token_if_needed(access_token):
             return None
         refresh_token = result.auth_value
 
-    logging.info("Refreshing token for user %s", current_user.id)
+    logging.info("Refreshing token for user %s", current_user.email)
 
     token_url = "https://oauth2.googleapis.com/token"
     payload = {
@@ -103,6 +103,15 @@ def refresh_google_token_if_needed(access_token):
     }
     token_response = lib_requests.post(token_url, data=payload)
     if token_response.status_code != 200:
+        error_data = token_response.json()
+        if error_data.get("error") == "invalid_grant":
+            logging.error("Invalid grant error. Refresh token may be expired or revoked.")
+            # Clear the invalid refresh token
+            UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").delete()
+            UserAuth.query.filter_by(user_id=current_user.id, auth_key="access_token").delete()
+            db.session.commit()
+            # You may want to redirect the user to re-authenticate here
+            return None
         logging.error("Failed to refresh token: %s", token_response.text)
         return None
 
