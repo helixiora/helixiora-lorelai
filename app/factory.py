@@ -3,16 +3,14 @@
 import logging
 import os
 import sys
-from flask import Flask
+from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
-from flask import render_template
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 import sentry_sdk
 
 from app.models import db, User
-from flask import jsonify
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp

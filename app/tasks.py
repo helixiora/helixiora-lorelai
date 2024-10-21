@@ -14,6 +14,7 @@ from lorelai.indexer import Indexer
 from lorelai.llm import Llm
 from lorelai.indexers.slackindexer import SlackIndexer
 
+
 logging_format = os.getenv(
     "LOG_FORMAT",
     "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
@@ -30,70 +31,68 @@ def get_answer_from_rag(
     organisation: str,
     model_type: str = "OpenAILlm",
 ) -> dict:
-    """Execute the RAG+LLM model.
+    """Execute the RAG+LLM model."""
+    from app.factory import create_app
 
-    Arguments
-    ---------
-    chat_message : str
-        The chat message.
-    user : str
-        The user email.
-    organisation : str
-        The organisation name.
-    model_type : str, optional
-        The model type to use (OpenAI, Llama3, etc). Default is "OpenAILlm".
+    app = create_app()  # Create the Flask app
+    with app.app_context():  # Set up the application context
+        start_time = time.time()
+        job = get_current_job()
+        if job is None:
+            raise ValueError("Could not get the current job.")
+        logging.info("Task ID: %s, Message: %s", chat_message, job.id)
+        logging.info("Session: %s, %s, %s", user_id, user, organisation)
 
-    Returns
-    -------
-    dict
-        The answer and source of the answer.
+        try:
+            # create model
+            logging.info("User email: %s, Org name: %s", user, organisation)
 
-    Raises
-    ------
-    ValueError
-        If the user or organisation is None.
-    """
-    start_time = time.time()
-    job = get_current_job()
-    if job is None:
-        raise ValueError("Could not get the current job.")
-    logging.info("Task ID: %s, Message: %s", chat_message, job.id)
-    logging.info("Session: %s, %s, %s", user_id, user, organisation)
+            if user is None or organisation is None:
+                raise ValueError("User and organisation cannot be None.")
 
-    try:
-        # create model
-        logging.info("User email: %s, Org name: %s", user, organisation)
+            # insert chat thread
+            thread_inserted = insert_thread_ignore(
+                thread_id=str(thread_id), user_id=user_id, thread_name=chat_message[:20]
+            )
 
-        if user is None or organisation is None:
-            raise ValueError("User and organisation cannot be None.")
+            if not thread_inserted:
+                logging.error(f"Failed to insert thread for user {user_id}")
+                return {
+                    "answer": "An error occurred while processing your request. Please try again.",
+                    "status": "error",
+                    "thread_id": thread_id,
+                }
 
-        # insert chat thread
-        insert_thread_ignore(
-            thread_id=str(thread_id), user_id=user_id, thread_name=chat_message[:20]
-        )
+            # insert message
+            insert_message(thread_id=str(thread_id), sender="user", message_content=chat_message)
 
-        # insert message
-        insert_message(thread_id=str(thread_id), sender="user", message_content=chat_message)
+            llm = Llm.create(model_type=model_type, user=user, organization=organisation)
+            response = llm.get_answer(question=chat_message)
+            status = "success"
 
-        llm = Llm.create(model_type=model_type, user=user, organization=organisation)
-        response = llm.get_answer(question=chat_message)
-        status = "success"
+            logging.info(f"Get Answer time {time.time()-start_time}")
 
-        logging.info(f"Get Answer time {time.time()-start_time}")
+            logging.info("Answer: %s", response)
+            insert_message(thread_id=str(thread_id), sender="bot", message_content=response)
 
-        logging.info("Answer: %s", response)
-        insert_message(thread_id=str(thread_id), sender="bot", message_content=response)
+            json_data = {
+                "answer": response,
+                "status": status,
+                "thread_id": thread_id,
+            }
+        except Exception as e:
+            logging.error(f"Error in get_answer_from_rag: {str(e)}")
+            return {
+                "answer": "An error occurred while processing your request. Please try again.",
+                "status": "error",
+                "thread_id": thread_id,
+            }
 
-        json_data = {
-            "answer": response,
-            "status": status,
-            "thread_id": thread_id,
-        }
-    finally:
-        end_time = time.time()
-        logging.info(f"Worker Exec time: {end_time - start_time}")
+        finally:
+            end_time = time.time()
+            logging.info(f"Worker Exec time: {end_time - start_time}")
 
-    return json_data
+        return json_data
 
 
 def run_indexer(

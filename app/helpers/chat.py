@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 from app.helpers.users import is_admin
 from app.models import db, ChatThread, ChatMessage, UserPlan, Plan
+from flask import current_app
 
 
 def get_chat_template_requirements(thread_id: str, user_id: int) -> dict:
@@ -63,32 +64,35 @@ def get_msg_count_last_24hr(user_id: int) -> int:
         raise e
 
 
-def insert_thread_ignore(thread_id: str, user_id, thread_name=None):
+def insert_thread_ignore(thread_id: str, user_id: int, thread_name: str = None) -> bool:
     """
     Insert a new chat thread into the chat_threads table, ignoring the insertion if a duplicate.
 
     Args:
         thread_id (str): The unique identifier for the chat thread.
-        user_id: The ID of the user who owns the thread.
+        user_id (int): The ID of the user who owns the thread.
         thread_name (str, optional): The name of the chat thread. Defaults to None.
 
     Returns
     -------
         bool: True if the insertion was successful or ignored, False otherwise.
-
-    Raises
-    ------
-        Exception: Propagates any exception that occurs during the database operation.
     """
+    logging.info("Inserting thread: %s, %s, %s", thread_id, user_id, thread_name)
+
     try:
-        thread = ChatThread(thread_id=thread_id, user_id=user_id, thread_name=thread_name)
-        db.session.add(thread)
-        db.session.commit()
-        return True
+        with current_app.app_context():
+            existing_thread = ChatThread.query.filter_by(thread_id=thread_id).first()
+            if existing_thread:
+                return True  # Thread already exists, ignore insertion
+
+            thread = ChatThread(thread_id=thread_id, user_id=user_id, thread_name=thread_name)
+            db.session.add(thread)
+            db.session.commit()
+            return True
     except Exception as e:
+        current_app.logger.error(f"Error inserting thread: {e}")
         db.session.rollback()
-        logging.error(e)
-        raise e
+        return False
 
 
 def insert_message(thread_id: str, sender: str, message_content: str, sources: str = None) -> bool:
