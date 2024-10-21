@@ -47,14 +47,13 @@ class ChatThread(db.Model):
 class Datasource(db.Model):
     """Model for a datasource."""
 
-    __tablename__ = "datasources"
+    __tablename__ = "datasource"
 
     datasource_id = db.Column(
         db.Integer, primary_key=True, autoincrement=True, name="datasource_id"
     )
     name = db.Column(db.String(255), nullable=False, name="datasource_name", unique=True)
     type = db.Column(db.String(255), nullable=False, name="datasource_type")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class GoogleDriveItem(db.Model):

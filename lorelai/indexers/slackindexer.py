@@ -22,8 +22,9 @@ import lorelai.utils
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_size, clean_text_for_vector
+from app.models import Datasource
 
-from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
+from app.helpers.datasources import DATASOURCE_SLACK
 from lorelai.utils import get_user_id_by_email
 
 
@@ -150,7 +151,9 @@ class SlackIndexer(Indexer):
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = get_datasource_id_by_name(DATASOURCE_SLACK)
+        datasource_id = (
+            Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first().datasource_id
+        )
         user_id = get_user_id_by_email(email)
         conn = None
         cursor = None

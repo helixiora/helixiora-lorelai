@@ -35,11 +35,11 @@ from app.helpers.users import (
     remove_user_role,
 )
 from app.helpers.database import create_user
-from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_GOOGLE_DRIVE
+from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import send_invite_email, create_jwt_token_invite_user
-from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem
+from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem, Datasource
 from app.schemas import UserSchema
 from pydantic import ValidationError
 
@@ -194,8 +194,10 @@ def start_indexing(type) -> str:
         redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
         queue = Queue(connection=redis_conn)
 
-        datasource_id = get_datasource_id_by_name(DATASOURCE_GOOGLE_DRIVE)
-        user_id = session["user_id"]
+        datasource_id = (
+            Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+        )
+        user_id = session["id"]
         org_id = session.get("org_id")
         if not org_id and type != "all":
             return jsonify(
@@ -230,7 +232,7 @@ def start_indexing(type) -> str:
                 user_rows = User.query.filter_by(org_id=org_row.id)
             # If the type is user, we only get the current user
             elif type == "user":
-                user_rows = User.query.filter_by(user_id=user_id, org_id=org_id)
+                user_rows = User.query.filter_by(id=user_id, org_id=org_id)
 
             # Only continue if we have users
             if user_rows:
@@ -239,13 +241,11 @@ def start_indexing(type) -> str:
                 for user_row in user_rows:
                     # Get the user auth rows for the user
                     user_auth_rows_for_user = UserAuth.query.filter_by(
-                        user_id=user_row.user_id, datasource_id=datasource_id
+                        user_id=user_row.id, datasource_id=datasource_id
                     )
                     user_auth_rows.extend(user_auth_rows_for_user)
 
-                    user_data_rows_for_user = GoogleDriveItem.query.filter_by(
-                        user_id=user_row.user_id, datasource_id=datasource_id
-                    )
+                    user_data_rows_for_user = GoogleDriveItem.query.filter_by(user_id=user_row.id)
                     user_data_rows.extend(user_data_rows_for_user)
 
                     logging.debug(
