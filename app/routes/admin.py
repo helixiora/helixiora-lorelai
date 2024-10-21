@@ -335,7 +335,7 @@ def index_details(host_name: str) -> str:
         "admin/index_details.html",
         index_host=host_name,
         metadata=index_metadata,
-        is_admin=is_admin(session["user_id"]),
+        is_admin=is_admin(session["id"]),
     )
 
 
@@ -468,12 +468,12 @@ def invite_user():
     """
     email = request.form["email"]
     token = create_jwt_token_invite_user(
-        invitee_email=email, org_admin_email=session["user_email"], org_name=session["org_name"]
+        invitee_email=email, org_admin_email=session["email"], org_name=session["org_name"]
     )
     invite_register_url = url_for("chat.index", token=token, _external=True)
 
     email_status = send_invite_email(
-        org_admin_email=session["user_email"],
+        org_admin_email=session["email"],
         invitee_email=email,
         invite_url=invite_register_url,
     )

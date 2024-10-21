@@ -96,7 +96,7 @@ class SlackOAuth:
                 session["slack_access_token"] = access_token
 
                 user_auth = UserAuth.query.filter_by(
-                    user_id=session["user_id"],
+                    user_id=session["id"],
                     datasource_id=self.datasource.datasource_id,
                     auth_key="access_token",
                 ).first()
@@ -105,7 +105,7 @@ class SlackOAuth:
                     user_auth.auth_value = access_token
                 else:
                     new_auth = UserAuth(
-                        user_id=session["user_id"],
+                        user_id=session["id"],
                         datasource_id=self.datasource.datasource_id,
                         auth_key="access_token",
                         auth_value=access_token,
@@ -120,7 +120,7 @@ class SlackOAuth:
                 logging.error("No access token received from Slack, removing from user_auth table")
                 # remove slack access token from user_auth table
                 UserAuth.query.filter_by(
-                    user_id=session["user_id"],
+                    user_id=session["id"],
                     datasource_id=self.datasource.datasource_id,
                     auth_type="oauth",
                 ).delete()

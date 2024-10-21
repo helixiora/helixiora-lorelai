@@ -224,7 +224,7 @@ def deauthorize():
 @googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])
 def process_file_picker():
     """Process the list of google docs ids returned by the file picker."""
-    user_id = session["user_id"]
+    user_id = session["id"]
     documents = request.get_json()
 
     if not documents:
@@ -255,7 +255,7 @@ def process_file_picker():
 @googledrive_bp.route("/google/drive/removefile", methods=["POST"])
 def remove_file():
     """Remove a google drive item from the database."""
-    user_id = session["user_id"]
+    user_id = session["id"]
     data = request.get_json()
     google_drive_id = data["google_drive_id"]
 
