@@ -3,6 +3,13 @@
 import logging
 
 from datetime import datetime
+
+from redis import Redis
+from rq import Queue
+from sqlalchemy.exc import SQLAlchemyError
+import mysql
+from pydantic import ValidationError
+
 from flask import (
     Blueprint,
     jsonify,
@@ -14,16 +21,13 @@ from flask import (
     redirect,
     current_app,
 )
-
 from flask_login import login_required, current_user
-from redis import Redis
-from rq import Queue
-from sqlalchemy.exc import SQLAlchemyError
 
-import mysql
-
+from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem, Datasource
+from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema, GoogleDriveItemSchema
 from app.tasks import run_indexer, run_slack_indexer
-
+from app.helpers.database import create_user
+from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from app.helpers.users import (
     is_super_admin,
     is_org_admin,
@@ -34,14 +38,9 @@ from app.helpers.users import (
     add_user_role,
     remove_user_role,
 )
-from app.helpers.database import create_user
-from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import send_invite_email, create_jwt_token_invite_user
-from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem, Datasource
-from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema, GoogleDriveItemSchema
-from pydantic import ValidationError
 
 admin_bp = Blueprint("admin", __name__)
 
