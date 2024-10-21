@@ -21,6 +21,7 @@ from langchain_core.documents import Document
 from rq import job
 from app.models import db, GoogleDriveItem
 from sqlalchemy.exc import SQLAlchemyError
+from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema, GoogleDriveItemSchema
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 
@@ -59,69 +60,67 @@ class GoogleDriveIndexer(Indexer):
 
     def index_user(
         self,
-        user_row: dict[str, any],
-        org_row: dict[str, any],
-        user_auth_rows: list[dict[str, any]],
-        user_data_rows: list[dict[str, any]],
+        user_row: UserSchema,
+        org_row: OrganisationSchema,
+        user_auth_rows: list[UserAuthSchema],
+        user_data_rows: list[GoogleDriveItemSchema],
         job: job.Job,
     ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         Arguments
         ---------
-        user_row: dict[str, any]
-            The user to process, a dictionary of user details (user_id, name, email, token,
-            efresh_token).
-        org_row: dict[str, any]
-            The organisation to process, a dictionary of org details (org_id, name).
-        user_auth_rows: list[dict[str, any]]
-            The user auth rows for the user, a list of user auth details (user_id, auth_key,
-            auth_value).
-        job: job.Job | None
+        user_row: UserSchema
+            The user to process.
+        org_row: OrganisationSchema
+            The organisation to process.
+        user_auth_rows: list[UserAuthSchema]
+            The user auth rows for the user.
+        user_data_rows: list[GoogleDriveItemSchema]
+            The user data rows for the user.
+        job: job.Job
             The job object for the current task.
-        folder_id: str
-            The folder ID to process.
 
         Returns
         -------
         bool
             True if indexing was successful, False otherwise.
         """
-        logging.info(f"Indexing user: {user_row['email']} from org: {org_row['name']}")
-        job.meta["logs"].append(f"Indexing user: {user_row['email']} from org: {org_row['name']}")
+        logging.info(f"Indexing user: {user_row.email} from org: {org_row.name}")
+        job.meta["logs"].append(f"Indexing user: {user_row.email} from org: {org_row.name}")
 
         # 1. Get the Google Drive access token, refresh token, and expiry
         access_token, refresh_token, expires_at = self.__get_token_details(user_auth_rows)
 
         # 2. Get the Google Drive document IDs
-        logging.debug(f"Getting Google Drive document IDs for user: {user_row['email']}")
+        logging.debug(f"Getting Google Drive document IDs for user: {user_row.email}")
 
         documents = []
         for user_data_row in user_data_rows:
             # extra safety: check if the user_id in the user_data_row matches the user_id
-            if user_data_row["user_id"] != user_row["user_id"]:
+            if user_data_row.user_id != user_row.user_id:
                 continue
 
-            if user_data_row["item_type"] not in ALLOWED_ITEM_TYPES:
-                logging.error(f"Invalid item type: {user_data_row['item_type']}")
+            if user_data_row.item_type not in ALLOWED_ITEM_TYPES:
+                logging.error(f"Invalid item type: {user_data_row.item_type}")
                 continue
 
             # add information about the document to the list
             documents.append(
                 {
-                    "user_id": user_data_row["user_id"],
-                    "google_drive_id": user_data_row["google_drive_id"],
-                    "item_type": user_data_row["item_type"],
-                    "item_name": user_data_row["item_name"],
+                    "user_id": user_data_row.user_id,
+                    "google_drive_id": user_data_row.google_drive_id,
+                    "item_type": user_data_row.item_type,
+                    "item_name": user_data_row.item_name,
                 }
             )
 
         if not documents or len(documents) == 0:
-            logging.warn(f"No Google Drive documents found for user: {user_row['email']}")
+            logging.warn(f"No Google Drive documents found for user: {user_row.email}")
             return True
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        logging.info(f"Processing {len(documents)} Google documents for user: {user_row['email']}")
+        logging.info(f"Processing {len(documents)} Google documents for user: {user_row.email}")
 
         # create a credentials object
         credentials_object = credentials.Credentials(
@@ -145,11 +144,11 @@ class GoogleDriveIndexer(Indexer):
                 drive_service.files().list(pageSize=1).execute()
                 logging.info(
                     f"Google Drive credentials are valid and working for user: \
-{user_row['email']}"
+{user_row.email}"
                 )
             except Exception as e:
                 logging.error(f"Failed to validate Google Drive credentials for user: \
-{user_row['email']} with a simple API call: {e}")
+{user_row.email} with a simple API call: {e}")
                 return False
 
         # convert the documents to langchain documents
@@ -160,21 +159,21 @@ class GoogleDriveIndexer(Indexer):
         )
 
         # add the user for whom were indexing the docs to the documents' metadata
-        self.add_user_to_docs_metadata(langchain_docs, user_row["email"])
+        self.add_user_to_docs_metadata(langchain_docs, user_row.email)
 
         pinecone_processor = Processor()
 
         # store the documents in Pinecone
         pinecone_processor.store_docs_in_pinecone(
             langchain_docs,
-            user_email=user_row["email"],
+            user_email=user_row.email,
             job=job,
-            org_name=org_row["name"],
+            org_name=org_row.name,
             datasource="googledrive",
         )
 
         self.update_last_indexed_for_docs(documents, job)
-        logging.info(f"Indexing complete for user: {user_row['email']}")
+        logging.info(f"Indexing complete for user: {user_row.email}")
 
         return True
 

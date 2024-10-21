@@ -40,7 +40,7 @@ from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import send_invite_email, create_jwt_token_invite_user
 from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem, Datasource
-from app.schemas import UserSchema
+from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema, GoogleDriveItemSchema
 from pydantic import ValidationError
 
 admin_bp = Blueprint("admin", __name__)
@@ -99,7 +99,6 @@ def create_new_user():
 
 
 @admin_bp.route("/admin/job-status/<job_id>")
-# note we don't require a role because a regular user should be able to index their own stuff
 def job_status(job_id: str) -> str:
     """Return the status of a job given its job_id.
 
@@ -117,50 +116,51 @@ def job_status(job_id: str) -> str:
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
-    logging.info(f"Job {job_id} status: {job._status}")
-    match job:
-        case None:
-            logging.error(f"Job {job_id} not found")
-            response = {"job_id": job_id, "state": "unknown", "status": "unknown"}
-        case job.is_queued:
-            logging.info(f"Job {job_id} queued")
-            response = {
-                "job_id": job_id,
-                "state": "queued",
-                "metadata": job.meta,
-            }
-        case job.is_finished:
-            logging.info(f"Job {job_id} finished")
-            response = {
-                "job_id": job_id,
-                "state": "finished",
-                "metadata": job.meta,
-                "result": job.result,
-            }
-        case job.is_failed:
-            logging.error(f"Job {job_id} failed")
-            response = {
-                "job_id": job_id,
-                "state": "failed",
-                "metadata": job.meta,
-                "result": job.result,
-            }
-        case job.is_started:
-            logging.info(f"Job {job_id} started")
-            response = {
-                "job_id": job_id,
-                "state": "started",
-                "metadata": job.meta,
-                "result": job.result,
-            }
-        case _:
-            logging.info(f"Job {job_id} unknown state")
-            response = {
-                "job_id": job_id,
-                "state": job._status,
-                "metadata": job.meta,
-                "result": job.result,
-            }
+    if job is None:
+        logging.error(f"Job {job_id} not found")
+        response = {"job_id": job_id, "state": "unknown", "status": "unknown"}
+    else:
+        logging.info(f"Job {job_id} status: {job._status}")
+        match job:
+            case job.is_queued:
+                logging.info(f"Job {job_id} queued")
+                response = {
+                    "job_id": job_id,
+                    "state": "queued",
+                    "metadata": job.meta,
+                }
+            case job.is_finished:
+                logging.info(f"Job {job_id} finished")
+                response = {
+                    "job_id": job_id,
+                    "state": "finished",
+                    "metadata": job.meta,
+                    "result": job.result,
+                }
+            case job.is_failed:
+                logging.error(f"Job {job_id} failed")
+                response = {
+                    "job_id": job_id,
+                    "state": "failed",
+                    "metadata": job.meta,
+                    "result": job.result,
+                }
+            case job.is_started:
+                logging.info(f"Job {job_id} started")
+                response = {
+                    "job_id": job_id,
+                    "state": "started",
+                    "metadata": job.meta,
+                    "result": job.result,
+                }
+            case _:
+                logging.info(f"Job {job_id} unknown state")
+                response = {
+                    "job_id": job_id,
+                    "state": job._status,
+                    "metadata": job.meta,
+                    "result": job.result,
+                }
 
     logging.debug(f"Job id: {job_id}, status: {response}")
     return jsonify(response)
@@ -206,79 +206,72 @@ def start_indexing(type) -> str:
 
         jobs = []
 
-        # First we get the org_rows. If the type is user or organisation,
-        # we only need the current org
-
-        if type in ["user", "organisation"]:
-            org_rows = Organisation.query.filter_by(id=org_id)
-            if not org_rows:
-                return jsonify({"error": "Organisation not found"}), 404
-            org_rows = [org_rows]  # Ensure it's a list for consistent handling
-        # If the type is all, we get all organisations
-        elif type == "all":
-            org_rows = Organisation.query.all()
-            if not org_rows:
-                return jsonify({"error": "No organisations found"}), 404
-
-        logging.debug(
-            f"Starting indexing for {len(org_rows)} organisations (type: {type}, \
-                user_id: {user_id}, org_id: {org_id})"
+        # Convert SQLAlchemy objects to Pydantic models
+        org_rows = (
+            Organisation.query.filter_by(id=org_id)
+            if type in ["user", "organisation"]
+            else Organisation.query.all()
         )
+        org_rows = [OrganisationSchema.from_orm(org).dict() for org in org_rows]
 
-        # Go through all org_rows and start indexing
         for org_row in org_rows:
-            # If the type is organisation or all, we get all users in the organisation
-            if type in ["organisation", "all"]:
-                user_rows = User.query.filter_by(org_id=org_row.id)
-            # If the type is user, we only get the current user
-            elif type == "user":
-                user_rows = User.query.filter_by(id=user_id, org_id=org_id)
+            user_rows = (
+                User.query.filter_by(org_id=org_row["id"])
+                if type in ["organisation", "all"]
+                else User.query.filter_by(id=user_id, org_id=org_id)
+            )
+            # Ensure all required fields are present
+            user_rows = [UserSchema.from_orm(user).dict(exclude_unset=True) for user in user_rows]
 
-            # Only continue if we have users
-            if user_rows:
-                user_auth_rows = []
-                user_data_rows = []
-                for user_row in user_rows:
-                    # Get the user auth rows for the user
-                    user_auth_rows_for_user = UserAuth.query.filter_by(
-                        user_id=user_row.id, datasource_id=datasource_id
-                    )
-                    user_auth_rows.extend(user_auth_rows_for_user)
+            user_auth_rows = []
+            user_data_rows = []
+            for user_row in user_rows:
+                user_auth_rows_for_user = UserAuth.query.filter_by(
+                    user_id=user_row["id"], datasource_id=datasource_id
+                )
+                user_auth_rows.extend(
+                    [UserAuthSchema.from_orm(auth).dict() for auth in user_auth_rows_for_user]
+                )
 
-                    user_data_rows_for_user = GoogleDriveItem.query.filter_by(user_id=user_row.id)
-                    user_data_rows.extend(user_data_rows_for_user)
+                user_data_rows_for_user = GoogleDriveItem.query.filter_by(user_id=user_row["id"])
+                user_data_rows.extend(
+                    [
+                        GoogleDriveItemSchema.from_orm(data).dict()
+                        for data in user_data_rows_for_user
+                    ]
+                )
 
-                    logging.debug(
-                        f"Starting indexing for user {user_row.email} in org {org_row.name}"
-                    )
+                job = queue.enqueue(
+                    run_indexer,
+                    org_row=org_row,
+                    user_rows=user_rows,
+                    user_auth_rows=user_auth_rows,
+                    user_data_rows=user_data_rows,
+                    started_by_user_id=user_id,
+                    job_timeout=3600,
+                    description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']} - \
+Start time: {datetime.now()}",
+                )
 
-                    job = queue.enqueue(
-                        run_indexer,
-                        org_row=org_row,
-                        user_rows=user_rows,
-                        user_auth_rows=user_auth_rows,
-                        user_data_rows=user_data_rows,
-                        started_by_user_id=user_id,
-                        job_timeout=3600,
-                        description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']} \
-- Start time: {datetime.now()}",
-                    )
-
-                    # Add the job to the list of started jobs
-                    job_id = job.get_id()
-                    jobs.append(job_id)
+                job_id = job.get_id()
+                jobs.append(job_id)
 
         logging.info("Started indexing for %s jobs", len(jobs))
         return jsonify({"jobs": jobs}), 202
-
-    except Exception as e:
-        logging.error(f"Error starting indexing: {e}")
+    except ValidationError as e:
+        logging.error(f"Validation error: {e}")
+        return jsonify({"error": "Validation error", "details": e.errors()}), 400
+    except Exception:
+        logging.exception("Error starting indexing")
         return jsonify({"error": "Failed to start indexing"}), 500
+    finally:
+        db.session.close()
 
 
 @admin_bp.route("/admin/startslackindex", methods=["POST"])
 @role_required(["super_admin", "org_admin"])
-# For Slack it logical that only org admin can run the indexer as the bot need to be added to slack then added to channel  # noqa: E501
+# For Slack it logical that only org admin can run the indexer as the bot need to be added to
+# slack then added to channel  # noqa: E501
 def start_slack_indexing() -> str:
     """Start slack indexing the data for the organization of the logged-in user.
 
@@ -450,6 +443,8 @@ def setup_post() -> str:
 
 
 @admin_bp.route("/admin/invite_user", methods=["POST"])
+@login_required
+@role_required(["super_admin", "org_admin"])
 def invite_user():
     """
     Handle user invitation process by sending an invite email with a registration link.
