@@ -48,7 +48,8 @@ def create_app(config_name: str = "default") -> Flask:
     # Initialize extensions
     db.init_app(app)
     Migrate(app, db)
-    login_manager = LoginManager(app)
+    login_manager = LoginManager()
+    login_manager.init_app(app)
     login_manager.login_view = "chat.index"
     jwt = JWTManager(app)
     # CSRFProtect(app)
