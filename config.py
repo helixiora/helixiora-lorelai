@@ -95,9 +95,14 @@ class Config:
     SLACK_CLIENT_ID = os.environ.get("SLACK_CLIENT_ID")
     SLACK_CLIENT_SECRET = os.environ.get("SLACK_CLIENT_SECRET")
     SLACK_REDIRECT_URI = os.environ.get("SLACK_REDIRECT_URI")
-    SLACK_AUTHORIZATION_URL = os.environ.get("SLACK_AUTHORIZATION_URL")
-    SLACK_TOKEN_URL = os.environ.get("SLACK_TOKEN_URL")
-    SLACK_SCOPES = os.environ.get("SLACK_SCOPES")
+    SLACK_AUTHORIZATION_URL = os.environ.get(
+        "SLACK_AUTHORIZATION_URL", "https://slack.com/oauth/v2/authorize"
+    )
+    SLACK_TOKEN_URL = os.environ.get("SLACK_TOKEN_URL", "https://slack.com/api/oauth.v2.access")
+    SLACK_SCOPES = os.environ.get(
+        "SLACK_SCOPES",
+        "channels:history,channels:read,users:read,users:read.email",
+    )
 
     @classmethod
     def init_app(cls, app):

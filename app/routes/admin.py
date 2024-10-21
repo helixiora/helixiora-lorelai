@@ -182,9 +182,9 @@ def start_indexing(type) -> str:
         If the connection to the Redis server or the database fails.
     """
     logging.info("Started indexing (type: %s)", type)
-    if type == "organisation" and not is_org_admin(session["user_id"]):
+    if type == "organisation" and not is_org_admin(session["id"]):
         return jsonify({"error": "Only organisation admins can index their organisation"}), 403
-    if type == "all" and not is_super_admin(session["user_id"]):
+    if type == "all" and not is_super_admin(session["id"]):
         return jsonify({"error": "Only super admins can index all organisations"}), 403
 
     if type not in ["user", "organisation", "all"]:
@@ -289,8 +289,8 @@ def start_slack_indexing() -> str:
         jobs = []
         redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
         queue = Queue(connection=redis_conn)
-        user_email = session["user_email"]
-        org_name = session["org_name"]
+        user_email = session["email"]
+        org_name = current_user.organisation.name
         job = queue.enqueue(
             run_slack_indexer,
             user_email=user_email,

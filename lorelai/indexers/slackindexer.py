@@ -18,14 +18,12 @@ import openai
 
 from flask import current_app
 
-import lorelai.utils
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_size, clean_text_for_vector
-from app.models import Datasource
+from app.models import Datasource, User, UserAuth
 
 from app.helpers.datasources import DATASOURCE_SLACK
-from lorelai.utils import get_user_id_by_email
 
 
 class SlackIndexer(Indexer):
@@ -151,35 +149,33 @@ class SlackIndexer(Indexer):
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = (
-            Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first().datasource_id
-        )
-        user_id = get_user_id_by_email(email)
-        conn = None
-        cursor = None
         try:
-            conn = lorelai.utils.get_db_connection()
-            cursor = conn.cursor()
-            sql_query = (
-                "SELECT auth_value FROM user_auth WHERE datasource_id = %s AND user_id = %s;"
-            )
-            cursor.execute(sql_query, (datasource_id, user_id))
-            result = cursor.fetchone()
-            if result:
-                slack_token = result[0]
+            # Query the user by email
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                logging.debug("No user found with the specified email.")
+                return None
+
+            # Query the datasource by name
+            datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+            if not datasource:
+                logging.debug("No Slack datasource found.")
+                return None
+
+            # Query the user auth by user_id and datasource_id
+            user_auth = UserAuth.query.filter_by(
+                user_id=user.id, datasource_id=datasource.datasource_id
+            ).first()
+            if user_auth:
+                slack_token = user_auth.auth_value
                 logging.debug(f"Slack Token: {slack_token}")
                 return slack_token
 
-            logging.debug("No Slack token found for the specified user_id.")
+            logging.debug("No Slack token found for the specified user.")
             return None
         except Exception as e:
             logging.error(f"Error retrieving access token: {e}")
             return None
-        finally:
-            if cursor:
-                cursor.close()  # Close the cursor
-            if conn:
-                conn.close()  # Close the connection
 
     def get_userid_name(self) -> dict[str, str]:
         """
