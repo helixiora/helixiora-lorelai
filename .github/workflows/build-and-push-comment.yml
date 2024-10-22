@@ -86,7 +86,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const status = context.job === 'success' ? 'succeeded' : 'failed';
+            const status = job.status === 'success' ? 'succeeded' : 'failed';
             const runId = process.env.GITHUB_RUN_ID;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const buildLogUrl = `${repoUrl}/actions/runs/${runId}`;
