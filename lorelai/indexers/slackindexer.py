@@ -21,7 +21,7 @@ from flask import current_app
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_size, clean_text_for_vector
-from app.models import db, User, UserAuth
+from app.models import Datasource, User, UserAuth
 
 from app.helpers.datasources import DATASOURCE_SLACK
 
@@ -149,6 +149,7 @@ class SlackIndexer(Indexer):
         -------
             str or None: The Slack access token if found, otherwise None.
         """
+
         auth_value = (
             db.session.query(UserAuth.auth_value)
             .join(User, User.id == UserAuth.user_id)
@@ -159,6 +160,33 @@ class SlackIndexer(Indexer):
             return auth_value[0]
         else:
             raise ValueError(f"Slack Token not found for user {email}")
+#         try:
+#             # Query the user by email
+#             user = User.query.filter_by(email=email).first()
+#             if not user:
+#                 logging.debug("No user found with the specified email.")
+#                 return None
+
+#             # Query the datasource by name
+#             datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+#             if not datasource:
+#                 logging.debug("No Slack datasource found.")
+#                 return None
+
+#             # Query the user auth by user_id and datasource_id
+#             user_auth = UserAuth.query.filter_by(
+#                 user_id=user.id, datasource_id=datasource.datasource_id
+#             ).first()
+#             if user_auth:
+#                 slack_token = user_auth.auth_value
+#                 logging.debug(f"Slack Token: {slack_token}")
+#                 return slack_token
+
+#             logging.debug("No Slack token found for the specified user.")
+#             return None
+#         except Exception as e:
+#             logging.error(f"Error retrieving access token: {e}")
+#             return None
 
     def get_userid_name(self) -> dict[str, str]:
         """

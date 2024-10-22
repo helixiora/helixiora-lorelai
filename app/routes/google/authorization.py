@@ -14,7 +14,7 @@ References
 import logging
 import os
 
-from flask import Blueprint, request, session, jsonify, redirect, url_for, current_app
+from flask import Blueprint, request, session, jsonify, redirect, url_for, current_app, flash
 from google_auth_oauthlib.flow import Flow
 
 from oauthlib.oauth2.rfc6749.errors import (
@@ -51,7 +51,8 @@ def google_auth_redirect():
 
     if not authorization_code:
         logging.error("Authorization code is missing")
-        return jsonify_error("Authorization code is missing", 400)
+        flash("Authorization code is missing", "error")
+        return redirect(url_for("auth.profile"))
 
     flow = initialize_oauth_flow()
 
@@ -61,11 +62,13 @@ def google_auth_redirect():
             "Authorization code exchanged for access_token, refresh_token, and expiry for user id"
         )
     except OAuth2Error as e:
-        return handle_oauth_error(e)
+        flash(f"Error exchanging authorization code: {e}", "error")
+        return redirect(url_for("auth.profile"))
 
-    user_id = session.get("user_id")
+    user_id = session.get("id")
     if not user_id:
-        return jsonify_error("User not logged in or session expired", 401)
+        flash("User not logged in or session expired", "error")
+        return redirect(url_for("auth.profile"))
 
     save_tokens_to_db(flow, user_id)
 
@@ -158,8 +161,10 @@ def insert_or_update_token(user, datasource, key, value):
     ).first()
 
     if user_auth:
+        logging.debug(f"Updating {key} for user id: {user.id}, value: {value}")
         user_auth.auth_value = value
     else:
+        logging.debug(f"Inserting {key} for user id: {user.id}, value: {value}")
         new_auth = UserAuth(
             user_id=user.id,
             datasource_id=datasource.datasource_id,
@@ -219,7 +224,7 @@ def deauthorize():
 @googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])
 def process_file_picker():
     """Process the list of google docs ids returned by the file picker."""
-    user_id = session["user_id"]
+    user_id = session["id"]
     documents = request.get_json()
 
     if not documents:
@@ -250,7 +255,7 @@ def process_file_picker():
 @googledrive_bp.route("/google/drive/removefile", methods=["POST"])
 def remove_file():
     """Remove a google drive item from the database."""
-    user_id = session["user_id"]
+    user_id = session["id"]
     data = request.get_json()
     google_drive_id = data["google_drive_id"]
 

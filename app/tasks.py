@@ -14,6 +14,8 @@ from lorelai.indexer import Indexer
 from lorelai.llm import Llm
 from lorelai.indexers.slackindexer import SlackIndexer
 
+from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema, GoogleDriveItemSchema
+
 
 logging_format = os.getenv(
     "LOG_FORMAT",
@@ -96,10 +98,10 @@ def get_answer_from_rag(
 
 
 def run_indexer(
-    org_row: list[any],
-    user_rows: list[any],
-    user_auth_rows: list[any],
-    user_data_rows: list[any],
+    org_row: OrganisationSchema,
+    user_rows: list[UserSchema],
+    user_auth_rows: list[UserAuthSchema],
+    user_data_rows: list[GoogleDriveItemSchema],
     started_by_user_id: int,
 ):
     """
@@ -107,9 +109,14 @@ def run_indexer(
 
     Arguments
     ---------
-    org_row (List[any]): Organization data.
-    user_rows (List[any]): List of user data.
-    user_auth_rows (List[any]): List of user authentication data.
+    org_row: OrganisationSchema
+        Organization data.
+    user_rows: List[UserSchema]
+        List of user data.
+    user_auth_rows: List[UserAuthSchema]
+        List of user authentication data.
+    user_data_rows: List[GoogleDriveItemSchema]
+        List of user data items.
 
     Returns
     -------
@@ -124,7 +131,7 @@ def run_indexer(
         if job is None:
             raise ValueError("Could not get the current job.")
 
-        logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row}")
+        logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row['name']}")
 
         # Initialize indexer
         indexer = Indexer.create("GoogleDriveIndexer")

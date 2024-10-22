@@ -106,7 +106,7 @@ class SlackOAuth:
                     user_auth.auth_value = access_token
                 else:
                     new_auth = UserAuth(
-                        user_id=session["user_id"],
+                        user_id=session["id"],
                         datasource_id=self.datasource.datasource_id,
                         auth_key="access_token",
                         auth_value=access_token,

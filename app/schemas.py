@@ -1,12 +1,14 @@
 """Schemas for the app."""
 
 from datetime import date, datetime
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, EmailStr
 
 
 class ProfileSchema(BaseModel):
     """Schema for a user's profile."""
 
+    id: int
+    user_id: int
     bio: str | None
     location: str | None
     birth_date: date | None
@@ -22,7 +24,7 @@ class RoleSchema(BaseModel):
     """Schema for a role."""
 
     id: int
-    name: str
+    name: str  # Change from role_name to name
 
     class Config:
         """Config for the role schema."""
@@ -39,27 +41,8 @@ class UserSchema(BaseModel):
     full_name: str | None
     google_id: str | None
     org_id: int | None
-    org_name: str | None
-    is_admin: bool
     created_at: datetime
     roles: list[RoleSchema]
-
-    @model_validator(mode="before")
-    @classmethod
-    def check_admin(cls, user: "UserSchema") -> "UserSchema":
-        """Check if the user has admin role."""
-        # Use dot notation to access the roles
-        roles = user.roles if user.roles else []
-        is_admin = any(role.name in ("org_admin", "super_admin") for role in roles)
-        user.is_admin = is_admin
-        return user
-
-    @model_validator(mode="before")
-    @classmethod
-    def set_org_name(cls, user: "UserSchema") -> "UserSchema":
-        """Set the organisation name for the user."""
-        user.org_name = user.organisation.name if user.organisation else None
-        return user
 
     class Config:
         """Config for the user schema."""
@@ -157,6 +140,22 @@ class ChatMessageSchema(BaseModel):
         from_attributes = True
 
 
+class UserAuthSchema(BaseModel):
+    """Schema for a user auth."""
+
+    id: int
+    user_id: int
+    datasource_id: int
+    auth_key: str
+    auth_value: str
+    auth_type: str
+
+    class Config:
+        """Config for the user auth schema."""
+
+        from_attributes = True
+
+
 class ChatThreadSchema(BaseModel):
     """Schema for a chat thread."""
 
@@ -169,5 +168,60 @@ class ChatThreadSchema(BaseModel):
 
     class Config:
         """Config for the chat thread schema."""
+
+        from_attributes = True
+
+
+class OrganisationSchema(BaseModel):
+    """Schema for an organisation."""
+
+    id: int
+    name: str
+
+    class Config:
+        """Config for the organisation schema."""
+
+        from_attributes = True
+
+
+class GoogleDriveItemSchema(BaseModel):
+    """Schema for a Google Drive item."""
+
+    google_drive_id: str
+    item_name: str
+    item_type: str
+    mime_type: str
+    created_at: datetime
+    last_indexed_at: datetime | None
+
+    class Config:
+        """Config for the Google Drive item schema."""
+
+        from_attributes = True
+
+
+class DatasourceSchema(BaseModel):
+    """Schema for a datasource."""
+
+    datasource_id: int
+    datasource_name: str
+    datasource_type: str
+
+    class Config:
+        """Config for the datasource schema."""
+
+        from_attributes = True
+
+
+class UserLoginSchema(BaseModel):
+    """Schema for a user login."""
+
+    id: int
+    user_id: int
+    login_time: datetime
+    login_type: str
+
+    class Config:
+        """Config for the user login schema."""
 
         from_attributes = True

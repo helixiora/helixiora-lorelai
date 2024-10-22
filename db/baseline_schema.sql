@@ -1,9 +1,3 @@
--- MySQL dump 10.13  Distrib 8.3.0, for macos14.2 (arm64)
---
--- Host: localhost    Database: lorelai
--- ------------------------------------------------------
--- Server version	8.3.0
-
 --
 -- Table structure for table `flyway_schema_history`
 --
