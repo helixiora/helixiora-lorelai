@@ -1,6 +1,6 @@
 services:
   redis:
-    image: redis:alpine
+    image: redis:7.4-alpine
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
@@ -11,72 +11,88 @@ services:
       retries: 5
 
   db:
-    image: mysql:8.0
+    image: mysql:8.4
+    env_file:
+      - .env
     environment:
-      MYSQL_DATABASE: 'lorelai'
-      MYSQL_ROOT_PASSWORD: 'test123'
-    command: --default-authentication-plugin=mysql_native_password
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_HOST: ${DB_HOST}
+      MYSQL_PORT: ${DB_PORT}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     ports:
       - '3306:3306'
     volumes:
       - db-data:/var/lib/mysql
-      - ./db/baseline_schema.sql:/docker-entrypoint-initdb.d/1-baseline_schema.sql
+      - ./db:/docker-entrypoint-initdb.d
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h db"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
 
   web:
-    image: "${WEB_IMAGE:-local/web:latest}"
+    image: ghcr.io/helixiora/helixiora-lorelai/web:latest
     build:
       context: .
       dockerfile: Dockerfile
       target: web-development
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
     environment:
       - FLASK_APP=run.py
-      - REDIS_URL=redis://redis:6379/0
-      - OAUTHLIB_INSECURE_TRANSPORT=1
-      - OAUTHLIB_RELAX_TOKEN_SCOPE=1
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=test123
-      - DB_DATABASE=lorelai
-      - LOG_LEVEL=DEBUG
-    volumes:
-      - ./cert.pem:/cert.pem
-      - ./key.pem:/key.pem
-      - ./:/app
-    ports:
-      - "127.0.0.1:5000:5000"
+      - FLASK_ENV=${FLASK_ENV}
+      - FLASK_DEBUG=${FLASK_DEBUG}
+      - SQLALCHEMY_DATABASE_URI=mysql+mysqlconnector://root:${DB_ROOT_PASSWORD}@db:3306/${DB_NAME}
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - db
       - redis
-    restart: on-failure
+    command: flask run --host=0.0.0.0
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          ignore:
+            - .git/
+            - .venv/
+            - __pycache__/
+        - action: rebuild
+          path: requirements.txt
+        - action: rebuild
+          path: Dockerfile
 
   worker:
-    image: "${WORKER_IMAGE:-local/worker:latest}"
+    image: ghcr.io/helixiora/helixiora-lorelai/worker:latest
     build:
       context: .
       dockerfile: Dockerfile
       target: worker-development
+    env_file:
+      - .env
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=test123
-      - DB_DATABASE=lorelai
-      - OPENAI_API_KEY=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
-    volumes:
-      - type: bind
-        source: ./
-        target: /app
+      - SQLALCHEMY_DATABASE_URI=mysql+mysqlconnector://root:test123@db:3306/lorelai
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - web
+      - db
       - redis
-    restart: on-failure
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          ignore:
+            - .git/
+            - .venv/
+            - __pycache__/
+        - action: rebuild
+          path: requirements.txt
+        - action: rebuild
+          path: Dockerfile
 
 volumes:
   redis-data:
