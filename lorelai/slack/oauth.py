@@ -92,11 +92,12 @@ class SlackOAuth:
         try:
             # get access token from slack code
             access_token = self.get_access_token(code)
+
             if access_token:
                 session["slack_access_token"] = access_token
 
                 user_auth = UserAuth.query.filter_by(
-                    user_id=session["user_id"],
+                    user_id=session["id"],
                     datasource_id=self.datasource.datasource_id,
                     auth_key="access_token",
                 ).first()
@@ -120,7 +121,7 @@ class SlackOAuth:
                 logging.error("No access token received from Slack, removing from user_auth table")
                 # remove slack access token from user_auth table
                 UserAuth.query.filter_by(
-                    user_id=session["user_id"],
+                    user_id=session["id"],
                     datasource_id=self.datasource.datasource_id,
                     auth_type="oauth",
                 ).delete()

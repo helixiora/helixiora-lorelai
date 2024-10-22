@@ -296,7 +296,7 @@ def start_slack_indexing() -> str:
         jobs = []
         redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
         queue = Queue(connection=redis_conn)
-        user_email = session["user_email"]
+        user_email = session["email"]
         org_name = session["org_name"]
         job = queue.enqueue(
             run_slack_indexer,
