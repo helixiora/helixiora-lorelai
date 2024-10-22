@@ -92,6 +92,7 @@ class SlackOAuth:
         try:
             # get access token from slack code
             access_token = self.get_access_token(code)
+
             if access_token:
                 session["slack_access_token"] = access_token
 

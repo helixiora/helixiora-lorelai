@@ -59,7 +59,7 @@ class SlackIndexer(Indexer):
 
         # setup embedding model
         self.embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
-        self.embedding_model_dimension = current_app.config["EMBEDDING_DIMENSION"]
+        self.embedding_model_dimension = current_app.config["EMBEDDINGS_DIMENSION"]
         if self.embedding_model_dimension == -1:
             raise ValueError(
                 f"Could not find embedding dimension for model '{self.embedding_model_name}'"
@@ -90,7 +90,7 @@ class SlackIndexer(Indexer):
         if response.status_code == 200:
             data = response.json()
             if data.get("ok"):
-                print("Slack token is valid!")
+                logging.info("Slack token is valid!")
                 return True
             else:
                 raise RuntimeError(f"Slack token test failed: {data.get('error')}")
@@ -149,33 +149,44 @@ class SlackIndexer(Indexer):
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        try:
-            # Query the user by email
-            user = User.query.filter_by(email=email).first()
-            if not user:
-                logging.debug("No user found with the specified email.")
-                return None
 
-            # Query the datasource by name
-            datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
-            if not datasource:
-                logging.debug("No Slack datasource found.")
-                return None
+        auth_value = (
+            db.session.query(UserAuth.auth_value)
+            .join(User, User.id == UserAuth.user_id)
+            .filter(User.email == email, UserAuth.datasource_id == 3)
+            .first()
+        )
+        if auth_value:
+            return auth_value[0]
+        else:
+            raise ValueError(f"Slack Token not found for user {email}")
+#         try:
+#             # Query the user by email
+#             user = User.query.filter_by(email=email).first()
+#             if not user:
+#                 logging.debug("No user found with the specified email.")
+#                 return None
 
-            # Query the user auth by user_id and datasource_id
-            user_auth = UserAuth.query.filter_by(
-                user_id=user.id, datasource_id=datasource.datasource_id
-            ).first()
-            if user_auth:
-                slack_token = user_auth.auth_value
-                logging.debug(f"Slack Token: {slack_token}")
-                return slack_token
+#             # Query the datasource by name
+#             datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+#             if not datasource:
+#                 logging.debug("No Slack datasource found.")
+#                 return None
 
-            logging.debug("No Slack token found for the specified user.")
-            return None
-        except Exception as e:
-            logging.error(f"Error retrieving access token: {e}")
-            return None
+#             # Query the user auth by user_id and datasource_id
+#             user_auth = UserAuth.query.filter_by(
+#                 user_id=user.id, datasource_id=datasource.datasource_id
+#             ).first()
+#             if user_auth:
+#                 slack_token = user_auth.auth_value
+#                 logging.debug(f"Slack Token: {slack_token}")
+#                 return slack_token
+
+#             logging.debug("No Slack token found for the specified user.")
+#             return None
+#         except Exception as e:
+#             logging.error(f"Error retrieving access token: {e}")
+#             return None
 
     def get_userid_name(self) -> dict[str, str]:
         """
