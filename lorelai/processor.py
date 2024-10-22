@@ -266,7 +266,7 @@ class Processor:
 
         chunk_size = current_app.config["EMBEDDING_CHUNK_SIZE"]
         logging.debug(f"Using chunk size: {chunk_size}")
-        embedding_model_name = current_app.config["EMBEDDING_MODEL"]
+        embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
         logging.debug(f"Using embedding model: {embedding_model_name}")
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=int(chunk_size))

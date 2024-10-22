@@ -170,6 +170,10 @@ class User(UserMixin, db.Model):
         """Check if the user has a role."""
         return any(role.name == role_name for role in self.roles)
 
+    def is_admin(self) -> bool:
+        """Check if the user is an admin."""
+        return self.has_role("org_admin") or self.has_role("super_admin")
+
 
 class UserAuth(db.Model):
     """Model for a user auth."""

@@ -191,10 +191,10 @@ def conversation(thread_id):
         string: the conversation page
     """
     session["thread_id"] = thread_id
-    chat_template_requirements = get_chat_template_requirements(thread_id, session["user_id"])
+    chat_template_requirements = get_chat_template_requirements(thread_id, session["id"])
     return render_template(
         template_name_or_list="index_logged_in.html",
-        user_email=session["user_email"],
+        user_email=session["email"],
         recent_conversations=chat_template_requirements["recent_conversations"],
         is_admin=chat_template_requirements["is_admin_status"],
         support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],

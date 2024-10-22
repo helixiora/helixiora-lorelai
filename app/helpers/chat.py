@@ -213,11 +213,10 @@ def get_recent_threads(user_id: int) -> list:
             .join(ChatMessage, ChatThread.thread_id == ChatMessage.thread_id, isouter=True)
             .filter(
                 ChatThread.user_id == user_id,
-                ChatThread.marked_deleted is False,
+                ChatThread.marked_deleted.is_(False),
                 ChatMessage.sender != "bot",
             )
             .group_by(ChatThread.thread_id, ChatThread.thread_name, ChatThread.created_at)
-            .having(func.max(ChatMessage.created_at) is not None)
             .order_by(desc("last_messages_created_at"))
             .limit(10)
             .all()

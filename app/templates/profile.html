@@ -26,6 +26,15 @@
             </div>
         </div>
 
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         <!-- Profile Update Form -->
         <div class="card mb-2 mt-2" id="card-update-profile">
             <h5 class="card-header h5">Update Profile</h5>
