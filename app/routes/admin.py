@@ -181,9 +181,9 @@ def start_indexing(type) -> str:
         If the connection to the Redis server or the database fails.
     """
     logging.info("Started indexing (type: %s)", type)
-    if type == "organisation" and not is_org_admin(session["id"]):
+    if type == "organisation" and not is_org_admin(session["user.id"]):
         return jsonify({"error": "Only organisation admins can index their organisation"}), 403
-    if type == "all" and not is_super_admin(session["id"]):
+    if type == "all" and not is_super_admin(session["user.id"]):
         return jsonify({"error": "Only super admins can index all organisations"}), 403
 
     if type not in ["user", "organisation", "all"]:
@@ -196,8 +196,8 @@ def start_indexing(type) -> str:
         datasource_id = (
             Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
         )
-        user_id = session["id"]
-        org_id = session.get("org_id")
+        user_id = session["user.id"]
+        org_id = session.get("user.org_id")
         if not org_id and type != "all":
             return jsonify(
                 {"error": "No organisation ID found for the user in the session details"}
@@ -288,7 +288,7 @@ def start_slack_indexing() -> str:
         jobs = []
         redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
         queue = Queue(connection=redis_conn)
-        user_email = session["email"]
+        user_email = session["user.email"]
         org_name = current_user.organisation.name
         job = queue.enqueue(
             run_slack_indexer,
@@ -319,7 +319,7 @@ def list_indexes() -> str:
     pinecone_helper = PineconeHelper()
     indexes = pinecone_helper.list_indexes()
 
-    return render_template("admin/pinecone.html", indexes=indexes, is_admin=session["id"])
+    return render_template("admin/pinecone.html", indexes=indexes, is_admin=session["user.id"])
 
 
 @admin_bp.route("/admin/pinecone/<host_name>")
@@ -334,7 +334,7 @@ def index_details(host_name: str) -> str:
         "admin/index_details.html",
         index_host=host_name,
         metadata=index_metadata,
-        is_admin=is_admin(session["id"]),
+        is_admin=is_admin(session["user.id"]),
     )
 
 
@@ -467,17 +467,19 @@ def invite_user():
     """
     email = request.form["email"]
     token = create_jwt_token_invite_user(
-        invitee_email=email, org_admin_email=session["email"], org_name=session["org_name"]
+        invitee_email=email,
+        org_admin_email=session["user.email"],
+        org_name=session["user.org_name"],
     )
     invite_register_url = url_for("chat.index", token=token, _external=True)
 
     email_status = send_invite_email(
-        org_admin_email=session["email"],
+        org_admin_email=session["user.email"],
         invitee_email=email,
         invite_url=invite_register_url,
     )
     if email_status:
-        create_invited_user_in_db(email=email, org_name=session["org_name"])
+        create_invited_user_in_db(email=email, org_name=session["user.org_name"])
         flash(f"Invitation to {email} sent successfully!", "success")
         logging.info(f"Invitation to {email} sent successfully!")
     else:

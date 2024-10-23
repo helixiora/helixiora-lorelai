@@ -146,7 +146,7 @@ def api_notifications():
     """Get notifications for the current user."""
     try:
         # Fetch unread notifications for the current user
-        notifications = get_notifications(session.get("user_id"))
+        notifications = get_notifications(session.get("user.id"))
 
         return jsonify(notifications), 200
     except Exception as e:
@@ -159,9 +159,9 @@ def api_notifications():
 def api_notifications_read(notification_id):
     """Mark a notification as read."""
     logging.info(
-        f"Marking notification {notification_id} as read for user {session.get('user_id')}"
+        f"Marking notification {notification_id} as read for user {session.get('user.id')}"
     )
-    result = mark_notification_as_read(notification_id, session.get("user_id"))
+    result = mark_notification_as_read(notification_id, session.get("user.id"))
     logging.debug(f"Notification read result: {result}")
     if isinstance(result, dict) and result.get("success", False):
         return jsonify(result), 200
@@ -173,9 +173,9 @@ def api_notifications_read(notification_id):
 def api_notifications_dismiss(notification_id):
     """Mark a notification as dismissed."""
     logging.info(
-        f"Marking notification {notification_id} as dismissed for user {session.get('user_id')}"
+        f"Marking notification {notification_id} as dismissed for user {session.get('user.id')}"
     )
-    result = mark_notification_as_dismissed(notification_id, session.get("user_id"))
+    result = mark_notification_as_dismissed(notification_id, session.get("user.id"))
     if isinstance(result, dict) and result.get("success", False):
         return jsonify(result), 200
     else:
@@ -191,10 +191,10 @@ def conversation(thread_id):
         string: the conversation page
     """
     session["thread_id"] = thread_id
-    chat_template_requirements = get_chat_template_requirements(thread_id, session["id"])
+    chat_template_requirements = get_chat_template_requirements(thread_id, session["user.id"])
     return render_template(
         template_name_or_list="index_logged_in.html",
-        user_email=session["email"],
+        user_email=session["user.email"],
         recent_conversations=chat_template_requirements["recent_conversations"],
         is_admin=chat_template_requirements["is_admin_status"],
         support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],

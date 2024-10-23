@@ -70,11 +70,11 @@ def role_required(role_name_list):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             # Check if "role" is in session and is a list
-            if "user_roles" not in session or not isinstance(session["user_roles"], list):
+            if "user_roles" not in session or not isinstance(session["user.user_roles"], list):
                 return redirect(url_for("unauthorized"))
 
-            # Check if any role in session['user_roles'] is in role_name_list
-            if not any(role in role_name_list for role in session["user_roles"]):
+            # Check if any role in session['user.user_roles'] is in role_name_list
+            if not any(role in role_name_list for role in session["user.user_roles"]):
                 return redirect(url_for("unauthorized"))
 
             return f(*args, **kwargs)

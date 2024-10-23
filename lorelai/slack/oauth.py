@@ -86,52 +86,52 @@ class SlackOAuth:
         -------
             Bool: True if the callback was successful, False otherwise.
         """
-        # get code from request
         code = request.args.get("code")
-        access_token = None
+        if not code:
+            logging.error("No code received from Slack")
+            return False
+
         try:
-            # get access token from slack code
             access_token = self.get_access_token(code)
+            if not access_token:
+                logging.error("Failed to get access token from Slack")
+                return False
 
-            if access_token:
-                session["slack_access_token"] = access_token
+            session["slack.access_token"] = access_token
 
-                user_auth = UserAuth.query.filter_by(
-                    user_id=session["id"],
+            user_auth = UserAuth.query.filter_by(
+                user_id=session["user.id"],
+                datasource_id=self.datasource.datasource_id,
+                auth_key="access_token",
+            ).first()
+
+            if user_auth:
+                user_auth.auth_value = access_token
+                logging.info(f"Updated existing UserAuth for user {session['user.id']}")
+            else:
+                new_auth = UserAuth(
+                    user_id=session["user.id"],
                     datasource_id=self.datasource.datasource_id,
                     auth_key="access_token",
-                ).first()
-
-                if user_auth:
-                    user_auth.auth_value = access_token
-                else:
-                    new_auth = UserAuth(
-                        user_id=session["id"],
-                        datasource_id=self.datasource.datasource_id,
-                        auth_key="access_token",
-                        auth_value=access_token,
-                        auth_type="oauth",
-                    )
-                    db.session.add(new_auth)
-
-                db.session.commit()
-                logging.debug(access_token)
-                return True  # Successful callback
-            else:
-                logging.error("No access token received from Slack, removing from user_auth table")
-                # remove slack access token from user_auth table
-                UserAuth.query.filter_by(
-                    user_id=session["id"],
-                    datasource_id=self.datasource.datasource_id,
+                    auth_value=access_token,
                     auth_type="oauth",
-                ).delete()
+                )
+                db.session.add(new_auth)
+                logging.info(f"Created new UserAuth for slack for user {session['user.id']}")
+
+            # see if there are any pending changes to the database
+            if db.session.dirty:
+                logging.info(
+                    f"Committing pending changes to database for slack, user {session['user.id']}"
+                )
                 db.session.commit()
-                return False
+            logging.info(f"Successfully saved access token for slack for user {session['user.id']}")
+            return True
 
         except SQLAlchemyError as e:
             db.session.rollback()
             logging.error(f"Database error handling callback: {e}")
-            return False  # Callback failed
+            return False
         except Exception as e:
             logging.error(f"Error handling callback: {e}")
-            return False  # Callback failed
+            return False
