@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 
 from app.models import Notification, db
+from app.schemas import NotificationSchema
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -29,7 +30,7 @@ def add_notification(
         return False
 
 
-def get_notifications(user_id: int) -> list[dict]:
+def get_notifications(user_id: int) -> list[NotificationSchema]:
     """Get the notifications for a user."""
     try:
         notifications = (
@@ -37,13 +38,13 @@ def get_notifications(user_id: int) -> list[dict]:
             .order_by(Notification.created_at.desc())
             .all()
         )
-        return [notification.to_dict() for notification in notifications]
+        return [NotificationSchema.from_orm(notification) for notification in notifications]
     except SQLAlchemyError as e:
         logging.error(f"Failed to get notifications: {e}")
         return []
 
 
-def get_unread_notifications(user_id: int) -> list[dict]:
+def get_unread_notifications(user_id: int) -> list[NotificationSchema]:
     """Get the unread notifications for a user."""
     try:
         notifications = (
@@ -51,7 +52,7 @@ def get_unread_notifications(user_id: int) -> list[dict]:
             .order_by(Notification.created_at.desc())
             .all()
         )
-        return [notification.to_dict() for notification in notifications]
+        return [NotificationSchema.from_orm(notification) for notification in notifications]
     except SQLAlchemyError as e:
         logging.error(f"Failed to get unread notifications: {e}")
         return []

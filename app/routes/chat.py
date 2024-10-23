@@ -148,7 +148,23 @@ def api_notifications():
         # Fetch unread notifications for the current user
         notifications = get_notifications(session.get("user.id"))
 
-        return jsonify(notifications), 200
+        # Convert notifications to a JSON-serializable format
+        serialized_notifications = [
+            {
+                "id": notification.id,
+                "user_id": notification.user_id,
+                "message": notification.message,
+                "created_at": notification.created_at.isoformat(),
+                "read_at": notification.read_at.isoformat() if notification.read_at else None,
+                "dismissed_at": notification.dismissed_at.isoformat()
+                if notification.dismissed_at
+                else None,
+                "type": notification.type,
+            }
+            for notification in notifications
+        ]
+
+        return jsonify(serialized_notifications), 200
     except Exception as e:
         # Log the error (you should set up proper logging)
         logging.error(f"Error fetching notifications: {str(e)}")
