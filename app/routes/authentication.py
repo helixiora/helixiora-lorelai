@@ -498,8 +498,8 @@ def login_user_function(
         user_schema = UserSchema.model_validate(user).model_dump()
 
         for key, value in user_schema.items():
-            print(f"{key} : {value}")
-            session[key] = value
+            logging.debug(f"user.{key} : {value}")
+            session[f"user.{key}"] = value
 
         return True
 
