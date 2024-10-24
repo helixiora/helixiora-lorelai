@@ -84,7 +84,7 @@ def refresh_google_token_if_needed(access_token):
         return access_token  # Token is still valid
 
     # If we're still here, the token is invalid or expired, refresh it
-    refresh_token = session.get("refresh_token")
+    refresh_token = session.get("google_drive.refresh_token")
     if not refresh_token:
         result = UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").first()
         if not result:
@@ -177,7 +177,7 @@ def profile():
         google_app_id = google_client_id.split("-")[0]
 
         # Get the user's Google access token from the database if it's not in the session
-        if session.get("access_token") is None:
+        if session.get("google_drive.access_token") is None:
             result = UserAuth.query.filter_by(
                 user_id=current_user.id, auth_key="access_token"
             ).first()
@@ -191,7 +191,7 @@ def profile():
                 access_token = None
         else:
             logging.info("Access token found in session for user %s", current_user.id)
-            access_token = session.get("access_token")
+            access_token = session.get("google_drive.access_token")
 
         if access_token:
             # Check if the token is still valid and refresh if necessary
@@ -382,14 +382,14 @@ def login():
         response = make_response(redirect(url_for("auth.profile")))
         response.set_cookie(
             key="access_token_cookie",
-            value=session["access_token"],
+            value=session["lorelai_jwt.access_token"],
             httponly=True,
             secure=True,
             samesite="Strict",
         )
         response.set_cookie(
             key="refresh_token_cookie",
-            value=session["refresh_token"],
+            value=session["lorelai_jwt.refresh_token"],
             httponly=True,
             secure=True,
             samesite="Strict",
@@ -490,11 +490,11 @@ def login_user_function(
         login_user(user)
 
         # store the user's roles in the session
-        session["user_roles"] = [role.name for role in user.roles]
+        session["user.user_roles"] = [role.name for role in user.roles]
 
         # store the access and refresh tokens in the session
-        session["access_token"] = access_token
-        session["refresh_token"] = refresh_token
+        session["lorelai_jwt.access_token"] = access_token
+        session["lorelai_jwt.refresh_token"] = refresh_token
         user_schema = UserSchema.model_validate(user).model_dump()
 
         for key, value in user_schema.items():

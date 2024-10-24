@@ -65,7 +65,7 @@ def google_auth_redirect():
         flash(f"Error exchanging authorization code: {e}", "error")
         return redirect(url_for("auth.profile"))
 
-    user_id = session.get("id")
+    user_id = session.get("user.id")
     if not user_id:
         flash("User not logged in or session expired", "error")
         return redirect(url_for("auth.profile"))
@@ -196,7 +196,7 @@ def jsonify_success(access_token, refresh_token, expires_at):
 @googledrive_bp.route("/google/drive/revoke", methods=["POST"])
 def deauthorize():
     """Deauthorize the user by removing the tokens from the database."""
-    user_id = session.get("user_id")
+    user_id = session.get("user.id")
     if not user_id:
         return jsonify_error("User not logged in or session expired", 401)
 
@@ -224,7 +224,7 @@ def deauthorize():
 @googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])
 def process_file_picker():
     """Process the list of google docs ids returned by the file picker."""
-    user_id = session["id"]
+    user_id = session["user.id"]
     documents = request.get_json()
 
     if not documents:
@@ -255,7 +255,7 @@ def process_file_picker():
 @googledrive_bp.route("/google/drive/removefile", methods=["POST"])
 def remove_file():
     """Remove a google drive item from the database."""
-    user_id = session["id"]
+    user_id = session["user.id"]
     data = request.get_json()
     google_drive_id = data["google_drive_id"]
 

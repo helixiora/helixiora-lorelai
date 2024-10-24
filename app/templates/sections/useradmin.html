@@ -1,5 +1,5 @@
         <!-- Org User Admin Section -->
-        {% if ('super_admin' in session.get('user_roles', [])) or ('org_admin' in session.get('user_roles', [])) %}
+        {% if ('super_admin' in session.get('user.user_roles', [])) or ('org_admin' in session.get('user.user_roles', [])) %}
             <div class="card">
                 <div class="card-header">
                     <h2 class="h2">User Administration</h2>

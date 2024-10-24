@@ -265,9 +265,8 @@ class Processor:
         job.meta["logs"].append(f"Storing {len(docs)} documents for user: {user_email}")
 
         chunk_size = current_app.config["EMBEDDING_CHUNK_SIZE"]
-        logging.debug(f"Using chunk size: {chunk_size}")
         embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
-        logging.debug(f"Using embedding model: {embedding_model_name}")
+        logging.debug(f"Using chunk size: {chunk_size} and embedding model: {embedding_model_name}")
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=int(chunk_size))
 

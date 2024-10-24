@@ -82,7 +82,7 @@ class Config:
     EMBEDDINGS_DIMENSION = get_embedding_dimension(EMBEDDINGS_MODEL)
     # EMBEDDINGS_DIMENSION = os.environ.get("EMBEDDINGS_DIMENSION", 1536)
     EMBEDDINGS_CHUNK_SIZE = int(os.environ.get("EMBEDDINGS_CHUNK_SIZE", 4000))
-    EMBEDDING_DIMENSION = int(os.environ.get("EMBEDDING_DIMENSION", 1536))
+    EMBEDDINGS_DIMENSION = int(os.environ.get("EMBEDDINGS_DIMENSION", 1536))
 
     # SendGrid settings
     SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
