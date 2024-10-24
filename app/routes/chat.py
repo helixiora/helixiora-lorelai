@@ -25,11 +25,8 @@ from app.helpers.notifications import (
     mark_notification_as_read,
     mark_notification_as_dismissed,
 )
-from app.models import ChatThread, ChatMessage
 from pydantic import ValidationError
-from datetime import datetime
 import uuid
-from app.models import db
 from app.models import User
 
 chat_bp = blueprints.Blueprint("chat", __name__)
@@ -64,22 +61,6 @@ def chat():
         thread_id = session.get("thread_id") or str(uuid.uuid4())
         session["thread_id"] = thread_id
 
-        thread = ChatThread.query.filter_by(thread_id=thread_id).first()
-        if not thread:
-            thread = ChatThread(thread_id=thread_id, user_id=user_id)
-            db.session.add(thread)
-            db.session.commit()
-
-        # Create chat message
-        chat_message = ChatMessage(
-            thread_id=thread_id,
-            sender="user",
-            message_content=message_content,
-            created_at=datetime.utcnow(),
-        )
-        db.session.add(chat_message)
-        db.session.commit()
-
         # Enqueue task
         job = queue.enqueue(
             get_answer_from_rag,
@@ -90,9 +71,7 @@ def chat():
             current_user.organisation,
             model_type="OpenAILlm",
         )
-        logging.info(
-            "Enqueued job for chat, message %s, thread %s", chat_message.message_id, thread_id
-        )
+        logging.info("Enqueued job for chat, message %s, thread %s", thread_id)
 
         return jsonify(
             {
