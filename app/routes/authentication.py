@@ -491,7 +491,7 @@ def login_user_function(
 
         # store the user's roles in the session
         session["user.user_roles"] = [role.name for role in user.roles]
-
+        session["user.org_name"] = user.organisation.name
         # store the access and refresh tokens in the session
         session["lorelai_jwt.access_token"] = access_token
         session["lorelai_jwt.refresh_token"] = refresh_token
