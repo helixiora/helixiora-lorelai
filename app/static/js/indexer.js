@@ -1,3 +1,5 @@
+
+
 function startIndexing(type) {
     $('#statusMessage').hide().removeClass('alert-danger alert-success').addClass('alert-info').text(`Starting ${type} indexing...`).show();
 
@@ -74,34 +76,45 @@ function checkStatus(jobStatus, type, jobStatuses) {
         });
 }
 
-function startSlackIndexing() {
-    $('#statusMessage').hide().removeClass('alert-danger alert-success').addClass('alert-info').text(`Starting Slack indexing...`).show();
+async function startSlackIndexing() {
 
-    fetch(`/admin/startslackindex`, { method: 'POST' })
-        .then(response => {
-            if (response.ok) {
-                return response.json();
-            } else {
-                console.log(response);
-                return response.json().then(data => {
-                    throw new Error(data.error || 'Unknown error');
-                });
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    $('#statusMessage').hide().removeClass('alert-danger alert-success').addClass('alert-info').text('Starting Slack indexing...').show();
+
+    const csrfToken = getCookie('csrf_token');
+
+    try {
+        const response = await fetch('/admin/startslackindex', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
             }
-        })
-        .then(data => {
-            $('#statusMessage').text(` Slack indexing is in progress...`);
-
-            // Initialize job statuses
-            let jobStatuses = data.jobs.map(job => ({ jobId: job, state: 'pending' }));
-
-            console.log(jobStatuses);
-
-            // Check the status of each job returned
-            jobStatuses.forEach(jobStatus => {
-                checkStatus(jobStatus, 'Slack', jobStatuses);
-            });
-        })
-        .catch(error => {
-            $('#statusMessage').removeClass('alert-info').addClass('alert-danger').text(`Failed to start Slack indexing: ` + error.message);
         });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        $('#statusMessage').text('Slack indexing is in progress...');
+
+        // Initialize job statuses
+        let jobStatuses = data.jobs.map(job => ({ jobId: job, state: 'pending' }));
+
+        console.log(jobStatuses);
+
+        // Check the status of each job returned
+        jobStatuses.forEach(jobStatus => {
+            checkStatus(jobStatus, 'Slack', jobStatuses);
+        });
+    } catch (error) {
+        $('#statusMessage').removeClass('alert-info').addClass('alert-danger').text(`Failed to start Slack indexing: ${error.message}`);
+    }
 }

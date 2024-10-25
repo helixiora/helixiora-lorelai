@@ -22,7 +22,7 @@ from flask import (
     current_app,
 )
 from flask_login import login_required, current_user
-
+from flask_jwt_extended import jwt_required
 from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem, Datasource
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema, GoogleDriveItemSchema
 from app.tasks import run_indexer, run_slack_indexer
@@ -98,6 +98,7 @@ def create_new_user():
 
 
 @admin_bp.route("/admin/job-status/<job_id>")
+@jwt_required(optional=False, locations=["cookies"])
 def job_status(job_id: str) -> str:
     """Return the status of a job given its job_id.
 
@@ -268,9 +269,10 @@ Start time: {datetime.now()}",
 
 
 @admin_bp.route("/admin/startslackindex", methods=["POST"])
-@role_required(["super_admin", "org_admin"])
+# @role_required(["super_admin", "org_admin"])
 # For Slack it logical that only org admin can run the indexer as the bot need to be added to
 # slack then added to channel  # noqa: E501
+@jwt_required(optional=False, locations=["cookies"])
 def start_slack_indexing() -> str:
     """Start slack indexing the data for the organization of the logged-in user.
 
