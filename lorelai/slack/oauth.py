@@ -120,11 +120,10 @@ class SlackOAuth:
                 logging.info(f"Created new UserAuth for slack for user {session['user.id']}")
 
             # see if there are any pending changes to the database
-            if db.session.dirty:
-                logging.info(
-                    f"Committing pending changes to database for slack, user {session['user.id']}"
-                )
-                db.session.commit()
+            logging.info(
+                f"Committing pending changes to database for slack, user {session['user.id']}"
+            )
+            db.session.commit()
             logging.info(f"Successfully saved access token for slack for user {session['user.id']}")
             return True
 
