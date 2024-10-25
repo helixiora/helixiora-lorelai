@@ -22,30 +22,44 @@ References
 
 import logging
 
-from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+    make_response,
+)
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from flask_login import login_required, login_user, logout_user, current_user
 import time
 
 import requests as lib_requests
 
+from flask import current_app
+
+from app.models import User, UserLogin, UserAuth, db, GoogleDriveItem, Organisation
+
 from app.helpers.users import (
-    user_is_logged_in,
     is_admin,
-    get_org_id_by_userid,
-    get_organisation_by_org_id,
-    get_user_id_by_email,
-    get_user_role_by_id,
-    org_exists_by_name,
     validate_form,
     register_user_to_org,
-    get_user_current_plan,
+    update_user_profile,
+    get_user_profile,
 )
-from app.helpers.database import get_db_connection, get_query_result
+from app.schemas import UserSchema
 
-from lorelai.utils import load_config
-
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    jwt_required,
+    get_jwt_identity,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -62,67 +76,80 @@ def refresh_google_token_if_needed(access_token):
     Returns
     -------
     str
-        The refreshed access token.
+        The refreshed access token or None if refresh failed.
     """
     token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
     response = lib_requests.get(token_info_url)
-    if response.status_code != 200 or "error" in response.json():
-        # Token is invalid or expired, refresh it
-        refresh_token = session.get("refresh_token")
-        logging.debug("Refreshing token for user %s: %s", session["user_id"], refresh_token)
-        if not refresh_token or refresh_token is None:
-            result = get_query_result(
-                "SELECT auth_value FROM user_auth WHERE user_id = %s AND \
-                    auth_key = 'refresh_token'",
-                (session["user_id"],),
-                fetch_one=True,
-            )
-            if not result:
-                logging.error("No refresh token found for user %s", session["user_id"])
-                return None
-            refresh_token = result["auth_value"]
+    if response.status_code == 200 and "error" not in response.json():
+        return access_token  # Token is still valid
 
-        google_settings = load_config("google")
-
-        token_url = "https://oauth2.googleapis.com/token"
-        payload = {
-            "client_id": google_settings["client_id"],
-            "client_secret": google_settings["client_secret"],
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        }
-        token_response = lib_requests.post(token_url, data=payload)
-        if token_response.status_code == 200:
-            new_tokens = token_response.json()
-            if "refresh_token" not in new_tokens:
-                # If the refresh token is not returned, use the existing one
-                new_tokens["refresh_token"] = refresh_token
-
-            store_access_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
-                AND auth_key = 'access_token'"
-            store_refresh_token_query = "UPDATE user_auth SET auth_value = %s WHERE user_id = %s \
-                AND auth_key = 'refresh_token'"
-            db = get_db_connection()
-            cursor = db.cursor()
-            try:
-                cursor.execute(
-                    store_access_token_query, (new_tokens["access_token"], session["user_id"])
-                )
-                cursor.execute(
-                    store_refresh_token_query, (new_tokens["refresh_token"], session["user_id"])
-                )
-                db.commit()
-            finally:
-                cursor.close()
-                db.close()
-
-            return new_tokens["access_token"]
-        else:
+    # If we're still here, the token is invalid or expired, refresh it
+    refresh_token = session.get("google_drive.refresh_token")
+    if not refresh_token:
+        result = UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").first()
+        if not result:
+            logging.error("No refresh token found for user %s", current_user.id)
             return None
-    return access_token
+        refresh_token = result.auth_value
+
+    logging.info("Refreshing token for user %s", current_user.email)
+
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+        "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    }
+    token_response = lib_requests.post(token_url, data=payload)
+    if token_response.status_code != 200:
+        error_data = token_response.json()
+        if error_data.get("error") == "invalid_grant":
+            logging.error("Invalid grant error. Refresh token may be expired or revoked.")
+            # Clear the invalid refresh token
+            UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").delete()
+            UserAuth.query.filter_by(user_id=current_user.id, auth_key="access_token").delete()
+            db.session.commit()
+            # You may want to redirect the user to re-authenticate here
+            return None
+        logging.error("Failed to refresh token: %s", token_response.text)
+        return None
+
+    new_tokens = token_response.json()
+    new_access_token = new_tokens["access_token"]
+
+    # Update the access token in the database
+    UserAuth.query.filter_by(user_id=current_user.id, auth_key="access_token").update(
+        {"auth_value": new_access_token}
+    )
+
+    # Update the refresh token if a new one was provided
+    if "refresh_token" in new_tokens:
+        UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").update(
+            {"auth_value": new_tokens["refresh_token"]}
+        )
+
+    db.session.commit()
+    return new_access_token
 
 
-@auth_bp.route("/profile")
+@auth_bp.route("/profile", methods=["POST"])
+@login_required
+def user_profile():
+    """Manage the current user's profile."""
+    if request.method == "POST":
+        bio = request.form.get("bio")
+        location = request.form.get("location")
+        birth_date = request.form.get("birth_date")
+        avatar_url = request.form.get("avatar_url")
+
+        update_user_profile(current_user.id, bio, location, birth_date, avatar_url)
+        flash("Profile updated successfully", "success")
+        return redirect(url_for("auth.profile"))
+
+
+@auth_bp.route("/profile", methods=["GET"])
+@login_required
 def profile():
     """Return the profile page.
 
@@ -131,52 +158,48 @@ def profile():
         str: The profile page.
     """
     # only proceed if the user is logged in
-    if user_is_logged_in(session):
-        is_admin_status = is_admin(session["user_id"])
+    if current_user.is_authenticated:
+        is_admin_status = is_admin(current_user.id)
         user = {
-            "user_id": session["user_id"],
-            "email": session["user_email"],
-            "username": session["user_username"],
-            "full_name": session["user_fullname"],
-            "organisation": session.get("org_name"),
-            "roles": session.get("user_roles"),
+            "user_id": current_user.id,
+            "email": current_user.email,
+            "username": current_user.user_name,
+            "full_name": current_user.full_name,
+            "organisation": current_user.organisation.name,
+            "roles": current_user.roles,
         }
-        googlesettings = load_config("google")
-        google_client_id = googlesettings["client_id"]
-        google_api_key = googlesettings["api_key"]
+
+        profile = get_user_profile(current_user.id)
+        google_client_id = current_app.config["GOOGLE_CLIENT_ID"]
+        google_api_key = current_app.config["GOOGLE_API_KEY"]
 
         # app id is everything before the first dash in the client id
         google_app_id = google_client_id.split("-")[0]
 
         # Get the user's Google access token from the database if it's not in the session
-        if session.get("access_token") is None:
-            result = get_query_result(
-                "SELECT auth_value FROM user_auth WHERE user_id = %s AND auth_key = 'access_token'",
-                (session["user_id"],),
-                fetch_one=True,
-            )
+        if session.get("google_drive.access_token") is None:
+            result = UserAuth.query.filter_by(
+                user_id=current_user.id, auth_key="access_token"
+            ).first()
+
             # if there is no result, the user has not authenticated with Google (yet)
             if result:
-                logging.info("Access token found in user_auth for user %s", session["user_id"])
-                access_token = result["auth_value"]
+                logging.info("Access token found in user_auth for user %s", current_user.id)
+                access_token = result.auth_value
             else:
-                logging.info("No access token found in user_auth for user %s", session["user_id"])
+                logging.info("No access token found in user_auth for user %s", current_user.id)
                 access_token = None
         else:
-            logging.info("Access token found in session for user %s", session["user_id"])
-            access_token = session.get("access_token")
+            logging.info("Access token found in session for user %s", current_user.id)
+            access_token = session.get("google_drive.access_token")
 
         if access_token:
             # Check if the token is still valid and refresh if necessary
             access_token = refresh_google_token_if_needed(access_token)
 
-        if int(g.features["google_drive"]) == 1:
-            google_docs_to_index = get_query_result(
-                query="SELECT google_drive_id, item_name, mime_type, item_type, last_indexed_at \
-                    FROM google_drive_items WHERE user_id = %s",
-                params=(session["user_id"],),
-                fetch_one=False,
-            )
+        if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
+            google_docs_to_index = GoogleDriveItem.query.filter_by(user_id=current_user.id).all()
+
             logging.info(
                 "Google Drive feature is enabled. Found %s items to index.",
                 len(google_docs_to_index),
@@ -189,7 +212,7 @@ def profile():
             "Rendering profile page for user %s with access_token %s", user["email"], access_token
         )
 
-        if int(g.features["slack"]) == 1:
+        if int(current_app.config["FEATURE_SLACK"]) == 1:
             logging.info("Slack feature is enabled.")
         else:
             logging.warning("Slack feature is disabled.")
@@ -202,7 +225,11 @@ def profile():
             google_docs_to_index=google_docs_to_index,
             google_app_id=google_app_id,
             google_drive_access_token=access_token,
-            features=g.features,
+            features={
+                "google_drive": int(current_app.config["FEATURE_GOOGLE_DRIVE"]),
+                "slack": int(current_app.config["FEATURE_SLACK"]),
+            },
+            profile=profile,
         )
     return "You are not logged in!", 403
 
@@ -250,7 +277,9 @@ def register_post():
 
     logging.info("Registering user: %s with google_id: %s", email, google_id)
 
-    if org_exists_by_name(organisation):
+    org = Organisation.query.filter_by(name=organisation).first()
+    if not org:
+        flash("Organisation does not exist. Please contact admin.", "danger")
         return redirect(url_for("org_exists"))
 
     missing = validate_form(email=email, name=full_name, organisation=organisation)
@@ -291,27 +320,37 @@ def login():
     Login route.
 
     This route is used to authenticate a user using Google's Identity Verification API.
-    The user sends a POST request with a JSON object containing the ID token received from Google.
+    The user sends a POST request with the ID token received from Google.
     The ID token is verified using Google's Identity Verification API and the user is authenticated.
     If the user is not registered, they are redirected to the registration page.
+    If authentication is successful, the user is redirected to the profile page.
+    If authentication fails, the user is redirected to the index page with an error message.
 
     Returns
     -------
-        JSON: A JSON object with a message indicating whether the user was authenticated
-        successfully.
+        redirect: Redirects to the appropriate page based on the authentication result.
     """
-    # get the received token from the JSON data that came from the web client
     id_token_received = request.form.get("credential")
+    # even thouugh we use csrf_token for our own token, we still need to use g_csrf_token
+    # because google expects it
     csrf_token = request.form.get("g_csrf_token")
 
-    # use this token to verify the user's identity
-    idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
+    try:
+        idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
 
-    if not idinfo:
-        raise exceptions.GoogleAuthError("Invalid token")
+        if not idinfo:
+            raise exceptions.GoogleAuthError("Invalid token")
 
-    # this function will raise an exception if the token is invalid
-    validate_id_token(idinfo, csrf_token=csrf_token)
+        validate_id_token(idinfo, csrf_token=csrf_token)
+
+    except (ValueError, exceptions.GoogleAuthError) as e:
+        logging.error("Authentication error: %s", str(e))
+        flash("Authentication failed: " + str(e), "error")
+        return redirect(url_for("chat.index"))
+    except Exception as e:
+        logging.exception("An unexpected error occurred: %s", e)
+        flash("An unexpected error occurred. Please try again later.", "error")
+        return redirect(url_for("chat.index"))
 
     # get some values from the info we got from google
     logging.info("Info from token: %s", idinfo)
@@ -321,71 +360,87 @@ def login():
     google_id = idinfo["sub"]
 
     # check if the user is already registered
-    user_id = get_user_id_by_email(user_email)
+    user = User.query.filter_by(google_id=google_id).first()
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    try:
-        org_id = get_org_id_by_userid(cursor, user_id)
-        organisation = get_organisation_by_org_id(cursor, org_id)
-
+    if not user:
         # if we can't find the user, it means they are not registered
         # redirect them to the registration page
-        if not user_id:
-            logging.info("User not registered: %s", user_email)
-            return redirect(
-                url_for(
-                    "auth.register_get", email=user_email, full_name=username, google_id=google_id
-                )
-            )
-
-        # if we're still here, it means we found the user, so we log them in
-        logging.info("User logging in: %s", user_email)
-        login_user(
-            user_id=user_id,
-            user_email=user_email,
-            google_id=google_id,
-            username=username,
-            full_name=user_full_name,
-            org_id=org_id,
-            org_name=organisation,
+        return redirect(
+            url_for("auth.register_get", email=user_email, full_name=username, google_id=google_id)
         )
 
-        logging.debug("Session: %s", session)
+    logging.info("User logging in: %s", user_email)
+    login_success = login_user_function(
+        user=user,
+        user_email=user_email,
+        google_id=google_id,
+        username=username,
+        full_name=user_full_name,
+    )
 
+    if login_success:
+        response = make_response(redirect(url_for("auth.profile")))
+        response.set_cookie(
+            key="access_token_cookie",
+            value=session["lorelai_jwt.access_token"],
+            httponly=True,
+            secure=True,
+            samesite="Strict",
+        )
+        response.set_cookie(
+            key="refresh_token_cookie",
+            value=session["lorelai_jwt.refresh_token"],
+            httponly=True,
+            secure=True,
+            samesite="Strict",
+        )
+
+        flash("Login successful!", "success")
+        return response
+    else:
+        flash("Login failed. Please try again.", "error")
         return redirect(url_for("chat.index"))
 
-    except ValueError as e:
-        logging.error("Invalid token: %s", e)
-        return jsonify({"message": "Error: " + str(e)}), 401
-    except exceptions.GoogleAuthError as e:
-        logging.error("Google Auth Error: %s", e)
-        return jsonify({"message": "Google Auth Error: " + str(e)}), 401
-    except Exception as e:
-        logging.exception("An error occurred: %s", e)
-        return jsonify({"message": "An error occurred: " + str(e)}), 401
-    finally:
-        cursor.close()
-        conn.close()
+
+@auth_bp.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh():
+    """
+    Refresh the access token.
+
+    Returns
+    -------
+        str: The new access token.
+    """
+    current_user = get_jwt_identity()
+    new_access_token = create_access_token(identity=current_user)
+    response = make_response(jsonify(access_token=new_access_token), 200)
+    response.set_cookie(
+        key="access_token_cookie",
+        value=new_access_token,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+    )
+    return response
 
 
-def login_user(
-    user_id: int,
+def login_user_function(
+    user: User,
     user_email: str,
     google_id: str,
     username: str,
     full_name: str,
-    org_id: int,
-    org_name: str,
 ):
     """
-    Create a session for the user and update the user's Google ID in the database.
+    Create a session for the user, update the user's Google ID in the database.
+
+    also create access and refresh tokens.
 
     Parameters
     ----------
-    user_id : int
-        The user ID.
+    user : User
+        The user.
     user_email : str
         The user email.
     google_id : str
@@ -394,55 +449,64 @@ def login_user(
         The username.
     full_name : str
         The full name.
-    org_id : int
-        The organisation ID.
-    org_name : str
-        The organisation name.
+
+    Returns
+    -------
+    bool
+        True if login was successful, False otherwise.
     """
     # Ensure all details are provided
-    if not all([user_id, user_email, google_id, username, full_name, org_id, org_name]):
-        raise ValueError("All user and organization details must be provided.")
+    if not all(
+        [
+            user,
+            user_email,
+            google_id,
+            username,
+            full_name,
+            user.organisation.id,
+            user.organisation.name,
+        ]
+    ):
+        logging.error("Missing user or organization details")
+        return False
 
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
+        user.google_id = google_id
+        user.user_name = username
+        user.full_name = full_name
+        db.session.commit()
 
-        # TODO: We May need to change this logic, as we are setting same thing every time user logs
-        # in. Update the user's Google ID in the database
-        cursor.execute(
-            "UPDATE user SET google_id = %s, user_name = %s, full_name = %s \
-            WHERE user_id = %s",
-            (google_id, username, full_name, user_id),
-        )
+        # Create access and refresh tokens
+        # duration is determined by the JWT_ACCESS_TOKEN_EXPIRES and JWT_REFRESH_TOKEN_EXPIRES
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
 
         # login_type, it is not necessary now but in future when we add multiple login method
-        cursor.execute(
-            "INSERT INTO user_login (user_id, login_type) \
-            VALUES (%s, %s)",
-            (user_id, "google-oauth"),
-        )
-        conn.commit()
+        user_login = UserLogin(user_id=user.id, login_type="google-oauth")
+        db.session.add(user_login)
+        db.session.commit()
+
+        # login_user is a Flask-Login function that sets the current user to the user object
+        login_user(user)
+
+        # store the user's roles in the session
+        session["user.user_roles"] = [role.name for role in user.roles]
+        session["user.org_name"] = user.organisation.name
+        # store the access and refresh tokens in the session
+        session["lorelai_jwt.access_token"] = access_token
+        session["lorelai_jwt.refresh_token"] = refresh_token
+        user_schema = UserSchema.model_validate(user).model_dump()
+
+        for key, value in user_schema.items():
+            logging.debug(f"user.{key} : {value}")
+            session[f"user.{key}"] = value
+
+        return True
 
     except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        cursor.close()
-        conn.close()
-
-    # Get the user's roles
-    user_roles = get_user_role_by_id(user_id)
-    # get user # this also assign user to free plan if they have no plans
-    user_plan = get_user_current_plan(user_id)
-    # Setup the session
-    session["user_id"] = user_id
-    session["user_email"] = user_email
-    session["user_username"] = username
-    session["user_fullname"] = full_name
-    session["org_id"] = org_id
-    session["org_name"] = org_name
-    session["user_roles"] = user_roles
-    session["user_plan"] = user_plan
+        db.session.rollback()
+        logging.error(f"Error during login: {str(e)}")
+        return False
 
 
 def is_username_available(username: str) -> bool:
@@ -459,8 +523,11 @@ def is_username_available(username: str) -> bool:
     bool
         True if the username is available, False otherwise.
     """
-    user = get_query_result("SELECT 1 FROM user WHERE username = %s", (username,), fetch_one=True)
-    return not user
+    # check if the username is already taken
+    user = User.query.filter_by(user_name=username).first()
+    if user:
+        return False
+    return True
 
 
 def validate_id_token(idinfo: dict, csrf_token: str):
@@ -492,8 +559,7 @@ def validate_id_token(idinfo: dict, csrf_token: str):
     if csrf_token != csrf_token_cookie:
         raise exceptions.GoogleAuthError("CSRF token mismatch.")
 
-    googlesettings = load_config("google")
-    if idinfo["aud"] not in googlesettings["client_id"]:
+    if idinfo["aud"] not in current_app.config["GOOGLE_CLIENT_ID"]:
         raise exceptions.GoogleAuthError("Wrong client ID.")
 
     if idinfo["exp"] < time.time():
@@ -506,6 +572,7 @@ def validate_id_token(idinfo: dict, csrf_token: str):
 
 
 @auth_bp.route("/logout", methods=["GET"])
+@login_required
 def logout():
     """
     Logout route.
@@ -518,6 +585,7 @@ def logout():
         Redirects to the index page.
     """
     session.clear()
+    logout_user()
     flash("You have been logged out.")
 
     return redirect(url_for("chat.index"))

@@ -1,5 +1,6 @@
 """Contains the Processor class that processes and indexes them in Pinecone."""
 
+from flask import current_app
 import itertools
 import logging
 import os
@@ -17,7 +18,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from lorelai.utils import get_embedding_dimension, load_config, clean_text_for_vector
+from lorelai.utils import get_embedding_dimension, clean_text_for_vector
 from lorelai.pinecone import PineconeHelper
 
 
@@ -26,14 +27,10 @@ class Processor:
 
     def __init__(self):
         """Initialize the Processor class."""
-        self.lorelai_settings = load_config("lorelai")
-
         # needed for the openai embeddings model
-        self.openai_settings = load_config("openai")
-        os.environ["OPENAI_API_KEY"] = self.openai_settings["api_key"]
+        os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
 
-        self.pinecone_settings = load_config("pinecone")
-        os.environ["PINECONE_API_KEY"] = self.pinecone_settings["api_key"]
+        os.environ["PINECONE_API_KEY"] = current_app.config["PINECONE_API_KEY"]
 
     def pinecone_filter_deduplicate_documents_list(
         self,
@@ -267,15 +264,9 @@ class Processor:
         logging.info(f"Storing {len(docs)} documents for user: {user_email}")
         job.meta["logs"].append(f"Storing {len(docs)} documents for user: {user_email}")
 
-        # TODO: all code related to embedding model should be in a separate class
-        embedding_settings = load_config("embeddings")
-        if not embedding_settings:
-            raise ValueError("Could not load embeddings configuration")
-
-        chunk_size = embedding_settings["chunk_size"]
-        logging.debug(f"Using chunk size: {chunk_size}")
-        embedding_model_name = embedding_settings["model"]
-        logging.debug(f"Using embedding model: {embedding_model_name}")
+        chunk_size = current_app.config["EMBEDDING_CHUNK_SIZE"]
+        embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
+        logging.debug(f"Using chunk size: {chunk_size} and embedding model: {embedding_model_name}")
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=int(chunk_size))
 
@@ -293,8 +284,8 @@ class Processor:
         pc_index, index_name = pinecone_helper.get_index(
             org=org_name,
             datasource=datasource,
-            environment=self.lorelai_settings["environment"],
-            env_name=self.lorelai_settings["environment_slug"],
+            environment=current_app.config["ENVIRONMENT"],
+            env_name=current_app.config["ENVIRONMENT_SLUG"],
             version="v1",
             create_if_not_exists=True,
         )

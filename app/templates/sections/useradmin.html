@@ -1,5 +1,5 @@
         <!-- Org User Admin Section -->
-        {% if ('super_admin' in session.get('user_roles', [])) or ('org_admin' in session.get('user_roles', [])) %}
+        {% if ('super_admin' in session.get('user.user_roles', [])) or ('org_admin' in session.get('user.user_roles', [])) %}
             <div class="card">
                 <div class="card-header">
                     <h2 class="h2">User Administration</h2>
@@ -21,11 +21,11 @@
                                 <tr>
                                     <td>{{ user.user_id }}</td>
                                     <td>{{ user.email }}</td>
-                                    <td>{{ user.organisation }}</td>
+                                    <td>{{ user.org_name }}</td>
                                     <td>{% if user.roles %}
                                     <ul>
                                     {% for role in user.roles %}
-                                        <li>{{ role }}</li>
+                                        <li>{{ role.name }}</li>
                                     {% endfor %}
                                     </ul>
                                     {% else %}
@@ -64,5 +64,5 @@
             </div>
 
             <!-- Remove the inline script and add a reference to an external JS file -->
-            <script src="{{ url_for('serve_js', script_name='useradmin') }}"></script>
+            <script src="{{ url_for('static', filename='js/useradmin.js') }}"></script>
         {% endif %}

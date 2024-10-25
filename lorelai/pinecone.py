@@ -3,7 +3,7 @@
 import pinecone
 import logging
 import os
-import lorelai.utils
+from flask import current_app
 from pinecone import ServerlessSpec
 
 
@@ -12,8 +12,7 @@ class PineconeHelper:
 
     def __init__(self):
         """Initialize the PineconeHelper class."""
-        self.pinecone_settings = lorelai.utils.load_config("pinecone")
-        os.environ["PINECONE_API_KEY"] = self.pinecone_settings["api_key"]
+        os.environ["PINECONE_API_KEY"] = current_app.config["PINECONE_API_KEY"]
 
         self.pinecone_client = pinecone.Pinecone()
 
@@ -77,7 +76,7 @@ class PineconeHelper:
             version=version,
         )
 
-        region = self.pinecone_settings["region"]
+        region = current_app.config["PINECONE_REGION"]
 
         found = False
         try:
@@ -90,8 +89,8 @@ class PineconeHelper:
             # todo get spec
             index = self.create_index(
                 name,
-                int(self.pinecone_settings["dimension"]),
-                self.pinecone_settings["metric"],
+                int(current_app.config["PINECONE_DIMENSION"]),
+                current_app.config["PINECONE_METRIC"],
                 ServerlessSpec(cloud="aws", region=region),
             )
 
@@ -126,8 +125,8 @@ class PineconeHelper:
         if spec is None:
             spec = ServerlessSpec(
                 cloud="aws",
-                region=self.pinecone_settings["region"],
-                dimension=int(self.pinecone_settings["dimension"]),
+                region=current_app.config["PINECONE_REGION"],
+                dimension=int(current_app.config["PINECONE_DIMENSION"]),
             )
         else:
             if not isinstance(spec, ServerlessSpec):

@@ -14,8 +14,9 @@ from flask import (
 )
 from redis import Redis
 from rq import Queue
+from flask_login import current_user
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from app.helpers.users import user_is_logged_in
 from app.helpers.chat import get_chat_template_requirements, delete_thread
 from app.tasks import get_answer_from_rag
 from app.helpers.chat import get_all_thread_messages, can_send_message
@@ -24,65 +25,68 @@ from app.helpers.notifications import (
     mark_notification_as_read,
     mark_notification_as_dismissed,
 )
-from lorelai.utils import load_config
-from ulid import ULID
+from pydantic import ValidationError
+import uuid
+from app.models import User
 
 chat_bp = blueprints.Blueprint("chat", __name__)
 
 
-# a get and post route for the chat page
+# a post route for chat messages
 @chat_bp.route("/api/chat", methods=["POST"])
+@jwt_required(optional=False, locations=["cookies"])
 def chat():
-    """Post messages to rq to process."""
-    content = request.get_json()
-    if not content or "message" not in content:
-        return jsonify({"status": "ERROR", "message": "Message is required"}), 400
+    """Post messages to RQ to process."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"status": "ERROR", "message": "User not found"}), 404
 
-    logging.info(
-        "Chat request received: %s from user %s", content["message"], session.get("user_email")
-    )
+    try:
+        content = request.get_json()
+        if not content or "message" not in content:
+            return jsonify({"status": "ERROR", "message": "Message is required"}), 400
 
-    user_id = session.get("user_id")
-    status = can_send_message(user_id=user_id)
-    if not status:
-        return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
+        message_content = content["message"]
+        logging.info("Chat request received: %s from user %s", message_content, current_user.email)
 
-    redis = load_config("redis")
-    redis_host = redis["url"]
-    if not redis_host:
-        return jsonify({"status": "ERROR", "message": "Redis URL is not set"}), 500
-    redis_conn = Redis.from_url(redis_host)
-    queue = Queue(connection=redis_conn)
+        user_id = current_user.id
+        if not can_send_message(user_id=user_id):
+            return jsonify({"status": "ERROR", "message": "Message limit exceeded"}), 429
 
-    lorelai_config = load_config("lorelai")
-    # set the chat task timeout to 20 seconds if not set
-    chat_task_timeout = lorelai_config["chat_task_timeout"] or 20
+        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
+        queue = Queue(connection=redis_conn)
 
-    llm_model = "OpenAILlm"
-    # llm_model = "OllamaLlama3"
-
-    # if the thread_id is set in the session, use it; otherwise, create a new one
-    if "thread_id" in session:
-        thread_id = session["thread_id"]
-    else:
-        thread_id = str(ULID().to_uuid())
+        # Create or retrieve chat thread
+        thread_id = session.get("thread_id") or str(uuid.uuid4())
         session["thread_id"] = thread_id
 
-    # enqueue the chat task
-    job = queue.enqueue(
-        get_answer_from_rag,
-        thread_id,
-        content["message"],
-        session.get("user_id"),
-        session.get("user_email"),
-        session.get("org_name"),
-        llm_model,
-        job_timeout=chat_task_timeout,
-        description=f"Execute RAG+LLM model: {content['message']} for {session.get('user_email')} \
-            using {llm_model}",
-    )
+        # Enqueue task
+        job = queue.enqueue(
+            get_answer_from_rag,
+            thread_id,
+            message_content,
+            current_user.id,
+            current_user.email,
+            current_user.organisation,
+            model_type="OpenAILlm",
+        )
+        logging.info("Enqueued job for chat, message %s, thread %s", thread_id)
 
-    return jsonify({"job": job.get_id()}), 202
+        return jsonify(
+            {
+                "status": "success",
+                "message": "Your message is being processed.",
+                "job": job.id,
+                "thread_id": thread_id,
+            }
+        ), 200
+
+    except ValidationError as e:
+        return jsonify({"status": "ERROR", "message": e.errors()}), 400
+    except Exception:
+        logging.exception("An error occurred while processing chat message")
+        return jsonify({"status": "ERROR", "message": "An internal error occurred."}), 500
 
 
 @chat_bp.route("/api/chat", methods=["GET"])
@@ -95,10 +99,7 @@ def fetch_chat_result():
 
     logging.debug("Fetching job result for job ID: %s", job_id)
 
-    redis = load_config("redis")
-    redis_host = redis["url"]
-
-    redis_conn = Redis.from_url(redis_host)
+    redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
     queue = Queue(connection=redis_conn)
     job = queue.fetch_job(job_id)
 
@@ -124,9 +125,25 @@ def api_notifications():
     """Get notifications for the current user."""
     try:
         # Fetch unread notifications for the current user
-        notifications = get_notifications(session.get("user_id"))
+        notifications = get_notifications(session.get("user.id"))
 
-        return jsonify(notifications), 200
+        # Convert notifications to a JSON-serializable format
+        serialized_notifications = [
+            {
+                "id": notification.id,
+                "user_id": notification.user_id,
+                "message": notification.message,
+                "created_at": notification.created_at.isoformat(),
+                "read_at": notification.read_at.isoformat() if notification.read_at else None,
+                "dismissed_at": notification.dismissed_at.isoformat()
+                if notification.dismissed_at
+                else None,
+                "type": notification.type,
+            }
+            for notification in notifications
+        ]
+
+        return jsonify(serialized_notifications), 200
     except Exception as e:
         # Log the error (you should set up proper logging)
         logging.error(f"Error fetching notifications: {str(e)}")
@@ -137,9 +154,9 @@ def api_notifications():
 def api_notifications_read(notification_id):
     """Mark a notification as read."""
     logging.info(
-        f"Marking notification {notification_id} as read for user {session.get('user_id')}"
+        f"Marking notification {notification_id} as read for user {session.get('user.id')}"
     )
-    result = mark_notification_as_read(notification_id, session.get("user_id"))
+    result = mark_notification_as_read(notification_id, session.get("user.id"))
     logging.debug(f"Notification read result: {result}")
     if isinstance(result, dict) and result.get("success", False):
         return jsonify(result), 200
@@ -151,9 +168,9 @@ def api_notifications_read(notification_id):
 def api_notifications_dismiss(notification_id):
     """Mark a notification as dismissed."""
     logging.info(
-        f"Marking notification {notification_id} as dismissed for user {session.get('user_id')}"
+        f"Marking notification {notification_id} as dismissed for user {session.get('user.id')}"
     )
-    result = mark_notification_as_dismissed(notification_id, session.get("user_id"))
+    result = mark_notification_as_dismissed(notification_id, session.get("user.id"))
     if isinstance(result, dict) and result.get("success", False):
         return jsonify(result), 200
     else:
@@ -169,15 +186,14 @@ def conversation(thread_id):
         string: the conversation page
     """
     session["thread_id"] = thread_id
-    lorelai_settings = load_config("lorelai")
-    chat_template_requirements = get_chat_template_requirements(thread_id, session["user_id"])
+    chat_template_requirements = get_chat_template_requirements(thread_id, session["user.id"])
     return render_template(
         template_name_or_list="index_logged_in.html",
-        user_email=session["user_email"],
+        user_email=session["user.email"],
         recent_conversations=chat_template_requirements["recent_conversations"],
         is_admin=chat_template_requirements["is_admin_status"],
-        support_portal=lorelai_settings["support_portal"],
-        support_email=lorelai_settings["support_email"],
+        support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],
+        support_email=current_app.config["LORELAI_SUPPORT_EMAIL"],
     )
 
 
@@ -213,20 +229,20 @@ def index():
         logging.info("App is not set up. Redirecting to /admin/setup")
         return redirect(url_for("admin.setup"))
 
-    # if the user_id is in the session, the user is logged in
-    # render the index_logged_in page
-    if user_is_logged_in(session):
-        lorelai_settings = load_config("lorelai")
+    # check if the user is logged in
+    if current_user.is_authenticated:
+        # render the index_logged_in page
         thread_id = session.get("thread_id")
-        chat_template_requirements = get_chat_template_requirements(thread_id, session["user_id"])
+        chat_template_requirements = get_chat_template_requirements(thread_id, current_user.id)
 
         return render_template(
             "index_logged_in.html",
-            user_email=session["user_email"],
+            user_email=current_user.email,
+            user_name=current_user.user_name,
             recent_conversations=chat_template_requirements["recent_conversations"],
             is_admin=chat_template_requirements["is_admin_status"],
-            support_portal=lorelai_settings["support_portal"],
-            support_email=lorelai_settings["support_email"],
+            support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],
+            support_email=current_app.config["LORELAI_SUPPORT_EMAIL"],
         )
 
     # if we're still here, there was no user_id in the session meaning we are not logged in
@@ -235,5 +251,4 @@ def index():
     # will handle the login using the /login route in auth.py.
     # Depending on the output of that route, it's redirecting to /register if need be
 
-    secrets = load_config("google")
-    return render_template("index.html", google_client_id=secrets["client_id"])
+    return render_template("index.html", google_client_id=current_app.config["GOOGLE_CLIENT_ID"])

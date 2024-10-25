@@ -16,13 +16,14 @@ from datetime import datetime
 import copy
 import openai
 
-import lorelai.utils
+from flask import current_app
+
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
-from lorelai.utils import get_embedding_dimension, get_size, clean_text_for_vector
+from lorelai.utils import get_size, clean_text_for_vector
+from app.models import db, User, UserAuth
 
-from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_SLACK
-from app.helpers.users import get_user_id_by_email
+from app.helpers.datasources import DATASOURCE_SLACK
 
 
 class SlackIndexer(Indexer):
@@ -37,9 +38,7 @@ class SlackIndexer(Indexer):
             org_name (str): The organization name.
         """
         # load API keys
-        self.openai_creds = lorelai.utils.load_config("openai")
-        self.lorelai_settings = lorelai.utils.load_config("lorelai")
-        os.environ["OPENAI_API_KEY"] = self.openai_creds["api_key"]
+        os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
 
         # setup pinecone helper
         self.pinecone_helper = PineconeHelper()
@@ -59,8 +58,8 @@ class SlackIndexer(Indexer):
         self.session.headers.update(self.headers)
 
         # setup embedding model
-        self.embedding_model_name = "text-embedding-ada-002"
-        self.embedding_model_dimension = get_embedding_dimension(self.embedding_model_name)
+        self.embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
+        self.embedding_model_dimension = current_app.config["EMBEDDINGS_DIMENSION"]
         if self.embedding_model_dimension == -1:
             raise ValueError(
                 f"Could not find embedding dimension for model '{self.embedding_model_name}'"
@@ -91,7 +90,7 @@ class SlackIndexer(Indexer):
         if response.status_code == 200:
             data = response.json()
             if data.get("ok"):
-                print("Slack token is valid!")
+                logging.info("Slack token is valid!")
                 return True
             else:
                 raise RuntimeError(f"Slack token test failed: {data.get('error')}")
@@ -150,33 +149,44 @@ class SlackIndexer(Indexer):
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = get_datasource_id_by_name(DATASOURCE_SLACK)
-        user_id = get_user_id_by_email(email)
-        conn = None
-        cursor = None
-        try:
-            conn = lorelai.utils.get_db_connection()
-            cursor = conn.cursor()
-            sql_query = (
-                "SELECT auth_value FROM user_auth WHERE datasource_id = %s AND user_id = %s;"
-            )
-            cursor.execute(sql_query, (datasource_id, user_id))
-            result = cursor.fetchone()
-            if result:
-                slack_token = result[0]
-                logging.debug(f"Slack Token: {slack_token}")
-                return slack_token
+        auth_value = (
+            db.session.query(UserAuth.auth_value)
+            .join(User, User.id == UserAuth.user_id)
+            .filter(User.email == email, UserAuth.datasource_id == 3)
+            .first()
+        )
+        if auth_value:
+            return auth_value[0]
+        else:
+            raise ValueError(f"Slack Token not found for user {email}")
 
-            logging.debug("No Slack token found for the specified user_id.")
-            return None
-        except Exception as e:
-            logging.error(f"Error retrieving access token: {e}")
-            return None
-        finally:
-            if cursor:
-                cursor.close()  # Close the cursor
-            if conn:
-                conn.close()  # Close the connection
+    #         try:
+    #             # Query the user by email
+    #             user = User.query.filter_by(email=email).first()
+    #             if not user:
+    #                 logging.debug("No user found with the specified email.")
+    #                 return None
+
+    #             # Query the datasource by name
+    #             datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+    #             if not datasource:
+    #                 logging.debug("No Slack datasource found.")
+    #                 return None
+
+    #             # Query the user auth by user_id and datasource_id
+    #             user_auth = UserAuth.query.filter_by(
+    #                 user_id=user.id, datasource_id=datasource.datasource_id
+    #             ).first()
+    #             if user_auth:
+    #                 slack_token = user_auth.auth_value
+    #                 logging.debug(f"Slack Token: {slack_token}")
+    #                 return slack_token
+
+    #             logging.debug("No Slack token found for the specified user.")
+    #             return None
+    #         except Exception as e:
+    #             logging.error(f"Error retrieving access token: {e}")
+    #             return None
 
     def get_userid_name(self) -> dict[str, str]:
         """
@@ -468,8 +478,8 @@ class SlackIndexer(Indexer):
         index, name = self.pinecone_helper.get_index(
             org=self.org_name,
             datasource=DATASOURCE_SLACK,
-            environment=self.lorelai_settings["environment"],
-            env_name=self.lorelai_settings["environment_slug"],
+            environment=current_app.config["ENVIRONMENT"],
+            env_name=current_app.config["ENVIRONMENT_SLUG"],
             version="v1",
             create_if_not_exists=True,
         )

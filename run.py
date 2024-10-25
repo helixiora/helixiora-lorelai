@@ -1,165 +1,22 @@
 #!/usr/bin/env python3
+"""Main application file for the Flask app."""
 
-"""Main application file for the OAuth2 flow flask app."""
-
-import logging
-import os
+from app.factory import create_app
 import sys
+from app.helpers.database import perform_health_checks
+from flask.templating import render_template_string
+from flask import request, url_for
 
-import mysql.connector
-
-import sentry_sdk
-
-import app.helpers.notifications
-from app.helpers.database import (
-    get_db_connection,
-    run_flyway_migrations,
-    check_flyway,
-    perform_health_checks,
-)
-
-from flask import (
-    Flask,
-    g,
-    render_template,
-    render_template_string,
-    request,
-    url_for,
-)
-
-from app.routes.admin import admin_bp
-from app.routes.authentication import auth_bp
-from app.routes.chat import chat_bp
-from app.routes.slack.authorization import slack_bp
-from app.routes.google.authorization import googledrive_bp
-
-from lorelai.utils import load_config
-
-from werkzeug.middleware.proxy_fix import ProxyFix
-
-# set the SCARF_NO_ANALYTICS environment variable to true to disable analytics
-# (among possible others the unstructured library uses to track usage)
-os.environ["SCARF_NO_ANALYTICS"] = "true"
+app = create_app()
 
 
-# this is a print on purpose (not a logger statement) to show that the app is loading
-# get the git commit hash, branch name and first line of the commit message and print it out
-print("Loading the app...")
-logging.debug("Loading the app...")
-
-git_details = os.popen("git log --pretty=format:'%H %d %s' -n 1").read()
-print(f"Git details: {git_details}")
-logging.info(f"Git details: {git_details}")
-
-sentry = load_config("sentry")
-sentry_sdk.init(
-    dsn=sentry["dsn"],
-    environment=sentry.get("environment", "unknown environment"),
-    traces_sample_rate=1.0,
-    profiles_sample_rate=1.0,
-)
-
-app = Flask(__name__)
-
-# Apply ProxyFix to handle X-Forwarded-* headers
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
-
-# Get the log level from the environment variable
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()  # Ensure it's in uppercase to match constants
-
-
-# Set the log level using the mapping, defaulting to logging.INFO if not found
-app.logger.setLevel(logging.getLevelName(log_level))
-logging_format = os.getenv(
-    "LOG_FORMAT",
-    "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
-)
-logging.basicConfig(format=logging_format)
-
-lorelai_settings = load_config("lorelai")
-app.secret_key = lorelai_settings["secret_key"]
-
-app.register_blueprint(googledrive_bp)
-app.register_blueprint(admin_bp)
-app.register_blueprint(auth_bp)
-app.register_blueprint(chat_bp)
-app.register_blueprint(slack_bp)
-
-db_settings = load_config("db")
-dbname = db_settings["database"]
-# check if the database can be connected to
-db_exists = False
-try:
-    db = get_db_connection()
-    db_exists = True
-except mysql.connector.Error as e:
-    if e.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
-        print(f"Database does not exist: {e}")
-        app.config["LORELAI_SETUP"] = True
-    else:
-        raise
-
-if db_exists:
-    logging.info("Database connection successful, checking flyway version...")
-    flyway_ok, error = check_flyway()
-    # if the flyway is not ok, and the error contains 'not up to date with last migration'
-    # we will run the migrations
-    if not flyway_ok and "not up to date with" in error:
-        logging.info(f"Flyway not OK ({error}). Running flyway migrations...")
-        success, log = run_flyway_migrations(
-            host=db_settings["host"],
-            database=db_settings["database"],
-            user=db_settings["user"],
-            password=db_settings["password"],
-        )
-
-        if not success:
-            logging.error(f"Flyway migrations failed: {log}")
-            sys.exit("Flyway migrations failed, exiting")
-        else:
-            logging.info("Flyway migrations successful")
-    else:
-        logging.info(f"Flyway is ok ({flyway_ok}) and up to date ({error})")
-
-    # run startup health checks. If there is a dependent service that is not running, we want to
-    # know it asap and stop the app from running
-    logging.debug("Running startup checks...")
-    errors = perform_health_checks()
-    if errors:
-        sys.exit(f"Startup checks failed: {errors}")
-
-# Allow OAuthlib to use HTTP for local testing only
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-
-# Flagging success by displaying the app's address
-logging.debug("URL Map: %s", app.url_map)
-logging.debug("App config: %s", app.config)
-logging.info(
-    "Application loaded successfully. Running at %s",
-    app.config.get(
-        "BASE_URL", "http://" + os.getenv("HOST", "localhost") + ":" + os.getenv("PORT", "5000")
-    ),
-)
-
-
-@app.route("/js/<script_name>.js")
-def serve_js(script_name):
-    """Return the javascript file dynamically.
-
-    Parameters
-    ----------
-    script_name : str
-        The name of the script to serve
-
-    Returns
-    -------
-        tuple: the javascript file, the status code, and the content type
-    """
-    return (
-        render_template(f"js/{script_name}.js"),
-        200,
-        {"Content-Type": "application/javascript"},
-    )
+# Move the health check inside a function that will be called after the app is fully initialized
+def run_health_checks():
+    """Run the health checks."""
+    with app.app_context():
+        errors = perform_health_checks()
+        if errors:
+            sys.exit(f"Startup checks failed: {errors}")
 
 
 # health check route
@@ -175,132 +32,6 @@ def health():
     if checks:
         return checks, 500
     return "OK", 200
-
-
-# Error handler for 404
-@app.errorhandler(404)
-def page_not_found(e):
-    """Handle 404 errors."""
-    return render_template("404.html", e=e), 404
-
-
-# Error handler for 500
-@app.errorhandler(500)
-def internal_server_error(e):
-    """Handle 500 errors."""
-    error_info = sys.exc_info()
-    if error_info:
-        error_message = str(error_info[1])  # Get the exception message
-    else:
-        error_message = f"An unknown error occurred. {e}"
-
-    # Pass the error message to the template
-    return render_template("500.html", error_message=error_message), 500
-
-
-@app.before_request
-def before_request():
-    """Load the features before every request."""
-    g.features = load_config("features")
-
-
-@app.after_request
-def set_security_headers(response):
-    """Set the security headers for the response."""
-    cross_origin_opener_policy = "same-origin"
-
-    connect_src = [
-        "'self'",
-        "https://accounts.google.com/gsi/",
-        "https://oauth2.googleapis.com/",
-        "https://o4507884621791232.ingest.de.sentry.io/api/",
-    ]
-
-    worker_src = [
-        "'self'",
-        "https://o4507884621791232.ingest.de.sentry.io/api/",
-        "blob:",  # Add this line to allow blob URLs for workers
-    ]
-
-    frame_src = [
-        "'self'",
-        "https://accounts.google.com/gsi/",
-        "https://accounts.google.com/",
-        "https://content.googleapis.com/",
-        "https://docs.google.com/",
-    ]
-
-    img_src = [
-        "'self'",
-        "'unsafe-inline'",
-        "data:",
-        "https://accounts.google.com/gsi/",
-        "https://csi.gstatic.com/csi",
-        "https://cdn.datatables.net/",
-        "https://platform.slack-edge.com/",
-    ]
-
-    script_src_elem = [
-        "'self'",
-        "'unsafe-inline'",
-        "https://js-de.sentry-cdn.com/",
-        "https://browser.sentry-cdn.com/",
-        "https://accounts.google.com/gsi/client",
-        "https://apis.google.com/",
-        "https://cdn.datatables.net/",
-        "https://cdn.jsdelivr.net/",
-        "https://code.jquery.com/",
-        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
-        "https://unpkg.com/@popperjs/",
-    ]
-
-    font_src = [
-        "'self'",
-        "'unsafe-inline'",
-        "https://accounts.google.com/gsi/",
-        "https://fonts.gstatic.com/s/",
-        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
-    ]
-
-    script_src = [
-        "'self'",
-        "'unsafe-inline'",
-        "https://accounts.google.com/gsi/",
-        "https://apis.google.com/js/api.js",
-        "https://apis.google.com/",
-    ]
-
-    style_src = [
-        "'self'",
-        "'unsafe-inline'",
-        "https://accounts.google.com/gsi/style",
-        "https://cdn.datatables.net/",
-        "https://cdn.jsdelivr.net/npm/@popperjs/",
-        "https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/",
-        "https://fonts.googleapis.com/css",
-        "https://fonts.googleapis.com/css2",
-        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/",
-        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/",
-    ]
-
-    default_src = ["'self'", "https://accounts.google.com/gsi/"]
-
-    content_security_policy = (
-        f"connect-src {' '.join(connect_src)}; "
-        f"frame-src {' '.join(frame_src)}; "
-        f"img-src {' '.join(img_src)}; "
-        f"script-src-elem {' '.join(script_src_elem)}; "
-        f"font-src {' '.join(font_src)}; "
-        f"script-src {' '.join(script_src)}; "
-        f"style-src {' '.join(style_src)}; "
-        f"worker-src {' '.join(worker_src)}; "
-        f"default-src {' '.join(default_src)};"
-    )
-
-    response.headers["Cross-Origin-Opener-Policy"] = cross_origin_opener_policy
-    response.headers["Content-Security-Policy"] = content_security_policy
-
-    return response
 
 
 @app.route("/unauthorized")
@@ -355,5 +86,4 @@ def org_exists():
 
 
 if __name__ == "__main__":
-    logging.debug("Starting the app...")
     app.run(ssl_context=("cert.pem", "key.pem"))

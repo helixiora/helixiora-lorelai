@@ -1,8 +1,11 @@
 """Notification related helper functions."""
 
 import logging
+from datetime import datetime
 
-from app.helpers.database import get_db_connection
+from app.models import Notification, db
+from app.schemas import NotificationSchema
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def add_notification(
@@ -10,75 +13,85 @@ def add_notification(
 ) -> bool:
     """Add a notification to the database."""
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            query = """
-            INSERT INTO notifications (user_id, type, title, message, data, url)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """
-            cursor.execute(query, (user_id, type, title, message, data, url))
-            db.commit()
+        notification = Notification(
+            user_id=user_id,
+            type=type,
+            title=title,
+            message=message,
+            data=str(data) if data else None,
+            url=url,
+        )
+        db.session.add(notification)
+        db.session.commit()
         return True
-    except Exception as e:
+    except SQLAlchemyError as e:
+        db.session.rollback()
         logging.error(f"Failed to add notification: {e}")
         return False
-    finally:
-        cursor.close()
-        db.close()
 
 
-def get_notifications(user_id: int) -> list[dict]:
+def get_notifications(user_id: int) -> list[NotificationSchema]:
     """Get the notifications for a user."""
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor(dictionary=True)
-            query = "SELECT * FROM notifications WHERE user_id = %s ORDER BY created_at DESC"
-            cursor.execute(query, (user_id,))
-            notifications = cursor.fetchall()
-            return notifications
-
-    except Exception as e:
+        notifications = (
+            Notification.query.filter_by(user_id=user_id)
+            .order_by(Notification.created_at.desc())
+            .all()
+        )
+        return [NotificationSchema.from_orm(notification) for notification in notifications]
+    except SQLAlchemyError as e:
         logging.error(f"Failed to get notifications: {e}")
         return []
-    finally:
-        cursor.close()
-        db.close()
 
 
-def get_unread_notifications(user_id: int) -> list[dict]:
+def get_unread_notifications(user_id: int) -> list[NotificationSchema]:
     """Get the unread notifications for a user."""
-    notifications = get_notifications(user_id)
-    return [notification for notification in notifications if not notification["read"]]
+    try:
+        notifications = (
+            Notification.query.filter_by(user_id=user_id, read=False)
+            .order_by(Notification.created_at.desc())
+            .all()
+        )
+        return [NotificationSchema.from_orm(notification) for notification in notifications]
+    except SQLAlchemyError as e:
+        logging.error(f"Failed to get unread notifications: {e}")
+        return []
 
 
 def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
     """Mark a notification as read and return status information."""
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor(dictionary=True)
+        notification = Notification.query.filter_by(id=notification_id, user_id=user_id).first()
+        if notification:
+            notification.read = True
+            notification.read_at = datetime.utcnow()
+            db.session.commit()
 
-            # Mark the notification as read
-            update_query = (
-                """UPDATE notifications SET `read` = TRUE WHERE `id` = %s AND `user_id` = %s"""
+        # Get counts for different notification states
+        counts = (
+            db.session.query(
+                db.func.sum(db.case([(Notification.read is False, 1)], else_=0)).label(
+                    "remaining_unread"
+                ),
+                db.func.sum(db.case([(Notification.read, 1)], else_=0)).label("read"),
+                db.func.sum(db.case([(Notification.dismissed, 1)], else_=0)).label("dismissed"),
+                db.func.sum(db.case([(Notification.dismissed is False, 1)], else_=0)).label(
+                    "undismissed"
+                ),
             )
-            cursor.execute(update_query, (notification_id, user_id))
-            db.commit()
+            .filter(Notification.user_id == user_id)
+            .first()
+        )
 
-            # Get counts for different notification states
-            count_query = """
-            SELECT
-                SUM(CASE WHEN `read` = FALSE THEN 1 ELSE 0 END) as `remaining_unread`,
-                SUM(CASE WHEN `read` = TRUE THEN 1 ELSE 0 END) as `read`,
-                SUM(CASE WHEN `dismissed` = TRUE THEN 1 ELSE 0 END) as `dismissed`,
-                SUM(CASE WHEN `dismissed` = FALSE THEN 1 ELSE 0 END) as `undismissed`
-            FROM `notifications`
-            WHERE `user_id` = %s
-            """
-            cursor.execute(count_query, (user_id,))
-            counts = cursor.fetchone()
-
-            return {"success": True, **{k: v or 0 for k, v in counts.items()}}
-    except Exception as e:
+        return {
+            "success": True,
+            "remaining_unread": counts.remaining_unread or 0,
+            "read": counts.read or 0,
+            "dismissed": counts.dismissed or 0,
+            "undismissed": counts.undismissed or 0,
+        }
+    except SQLAlchemyError as e:
+        db.session.rollback()
         logging.error(f"Failed to mark notification as read: {e}")
         return {
             "success": False,
@@ -88,39 +101,45 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
             "dismissed": 0,
             "undismissed": 0,
         }
-    finally:
-        cursor.close()
-        db.close()
 
 
 def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
     """Mark a notification as dismissed and return status information."""
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor(dictionary=True)
+        notification = Notification.query.filter_by(id=notification_id, user_id=user_id).first()
+        if notification:
+            notification.dismissed = True
+            notification.dismissed_at = datetime.utcnow()
+            db.session.commit()
+            success = True
+        else:
+            success = False
 
-            # Mark the notification as dismissed
-            update_query = """UPDATE `notifications` SET `dismissed` = TRUE WHERE `id` = %s AND
-            `user_id` = %s"""
-            cursor.execute(update_query, (notification_id, user_id))
-            success = cursor.rowcount > 0
-            db.commit()
+        # Get counts for different notification states
+        counts = (
+            db.session.query(
+                db.func.sum(db.case([(Notification.read is False, 1)], else_=0)).label(
+                    "remaining_unread"
+                ),
+                db.func.sum(db.case([(Notification.read, 1)], else_=0)).label("read"),
+                db.func.sum(db.case([(Notification.dismissed, 1)], else_=0)).label("dismissed"),
+                db.func.sum(db.case([(Notification.dismissed is False, 1)], else_=0)).label(
+                    "undismissed"
+                ),
+            )
+            .filter(Notification.user_id == user_id)
+            .first()
+        )
 
-            # Get counts for different notification states
-            count_query = """
-            SELECT
-                SUM(CASE WHEN `read` = FALSE THEN 1 ELSE 0 END) as `remaining_unread`,
-                SUM(CASE WHEN `read` = TRUE THEN 1 ELSE 0 END) as `read`,
-                SUM(CASE WHEN `dismissed` = TRUE THEN 1 ELSE 0 END) as `dismissed`,
-                SUM(CASE WHEN `dismissed` = FALSE THEN 1 ELSE 0 END) as `undismissed`
-            FROM `notifications`
-            WHERE `user_id` = %s
-            """
-            cursor.execute(count_query, (user_id,))
-            counts = cursor.fetchone()
-
-            return {"success": success, **{k: v or 0 for k, v in counts.items()}}
-    except Exception as e:
+        return {
+            "success": success,
+            "remaining_unread": counts.remaining_unread or 0,
+            "read": counts.read or 0,
+            "dismissed": counts.dismissed or 0,
+            "undismissed": counts.undismissed or 0,
+        }
+    except SQLAlchemyError as e:
+        db.session.rollback()
         logging.error(f"Failed to mark notification as dismissed: {e}")
         return {
             "success": False,
@@ -130,6 +149,3 @@ def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
             "dismissed": 0,
             "undismissed": 0,
         }
-    finally:
-        cursor.close()
-        db.close()

@@ -62,6 +62,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('messageInput');
     const messagesDiv = document.getElementById('messages');
 
+    // Add this line at the beginning of the DOMContentLoaded event listener
+    const username = document.body.dataset.username;
+
     function addMessage(content, isUser = true, isHTML = false, isSources = false) {
         // Convert markdown content to HTML
         content = marked.parse(content);
@@ -81,8 +84,6 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContentDiv.style.overflowWrap = 'break-word';
         // Use innerHTML for bot messages that need to render HTML content
         if (isUser) {
-            // get the user_username from the session
-            const username = '{{ session.get('user_username') }}';
             messageContentDiv.innerHTML = '<strong>' + username + '</strong>: ' + content;
         } else {
             messageContentDiv.innerHTML = '<strong>Lorelai</strong>: ' + content;
@@ -196,18 +197,52 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {string} message The text message to send to the server.
      */
     async function sendMessage(message) {
-       console.log('Sending message:', message);
+        console.log('Sending message:', message);
         addMessage(message, true); // Display the message as sent by the user
         showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
         try {
-            const response = await fetch('/api/chat', {
+            const csrfToken = getCookie('csrf_token');
+            console.log('CSRF Token:', csrfToken);
+            let response = await fetch('/api/chat', {
                 method: 'POST',
                 body: JSON.stringify({message: message}),
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 }
             });
+
+            // if the token is expired, the body contains "Expired token"
+            if (response.status === 401) {
+                const responseData = await response.json();
+                // check if the responseData.msg starts with "Expired token"
+                if (responseData.msg.startsWith("Expired token")) {
+                    // Token expired, try to refresh
+                    const refreshResponse = await fetch('/refresh', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                    });
+
+                    if (refreshResponse.ok) {
+                        // Token refreshed, retry the original request
+                        response = await fetch('/api/chat', {
+                        method: 'POST',
+                        body: JSON.stringify({message: message}),
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                            }
+                        });
+                    } else {
+                        throw new Error('Token refresh failed');
+                    }
+                } else {
+                    throw new Error('Token expired');
+                }
+            }
 
             if (!response.ok) {
                 hideLoadingIndicator();
@@ -217,6 +252,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.warn('Quota exceeded.');
                     hideLoadingIndicator();
                     addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
+                } else if (response.status === 401) {
+                    addMessage('Your session has expired. Please log in again.', false, false);
                 } else {
                     addMessage('Error: Unable to send the message. Please try again later.', false, false);
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -341,3 +378,10 @@ document.querySelectorAll('.conversation-item').forEach(item => {
         location.reload();
     });
 });
+
+// Add this function before the sendMessage function
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}

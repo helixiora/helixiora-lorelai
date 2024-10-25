@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Manage API Tokens</h1>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="token_name">New Token Name</label>
+        <input type="text" class="form-control" id="token_name" name="token_name" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Create New Token</button>
+</form>
+
+<h2 class="mt-4">Your API Tokens</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Created</th>
+            <th>Expires</th>
+            <th>Last Used</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for token in tokens %}
+        <tr>
+            <td>{{ token.name }}</td>
+            <td>{{ token.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>{{ token.expires_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>{{ token.last_used_at.strftime('%Y-%m-%d %H:%M:%S') if token.last_used_at else 'Never' }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('admin.revoke_token', token_id=token.id) }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

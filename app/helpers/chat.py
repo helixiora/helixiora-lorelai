@@ -3,8 +3,10 @@
 import logging
 from datetime import datetime, timedelta
 
+from sqlalchemy import func, desc
 from app.helpers.users import is_admin
-from app.helpers.database import get_db_connection
+from app.models import db, ChatThread, ChatMessage, UserPlan, Plan
+from flask import current_app
 
 
 def get_chat_template_requirements(thread_id: str, user_id: int) -> dict:
@@ -42,62 +44,56 @@ def get_msg_count_last_24hr(user_id: int) -> int:
 
     Raises
     ------
-        Exception: If there is an error connecting to the database or executing the query.
+        Exception: If there is an error executing the query.
     """
     try:
-        with get_db_connection() as db:
-            past_24_hours_time = datetime.now() - timedelta(days=1)
-            cursor = db.cursor()
-            query = """
-                    SELECT t.user_id, COUNT(m.message_id) AS message_count
-            FROM chat_threads t
-            JOIN chat_messages m ON t.thread_id = m.thread_id
-            WHERE t.user_id = %s AND m.sender = 'bot' and m.created_at >= %s
-            GROUP BY t.user_id
-                """
-            cursor.execute(query, (user_id, past_24_hours_time))
-            count = cursor.fetchone()
-            if count is None:
-                return 0
-            return count[1]  # (user_id,message_count)
+        past_24_hours_time = datetime.now() - timedelta(days=1)
+        count = (
+            db.session.query(func.count(ChatMessage.message_id))
+            .join(ChatThread)
+            .filter(
+                ChatThread.user_id == user_id,
+                ChatMessage.sender == "bot",
+                ChatMessage.created_at >= past_24_hours_time,
+            )
+            .scalar()
+        )
+        return count or 0
     except Exception as e:
         logging.error(e)
         raise e
 
 
-def insert_thread_ignore(thread_id: str, user_id, thread_name=None):
+def insert_thread_ignore(thread_id: str, user_id: int, thread_name: str = None) -> bool:
     """
     Insert a new chat thread into the chat_threads table, ignoring the insertion if a duplicate.
 
-    # thread_id exists.
-
     Args:
         thread_id (str): The unique identifier for the chat thread.
-        user_id: The ID of the user who owns the thread.
+        user_id (int): The ID of the user who owns the thread.
         thread_name (str, optional): The name of the chat thread. Defaults to None.
 
     Returns
     -------
         bool: True if the insertion was successful or ignored, False otherwise.
-
-    Raises
-    ------
-        Exception: Propagates any exception that occurs during the database operation.
     """
+    logging.info("Inserting thread: %s, %s, %s", thread_id, user_id, thread_name)
+
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            query = """
-            INSERT IGNORE INTO chat_threads (thread_id, user_id, thread_name)
-            VALUES (%s, %s, %s)
-                """
-            thread_data = (thread_id, user_id, thread_name)
-            cursor.execute(query, thread_data)
-            db.commit()
+        with current_app.app_context():
+            existing_thread = db.session.query(ChatThread).filter_by(thread_id=thread_id).first()
+            if existing_thread:
+                logging.info("Thread already exists, ignore insertion")
+                return True  # Thread already exists, ignore insertion
+
+            thread = ChatThread(thread_id=thread_id, user_id=user_id, thread_name=thread_name)
+            db.session.add(thread)
+            db.session.commit()
             return True
     except Exception as e:
-        logging.error(e)
-        raise e
+        current_app.logger.error(f"Error inserting thread: {e}")
+        db.session.rollback()
+        return False
 
 
 def insert_message(thread_id: str, sender: str, message_content: str, sources: str = None) -> bool:
@@ -119,17 +115,14 @@ def insert_message(thread_id: str, sender: str, message_content: str, sources: s
         Exception: Propagates any exception that occurs during the database operation.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            query = """
-            INSERT INTO chat_messages (thread_id, sender, message_content, sources)
-            VALUES (%s, %s, %s, %s)
-                """
-            msg_data = (thread_id, sender, message_content, sources)
-            cursor.execute(query, msg_data)
-            db.commit()
-            return True
+        message = ChatMessage(
+            thread_id=thread_id, sender=sender, message_content=message_content, sources=sources
+        )
+        db.session.add(message)
+        db.session.commit()
+        return True
     except Exception as e:
+        db.session.rollback()
         logging.error(e)
         raise e
 
@@ -151,18 +144,8 @@ def list_all_user_threads(user_id: int) -> list:
         Exception: If there is an error during the database query.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            query = """
-            SELECT thread_id
-            FROM chat_threads
-            WHERE user_id = %s AND marked_deleted = FALSE;
-            """
-            cursor.execute(query, (user_id,))
-            thread_ids = cursor.fetchall()
-            if thread_ids is None:
-                return []
-            return thread_ids
+        threads = ChatThread.query.filter_by(user_id=user_id, marked_deleted=False).all()
+        return [thread.thread_id for thread in threads]
     except Exception as e:
         logging.error(e)
         raise e
@@ -185,19 +168,20 @@ def get_all_thread_messages(thread_id: str) -> list:
         Exception: If there is an error during the database query.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor(dictionary=True)
-            query = """
-            SELECT sender, message_content, created_at, sources
-                FROM chat_messages
-                WHERE thread_id = %s
-                ORDER BY created_at ASC;
-                """
-            cursor.execute(query, (thread_id,))
-            messages = cursor.fetchall()
-            if messages is None:
-                return []
-            return messages
+        messages = (
+            ChatMessage.query.filter_by(thread_id=thread_id)
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+        return [
+            {
+                "sender": message.sender,
+                "message_content": message.message_content,
+                "created_at": message.created_at,
+                "sources": message.sources,
+            }
+            for message in messages
+        ]
     except Exception as e:
         logging.error(e)
         raise e
@@ -220,30 +204,37 @@ def get_recent_threads(user_id: int) -> list:
         Exception: If there is an error during the database query.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor(dictionary=True)
-            query = """
-            SELECT ct.thread_id, ct.thread_name, ct.created_at, max(cm.created_at) AS
-            last_messages_created_at
-            FROM chat_threads ct
-            LEFT JOIN chat_messages cm ON ct.thread_id = cm.thread_id
-            WHERE ct.user_id = %s AND ct.marked_deleted = FALSE
-            GROUP BY ct.thread_id, ct.thread_name, ct.created_at
-            HAVING max(cm.created_at) IS NOT NULL
-            ORDER BY last_messages_created_at DESC
-            LIMIT 10;
-`            """
-            cursor.execute(query, (user_id,))
-            recent_threads = cursor.fetchall()
-            if recent_threads is None:
-                return []
-            return recent_threads
+        recent_threads = (
+            db.session.query(
+                ChatThread.thread_id,
+                ChatThread.thread_name,
+                ChatThread.created_at,
+                func.max(ChatMessage.created_at).label("last_messages_created_at"),
+            )
+            .join(ChatMessage, ChatThread.thread_id == ChatMessage.thread_id, isouter=True)
+            .filter(
+                ChatThread.user_id == user_id,
+                ChatThread.marked_deleted.is_(False),
+                ChatMessage.sender != "bot",
+            )
+            .group_by(ChatThread.thread_id, ChatThread.thread_name, ChatThread.created_at)
+            .order_by(desc("last_messages_created_at"))
+            .limit(10)
+            .all()
+        )
+
+        return [
+            {
+                "thread_id": thread.thread_id,
+                "thread_name": thread.thread_name,
+                "created_at": thread.created_at,
+                "last_messages_created_at": thread.last_messages_created_at,
+            }
+            for thread in recent_threads
+        ]
     except Exception as e:
         logging.error(e)
         raise e
-    finally:
-        cursor.close()
-        db.close()
 
 
 def delete_thread(thread_id: str) -> bool:
@@ -262,23 +253,16 @@ def delete_thread(thread_id: str) -> bool:
         Exception: If there is an error during the database query.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-
-            # Update the thread to mark it as deleted
-            mark_deleted_query = (
-                "UPDATE chat_threads SET marked_deleted = TRUE WHERE thread_id = %s;"
-            )
-            cursor.execute(mark_deleted_query, (thread_id,))
-
-            db.commit()
+        thread = ChatThread.query.filter_by(thread_id=thread_id).first()
+        if thread:
+            thread.marked_deleted = True
+            db.session.commit()
             return True
+        return False
     except Exception as e:
+        db.session.rollback()
         logging.error(f"Error marking thread {thread_id} as deleted: {e}")
-        db.rollback()
         raise e
-    finally:
-        cursor.close()
 
 
 def get_daily_message_limit(user_id: int) -> int:
@@ -293,34 +277,22 @@ def get_daily_message_limit(user_id: int) -> int:
         int : The daily message limit if an active plan is found, otherwise 0.
     """
     try:
-        with get_db_connection() as db:
-            cursor = db.cursor()
-            query = """
-                SELECT
-                    p.message_limit_daily
-                FROM
-                    user_plans up
-                JOIN
-                    plans p ON up.plan_id = p.plan_id
-                WHERE
-                    up.user_id = %s
-                    AND up.is_active = TRUE
-                    AND CURDATE() BETWEEN up.start_date AND up.end_date;
-            """
+        active_plan = (
+            db.session.query(Plan.message_limit_daily)
+            .join(UserPlan)
+            .filter(
+                UserPlan.user_id == user_id,
+                UserPlan.is_active,
+                UserPlan.start_date <= func.curdate(),
+                UserPlan.end_date >= func.curdate(),
+            )
+            .first()
+        )
 
-            cursor.execute(query, (user_id,))
-            result = cursor.fetchone()
-
-            if result:
-                return result[0]  # Return the daily message limit
-            else:
-                return 0  # If no active plan is found
-
+        return active_plan.message_limit_daily if active_plan else 0
     except Exception as e:
         logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
         raise e
-    finally:
-        cursor.close()
 
 
 def can_send_message(user_id: int) -> bool:
@@ -335,9 +307,5 @@ def can_send_message(user_id: int) -> bool:
         bool: True if the user can send a message, otherwise False.
     """
     daily_limit = get_daily_message_limit(user_id)
-
-    message_usages = get_msg_count_last_24hr(
-        user_id
-    )  # resets only if 24 hr has passed from last messages  # noqa: E501
-    if message_usages < daily_limit:
-        return True
+    message_usages = get_msg_count_last_24hr(user_id)
+    return message_usages < daily_limit

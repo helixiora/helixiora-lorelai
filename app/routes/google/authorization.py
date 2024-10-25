@@ -14,7 +14,7 @@ References
 import logging
 import os
 
-from flask import Blueprint, request, session, jsonify, redirect, url_for
+from flask import Blueprint, request, session, jsonify, redirect, url_for, current_app, flash
 from google_auth_oauthlib.flow import Flow
 
 from oauthlib.oauth2.rfc6749.errors import (
@@ -26,9 +26,9 @@ from oauthlib.oauth2.rfc6749.errors import (
     InvalidRedirectURIError,
 )
 
-from app.helpers.database import get_db_connection
-from app.helpers.datasources import get_datasource_id_by_name, DATASOURCE_GOOGLE_DRIVE
-from lorelai.utils import load_config
+from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
+from app.models import db, User, UserAuth, Datasource, GoogleDriveItem
+from sqlalchemy.exc import SQLAlchemyError
 
 
 googledrive_bp = Blueprint("googledrive", __name__)
@@ -37,7 +37,6 @@ googledrive_bp = Blueprint("googledrive", __name__)
 @googledrive_bp.route("/google/drive/codeclientcallback", methods=["GET"])
 def google_auth_redirect():
     """Handle callback for Google CodeClient."""
-    googlecreds, lorelai_config = load_configurations()
     authorization_code = request.args.get("code")
 
     error = request.args.get("error")
@@ -52,9 +51,10 @@ def google_auth_redirect():
 
     if not authorization_code:
         logging.error("Authorization code is missing")
-        return jsonify_error("Authorization code is missing", 400)
+        flash("Authorization code is missing", "error")
+        return redirect(url_for("auth.profile"))
 
-    flow = initialize_oauth_flow(googlecreds, lorelai_config)
+    flow = initialize_oauth_flow()
 
     try:
         fetch_oauth_tokens(flow, authorization_code)
@@ -62,36 +62,31 @@ def google_auth_redirect():
             "Authorization code exchanged for access_token, refresh_token, and expiry for user id"
         )
     except OAuth2Error as e:
-        return handle_oauth_error(e)
+        flash(f"Error exchanging authorization code: {e}", "error")
+        return redirect(url_for("auth.profile"))
 
-    user_id = session.get("user_id")
+    user_id = session.get("user.id")
     if not user_id:
-        return jsonify_error("User not logged in or session expired", 401)
+        flash("User not logged in or session expired", "error")
+        return redirect(url_for("auth.profile"))
 
     save_tokens_to_db(flow, user_id)
 
     return redirect(url_for("auth.profile"))
 
 
-def load_configurations():
-    """Load necessary configurations for OAuth and return them."""
-    googlecreds = load_config("google")
-    lorelai_config = load_config("lorelai")
-    return googlecreds, lorelai_config
-
-
-def initialize_oauth_flow(googlecreds, lorelai_config):
+def initialize_oauth_flow():
     """Initialize the OAuth2 flow using the provided credentials."""
     os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
     return Flow.from_client_config(
         client_config={
             "web": {
-                "client_id": googlecreds["client_id"],
-                "project_id": googlecreds["project_id"],
+                "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+                "project_id": current_app.config["GOOGLE_PROJECT_ID"],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_secret": googlecreds["client_secret"],
+                "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
             }
         },
         scopes=[
@@ -100,7 +95,7 @@ def initialize_oauth_flow(googlecreds, lorelai_config):
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/drive.file",
         ],
-        redirect_uri=lorelai_config["redirect_uri"],
+        redirect_uri=current_app.config["LORELAI_REDIRECT_URI"],
     )
 
 
@@ -137,37 +132,47 @@ def save_tokens_to_db(flow, user_id):
     logging.debug(f"Expires at: {expires_at}")
 
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        datasource_id = get_datasource_id_by_name(DATASOURCE_GOOGLE_DRIVE)
-        if datasource_id is None:
+        datasource = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first()
+        if not datasource:
             raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db")
 
-        insert_or_update_token(cursor, user_id, datasource_id, "access_token", access_token)
-        insert_or_update_token(cursor, user_id, datasource_id, "refresh_token", refresh_token)
-        insert_or_update_token(cursor, user_id, datasource_id, "expires_at", expires_at)
+        user = User.query.get(user_id)
+        if not user:
+            raise ValueError(f"User with id {user_id} not found")
 
-        conn.commit()
+        insert_or_update_token(user, datasource, "access_token", access_token)
+        insert_or_update_token(user, datasource, "refresh_token", refresh_token)
+        insert_or_update_token(user, datasource, "expires_at", expires_at)
+
+        db.session.commit()
         logging.info(f"Tokens saved to database for user id: {user_id}")
-    except Exception as e:
+    except SQLAlchemyError as e:
+        db.session.rollback()
         logging.error(f"Database error: {e}")
         return jsonify_error(f"Database error: {str(e)}", 500)
-    finally:
-        cursor.close()
-        conn.close()
 
     return jsonify_success(access_token, refresh_token, expires_at)
 
 
-def insert_or_update_token(cursor, user_id, datasource_id, key, value):
+def insert_or_update_token(user, datasource, key, value):
     """Insert or update a single token in the database."""
-    cursor.execute(
-        """INSERT INTO user_auth (user_id, datasource_id, auth_key, auth_value, auth_type)
-        VALUES (%s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE auth_value = VALUES(auth_value)""",
-        (user_id, datasource_id, key, value, "oauth"),
-    )
+    user_auth = UserAuth.query.filter_by(
+        user_id=user.id, datasource_id=datasource.datasource_id, auth_key=key
+    ).first()
+
+    if user_auth:
+        logging.debug(f"Updating {key} for user id: {user.id}, value: {value}")
+        user_auth.auth_value = value
+    else:
+        logging.debug(f"Inserting {key} for user id: {user.id}, value: {value}")
+        new_auth = UserAuth(
+            user_id=user.id,
+            datasource_id=datasource.datasource_id,
+            auth_key=key,
+            auth_value=value,
+            auth_type="oauth",
+        )
+        db.session.add(new_auth)
 
 
 def jsonify_error(message, status_code):
@@ -191,40 +196,27 @@ def jsonify_success(access_token, refresh_token, expires_at):
 @googledrive_bp.route("/google/drive/revoke", methods=["POST"])
 def deauthorize():
     """Deauthorize the user by removing the tokens from the database."""
-    user_id = session.get("user_id")
+    user_id = session.get("user.id")
     if not user_id:
         return jsonify_error("User not logged in or session expired", 401)
 
-    data_source_name = DATASOURCE_GOOGLE_DRIVE
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
     try:
-        datasource_id = get_datasource_id_by_name(data_source_name)
-        if datasource_id is None:
-            raise ValueError(f"{data_source_name} is missing from datasource table in db")
+        datasource = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first()
+        if not datasource:
+            raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db")
 
-        # remove the tokens from the database
-        cursor.execute(
-            """DELETE FROM user_auth
-            WHERE user_id = %s AND datasource_id = %s""",
-            (user_id, datasource_id),
-        )
+        # Remove the tokens from the database
+        UserAuth.query.filter_by(user_id=user_id, datasource_id=datasource.datasource_id).delete()
 
-        # remove the google drive items from the database
-        cursor.execute(
-            """DELETE FROM google_drive_items
-            WHERE user_id = %s""",
-            (user_id,),
-        )
-        conn.commit()
+        # Remove the Google Drive items from the database
+        GoogleDriveItem.query.filter_by(user_id=user_id).delete()
+
+        db.session.commit()
         logging.info(f"User deauthorized from Google Drive for user id: {user_id}")
-    except Exception as e:
+    except SQLAlchemyError as e:
+        db.session.rollback()
         logging.error(f"Database error: {e}")
         return jsonify_error(f"Database error: {str(e)}", 500)
-    finally:
-        cursor.close()
-        conn.close()
 
     return jsonify({"status": "success", "message": "User deauthorized from Google Drive"}), 200
 
@@ -232,35 +224,29 @@ def deauthorize():
 @googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])
 def process_file_picker():
     """Process the list of google docs ids returned by the file picker."""
-    # retrieve the user_id from the session
-    user_id = session["user_id"]
-
-    # request.data is a json list of selected google docs
+    user_id = session["user.id"]
     documents = request.get_json()
 
-    # validate the content of documents
     if not documents:
         logging.error("No documents selected")
         return "No documents selected"
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
     try:
         for doc in documents:
-            cursor.execute(
-                """INSERT INTO google_drive_items( \
-                       user_id, google_drive_id, item_name, mime_type, item_type)
-                   VALUES (%s, %s, %s, %s, %s)""",
-                (user_id, doc["id"], doc["name"], doc["mimeType"], doc["type"]),
+            new_item = GoogleDriveItem(
+                user_id=user_id,
+                google_drive_id=doc["id"],
+                item_name=doc["name"],
+                mime_type=doc["mimeType"],
+                item_type=doc["type"],
             )
+            db.session.add(new_item)
             logging.info(f"Inserted google doc id: {doc['id']} for user id: {user_id}")
-        conn.commit()
-    except Exception:
-        logging.error(f"Error inserting google doc id: {doc}")
-        return "Error inserting google doc id: {doc}"
-    finally:
-        cursor.close()
-        conn.close()
+        db.session.commit()
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logging.error(f"Error inserting google doc: {e}")
+        return f"Error inserting google doc: {str(e)}"
 
     return "Success"
 
@@ -269,27 +255,17 @@ def process_file_picker():
 @googledrive_bp.route("/google/drive/removefile", methods=["POST"])
 def remove_file():
     """Remove a google drive item from the database."""
-    # retrieve the user_id from the session
-    user_id = session["user_id"]
-
+    user_id = session["user.id"]
     data = request.get_json()
     google_drive_id = data["google_drive_id"]
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute(
-            """DELETE FROM google_drive_items
-               WHERE user_id = %s AND google_drive_id = %s""",
-            (user_id, google_drive_id),
-        )
-        conn.commit()
+        GoogleDriveItem.query.filter_by(user_id=user_id, google_drive_id=google_drive_id).delete()
+        db.session.commit()
         logging.info(f"Deleted google doc id: {google_drive_id} for user id: {user_id}")
-    except Exception:
-        logging.error(f"Error deleting google doc id: {google_drive_id}")
-        return "Error deleting google doc id: {google_drive_id}"
-    finally:
-        cursor.close()
-        conn.close()
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logging.error(f"Error deleting google doc id: {google_drive_id}: {e}")
+        return f"Error deleting google doc id: {google_drive_id}"
 
     return "OK"

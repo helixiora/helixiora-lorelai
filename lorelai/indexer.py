@@ -3,7 +3,7 @@
 import logging
 from rq import job
 import importlib
-import lorelai.utils
+from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema, GoogleDriveItemSchema
 
 # The scopes needed to read documents in Google Drive
 # (see: https://developers.google.com/drive/api/guides/api-specific-auth)
@@ -42,7 +42,6 @@ class Indexer:
     def __init__(self):
         if not self._allowed:
             raise Exception("This class should be instantiated through a create() factory method.")
-        self.settings = lorelai.utils.load_config("lorelai")
 
     def get_indexer_name(self) -> str:
         """Retrieve the name of the indexer."""
@@ -50,24 +49,24 @@ class Indexer:
 
     def index_org(
         self,
-        org_row: dict[str, any],
-        user_rows: list[dict[str, any]],
-        user_auth_rows: list[dict[str, any]],
-        user_data_rows: list[dict[str, any]],
+        org_row: OrganisationSchema,
+        user_rows: list[UserSchema],
+        user_auth_rows: list[UserAuthSchema],
+        user_data_rows: list[GoogleDriveItemSchema],
         job: job.Job | None = None,
     ) -> list[dict[str, any]]:
         """Process the organisation, indexing all its users.
 
         Arguments
         ---------
-        org_row: dict[str, any]
-            The organisation to process, a dictionary of org details (org_id, name).
-        user_rows: list[dict[str, any]]
-            The users to process, a list of user details (user_id, name, email, token,
-            refresh_token).
-        user_auth_rows: list[dict[str, any]]
-            The user auth rows for all users, a list of user auth details (user_id, auth_key,
-            auth_value).
+        org_row: OrganisationSchema
+            The organisation to process.
+        user_rows: list[UserSchema]
+            The users to process.
+        user_auth_rows: list[UserAuthSchema]
+            The user auth rows for all users.
+        user_data_rows: list[GoogleDriveItemSchema]
+            The user data rows for all users.
         job: job.Job | None
             The job object for the current task.
 
@@ -76,8 +75,8 @@ class Indexer:
         list[dict[str, any]]
             A list of dictionaries containing the results of indexing each user.
         """
-        logging.debug(f"Indexing org: {org_row}")
-        logging.debug(f"Users: {user_rows}")
+        logging.debug(f"Indexing org: {org_row['name']}")
+        logging.debug(f"Users: {[user['email'] for user in user_rows]}")
         logging.debug(f"User auths: {user_auth_rows}")
 
         if job:
@@ -96,12 +95,11 @@ class Indexer:
                 job.meta["user"] = user_row["email"]
                 job.save_meta()
 
-            # get the user auth rows for this user (there will be many user's auth rows in the
-            # original list)
+            # get the user auth rows for this user
             user_auth_rows_filtered = [
                 user_auth_row
                 for user_auth_row in user_auth_rows
-                if user_auth_row["user_id"] == user_row["user_id"]
+                if user_auth_row["user_id"] == user_row["id"]
             ]
 
             # index the user
@@ -128,7 +126,7 @@ class Indexer:
             result.append(
                 {
                     "job_id": job.id if job else "",
-                    "user_id": user_row["user_id"],
+                    "user_id": user_row["id"],
                     "success": success,
                     "message": message,
                 }
@@ -139,24 +137,24 @@ class Indexer:
 
     def index_user(
         self,
-        user_row: dict[str, any],
-        org_row: dict[str, any],
-        user_auth_rows: list[dict[str, any]],
-        user_data_rows: list[dict[str, any]],
+        user_row: UserSchema,
+        org_row: OrganisationSchema,
+        user_auth_rows: list[UserAuthSchema],
+        user_data_rows: list[GoogleDriveItemSchema],
         job: job.Job | None,
     ) -> tuple[bool, str]:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         Arguments
         ---------
-        user_row: dict[str, any]
-            The user to process, a dictionary of user details (user_id, name, email, token,
-            refresh_token).
-        org_row: dict[str, any]
-            The organisation to process, a dictionary of org details (org_id, name).
-        user_auth_rows: list[dict[str, any]]
-            The user auth rows for the user, a list of user auth details (user_id, auth_key,
-            auth_value).
+        user_row: UserSchema
+            The user to process.
+        org_row: OrganisationSchema
+            The organisation to process.
+        user_auth_rows: list[UserAuthSchema]
+            The user auth rows for the user.
+        user_data_rows: list[GoogleDriveItemSchema]
+            The user data rows for the user.
         job: job.Job | None
             The job object for the current task.
 
