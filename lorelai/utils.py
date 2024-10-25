@@ -76,7 +76,7 @@ def create_jwt_token_invite_user(invitee_email, org_admin_email, org_name):
         str: A JWT token as a string.
     """
     # Create JWT token
-    jwt_secret_key = current_app.config["LORELAI_JWT_SECRET_KEY"]
+    jwt_secret_key = current_app.config["JWT_SECRET_KEY"]
     token = jwt.encode(
         {
             "invitee_email": invitee_email,

@@ -1,5 +1,7 @@
 """Configuration for the Flask app."""
 
+from lorelai.utils import get_embedding_dimension
+
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -77,6 +79,8 @@ class Config:
 
     # Embeddings settings
     EMBEDDINGS_MODEL = os.environ.get("EMBEDDINGS_MODEL", "text-embedding-3-small")
+    EMBEDDINGS_DIMENSION = get_embedding_dimension(EMBEDDINGS_MODEL)
+    # EMBEDDINGS_DIMENSION = os.environ.get("EMBEDDINGS_DIMENSION", 1536)
     EMBEDDINGS_CHUNK_SIZE = int(os.environ.get("EMBEDDINGS_CHUNK_SIZE", 4000))
     EMBEDDINGS_DIMENSION = int(os.environ.get("EMBEDDINGS_DIMENSION", 1536))
 

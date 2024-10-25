@@ -16,7 +16,6 @@ from lorelai.indexers.slackindexer import SlackIndexer
 
 from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema, GoogleDriveItemSchema
 
-
 logging_format = os.getenv(
     "LOG_FORMAT",
     "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(filename)s])",
@@ -52,7 +51,6 @@ def get_answer_from_rag(
             if user is None or organisation is None:
                 raise ValueError("User and organisation cannot be None.")
 
-            # insert chat thread
             thread_inserted = insert_thread_ignore(
                 thread_id=str(thread_id), user_id=user_id, thread_name=chat_message[:20]
             )
