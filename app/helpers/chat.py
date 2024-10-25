@@ -81,8 +81,9 @@ def insert_thread_ignore(thread_id: str, user_id: int, thread_name: str = None) 
 
     try:
         with current_app.app_context():
-            existing_thread = ChatThread.query.filter_by(thread_id=thread_id).first()
+            existing_thread = db.session.query(ChatThread).filter_by(thread_id=thread_id).first()
             if existing_thread:
+                logging.info("Thread already exists, ignore insertion")
                 return True  # Thread already exists, ignore insertion
 
             thread = ChatThread(thread_id=thread_id, user_id=user_id, thread_name=thread_name)

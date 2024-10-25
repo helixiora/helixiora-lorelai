@@ -443,9 +443,9 @@ def setup_post() -> str:
     #         conn.close()
 
 
+# @role_required(["super_admin", "org_admin"])
 @admin_bp.route("/admin/invite_user", methods=["POST"])
 @login_required
-@role_required(["super_admin", "org_admin"])
 def invite_user():
     """
     Handle user invitation process by sending an invite email with a registration link.
@@ -481,14 +481,14 @@ def invite_user():
         invite_url=invite_register_url,
     )
     if email_status:
-        create_invited_user_in_db(email=email, org_name=session["user.org_name"])
+        create_invited_user_in_db(email=email, org_id=session["user.org_id"])
         flash(f"Invitation to {email} sent successfully!", "success")
         logging.info(f"Invitation to {email} sent successfully!")
     else:
         flash("Invitation failed", "error")
         logging.error(f"Invitation to {email} failed")
 
-    return redirect(url_for("admin.admin"))
+    return redirect(url_for("admin.admin_dashboard"))
 
 
 @admin_bp.route("/admin/test_connection", methods=["POST"])

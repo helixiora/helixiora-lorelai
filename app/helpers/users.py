@@ -84,43 +84,45 @@ def role_required(role_name_list):
     return wrapper
 
 
-def create_invited_user_in_db(email: str, org_name: str):
+def create_invited_user_in_db(email: str, org_id: int):
     """
-    Create an invited user in the database and assign a default role.
-
-    This function performs the following steps:
-    1. Retrieves the organization ID (`org_id`) for the given organization name (`org_name`).
-       If the organization ID is not found, a ValueError is raised.
-    2. Inserts a new user record into the `user` table with the retrieved `org_id` and the provided
-       email.
-    3. Retrieves the `user_id` of the newly inserted user.
-    4. Inserts a record into the `user_roles` table to assign a default role (role_id=3) to the
-       newly created user.
-    5. Commits the transaction if all steps are successful.
+    Create or update a user with the given email and org_id.
 
     Args:
-        email (str): The email of the invited user.
-        org_name (str): The name of the organization to which the user is being invited.
+        email (str): The email of the user.
+        org_id (int): The organization ID for the user.
 
     Returns
     -------
-        bool: True if the user was created and the role was assigned successfully, False otherwise.
-
-    Raises
-    ------
-        ValueError: If the organization ID for the given organization name is not found.
-        Exception: If any other error occurs during the database operations.
+        bool: True if the operation was successful.
     """
     try:
-        # create the user
-        user = User(email=email, organisation=org_name)
-        user.roles.append(Role.query.filter_by(name="user").first())
-        db.session.add(user)
+        # Check if the user already exists by email
+        existing_user = User.query.filter_by(email=email).first()
+
+        if existing_user:
+            # User already exists, no need to insert
+            logging.info(f"User with email {email} already exists.")
+            return True
+
+        # Create a new user since the email doesn't exist
+        new_user = User(
+            email=email,
+            org_id=org_id,
+        )
+        # get role
+        role = Role.query.filter_by(name="user").first()
+        db.session.add(new_user)
+        new_user.roles.append(role)
+
+        # Commit the transaction
         db.session.commit()
 
         return True
+
     except Exception as e:
-        logging.error(e)
+        db.session.rollback()
+        logging.error(f"Error during user creation: {e}")
         raise e
 
 
