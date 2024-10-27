@@ -5,6 +5,7 @@ from datetime import date
 
 import mysql.connector
 import redis
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models import (
@@ -26,7 +27,7 @@ def check_mysql() -> tuple[bool, str]:
         A tuple with a boolean indicating success and a string with the message.
     """
     try:
-        db.session.execute("SELECT 1")
+        db.session.execute(text("SELECT 1"))
         return True, "MySQL is up and running."
     except mysql.connector.Error as e:
         logging.exception("MySQL check failed")
