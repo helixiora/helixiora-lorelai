@@ -71,7 +71,7 @@ def chat():
             current_user.organisation,
             model_type="OpenAILlm",
         )
-        logging.info("Enqueued job for chat, message %s, thread %s", thread_id)
+        logging.info("Enqueued job for chat, message %s, thread %s", message_content, thread_id)
 
         return jsonify(
             {
