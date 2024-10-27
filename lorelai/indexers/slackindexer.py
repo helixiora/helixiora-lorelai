@@ -478,8 +478,8 @@ class SlackIndexer(Indexer):
         index, name = self.pinecone_helper.get_index(
             org=self.org_name,
             datasource=DATASOURCE_SLACK,
-            environment=current_app.config["ENVIRONMENT"],
-            env_name=current_app.config["ENVIRONMENT_SLUG"],
+            environment=current_app.config["LORELAI_ENVIRONMENT"],
+            env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
             version="v1",
             create_if_not_exists=True,
         )

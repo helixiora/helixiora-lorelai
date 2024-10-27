@@ -284,8 +284,8 @@ class Processor:
         pc_index, index_name = pinecone_helper.get_index(
             org=org_name,
             datasource=datasource,
-            environment=current_app.config["ENVIRONMENT"],
-            env_name=current_app.config["ENVIRONMENT_SLUG"],
+            environment=current_app.config["LORELAI_ENVIRONMENT"],
+            env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
             version="v1",
             create_if_not_exists=True,
         )
