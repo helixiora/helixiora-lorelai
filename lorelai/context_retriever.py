@@ -46,7 +46,9 @@ class ContextRetriever:
 
     _allowed = False  # Flag to control constructor access
 
-    def __init__(self, org_name: str, user_email: str):
+    def __init__(
+        self, org_name: str, user_email: str, environment: str, environment_slug: str, reranker: str
+    ):
         """
         Initialize the ContextRetriever instance.
 
@@ -64,7 +66,14 @@ class ContextRetriever:
         self.user: str = user_email
 
     @staticmethod
-    def create(retriever_type: str, org_name: str, user: str):
+    def create(
+        retriever_type: str,
+        org_name: str,
+        user: str,
+        environment: str,
+        environment_slug: str,
+        reranker: str,
+    ):
         """
         Create instance of derived class based on the class name.
 
@@ -76,6 +85,12 @@ class ContextRetriever:
             The organization name, used for Pinecone index naming.
         user : str
             The user name, potentially used for logging or customization.
+        environment : str
+            The environment name, used for Pinecone index naming.
+        environment_slug : str
+            The environment slug, used for Pinecone index naming.
+        reranker : str
+            The reranker name, used for reranking the retrieved context.
 
         Returns
         -------
@@ -90,7 +105,13 @@ class ContextRetriever:
             logging.debug(f"Creating {retriever_type} instance")
             # Set _allowed to True for the specific class being instantiated
             ContextRetriever._allowed = True
-            instance = class_(org_name=org_name, user_email=user)
+            instance = class_(
+                org_name=org_name,
+                user_email=user,
+                environment=environment,
+                environment_slug=environment_slug,
+                reranker=reranker,
+            )
             logging.debug(f"Created {retriever_type} instance")
             ContextRetriever._allowed = False
             return instance

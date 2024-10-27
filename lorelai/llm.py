@@ -56,7 +56,12 @@ class Llm:
         for retriever_type in retriever_types:
             try:
                 retriever = ContextRetriever.create(
-                    retriever_type, user=user, org_name=organization
+                    retriever_type,
+                    user=user,
+                    org_name=organization,
+                    environment=current_app.config["LORELAI_ENVIRONMENT"],
+                    environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+                    reranker=current_app.config["LORELAI_RERANKER"],
                 )
                 self.datasources.append(retriever)
             except ValueError as e:

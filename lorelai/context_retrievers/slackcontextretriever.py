@@ -28,7 +28,9 @@ from lorelai.pinecone import PineconeHelper
 class SlackContextRetriever(ContextRetriever):
     """Context retriever which retrieves context ie vectors stored in Slack index."""
 
-    def __init__(self, org_name: str, user_email: str):
+    def __init__(
+        self, org_name: str, user_email: str, environment: str, environment_slug: str, reranker: str
+    ):
         """
         Initialize the SlackContextRetriever instance.
 
@@ -38,8 +40,20 @@ class SlackContextRetriever(ContextRetriever):
             The organization name, used for Pinecone index naming.
         user_email : str
             The user email, potentially used for logging or customization.
+        environment : str
+            The environment name, used for Pinecone index naming.
+        environment_slug : str
+            The environment slug, used for Pinecone index naming.
+        reranker : str
+            The reranker name, used for reranking the retrieved context.
         """
-        super().__init__(org_name=org_name, user_email=user_email)
+        super().__init__(
+            org_name=org_name,
+            user_email=user_email,
+            environment=environment,
+            environment_slug=environment_slug,
+            reranker=reranker,
+        )
 
     def retrieve_context(self, question: str) -> LorelaiContextRetrievalResponse:
         """
@@ -62,8 +76,8 @@ class SlackContextRetriever(ContextRetriever):
         index_name = PineconeHelper.get_index_name(
             org=self.org_name,
             datasource=DATASOURCE_SLACK,
-            environment=self.lorelai_creds["environment"],
-            env_name=self.lorelai_creds["environment_slug"],
+            environment=self.environment,
+            env_name=self.environment_slug,
             version="v1",
         )
         logging.info(f"[SlackContextRetriever] Using Pinecone index: {index_name}")
@@ -81,7 +95,7 @@ class SlackContextRetriever(ContextRetriever):
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
         )
 
-        compressor = FlashrankRerank(top_n=3, model=self.lorelai_creds["reranker"])
+        compressor = FlashrankRerank(top_n=3, model=self.reranker)
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
