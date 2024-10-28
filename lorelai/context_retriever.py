@@ -55,7 +55,10 @@ class ContextRetriever:
         Parameters
         ----------
             org_name (str): The organization name, used for Pinecone index naming.
-            user (str): The user name, potentially used for logging or customization.
+            user_email (str): The user name, potentially used for logging or customization.
+            environment (str): The environment name, used for Pinecone index naming.
+            environment_slug (str): The environment slug, used for Pinecone index naming.
+            reranker (str): The reranker name, used for reranking the retrieved context.
         """
         if not ContextRetriever._allowed:
             raise ValueError("ContextRetriever is not allowed to be instantiated directly.")
@@ -64,6 +67,10 @@ class ContextRetriever:
 
         self.org_name: str = org_name
         self.user: str = user_email
+
+        self.environment: str = environment
+        self.environment_slug: str = environment_slug
+        self.reranker: str = reranker
 
     @staticmethod
     def create(
