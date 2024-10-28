@@ -31,22 +31,11 @@ class SlackContextRetriever(ContextRetriever):
     def __init__(
         self, org_name: str, user_email: str, environment: str, environment_slug: str, reranker: str
     ):
-        """
-        Initialize the SlackContextRetriever instance.
+        # Set attributes before calling super().__init__()
+        self.environment = environment
+        self.environment_slug = environment_slug
+        self.reranker = reranker
 
-        Parameters
-        ----------
-        org_name : str
-            The organization name, used for Pinecone index naming.
-        user_email : str
-            The user email, potentially used for logging or customization.
-        environment : str
-            The environment name, used for Pinecone index naming.
-        environment_slug : str
-            The environment slug, used for Pinecone index naming.
-        reranker : str
-            The reranker name, used for reranking the retrieved context.
-        """
         super().__init__(
             org_name=org_name,
             user_email=user_email,

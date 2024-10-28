@@ -64,7 +64,14 @@ def admin_dashboard():
         else:
             users = []
 
-        users_schema = [UserSchema.model_validate(user).model_dump() for user in users]
+        users_schema = [
+            {
+                **UserSchema.model_validate(user).model_dump(),
+                "org_name": user.organisation.name,
+                "user_id": user.id,
+            }
+            for user in users
+        ]
         return render_template("admin.html", is_admin=True, users=users_schema)
     except SQLAlchemyError:
         flash("Failed to retrieve users.", "error")

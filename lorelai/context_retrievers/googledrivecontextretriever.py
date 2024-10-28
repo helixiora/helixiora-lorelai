@@ -29,22 +29,11 @@ class GoogleDriveContextRetriever(ContextRetriever):
     def __init__(
         self, org_name: str, user_email: str, environment: str, environment_slug: str, reranker: str
     ):
-        """
-        Initialize the GoogleDriveContextRetriever instance.
+        # Set attributes before calling super().__init__()
+        self.environment = environment
+        self.environment_slug = environment_slug
+        self.reranker = reranker
 
-        Parameters
-        ----------
-        org_name : str
-            The organization name, used for Pinecone index naming.
-        user_email : str
-            The user email, potentially used for logging or customization.
-        environment : str
-            The environment name, used for Pinecone index naming.
-        environment_slug : str
-            The environment slug, used for Pinecone index naming.
-        reranker : str
-            The reranker name, used for reranking the retrieved context.
-        """
         super().__init__(
             org_name=org_name,
             user_email=user_email,
@@ -67,7 +56,9 @@ class GoogleDriveContextRetriever(ContextRetriever):
         tuple[list[Document], list[dict[str, any]]]
             A tuple containing the retrieval result and a list of sources for the context.
         """
-        logging.info(f"Retrieving context for question: {question} and user: {self.user}")
+        logging.info(
+            f"Retrieving Google Drive context for question: {question} and user: {self.user_email}"
+        )
 
         name = PineconeHelper.get_index_name(
             org=self.org_name,
