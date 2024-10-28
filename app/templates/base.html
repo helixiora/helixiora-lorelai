@@ -79,6 +79,11 @@
     <script src="https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/minified/intro.min.js" integrity="sha256-xs3xwodZm2f3bAjax5+VIOR6YWkaDaiSTi4Gb94ws5s=" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
+    <script>
+        window.SENTRY_DSN = "{{ config.SENTRY_DSN }}"
+        window.SENTRY_ENVIRONMENT = "{{ config.SENTRY_ENVIRONMENT }}"
+    </script>
+
     {% block scripts %}
     {% endblock scripts%}
 </body>
