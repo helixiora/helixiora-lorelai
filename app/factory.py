@@ -65,9 +65,6 @@ def create_app(config_name: str = "default") -> Flask:
     # Apply ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
-    # Set up logging
-    setup_logging(app)
-
     # Register blueprints
     app.register_blueprint(googledrive_bp)
     app.register_blueprint(admin_bp)
@@ -86,29 +83,6 @@ def create_app(config_name: str = "default") -> Flask:
     setup_jwt_handlers(jwt)
 
     return app
-
-
-def setup_logging(app: Flask) -> None:
-    """Set up logging for the Flask app."""
-    if not app.debug and not app.testing:
-        if app.config["LOG_TO_STDOUT"]:
-            stream_handler = logging.StreamHandler()
-            stream_handler.setLevel(logging.INFO)
-            app.logger.addHandler(stream_handler)
-        else:
-            if not os.path.exists("logs"):
-                os.mkdir("logs")
-            file_handler = logging.FileHandler("logs/lorelai.log")
-            file_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s %(levelname)s: %(message)s " "[in %(pathname)s:%(lineno)d]"
-                )
-            )
-            file_handler.setLevel(logging.INFO)
-            app.logger.addHandler(file_handler)
-
-        app.logger.setLevel(logging.INFO)
-        app.logger.info("Lorelai startup")
 
 
 def setup_error_handlers(app: Flask) -> None:
