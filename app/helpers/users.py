@@ -1,13 +1,13 @@
 """User related helper functions."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from functools import wraps
 
 from flask import redirect, session, url_for
 
-from app.models import User, Organisation, Profile, Role, UserRole, db
+from app.models import User, Organisation, Profile, Role, UserRole, db, UserPlan, Plan
 
 
 def is_org_admin(user_id: int) -> bool:
@@ -325,6 +325,63 @@ def get_user_current_plan(user_id: int):
     except Exception as e:
         logging.error(f"Error get_user_current_plan for userid {user_id}: {e}")
         return False
+
+
+def assign_free_plan_if_no_active(user_id: int):
+    """
+    Assign a free one-month plan to a user if no active plan is currently assigned.
+    Expire any existing plans that have passed their end date.
+
+    This function performs the following steps:
+    1. Checks if the user has any active plans.
+    2. If a plan is expired (its end date is past the current date), it sets `is_active` to `False`.
+    3. If no active plan is found, assigns a free plan with a one-month duration.
+    4. Commits all changes to the database or rolls back in case of an error.
+
+    Args:
+        user_id (int): The unique identifier of the user.
+
+    Returns
+    -------
+        bool: `True` if the operation was successful, `False` otherwise.
+
+    Raises
+    ------
+        Exception: If there is an error during the database operations, it logs the error
+        and rolls back the transaction.
+    """  # noqa: D205
+    try:
+        # Query user's active plans
+        user_plans = UserPlan.query.filter_by(user_id=user_id).all()
+        has_active_plan = False
+        for plan in user_plans:
+            # Check if the plan is expired
+            if plan.end_date and plan.end_date < datetime.utcnow().date():
+                plan.is_active = False
+                db.session.add(plan)
+            elif plan.is_active:
+                has_active_plan = True
+
+        # Assign free plan if no active plan found
+        if not has_active_plan:
+            free_plan = Plan.query.filter_by(plan_name="Free").first()
+            if free_plan:
+                new_user_plan = UserPlan(
+                    user_id=user_id,
+                    plan_id=free_plan.plan_id,
+                    start_date=datetime.utcnow(),
+                    end_date=datetime.utcnow() + timedelta(days=30),
+                    is_active=True,
+                )
+                db.session.add(new_user_plan)
+
+        # Commit changes
+        db.session.commit()
+        return True
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error in assigning free plan: {e}", exc_info=True)
+        raise e
 
 
 def create_user(email, full_name=None, org_name=None, roles=None):

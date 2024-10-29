@@ -277,7 +277,7 @@ def get_daily_message_limit(user_id: int) -> int:
         int : The daily message limit if an active plan is found, otherwise 0.
     """
     try:
-        active_plan = (
+        """active_plan = (
             db.session.query(Plan.message_limit_daily)
             .join(UserPlan)
             .filter(
@@ -287,9 +287,23 @@ def get_daily_message_limit(user_id: int) -> int:
                 UserPlan.end_date >= func.curdate(),
             )
             .first()
+        )"""
+
+        user_plan = (
+            db.session.query(Plan.message_limit_daily)
+            .join(UserPlan, UserPlan.plan_id == Plan.plan_id)
+            .filter(
+                UserPlan.user_id == user_id,
+                UserPlan.is_active,
+                UserPlan.start_date <= func.curdate(),
+                UserPlan.end_date >= func.curdate(),
+            )
+            .first()
         )
 
-        return active_plan.message_limit_daily if active_plan else 0
+        print(user_id, user_plan)
+
+        return user_plan.message_limit_daily if user_plan else 0
     except Exception as e:
         logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
         raise e
@@ -307,5 +321,7 @@ def can_send_message(user_id: int) -> bool:
         bool: True if the user can send a message, otherwise False.
     """
     daily_limit = get_daily_message_limit(user_id)
+    logging.info(f"Daily Message Limit for {user_id}: {daily_limit}")
     message_usages = get_msg_count_last_24hr(user_id)
+    logging.info(f"Daily Message Used for {user_id}: {message_usages}")
     return message_usages < daily_limit
