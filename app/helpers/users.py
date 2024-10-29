@@ -11,7 +11,7 @@ from app.models import User, Organisation, Profile, Role, UserRole, db
 
 
 def is_org_admin(user_id: int) -> bool:
-    """Check if the user is an organization admin.
+    """Check if the user is an organisation admin.
 
     Parameters
     ----------
@@ -21,7 +21,7 @@ def is_org_admin(user_id: int) -> bool:
     Returns
     -------
     bool
-        True if the user is an organization admin, False otherwise.
+        True if the user is an organisation admin, False otherwise.
     """
     user = User.query.get(user_id)
     return user.has_role("org_admin") if user else False
@@ -90,7 +90,7 @@ def create_invited_user_in_db(email: str, org_id: int):
 
     Args:
         email (str): The email of the user.
-        org_id (int): The organization ID for the user.
+        org_id (int): The organisation ID for the user.
 
     Returns
     -------

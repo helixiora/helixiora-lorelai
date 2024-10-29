@@ -467,7 +467,7 @@ def login_user_function(
             user.organisation.name,
         ]
     ):
-        logging.error("Missing user or organization details")
+        logging.error("Missing user or organisation details")
         return False
 
     try:

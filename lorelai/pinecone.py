@@ -28,7 +28,7 @@ class PineconeHelper:
 
         Arguments:
         ---------
-            org (str): The name of the organization.
+            org (str): The name of the organisation.
             datasource (str): The name of the datasource.
             environment (str): The environment (e.g. dev, prod).
             env_name (str): The name of the environment (e.g. lorelai, openai).
@@ -57,7 +57,7 @@ class PineconeHelper:
 
         Arguments:
         ---------
-            org (str): The name of the organization.
+            org (str): The name of the organisation.
             datasource (str): The name of the datasource.
             environment (str): The environment (e.g. dev, prod).
             env_name (str): The name of the environment (e.g. lorelai, openai).

@@ -54,7 +54,7 @@ class ContextRetriever:
 
         Parameters
         ----------
-            org_name (str): The organization name, used for Pinecone index naming.
+            org_name (str): The organisation name, used for Pinecone index naming.
             user_email (str): The user name, potentially used for logging or customization.
             environment (str): The environment name, used for Pinecone index naming.
             environment_slug (str): The environment slug, used for Pinecone index naming.
@@ -76,7 +76,7 @@ class ContextRetriever:
     def create(
         retriever_type: str,
         org_name: str,
-        user: str,
+        user_email: str,
         environment: str,
         environment_slug: str,
         reranker: str,
@@ -89,9 +89,9 @@ class ContextRetriever:
         retriever_type : str
             The type of the Retriever, used to instantiate the appropriate subclass.
         org_name : str
-            The organization name, used for Pinecone index naming.
-        user : str
-            The user name, potentially used for logging or customization.
+            The organisation name, used for Pinecone index naming.
+        user_email: str
+            The user's email, potentially used for logging or customization.
         environment : str
             The environment name, used for Pinecone index naming.
         environment_slug : str
@@ -114,7 +114,7 @@ class ContextRetriever:
             ContextRetriever._allowed = True
             instance = class_(
                 org_name=org_name,
-                user_email=user,
+                user_email=user_email,
                 environment=environment,
                 environment_slug=environment_slug,
                 reranker=reranker,

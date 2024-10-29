@@ -58,18 +58,18 @@ def get_embedding_dimension(model_name) -> int:
 
 def create_jwt_token_invite_user(invitee_email, org_admin_email, org_name):
     """
-    Create a JWT token for inviting a user to the organization.
+    Create a JWT token for inviting a user to the organisation.
 
     This function performs the following steps:
     1. Loads the LorelAI configuration.
     2. Retrieves the JWT secret key from the configuration.
-    3. Creates a JWT token containing the invitee's email, the organization admin's email,
-    the organization's name, and an expiration time of 48 hours from the token creation.
+    3. Creates a JWT token containing the invitee's email, the organisation admin's email,
+    the organisation's name, and an expiration time of 48 hours from the token creation.
 
     Args:
         invitee_email (str): The email address of the invitee.
-        org_admin_email (str): The email address of the organization admin.
-        org_name (str): The name of the organization.
+        org_admin_email (str): The email address of the organisation admin.
+        org_name (str): The name of the organisation.
 
     Returns
     -------
@@ -100,7 +100,7 @@ def send_invite_email(org_admin_email, invitee_email, invite_url):
 
     Args
     ----
-        org_admin_email (str): The email address of the organization admin.
+        org_admin_email (str): The email address of the organisation admin.
         invitee_email (str): The email address of the invitee.
         invite_url (str): The URL to register the invitee.
 

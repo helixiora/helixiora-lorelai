@@ -27,8 +27,8 @@ logging.basicConfig(level=log_level, format=logging_format)
 def get_answer_from_rag(
     thread_id: str,
     chat_message: str,
-    user_id,
-    user: str,
+    user_id: int,
+    user_email: str,
     organisation: str,
     model_type: str = "OpenAILlm",
 ) -> dict:
@@ -42,13 +42,13 @@ def get_answer_from_rag(
         if job is None:
             raise ValueError("Could not get the current job.")
         logging.info("Task ID: %s, Message: %s", chat_message, job.id)
-        logging.info("Session: %s, %s, %s", user_id, user, organisation)
+        logging.info("Session: %s, %s, %s", user_id, user_email, organisation)
 
         try:
             # create model
-            logging.info("User email: %s, Org name: %s", user, organisation)
+            logging.info("User email: %s, Org name: %s", user_email, organisation)
 
-            if user is None or organisation is None:
+            if user_email is None or organisation is None:
                 raise ValueError("User and organisation cannot be None.")
 
             thread_inserted = insert_thread_ignore(
@@ -66,7 +66,9 @@ def get_answer_from_rag(
             # insert message
             insert_message(thread_id=str(thread_id), sender="user", message_content=chat_message)
 
-            llm = Llm.create(model_type=model_type, user=user, organization=organisation)
+            llm = Llm.create(
+                model_type=model_type, user_email=user_email, organisation=organisation
+            )
             response = llm.get_answer(question=chat_message)
             status = "success"
 
@@ -108,7 +110,7 @@ def run_indexer(
     Arguments
     ---------
     org_row: OrganisationSchema
-        Organization data.
+        Organisation data.
     user_rows: List[UserSchema]
         List of user data.
     user_auth_rows: List[UserAuthSchema]
@@ -185,15 +187,15 @@ def run_indexer(
 
 def run_slack_indexer(user_email: str, org_name: str):
     """
-    Run the Slack indexer for a given user and organization.
+    Run the Slack indexer for a given user and organisation.
 
     This function retrieves the current job, logs task information, and initializes
     the indexing progress. It then creates a SlackIndexer instance for the specified
-    user and organization, and starts processing Slack messages.
+    user and organisation, and starts processing Slack messages.
 
     Args:
         user_email (str): The email of the user running the indexer.
-        org_name (str): The name of the organization for which the Slack data is being indexed.
+        org_name (str): The name of the organisation for which the Slack data is being indexed.
     """
     from app.factory import create_app
 

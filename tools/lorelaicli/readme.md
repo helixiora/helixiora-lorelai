@@ -1,7 +1,7 @@
 # Overview
 
-The script called `loreleicli.py`  enables querying indexed documents in Pinecone using LangChain
-and OpenAI from the Command Line Interface (CLI).
+The script called `loreleicli.py` enables querying indexed documents in Pinecone using LangChain and
+OpenAI from the Command Line Interface (CLI).
 
 ## Usage
 
@@ -19,14 +19,14 @@ To use the script, follow these steps:
    python lorelaicli.py <question> [--org-name <org_name>] [--user-name <user_name>] [--model-type <model_type>]
    ```
 
-   Replace `<question>` with your query/question. Optionally, you can specify the organization
-   name (`--org-name`), user name (`--user-name`), and model type (`--model-type`). If not
-   specified, default values will be used.
+   Replace `<question>` with your query/question. Optionally, you can specify the organisation name
+   (`--org-name`), user name (`--user-name`), and model type (`--model-type`). If not specified,
+   default values will be used.
 
 ## Arguments
 
 - `question`: The question/query you want to ask.
-- `--org-name`: Name of the organization. (Optional)
+- `--org-name`: Name of the organisation. (Optional)
 - `--user-name`: Name of the user. (Optional)
 - `--model-type`: Type of the model to use. (Optional, default: "OpenAILlm")
 

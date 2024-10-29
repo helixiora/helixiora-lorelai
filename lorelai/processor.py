@@ -246,7 +246,7 @@ class Processor:
             :param docs: the langchaindocuments to process
             :param user_email: the user to process
             :param job: the job object
-            :param org_name: the name of the organization
+            :param org_name: the name of the organisation
 
         Returns
         -------

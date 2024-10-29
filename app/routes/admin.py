@@ -176,7 +176,7 @@ def job_status(job_id: str) -> str:
 @admin_bp.route("/admin/index/<type>", methods=["POST"])
 # note we don't require a role because a regular user should be able to index their own stuff
 def start_indexing(type) -> str:
-    """Start indexing the data for the organization of the logged-in user.
+    """Start indexing the data for the organisation of the logged-in user.
 
     Returns
     -------
@@ -281,7 +281,7 @@ Start time: {datetime.now()}",
 # slack then added to channel  # noqa: E501
 @jwt_required(optional=False, locations=["cookies"])
 def start_slack_indexing() -> str:
-    """Start slack indexing the data for the organization of the logged-in user.
+    """Start slack indexing the data for the organisation of the logged-in user.
 
     Returns
     -------
@@ -459,8 +459,8 @@ def invite_user():
 
     This function performs the following steps:
     1. Retrieves the invitee's email from the request form.
-    2. Creates a JWT token for the invitee using their email, the organization admin's email, and
-    the organization's name.
+    2. Creates a JWT token for the invitee using their email, the organisation admin's email, and
+    the organisation's name.
     3. Generates an invite registration URL with the JWT token.
     4. Sends an invite email to the invitee with the registration URL.
     5. Displays a success or error message based on the email sending status.

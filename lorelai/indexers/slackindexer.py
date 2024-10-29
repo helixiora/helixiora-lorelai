@@ -35,7 +35,7 @@ class SlackIndexer(Indexer):
 
         Args:
             email (str): The user's email.
-            org_name (str): The organization name.
+            org_name (str): The organisation name.
         """
         # load API keys
         os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]

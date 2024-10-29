@@ -24,7 +24,7 @@ class Llm:
         """
 
     @staticmethod
-    def create(model_type: str, user: str, organization: str):
+    def create(model_type: str, user_email: str, organisation: str):
         """Create instances of derived classes based on the class name."""
         try:
             module = importlib.import_module(f"lorelai.llms.{model_type.lower()}")
@@ -33,20 +33,20 @@ class Llm:
                 raise ValueError(f"Unsupported model type: {model_type}")
             logging.debug(f"Creating {model_type} instance")
             # Set _allowed to True for the specific class being instantiated
-            instance = class_(user=user, organization=organization)
+            instance = class_(user_email=user_email, organisation=organisation)
             return instance
         except (ImportError, AttributeError) as exc:
             raise ValueError(f"2: Unsupported model type: {model_type}") from exc
 
-    def __init__(self, user: str, organization: str):
+    def __init__(self, user_email: str, organisation: str):
         # if not self._allowed:
         #    raise Exception("This class should be instantiated through a create() factory method.")
         # self._allowed = False  # Reset the flag after successful instantiation
 
         self.prompt_template = current_app.config.get("prompt_template", self._prompt_template)
 
-        self.user = user
-        self.organization = organization
+        self.user_email = user_email
+        self.organisation = organisation
 
         self.datasources = []
 
@@ -57,8 +57,8 @@ class Llm:
             try:
                 retriever = ContextRetriever.create(
                     retriever_type,
-                    user=user,
-                    org_name=organization,
+                    user_email=user_email,
+                    organisation=organisation,
                     environment=current_app.config["LORELAI_ENVIRONMENT"],
                     environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
                     reranker=current_app.config["LORELAI_RERANKER"],
