@@ -301,8 +301,6 @@ def get_daily_message_limit(user_id: int) -> int:
             .first()
         )
 
-        print(user_id, user_plan)
-
         return user_plan.message_limit_daily if user_plan else 0
     except Exception as e:
         logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
