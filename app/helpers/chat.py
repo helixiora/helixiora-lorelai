@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func, desc
 from app.helpers.users import is_admin
-from app.models import db, ChatThread, ChatMessage, UserPlan, Plan
+from app.models import db, ChatThread, ChatMessage, UserPlan, Plan, ExtraMessages
 from flask import current_app
 
 
@@ -307,6 +307,43 @@ def get_daily_message_limit(user_id: int) -> int:
     except Exception as e:
         logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
         raise e
+
+
+def deduct_extra_message_if_available(user_id: int):
+    """
+    Deduct an extra message if available for the user.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        bool: True if the deduction was successful, otherwise False.
+    """
+    try:
+        # Check the current quantity of extra messages
+        extra_message_entry = (
+            db.session.query(ExtraMessages).filter_by(user_id=user_id, is_active=True).first()
+        )
+
+        if extra_message_entry is None:
+            # No active extra messages for this user
+            return False
+
+        if extra_message_entry.quantity <= 0:
+            return False
+
+        # Deduct one message
+        extra_message_entry.quantity -= 1
+
+        # Commit the changes to the database
+        db.session.commit()
+        return True
+
+    except Exception as e:
+        logging.error(f"Error deducting extra message for user_id {user_id}: {e}")
+        db.session.rollback()  # Rollback in case of error
+        return False
 
 
 def can_send_message(user_id: int) -> bool:
