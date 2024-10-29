@@ -29,22 +29,11 @@ class GoogleDriveContextRetriever(ContextRetriever):
     def __init__(
         self, org_name: str, user_email: str, environment: str, environment_slug: str, reranker: str
     ):
-        """
-        Initialize the GoogleDriveContextRetriever instance.
+        # Set attributes before calling super().__init__()
+        self.environment = environment
+        self.environment_slug = environment_slug
+        self.reranker = reranker
 
-        Parameters
-        ----------
-        org_name : str
-            The organization name, used for Pinecone index naming.
-        user_email : str
-            The user email, potentially used for logging or customization.
-        environment : str
-            The environment name, used for Pinecone index naming.
-        environment_slug : str
-            The environment slug, used for Pinecone index naming.
-        reranker : str
-            The reranker name, used for reranking the retrieved context.
-        """
         super().__init__(
             org_name=org_name,
             user_email=user_email,
@@ -67,16 +56,21 @@ class GoogleDriveContextRetriever(ContextRetriever):
         tuple[list[Document], list[dict[str, any]]]
             A tuple containing the retrieval result and a list of sources for the context.
         """
-        logging.info(f"Retrieving context for question: {question} and user: {self.user}")
-
-        name = PineconeHelper.get_index_name(
-            org=self.org_name,
-            datasource="googledrive",
-            environment=self.environment,
-            env_name=self.environment_slug,
-            version="v1",
+        logging.info(
+            f"Retrieving Google Drive context for question: {question} and user: {self.user_email}"
         )
-        logging.info(f"Using Pinecone index: {name}")
+        try:
+            name = PineconeHelper.get_index_name(
+                org_name=self.org_name,
+                datasource="googledrive",
+                environment=self.environment,
+                env_name=self.environment_slug,
+                version="v1",
+            )
+            logging.info(f"Using Pinecone index for Google Drive: {name}")
+        except Exception as e:
+            logging.error(f"Failed to get Pinecone index name for Google Drive: {e}")
+            raise e
         try:
             vec_store = PineconeVectorStore(index_name=name, embedding=OpenAIEmbeddings())
 
@@ -84,11 +78,13 @@ class GoogleDriveContextRetriever(ContextRetriever):
             logging.error(f"Failed to connect to Pinecone: {e}")
             if "not found in your Pinecone project. Did you mean one of the following" in str(e):
                 raise ValueError("Index not found. Please index something first.") from e
-            raise ValueError("Failed to retrieve context for the provided chat message.") from e
+            raise ValueError(
+                "Failed to retrieve context from Google Drive for the provided chat message."
+            ) from e
 
         retriever = vec_store.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
+            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user_email}}},
         )
 
         # Reranker takes the result from base retriever than reranks those retrieved.

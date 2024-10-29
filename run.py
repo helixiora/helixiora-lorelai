@@ -65,11 +65,11 @@ def unauthorized():
 @app.route("/org_exists")
 def org_exists():
     """
-    Display an alert indicating that the organization name already exists and return the user to the previous page.
+    Display an alert indicating that the organisation name already exists and return the user to the previous page.
 
-    This route is typically used to notify the user that the organization name they are attempting to use already exists
+    This route is typically used to notify the user that the organisation name they are attempting to use already exists
     in the database. After showing the alert, the user is redirected back to the page they were on before attempting to
-    create the organization with the duplicate name.
+    create the organisation with the duplicate name.
 
     Returns
     -------

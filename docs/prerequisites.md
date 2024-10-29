@@ -55,7 +55,7 @@ they also deploy a redis instance.
 
 ## Obtain API Keys and Credentials
 
-1. Obtain a Pinecone API key from [Pinecone's portal](https://app.pinecone.io/organizations/). Make
+1. Obtain a Pinecone API key from [Pinecone's portal](https://app.pinecone.io/organisations/). Make
    sure this is a key owned by Helixiora so we pick up the bill, not you.
 1. Acquire an OpenAI API key through [OpenAI's platform](https://platform.openai.com/api-keys). Make
    sure this is a key owned by Helixiora so we pick up the bill, not you.

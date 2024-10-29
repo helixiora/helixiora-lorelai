@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             {
                 element: '#index_org_button',
-                intro: "This button will index the selected files for your entire organization.",
+                intro: "This button will index the selected files for your entire organisation.",
                 disableInteraction: true
             }
         ],

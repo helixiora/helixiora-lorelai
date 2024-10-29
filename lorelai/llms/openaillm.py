@@ -15,8 +15,8 @@ from lorelai.llm import Llm, LorelaiContextRetrievalResponse
 class OpenAILlm(Llm):
     """Class to interact with the OpenAI LLM for answering context-based questions."""
 
-    def __init__(self, user: str, organization: str) -> None:
-        super().__init__(user, organization)
+    def __init__(self, user_email: str, organisation: str) -> None:
+        super().__init__(user_email, organisation)
         os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
         self.model = current_app.config["OPENAI_MODEL"]
 

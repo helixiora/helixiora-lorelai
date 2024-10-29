@@ -31,22 +31,11 @@ class SlackContextRetriever(ContextRetriever):
     def __init__(
         self, org_name: str, user_email: str, environment: str, environment_slug: str, reranker: str
     ):
-        """
-        Initialize the SlackContextRetriever instance.
+        # Set attributes before calling super().__init__()
+        self.environment = environment
+        self.environment_slug = environment_slug
+        self.reranker = reranker
 
-        Parameters
-        ----------
-        org_name : str
-            The organization name, used for Pinecone index naming.
-        user_email : str
-            The user email, potentially used for logging or customization.
-        environment : str
-            The environment name, used for Pinecone index naming.
-        environment_slug : str
-            The environment slug, used for Pinecone index naming.
-        reranker : str
-            The reranker name, used for reranking the retrieved context.
-        """
         super().__init__(
             org_name=org_name,
             user_email=user_email,
@@ -70,16 +59,20 @@ class SlackContextRetriever(ContextRetriever):
             A tuple containing the retrieval result and a list of sources for the context.
         """
         logging.info(
-            f"[SlackContextRetriever] Retrieving context for q: {question} and user: {self.user}"
+            f"[SlackContextRetriever] Retrieving context for q: {question} and u: {self.user_email}"
         )
 
-        index_name = PineconeHelper.get_index_name(
-            org=self.org_name,
-            datasource=DATASOURCE_SLACK,
-            environment=self.environment,
-            env_name=self.environment_slug,
-            version="v1",
-        )
+        try:
+            index_name = PineconeHelper.get_index_name(
+                org_name=self.org_name,
+                datasource=DATASOURCE_SLACK,
+                environment=self.environment,
+                env_name=self.environment_slug,
+                version="v1",
+            )
+        except Exception as e:
+            logging.error(f"[SlackContextRetriever] Failed to get Pinecone index name: {e}")
+            raise e
         logging.info(f"[SlackContextRetriever] Using Pinecone index: {index_name}")
 
         try:
@@ -92,7 +85,7 @@ class SlackContextRetriever(ContextRetriever):
 
         retriever = vec_store.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
+            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user_email}}},
         )
 
         compressor = FlashrankRerank(top_n=3, model=self.reranker)

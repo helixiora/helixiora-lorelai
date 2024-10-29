@@ -61,7 +61,7 @@ There are two ways LorelAI can be deployed/ran:
    ([https://127.0.0.1:5000](https://127.0.0.1:5000)).
 
    - You will be asked to create an organisation if one doesn't exist in the MySQL database.
-   - Note that this organization name will be the index name of the vector database following this
+   - Note that this organisation name will be the index name of the vector database following this
      structure: $env_name-$slug-$whatever_you_put_in_org_name
    - There's a limitation to the length of the index name sot the above string should not exceed 45
      characters.
