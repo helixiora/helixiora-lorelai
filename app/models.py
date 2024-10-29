@@ -3,6 +3,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+from sqlalchemy.dialects.mysql import INTEGER
 
 db = SQLAlchemy()
 
@@ -165,6 +166,8 @@ class User(UserMixin, db.Model):
     logins = db.relationship("UserLogin", backref="user", lazy=True)
 
     organisation = db.relationship("Organisation", back_populates="users", lazy=True)
+    # Relationship to extra messages
+    extra_messages = db.relationship("ExtraMessages", back_populates="user", lazy=True)
 
     def __repr__(self):
         """Return a string representation of the user."""
@@ -246,7 +249,7 @@ class ExtraMessages(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("user.user_id", ondelete="CASCADE"), primary_key=True
     )
-    quantity = db.Column(db.Integer, nullable=False, unsigned=True)
+    quantity = db.Column(INTEGER(unsigned=True), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.TIMESTAMP, nullable=True, default=datetime.utcnow)
     updated_at = db.Column(

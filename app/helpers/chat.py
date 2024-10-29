@@ -361,4 +361,10 @@ def can_send_message(user_id: int) -> bool:
     logging.info(f"Daily Message Limit for {user_id}: {daily_limit}")
     message_usages = get_msg_count_last_24hr(user_id)
     logging.info(f"Daily Message Used for {user_id}: {message_usages}")
-    return message_usages < daily_limit
+    if message_usages < daily_limit:
+        return True
+
+    # In future we have to deduct extra message only if bot has replied. for now its ok.
+    status = deduct_extra_message_if_available(user_id=user_id)
+    # status True if extra message is available false if not
+    return status
