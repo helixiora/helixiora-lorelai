@@ -29,7 +29,7 @@ def get_answer_from_rag(
     chat_message: str,
     user_id: int,
     user_email: str,
-    organisation: str,
+    organisation_name: str,
     model_type: str = "OpenAILlm",
 ) -> dict:
     """Execute the RAG+LLM model."""
@@ -42,13 +42,13 @@ def get_answer_from_rag(
         if job is None:
             raise ValueError("Could not get the current job.")
         logging.info("Task ID: %s, Message: %s", chat_message, job.id)
-        logging.info("Session: %s, %s, %s", user_id, user_email, organisation)
+        logging.info("Session: %s, %s, %s", user_id, user_email, organisation_name)
 
         try:
             # create model
-            logging.info("User email: %s, Org name: %s", user_email, organisation)
+            logging.info("User email: %s, Org name: %s", user_email, organisation_name)
 
-            if user_email is None or organisation is None:
+            if user_email is None or organisation_name is None:
                 raise ValueError("User and organisation cannot be None.")
 
             thread_inserted = insert_thread_ignore(
@@ -67,7 +67,7 @@ def get_answer_from_rag(
             insert_message(thread_id=str(thread_id), sender="user", message_content=chat_message)
 
             llm = Llm.create(
-                model_type=model_type, user_email=user_email, organisation=organisation
+                model_type=model_type, user_email=user_email, org_name=organisation_name
             )
             response = llm.get_answer(question=chat_message)
             status = "success"

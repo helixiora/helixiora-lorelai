@@ -24,7 +24,7 @@ class Llm:
         """
 
     @staticmethod
-    def create(model_type: str, user_email: str, organisation: str):
+    def create(model_type: str, user_email: str, org_name: str):
         """Create instances of derived classes based on the class name."""
         try:
             module = importlib.import_module(f"lorelai.llms.{model_type.lower()}")
@@ -33,7 +33,7 @@ class Llm:
                 raise ValueError(f"Unsupported model type: {model_type}")
             logging.debug(f"Creating {model_type} instance")
             # Set _allowed to True for the specific class being instantiated
-            instance = class_(user_email=user_email, organisation=organisation)
+            instance = class_(user_email=user_email, organisation=org_name)
             return instance
         except (ImportError, AttributeError) as exc:
             raise ValueError(f"2: Unsupported model type: {model_type}") from exc
@@ -58,7 +58,7 @@ class Llm:
                 retriever = ContextRetriever.create(
                     retriever_type,
                     user_email=user_email,
-                    organisation=organisation,
+                    org_name=organisation,
                     environment=current_app.config["LORELAI_ENVIRONMENT"],
                     environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
                     reranker=current_app.config["LORELAI_RERANKER"],
@@ -78,11 +78,11 @@ class Llm:
 
         # retrieve context from all the datasources and append to context list
         for datasource in self.datasources:
-            try:
-                context_retrieval_response = datasource.retrieve_context(question=question)
-                context_list.append(context_retrieval_response)
-            except Exception as e:
-                logging.error(f"Failed to retrieve context from {datasource}: {e}")
+            # try:
+            context_retrieval_response = datasource.retrieve_context(question=question)
+            context_list.append(context_retrieval_response)
+            # except Exception as e:
+            #     logging.error(f"Failed to retrieve context from {datasource}: {e}")
 
         logging.info(f"Context (get_answer): {context_list}")
 

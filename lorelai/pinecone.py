@@ -18,7 +18,7 @@ class PineconeHelper:
 
     @staticmethod
     def get_index_name(
-        org: str,
+        org_name: str,
         datasource: str,
         environment: str = "dev",
         env_name: str = "lorelai",
@@ -39,14 +39,14 @@ class PineconeHelper:
             str: The name of the pinecone index.
 
         """
-        parts = [environment, env_name, org, datasource, version]
+        parts = [environment, env_name, org_name, datasource, version]
         name = "-".join(parts)
         name = name.lower().replace(".", "-").replace(" ", "-")
         return name
 
     def get_index(
         self,
-        org: str,
+        org_name: str,
         datasource: str,
         environment: str = "dev",
         env_name: str = "lorelai",
@@ -69,7 +69,7 @@ class PineconeHelper:
 
         """
         name = self.get_index_name(
-            org=org,
+            org_name=org_name,
             datasource=datasource,
             environment=environment,
             env_name=env_name,

@@ -59,16 +59,20 @@ class SlackContextRetriever(ContextRetriever):
             A tuple containing the retrieval result and a list of sources for the context.
         """
         logging.info(
-            f"[SlackContextRetriever] Retrieving context for q: {question} and user: {self.user}"
+            f"[SlackContextRetriever] Retrieving context for q: {question} and u: {self.user_email}"
         )
 
-        index_name = PineconeHelper.get_index_name(
-            org=self.org_name,
-            datasource=DATASOURCE_SLACK,
-            environment=self.environment,
-            env_name=self.environment_slug,
-            version="v1",
-        )
+        try:
+            index_name = PineconeHelper.get_index_name(
+                org_name=self.org_name,
+                datasource=DATASOURCE_SLACK,
+                environment=self.environment,
+                env_name=self.environment_slug,
+                version="v1",
+            )
+        except Exception as e:
+            logging.error(f"[SlackContextRetriever] Failed to get Pinecone index name: {e}")
+            raise e
         logging.info(f"[SlackContextRetriever] Using Pinecone index: {index_name}")
 
         try:
@@ -81,7 +85,7 @@ class SlackContextRetriever(ContextRetriever):
 
         retriever = vec_store.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user}}},
+            search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user_email}}},
         )
 
         compressor = FlashrankRerank(top_n=3, model=self.reranker)

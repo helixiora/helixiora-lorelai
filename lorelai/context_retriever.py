@@ -66,7 +66,7 @@ class ContextRetriever:
         self.__pinecone_helper = PineconeHelper()
 
         self.org_name: str = org_name
-        self.user: str = user_email
+        self.user_email: str = user_email
 
         self.environment: str = environment
         self.environment_slug: str = environment_slug
