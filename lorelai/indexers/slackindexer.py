@@ -137,9 +137,9 @@ class SlackIndexer(Indexer):
 
                 # 1. get all messages from the channel
                 channel_chat_history = slack.get_messages_from_channel(
-                    channel_id=channel_id, channel_name=channel_name
+                    channel_id=channel_id, channel_name=channel_name, user_email=user.email
                 )
-                #
+
                 if not channel_chat_history:
                     logging.info(f"No messages found for channel {channel_id} {channel_name}")
                     continue

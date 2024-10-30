@@ -49,6 +49,8 @@ class SlackHelper:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
+        self.userid_name_dict = self.get_userid_name()
+
         if not self.datasource:
             raise ValueError(f"{DATASOURCE_SLACK} is missing from datasource table in db")
 
@@ -152,7 +154,9 @@ class SlackHelper:
 
         return result
 
-    def get_messages_from_channel(self, channel_id: str, channel_name: str) -> list[dict]:
+    def get_messages_from_channel(
+        self, channel_id: str, channel_name: str, user_email: str
+    ) -> list[dict]:
         """
         Retrieve messages from a Slack channel and return them as a list of chat history records.
 
@@ -215,7 +219,7 @@ class SlackHelper:
                                 "source": msg_link,
                                 "msg_ts": msg_ts,
                                 "channel_name": channel_name,
-                                "users": [self.email],
+                                "users": [user_email],
                             }
                             channel_chat_history.append(
                                 {
@@ -289,7 +293,7 @@ class SlackHelper:
         channels_dict = {}
 
         while True:
-            data = self.slack_helper.slack_api_call(url, params=params)
+            data = self.slack_api_call(url, params=params)
             if data:
                 if data.get("ok"):
                     for channel in data["channels"]:
@@ -374,7 +378,8 @@ class SlackHelper:
 
         return emails
 
-    def get_access_token(self, code: str) -> dict | None:
+    @staticmethod
+    def get_access_token(code: str) -> dict | None:
         """
         Exchange the authorization code for an access token.
 

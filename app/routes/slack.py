@@ -5,7 +5,7 @@ import requests
 import logging
 
 from app.helpers.slack import SlackHelper
-from app.models import UserAuth, db
+from app.models import UserAuth, db, Datasource
 from sqlalchemy.exc import SQLAlchemyError
 
 slack_bp = Blueprint("slack_auth", __name__)
@@ -24,13 +24,16 @@ def slack_auth():
         .prepare()
         .url
     )
-    return request_url
+    return redirect(request_url)
 
 
 @slack_bp.route("/slack/auth/callback")
 def slack_callback():
     """Slack OAuth callback route. Handles the Slack OAuth callback."""
-    slack = SlackHelper()
+    slack_datasource = Datasource.query.filter_by(name="Slack").first()
+    if not slack_datasource:
+        logging.error("Slack datasource not found")
+        return False
 
     code = request.args.get("code")
     if not code:
@@ -38,7 +41,7 @@ def slack_callback():
         return False
 
     try:
-        auth_data = slack.get_access_token(code)
+        auth_data = SlackHelper.get_access_token(code)
         if not auth_data:
             logging.error("Failed to get access token from Slack")
             return False
@@ -54,7 +57,7 @@ def slack_callback():
 
         user_auth = UserAuth.query.filter_by(
             user_id=session["user.id"],
-            datasource_id=slack.datasource.datasource_id,
+            datasource_id=slack_datasource.datasource_id,
             auth_key="access_token",
         ).first()
 
@@ -64,7 +67,7 @@ def slack_callback():
         else:
             new_auth = UserAuth(
                 user_id=session["user.id"],
-                datasource_id=slack.datasource.datasource_id,
+                datasource_id=slack_datasource.datasource_id,
                 auth_key="access_token",
                 auth_value=access_token,
                 auth_type="oauth",
