@@ -172,7 +172,7 @@ class GoogleDriveIndexer(Indexer):
         )
 
         self.update_last_indexed_for_docs(documents, job)
-        logging.info(f"Indexing complete for user: {user.email}")
+        logging.info(f"Indexing Google Drivecomplete for user: {user.email}")
 
         return True
 

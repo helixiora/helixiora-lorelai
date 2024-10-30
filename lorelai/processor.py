@@ -12,7 +12,6 @@ from rq import job
 
 import pinecone
 
-
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
@@ -29,7 +28,6 @@ class Processor:
         """Initialize the Processor class."""
         # needed for the openai embeddings model
         os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
-
         os.environ["PINECONE_API_KEY"] = current_app.config["PINECONE_API_KEY"]
 
     def pinecone_filter_deduplicate_documents_list(

@@ -17,7 +17,7 @@ from app.routes.chat import chat_bp
 from app.routes.google.authorization import googledrive_bp
 
 # from flask_wtf.csrf import CSRFProtect, generate_csrf
-from app.routes.slack.authorization import slack_bp
+from app.routes.slack import slack_bp
 from config import config
 
 

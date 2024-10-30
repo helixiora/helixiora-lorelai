@@ -10,17 +10,24 @@ Classes:
 import logging
 import requests
 import time
-from flask import request, session, current_app
+import uuid
+from datetime import datetime
+from flask import current_app
 
 from app.helpers.datasources import DATASOURCE_SLACK
-from app.models import db, UserAuth, Datasource, User
-from sqlalchemy.exc import SQLAlchemyError
+from app.models import db, Datasource, User, UserAuth
+from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
+
+
+from lorelai.utils import clean_text_for_vector
 
 
 class SlackHelper:
     """Handles Slack helper functions."""
 
-    def __init__(self):
+    def __init__(
+        self, user: UserSchema, organisation: OrganisationSchema, user_auths: list[UserAuthSchema]
+    ):
         """Initialize the SlackHelper class with configuration settings."""
         self.authorization_url = current_app.config["SLACK_AUTHORIZATION_URL"]
         self.token_url = current_app.config["SLACK_TOKEN_URL"]
@@ -28,31 +35,346 @@ class SlackHelper:
         self.client_id = current_app.config["SLACK_CLIENT_ID"]
         self.client_secret = current_app.config["SLACK_CLIENT_SECRET"]
         self.redirect_uri = current_app.config["SLACK_REDIRECT_URI"]
+
         self.datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+
+        # Config for slack api
+        self.access_token = self.retrieve_access_token(email=user.email)
+        self.headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        self.test_slack_token()
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
+
         if not self.datasource:
             raise ValueError(f"{DATASOURCE_SLACK} is missing from datasource table in db")
 
-    @staticmethod
-    def get_auth_url(authorization_url: str, client_id: str, scopes: str, redirect_uri: str) -> str:
+    def chunk_and_merge_metadata(
+        self,
+        lst: list[dict],
+        word_limit: int,
+        word_overlap: int,
+        channel_id: str,
+        channel_name: str,
+    ) -> list[dict]:
         """
-        Generate and return the Slack OAuth authorization URL.
+        Chunk a list of dictionaries based on word count of 'metadata.text' and merge their metadata.
+
+        This function processes a list of dictionaries, each containing metadata like text, source,
+        timestamp, and channel information. It merges these dictionaries into chunks, each containing
+        up to `word_limit` words. Additionally, the function ensures there is an overlap of
+        `word_overlap` words between consecutive chunks.
+
+
+        Args:
+            lst (list of dict): List of dictionaries, each containing 'id', 'values',
+                                and 'metadata' fields. 'metadata' includes:
+                                - text (str): A string to concatenate
+                                - source (str): A source URL
+                                - msg_ts (str): A timestamp
+                                - channel_name (str): A channel name
+                                - users (list): A list of users
+            word_limit (int): Maximum number of words in each chunk's concatenated text.
+            word_overlap (int): Number of overlapping words between chunks.
+            channel_id (str): channel id, to get the members email for vector storage.
+            channel_name (str): channel_name id, to store in metadata.
 
         Returns
         -------
-            str: The authorization URL.
-        """
-        params = {
-            "client_id": client_id,
-            "scope": scopes,
-            "redirect_uri": redirect_uri,
-        }
-        request_url = requests.Request("GET", authorization_url, params=params).prepare().url
-        return request_url
+                list of dict: A list of new dictionaries with merged metadata:
+                            - text: Concatenated text from the chunk
+                            - source, msg_ts: Taken from the last item in the chunk
+                            - channel_name, users: Unique sets converted to lists.
 
-    @staticmethod
-    def get_access_token(
-        token_url: str, client_id: str, client_secret: str, code: str, redirect_uri: str
-    ) -> dict | None:
+        Example:
+            merged_chunks = chunk_and_merge_metadata(lst, word_limit=4000, word_overlap=200)
+        """  # noqa: E501
+        user_emails = self.get_channel_member_emails(channel_id)
+        result = []
+        start = 0
+        overlap_words = []  # List to store the overlapping words from the previous chunk
+
+        while start < len(lst):
+            chunk = []
+            word_count = len(overlap_words)  # Start with overlap word count
+
+            # Collect items into a chunk until the word limit is reached
+            while start < len(lst) and word_count < word_limit:
+                item = lst[start]
+                chunk.append(item)
+
+                # Count words in the current item's metadata['text']
+                word_count += len(item["metadata"]["text"].split())
+
+                start += 1
+
+            # Initialize merged metadata fields
+            merged_text = " ".join(overlap_words) + " " if overlap_words else ""
+
+            # Merge the metadata from all items in the chunk
+            for item in chunk:
+                logging.debug(f'length of chunk {len(item["metadata"]["text"])}')
+                logging.debug(f'words in chunk {len(item["metadata"]["text"].split())}')
+                merged_text += item["metadata"]["text"] + " "
+
+            # Remove trailing space from concatenated text
+            merged_text = merged_text.strip()
+
+            # Get the source and msg_ts from the last item in the chunk
+            last_item = chunk[-1]
+
+            # Create the new dictionary with merged metadata
+            merged_dict = {
+                "id": str(uuid.uuid4()),  # Generate a new unique id
+                "values": [],  # Assuming values field remains as is
+                "metadata": {
+                    "text": merged_text,
+                    "source": last_item["metadata"]["source"],
+                    "msg_ts": last_item["metadata"]["msg_ts"],
+                    "channel_name": channel_name,
+                    "users": list(user_emails),
+                },
+            }
+
+            result.append(merged_dict)
+
+            logging.debug(f"how many message added: {len(chunk)}")
+            logging.debug(f"length of merged text: {len(merged_text)}")
+            # Calculate overlap for the next chunk based on word_overlap
+            if word_overlap > 0:
+                words_in_current_chunk = merged_text.split()
+                overlap_words = words_in_current_chunk[
+                    -word_overlap:
+                ]  # Get the last 'word_overlap' words
+
+        return result
+
+    def get_messages_from_channel(self, channel_id: str, channel_name: str) -> list[dict]:
+        """
+        Retrieve messages from a Slack channel and return them as a list of chat history records.
+
+        Args:
+            channel_id (str): The ID of the Slack channel.
+            channel_name (str): The name of the Slack channel.
+
+        Returns
+        -------
+            list: A list of chat history records. for that channel.
+        """
+        url = "https://slack.com/api/conversations.history"
+        logging.debug(f"Getting Messages for Channel: {channel_name}")
+        params = {"channel": channel_id}
+        channel_chat_history = []
+
+        while True:
+            data = self.slack_api_call(url, params=params)
+            if data:
+                if "error" in data:
+                    # see https://api.slack.com/methods/conversations.history#errors
+                    logging.error(
+                        f"Error: {data['error']} - Channel: {channel_name} Channel ID: {channel_id}\
+: see https://api.slack.com/methods/conversations.history#errors for more information"
+                    )
+                    return False
+
+                if "messages" in data:
+                    logging.info(f"Processing messages for channel: {channel_name} Start: \
+{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
+{data['messages'][0]['text']}")
+                    for msg in data["messages"]:
+                        try:
+                            msg_ts = ""
+                            thread_text = ""
+                            metadata = {}
+
+                            # if msg has no thread
+                            if msg.get("reply_count") is None:
+                                thread_text = self.extract_message_text(msg)
+                                msg_ts = msg["ts"]
+                            # get all thread msg
+                            elif "reply_count" in msg:
+                                thread_text = self.get_thread(msg["ts"], channel_id)
+                                msg_ts = msg["ts"]  # thread_ts
+
+                            # get the permalink for the message
+                            msg_link = self.get_message_permalink(channel_id, msg_ts)
+
+                            # convert the timestamp to a date
+                            msg_datetime = self.timestamp_to_date(msg_ts)
+
+                            # Slack uses user_id not names
+                            thread_text = self.replace_userid_with_name(thread_text)
+                            # add datetime
+                            thread_text = f"{str(msg_datetime)} : {thread_text}"
+                            thread_text = clean_text_for_vector(thread_text)
+                            metadata = {
+                                "text": thread_text,
+                                "source": msg_link,
+                                "msg_ts": msg_ts,
+                                "channel_name": channel_name,
+                                "users": [self.email],
+                            }
+                            channel_chat_history.append(
+                                {
+                                    "id": str(uuid.uuid4()),
+                                    "values": [],
+                                    "metadata": metadata,
+                                }
+                            )
+
+                        except Exception as e:
+                            logging.error(f"Error processing message: {msg}")
+                            raise (e)
+
+                if data.get("response_metadata", {}).get("next_cursor"):
+                    params["cursor"] = data["response_metadata"]["next_cursor"]
+                    logging.debug(f"Next Page cursor: {params['cursor']}")
+                else:
+                    logging.debug(f"No more pages to retrieve for channel: {channel_name}")
+                    break
+            else:
+                logging.error(f"Failed to retrieve channel history. Error: {data.text}")
+                return False
+        logging.debug(f"Total Messages in {channel_name}: {len(channel_chat_history)}")
+        return channel_chat_history
+
+    def get_thread(self, thread_id: str, channel_id: str) -> str:
+        """
+        Retrieve and return the complete thread of messages from Slack.
+
+        Args:
+            thread_id (str): The ID of the thread.
+            channel_id (str): The ID of the Slack channel.
+
+        Returns
+        -------
+            str: The complete thread of messages as a single string.
+        """
+        url = "https://slack.com/api/conversations.replies"
+        params = {"channel": channel_id, "ts": thread_id, "limit": 200}
+        complete_thread = ""
+        while True:
+            data = self.slack_api_call(url, params=params)
+
+            if data:
+                if "messages" in data:
+                    for msg in data["messages"]:
+                        msg_text = self.extract_message_text(msg)
+                        complete_thread += msg_text + "\n"
+
+                if data.get("response_metadata", {}).get("next_cursor"):
+                    params["cursor"] = data["response_metadata"]["next_cursor"]
+                else:
+                    break
+        return complete_thread
+
+    def get_accessible_channels(self) -> dict[str, str]:
+        """
+        Retrieve and return a dictionary mapping channel IDs to channel names from Slack.
+
+        Returns
+        -------
+            dict: A dictionary mapping channel IDs to channel names.
+        """
+        url = "https://slack.com/api/conversations.list"
+
+        params = {
+            "types": "public_channel,private_channel",
+            "limit": 1000,
+        }
+
+        channels_dict = {}
+
+        while True:
+            data = self.slack_helper.slack_api_call(url, params=params)
+            if data:
+                if data.get("ok"):
+                    for channel in data["channels"]:
+                        channels_dict[channel["id"]] = channel["name"]
+                    if data.get("response_metadata", {}).get("next_cursor"):
+                        params["cursor"] = data["response_metadata"]["next_cursor"]
+                    else:
+                        break
+                else:
+                    logging.error(f"Error in response: {data['error']}")
+                    return None
+            else:
+                logging.error(f"Failed to list channels. Error: {data.text}")
+                return None
+        return channels_dict
+
+    def timestamp_to_date(self, timestamp: str) -> str:
+        """
+        Convert a string Unix timestamp (with fractional seconds) to a formatted date string.
+
+        Args:
+            timestamp_str (str): The Unix timestamp as a string. Can include fractional seconds.
+
+        Returns
+        -------
+            str: The formatted date string in the format 'YYYY-MM-DD HH:MM:SS'.
+        """
+        # Convert the floating-point timestamp to a datetime object
+        timestamp = float(timestamp)
+        dt = datetime.fromtimestamp(timestamp)
+        # Format the datetime object as a string in the desired format
+        formatted_date = dt.strftime("%Y-%m-%d %H:%M:%S")
+        return formatted_date
+
+    def get_channel_member_emails(self, channel_id: str) -> list[str]:
+        """
+        Retrieve a list of email addresses for all users who have access to a specific Slack channel.
+
+        Args
+        ----
+            :param channel_id (str): The ID of the Slack channel.
+
+        Returns
+        -------
+            list: A list of email addresses of the users in the specified channel.
+        """  # noqa: E501
+        # Step 1: Get all user IDs in the channel using conversations.members
+        members_data = self.slack_api_call(
+            url="https://slack.com/api/conversations.members",
+            params={"channel": channel_id},
+        )
+
+        if (
+            members_data
+            and "ok" in members_data
+            and members_data["ok"]
+            and "members" in members_data
+        ):  # noqa: E501
+            user_ids = members_data["members"]
+        else:
+            logging.error(f"Failed to retrieve members for channel {channel_id}. \
+                Error: {members_data['error'] if members_data else 'Unknown error'}")
+            return []
+
+        emails = []
+
+        # Step 2: Loop through each user ID and get their email using users.info
+        for user_id in user_ids:
+            user_data = self.slack_api_call(
+                url="https://slack.com/api/users.info",
+                params={"user": user_id},
+            )
+
+            if user_data and "ok" in user_data and user_data["ok"] and "user" in user_data:
+                user_info = user_data["user"]
+                # Check if the user has an email field and add it to the list
+                if "profile" in user_info and "email" in user_info["profile"]:
+                    emails.append(user_info["profile"]["email"])
+            else:
+                logging.warning(f"Failed to retrieve user info for user ID {user_id}. \
+                    Error: {user_data['error'] if user_data else 'Unknown error'}")
+
+        return emails
+
+    def get_access_token(self, code: str) -> dict | None:
         """
         Exchange the authorization code for an access token.
 
@@ -65,12 +387,12 @@ class SlackHelper:
                          otherwise None.
         """
         payload = {
-            "client_id": client_id,
-            "client_secret": client_secret,
+            "client_id": current_app.config["SLACK_CLIENT_ID"],
+            "client_secret": current_app.config["SLACK_CLIENT_SECRET"],
             "code": code,
-            "redirect_uri": redirect_uri,
+            "redirect_uri": current_app.config["SLACK_REDIRECT_URI"],
         }
-        response = requests.post(token_url, data=payload)
+        response = requests.post(current_app.config["SLACK_TOKEN_URL"], data=payload)
         if response.status_code == 200:
             data = response.json()
             if "ok" in data and data["ok"]:
@@ -85,8 +407,7 @@ class SlackHelper:
         else:
             raise Exception(f"Error retrieving access token: {response.text}")
 
-    @staticmethod
-    def test_slack_token(access_token: str) -> bool:
+    def test_slack_token(self) -> bool:
         """
         Verify if the Slack access token is valid.
 
@@ -102,7 +423,10 @@ class SlackHelper:
             bool: True if the token is valid.
         """
         url = "https://slack.com/api/auth.test"
-        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
 
         response = requests.get(url, headers=headers)
 
@@ -274,60 +598,3 @@ class SlackHelper:
         -------
             Bool: True if the callback was successful, False otherwise.
         """
-        code = request.args.get("code")
-        if not code:
-            logging.error("No code received from Slack")
-            return False
-
-        try:
-            auth_data = self.get_access_token(
-                self.token_url, self.client_id, self.client_secret, code, self.redirect_uri
-            )
-            if not auth_data:
-                logging.error("Failed to get access token from Slack")
-                return False
-
-            access_token = auth_data["access_token"]
-            team_name = auth_data["team_name"]
-            team_id = auth_data["team_id"]
-
-            logging.info(f"Authorized for Slack workspace: {team_name} (ID: {team_id})")
-            session["slack.access_token"] = access_token
-            session["slack.team_name"] = team_name
-            session["slack.team_id"] = team_id
-
-            user_auth = UserAuth.query.filter_by(
-                user_id=session["user.id"],
-                datasource_id=self.datasource.datasource_id,
-                auth_key="access_token",
-            ).first()
-
-            if user_auth:
-                user_auth.auth_value = access_token
-                logging.info(f"Updated existing UserAuth for user {session['user.id']}")
-            else:
-                new_auth = UserAuth(
-                    user_id=session["user.id"],
-                    datasource_id=self.datasource.datasource_id,
-                    auth_key="access_token",
-                    auth_value=access_token,
-                    auth_type="oauth",
-                )
-                db.session.add(new_auth)
-                logging.info(f"Created new UserAuth for slack for user {session['user.id']}")
-
-            # see if there are any pending changes to the database
-            logging.info(
-                f"Committing pending changes to database for slack, user {session['user.id']}"
-            )
-            db.session.commit()
-            logging.info(f"Successfully saved access token for slack for user {session['user.id']}")
-            return True
-
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            logging.error(f"Database error handling callback: {e}")
-            return False
-        except Exception as e:
-            logging.error(f"Error handling callback: {e}")
-            return False
