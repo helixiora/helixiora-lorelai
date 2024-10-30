@@ -232,7 +232,8 @@ def index():
     # check if the user is logged in
     if current_user.is_authenticated:
         # render the index_logged_in page
-        thread_id = session.get("thread_id")
+        thread_id = str(uuid.uuid4())
+        session["thread_id"] = thread_id
         chat_template_requirements = get_chat_template_requirements(thread_id, current_user.id)
 
         return render_template(
