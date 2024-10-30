@@ -68,7 +68,7 @@ def chat():
             message_content,
             current_user.id,
             current_user.email,
-            current_user.organisation,
+            current_user.organisation.name,
             model_type="OpenAILlm",
         )
         logging.info("Enqueued job for chat, message %s, thread %s", message_content, thread_id)

@@ -86,20 +86,24 @@ class SlackIndexer(Indexer):
             new_messages_dict_list[i]["values"] = embeds[i]
         return new_messages_dict_list
 
-    def load_to_pinecone(self, complete_chat_history: list[dict]) -> int:
+    def load_to_pinecone(
+        self, complete_chat_history: list[dict], user: UserSchema, organisation: OrganisationSchema
+    ) -> int:
         """
         Load the complete chat history with embeddings into Pinecone.
 
         Args:
             embedding_dimension (int): The dimension of the embeddings.
             complete_chat_history (list): The complete chat history with embeddings.
+            user (UserSchema): The user to associate with the chat history.
+            organisation (OrganisationSchema): The organisation to associate with the chat history.
 
         Returns
         -------
             int: The number of records loaded into Pinecone.
         """
         index, name = self.pinecone_helper.get_index(
-            org=self.org_name,
+            org_name=organisation.name,
             datasource=DATASOURCE_SLACK,
             environment=current_app.config["LORELAI_ENVIRONMENT"],
             env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
@@ -202,7 +206,7 @@ messages in batches batch_size: {batch_size}, total messages: {total_items}"
 
                         logging.info("Loading to pinecone for current batch")
                         try:
-                            self.load_to_pinecone(batch)
+                            self.load_to_pinecone(batch, user, organisation)
                         except Exception as e:
                             logging.critical("failed to load to pinecone for current batch", e)
 
