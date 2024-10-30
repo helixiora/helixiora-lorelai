@@ -3,7 +3,7 @@
 import logging
 from rq import job
 import importlib
-from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema, GoogleDriveItemSchema
+from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema
 
 # The scopes needed to read documents in Google Drive
 # (see: https://developers.google.com/drive/api/guides/api-specific-auth)
@@ -49,10 +49,9 @@ class Indexer:
 
     def index_org(
         self,
-        org_row: OrganisationSchema,
-        user_rows: list[UserSchema],
-        user_auth_rows: list[UserAuthSchema],
-        user_data_rows: list[GoogleDriveItemSchema],
+        organisation: OrganisationSchema,
+        users: list[UserSchema],
+        user_auths: list[UserAuthSchema],
         job: job.Job | None = None,
     ) -> list[dict[str, any]]:
         """Process the organisation, indexing all its users.
@@ -61,12 +60,10 @@ class Indexer:
         ---------
         org_row: OrganisationSchema
             The organisation to process.
-        user_rows: list[UserSchema]
+        users: list[UserSchema]
             The users to process.
-        user_auth_rows: list[UserAuthSchema]
+        user_auths: list[UserAuthSchema]
             The user auth rows for all users.
-        user_data_rows: list[GoogleDriveItemSchema]
-            The user data rows for all users.
         job: job.Job | None
             The job object for the current task.
 
@@ -75,9 +72,9 @@ class Indexer:
         list[dict[str, any]]
             A list of dictionaries containing the results of indexing each user.
         """
-        logging.debug(f"Indexing org: {org_row['name']}")
-        logging.debug(f"Users: {[user['email'] for user in user_rows]}")
-        logging.debug(f"User auths: {user_auth_rows}")
+        logging.debug(f"Indexing org: {organisation.name}")
+        logging.debug(f"Users: {[user['email'] for user in users]}")
+        logging.debug(f"User auths: {user_auths}")
 
         if job:
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
@@ -86,75 +83,71 @@ class Indexer:
             job.meta["logs"].append(f"Indexing {self.get_indexer_name()}: {job.id}")
 
         result = []
-        for user_row in user_rows:
+        for user in users:
             if job:
                 job.meta["logs"].append(
-                    f"Indexing {self.get_indexer_name()} for user {user_row['email']}"
+                    f"Indexing {self.get_indexer_name()} for user {user['email']}"
                 )
-                job.meta["org"] = org_row["name"]
-                job.meta["user"] = user_row["email"]
+                job.meta["org"] = organisation.name
+                job.meta["user"] = user["email"]
                 job.save_meta()
 
             # get the user auth rows for this user
             user_auth_rows_filtered = [
                 user_auth_row
-                for user_auth_row in user_auth_rows
-                if user_auth_row["user_id"] == user_row["id"]
+                for user_auth_row in user_auths
+                if user_auth_row["user_id"] == user["id"]
             ]
 
             # index the user
             success = self.index_user(
-                user_row=user_row,
-                org_row=org_row,
-                user_auth_rows=user_auth_rows_filtered,
-                user_data_rows=user_data_rows,
+                user=user,
+                organisation=organisation,
+                user_auths=user_auth_rows_filtered,
                 job=job,
             )
 
-            message = f"User {user_row['email']} indexing {'succeeded' if success else 'failed'}"
+            message = f"User {user.email} indexing {'succeeded' if success else 'failed'}"
             logging.info(message)
 
             if job:
                 job.meta[
                     "logs"
-                ].append(f"Indexing {self.get_indexer_name()} for user {user_row['email']}: \
+                ].append(f"Indexing {self.get_indexer_name()} for user {user.email}: \
                         {'succeeded' if success else 'failed'}")
-                job.meta["org"] = org_row["name"]
-                job.meta["user"] = user_row["email"]
+                job.meta["org"] = organisation.name
+                job.meta["user"] = user.email
                 job.save_meta()
 
             result.append(
                 {
                     "job_id": job.id if job else "",
-                    "user_id": user_row["id"],
+                    "user_id": user.id,
                     "success": success,
                     "message": message,
                 }
             )
 
-        logging.debug(f"Indexing complete for org: {org_row['name']}. Results: {result}")
+        logging.debug(f"Indexing complete for org: {organisation.name}. Results: {result}")
         return result
 
     def index_user(
         self,
-        user_row: UserSchema,
-        org_row: OrganisationSchema,
-        user_auth_rows: list[UserAuthSchema],
-        user_data_rows: list[GoogleDriveItemSchema],
+        user: UserSchema,
+        organisation: OrganisationSchema,
+        user_auths: list[UserAuthSchema],
         job: job.Job | None,
     ) -> tuple[bool, str]:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         Arguments
         ---------
-        user_row: UserSchema
+        user: UserSchema
             The user to process.
-        org_row: OrganisationSchema
+        organisation: OrganisationSchema
             The organisation to process.
-        user_auth_rows: list[UserAuthSchema]
+        user_auths: list[UserAuthSchema]
             The user auth rows for the user.
-        user_data_rows: list[GoogleDriveItemSchema]
-            The user data rows for the user.
         job: job.Job | None
             The job object for the current task.
 

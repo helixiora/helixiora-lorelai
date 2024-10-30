@@ -60,24 +60,20 @@ class GoogleDriveIndexer(Indexer):
 
     def index_user(
         self,
-        user_row: UserSchema,
-        org_row: OrganisationSchema,
-        user_auth_rows: list[UserAuthSchema],
-        user_data_rows: list[GoogleDriveItemSchema],
+        user: UserSchema,
+        organisation: OrganisationSchema,
+        user_auths: list[UserAuthSchema],
         job: job.Job,
     ) -> bool:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         Arguments
         ---------
-        user_row: UserSchema
-            The user to process.
-        org_row: OrganisationSchema
+        user: UserSchema
+        organisation: OrganisationSchema
             The organisation to process.
-        user_auth_rows: list[UserAuthSchema]
+        user_auths: list[UserAuthSchema]
             The user auth rows for the user.
-        user_data_rows: list[GoogleDriveItemSchema]
-            The user data rows for the user.
         job: job.Job
             The job object for the current task.
 
@@ -86,37 +82,41 @@ class GoogleDriveIndexer(Indexer):
         bool
             True if indexing was successful, False otherwise.
         """
-        logging.info(f"Indexing user: {user_row['email']} from org: {org_row['name']}")
+        logging.info(f"Indexing user: {user.email} from org: {organisation.name}")
 
         # 1. Get the Google Drive access token, refresh token, and expiry
-        access_token, refresh_token, expires_at = self.__get_token_details(user_auth_rows)
+        access_token, refresh_token, expires_at = self.__get_token_details(user_auths)
 
         # 2. Get the Google Drive document IDs
-        logging.debug(f"Getting Google Drive document IDs for user: {user_row['email']}")
+        logging.debug(f"Getting Google Drive document IDs for user: {user.email}")
 
+        drive_items = GoogleDriveItem.query.filter_by(user_id=user.id)
+        user_data = [GoogleDriveItemSchema.from_orm(data) for data in drive_items]
+
+        # 3. Check if there are any Google Drive documents for the user
         documents = []
-        for user_data_row in user_data_rows:
+        for drive_item in user_data:
             # extra safety: check if item_type in the user_data_row equals the allowed item types
-            if user_data_row["item_type"] not in ALLOWED_ITEM_TYPES:
-                logging.error(f"Invalid item type: {user_data_row['item_type']}")
+            if drive_item.item_type not in ALLOWED_ITEM_TYPES:
+                logging.error(f"Invalid item type: {user_data.item_type}")
                 continue
 
             # add information about the document to the list
             documents.append(
                 {
-                    "user_id": user_row["id"],
-                    "google_drive_id": user_data_row["google_drive_id"],
-                    "item_type": user_data_row["item_type"],
-                    "item_name": user_data_row["item_name"],
+                    "user_id": user.id,
+                    "google_drive_id": user_data.google_drive_id,
+                    "item_type": user_data.item_type,
+                    "item_name": user_data.item_name,
                 }
             )
 
         if not documents or len(documents) == 0:
-            logging.warn(f"No Google Drive documents found for user: {user_row['email']}")
+            logging.warn(f"No Google Drive documents found for user: {user.email}")
             return True
 
         # 5. Process the Google Drive documents and index them in Pinecone
-        logging.info(f"Processing {len(documents)} Google documents for user: {user_row['email']}")
+        logging.info(f"Processing {len(documents)} Google documents for user: {user.email}")
 
         # create a credentials object
         credentials_object = credentials.Credentials(
@@ -140,11 +140,11 @@ class GoogleDriveIndexer(Indexer):
                 drive_service.files().list(pageSize=1).execute()
                 logging.info(
                     f"Google Drive credentials are valid and working for user: \
-{user_row['email']}"
+{user.email}"
                 )
             except Exception as e:
                 logging.error(f"Failed to validate Google Drive credentials for user: \
-{user_row['email']} with a simple API call: {e}")
+{user.email} with a simple API call: {e}")
                 return False
 
         # convert the documents to langchain documents
@@ -155,21 +155,21 @@ class GoogleDriveIndexer(Indexer):
         )
 
         # add the user for whom were indexing the docs to the documents' metadata
-        self.add_user_to_docs_metadata(langchain_docs, user_row["email"])
+        self.add_user_to_docs_metadata(langchain_docs, user.email)
 
         pinecone_processor = Processor()
 
         # store the documents in Pinecone
         pinecone_processor.store_docs_in_pinecone(
             langchain_docs,
-            user_email=user_row["email"],
+            user_email=user.email,
             job=job,
-            org_name=org_row["name"],
+            org_name=organisation.name,
             datasource="googledrive",
         )
 
         self.update_last_indexed_for_docs(documents, job)
-        logging.info(f"Indexing complete for user: {user_row['email']}")
+        logging.info(f"Indexing complete for user: {user.email}")
 
         return True
 

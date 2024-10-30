@@ -21,6 +21,9 @@ from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_size, clean_text_for_vector
 
+from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
+from rq import job
+
 from app.helpers.datasources import DATASOURCE_SLACK
 from app.helpers.slack import SlackHelper
 
@@ -452,7 +455,13 @@ class SlackIndexer(Indexer):
 
         return result
 
-    def process_slack_message(self, channel_id: str | None = None) -> bool | None:
+    def index_user(
+        self,
+        user: UserSchema,
+        organisation: OrganisationSchema,
+        user_auths: list[UserAuthSchema],
+        job: job.Job,
+    ) -> bool | None:
         """
         Process Slack messages, generate embeddings, and load them into Pinecone.
 
@@ -462,15 +471,7 @@ class SlackIndexer(Indexer):
         """
         try:
             # get the list of channels
-            channel_ids_dict = self.dict_channel_ids()
-
-            # this logic allows to process a single channel if passed as args
-            if channel_id is not None:
-                if channel_id in channel_ids_dict:
-                    channel_ids_dict = {channel_id: channel_ids_dict[channel_id]}
-                else:
-                    logging.info(f"{channel_id} not in slack")
-                    return None
+            channel_ids_dict = self.get_accessible_channels()
 
             # Process each channel
             for channel_id, channel_name in channel_ids_dict.items():
