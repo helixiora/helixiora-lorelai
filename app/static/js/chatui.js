@@ -353,6 +353,7 @@ document.getElementById('newConversationBtn').addEventListener('click', function
     // Reset the input field
     document.getElementById('messageInput').value = '';
     // You may want to add an API call here to create a new conversation on the server
+    window.location.href = '/';
 });
 
 // Make the textarea auto-expand
