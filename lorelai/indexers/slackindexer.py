@@ -11,7 +11,6 @@ import logging
 import os
 import requests
 import uuid
-import time
 from datetime import datetime
 import copy
 import openai
@@ -21,9 +20,9 @@ from flask import current_app
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import get_size, clean_text_for_vector
-from app.models import db, User, UserAuth
 
 from app.helpers.datasources import DATASOURCE_SLACK
+from app.helpers.slack import SlackHelper
 
 
 class SlackIndexer(Indexer):
@@ -42,6 +41,7 @@ class SlackIndexer(Indexer):
 
         # setup pinecone helper
         self.pinecone_helper = PineconeHelper()
+        self.slack_helper = SlackHelper()
 
         # init class with required parameters
         self.email = email
@@ -68,160 +68,6 @@ class SlackIndexer(Indexer):
         self.userid_name_dict = self.get_userid_name()
 
         logging.debug(f"Slack Access Token: {self.access_token}")
-
-    def test_slack_token(self):
-        """
-        Verify if the Slack access token is valid.
-
-        Makes a request to the `auth.test` endpoint. Raises RuntimeError if the token is invalid
-        or an HTTP error occurs.
-
-        Raises
-        ------
-            RuntimeError: If the token is invalid or there's an HTTP error.
-
-        Returns
-        -------
-            bool: True if the token is valid.
-        """
-        url = "https://slack.com/api/auth.test"
-        response = requests.get(url, headers=self.headers)
-
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("ok"):
-                logging.info("Slack token is valid!")
-                return True
-            else:
-                raise RuntimeError(f"Slack token test failed: {data.get('error')}")
-        else:
-            raise RuntimeError(f"HTTP Error: {response.status_code} - {response.text}")
-
-    def slack_api_call(self, url: str, params: dict = None, max_retries: int = 3) -> dict | None:
-        """
-        Make a Slack API call and handle the response, including rate limiting.
-
-        Args
-        ----
-            :param url (str): The URL to make the API call to.
-            :param params (dict): The parameters to include in the API call.
-            :param max_retries (int): Maximum number of retries for rate limiting.
-
-        Returns
-        -------
-            dict: The response from the Slack API call.
-        """
-        for attempt in range(max_retries):
-            if attempt > 0:
-                logging.debug(f"Making Slack API call to {url} with params: {params} \
-                                        (Attempt {attempt + 1}/{max_retries})")
-            response = self.session.get(url, params=params or {})
-
-            # response.ok is true if status code is 200
-            if response.ok:
-                # even if response.ok is true, the response can still contain an error message
-                # in the response.json()
-                response_json = response.json()
-                if "ok" in response_json and not response_json["ok"]:
-                    logging.error(f"Slack API call failed to {url} with params: {params} \
-                                    Error: {response_json['error']}")
-                    return response_json
-                return response_json
-            elif response.status_code == 429:  # Rate limited
-                retry_after = int(response.headers.get("Retry-After", 1)) + 1
-                logging.warning(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
-                time.sleep(retry_after)
-            else:
-                logging.error(f"Failed to make Slack API call. Error: {response.text}")
-                return None
-
-        logging.error(f"Max retries reached for Slack API call to {url}")
-        return None
-
-    def retrieve_access_token(self, email: str) -> str | None:
-        """
-        Retrieve the Slack access token from the database for the given email.
-
-        Args:
-            email (str): The user's email.
-
-        Returns
-        -------
-            str or None: The Slack access token if found, otherwise None.
-        """
-        auth_value = (
-            db.session.query(UserAuth.auth_value)
-            .join(User, User.id == UserAuth.user_id)
-            .filter(User.email == email, UserAuth.datasource_id == 3)
-            .first()
-        )
-        if auth_value:
-            return auth_value[0]
-        else:
-            raise ValueError(f"Slack Token not found for user {email}")
-
-    #         try:
-    #             # Query the user by email
-    #             user = User.query.filter_by(email=email).first()
-    #             if not user:
-    #                 logging.debug("No user found with the specified email.")
-    #                 return None
-
-    #             # Query the datasource by name
-    #             datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
-    #             if not datasource:
-    #                 logging.debug("No Slack datasource found.")
-    #                 return None
-
-    #             # Query the user auth by user_id and datasource_id
-    #             user_auth = UserAuth.query.filter_by(
-    #                 user_id=user.id, datasource_id=datasource.datasource_id
-    #             ).first()
-    #             if user_auth:
-    #                 slack_token = user_auth.auth_value
-    #                 logging.debug(f"Slack Token: {slack_token}")
-    #                 return slack_token
-
-    #             logging.debug("No Slack token found for the specified user.")
-    #             return None
-    #         except Exception as e:
-    #             logging.error(f"Error retrieving access token: {e}")
-    #             return None
-
-    def get_userid_name(self) -> dict[str, str]:
-        """
-        Retrieve and return a dictionary mapping user IDs to user names from Slack.
-
-        Returns
-        -------
-            dict: A dictionary mapping user IDs to user names.
-        """
-        data = self.slack_api_call("https://slack.com/api/users.list")
-
-        if data and "ok" in data and data["ok"] and "members" in data:
-            users = data["members"]
-            users_dict = {}
-            for i in users:
-                users_dict[i["id"]] = i["name"]
-            return users_dict
-        else:
-            logging.error(f"Failed to list users. Error: {data}")
-            return None
-
-    def replace_userid_with_name(self, thread_text: str) -> str:
-        """
-        Replace user IDs with user names in the given text.
-
-        Args:
-            thread_text (str): The text containing user IDs.
-
-        Returns
-        -------
-            str: The text with user IDs replaced by user names.
-        """
-        for user_id, user_name in self.userid_name_dict.items():
-            thread_text = thread_text.replace(user_id, user_name)
-        return thread_text
 
     def get_messages_from_channel(self, channel_id: str, channel_name: str) -> list[dict]:
         """
@@ -342,57 +188,7 @@ class SlackIndexer(Indexer):
                     break
         return complete_thread
 
-    def extract_message_text(self, message: dict) -> str:
-        """
-        Extract the text body content from a Slack message.
-
-        Args:
-            message (dict): The Slack message.
-
-        Returns
-        -------
-            str: The extracted message text.
-        """
-        message_text = ""
-        user = ""
-        if "user" in message:
-            user = message["user"]
-
-        if "text" in message:
-            message_text = f"{user}:  {message['text']}."
-
-        if "attachments" in message and message.get("subtype") == "bot_message":
-            for i in message["attachments"]:
-                message_text += "\n" + i["fallback"] + "."
-        return message_text
-
-    def get_message_permalink(self, channel_id: str, message_ts: str) -> str | None:
-        """
-        Retrieve and return the permalink for a specific Slack message.
-
-        Args:
-            channel_id (str): The ID of the Slack channel.
-            message_ts (str): The timestamp of the message.
-
-        Returns
-        -------
-            str or None: The permalink if successful, otherwise None.
-        """
-        url = "https://slack.com/api/chat.getPermalink"
-
-        params = {"channel": channel_id, "message_ts": message_ts}
-        data = self.slack_api_call(url, params=params)
-        if data:
-            if data.get("ok"):
-                return data["permalink"]
-            else:
-                logging.error(f"Error in response: {data['error']}")
-                return None
-        else:
-            logging.error(f"Failed to get permalink. Error: {data.text}")
-            return None
-
-    def dict_channel_ids(self) -> dict[str, str]:
+    def get_accessible_channels(self) -> dict[str, str]:
         """
         Retrieve and return a dictionary mapping channel IDs to channel names from Slack.
 
@@ -410,7 +206,7 @@ class SlackIndexer(Indexer):
         channels_dict = {}
 
         while True:
-            data = self.slack_api_call(url, params=params)
+            data = self.slack_helper.slack_api_call(url, params=params)
             if data:
                 if data.get("ok"):
                     for channel in data["channels"]:
