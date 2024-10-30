@@ -73,30 +73,23 @@ class Indexer:
             A list of dictionaries containing the results of indexing each user.
         """
         logging.debug(f"Indexing org: {organisation.name}")
-        logging.debug(f"Users: {[user['email'] for user in users]}")
+        logging.debug(f"Users: {[user.email for user in users]}")
         logging.debug(f"User auths: {user_auths}")
 
         if job:
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
             logging.info("Indexing %s: %s", self.get_indexer_name(), job.id)
-            job.meta["logs"].append(f"Task ID: {job.id}, Message: {job.meta['status']}")
-            job.meta["logs"].append(f"Indexing {self.get_indexer_name()}: {job.id}")
 
         result = []
         for user in users:
             if job:
-                job.meta["logs"].append(
-                    f"Indexing {self.get_indexer_name()} for user {user['email']}"
-                )
                 job.meta["org"] = organisation.name
-                job.meta["user"] = user["email"]
+                job.meta["user"] = user.email
                 job.save_meta()
 
             # get the user auth rows for this user
             user_auth_rows_filtered = [
-                user_auth_row
-                for user_auth_row in user_auths
-                if user_auth_row["user_id"] == user["id"]
+                user_auth_row for user_auth_row in user_auths if user_auth_row.user_id == user.id
             ]
 
             # index the user
@@ -111,10 +104,6 @@ class Indexer:
             logging.info(message)
 
             if job:
-                job.meta[
-                    "logs"
-                ].append(f"Indexing {self.get_indexer_name()} for user {user.email}: \
-                        {'succeeded' if success else 'failed'}")
                 job.meta["org"] = organisation.name
                 job.meta["user"] = user.email
                 job.save_meta()

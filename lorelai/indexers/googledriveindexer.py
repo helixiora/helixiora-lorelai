@@ -29,34 +29,37 @@ ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 class GoogleDriveIndexer(Indexer):
     """Used to process the Google Drive documents and index them in Pinecone."""
 
-    def __get_token_details(self, user_auth_rows: list[dict[str, any]]) -> tuple[str, str, str]:
+    def __get_token_details(self, user_auths: list[UserAuthSchema]) -> tuple[str, str, str]:
         access_token = next(
             (
-                user_auth_row["auth_value"]
-                for user_auth_row in user_auth_rows
-                if user_auth_row["auth_key"] == "access_token"
+                user_auth.auth_value
+                for user_auth in user_auths
+                if user_auth.auth_key == "access_token"
             ),
             None,
         )
 
         refresh_token = next(
             (
-                user_auth_row["auth_value"]
-                for user_auth_row in user_auth_rows
-                if user_auth_row["auth_key"] == "refresh_token"
+                user_auth.auth_value
+                for user_auth in user_auths
+                if user_auth.auth_key == "refresh_token"
             ),
             None,
         )
 
         expires_at = next(
             (
-                user_auth_row["auth_value"]
-                for user_auth_row in user_auth_rows
-                if user_auth_row["auth_key"] == "expires_at"
+                user_auth.auth_value
+                for user_auth in user_auths
+                if user_auth.auth_key == "expires_at"
             ),
             None,
         )
         return access_token, refresh_token, expires_at
+
+    def __init__(self) -> None:
+        logging.debug("GoogleDriveIndexer initialized")
 
     def index_user(
         self,
@@ -98,16 +101,16 @@ class GoogleDriveIndexer(Indexer):
         for drive_item in user_data:
             # extra safety: check if item_type in the user_data_row equals the allowed item types
             if drive_item.item_type not in ALLOWED_ITEM_TYPES:
-                logging.error(f"Invalid item type: {user_data.item_type}")
+                logging.error(f"Invalid item type: {drive_item.item_type}")
                 continue
 
             # add information about the document to the list
             documents.append(
                 {
                     "user_id": user.id,
-                    "google_drive_id": user_data.google_drive_id,
-                    "item_type": user_data.item_type,
-                    "item_name": user_data.item_name,
+                    "google_drive_id": drive_item.google_drive_id,
+                    "item_type": drive_item.item_type,
+                    "item_name": drive_item.item_name,
                 }
             )
 

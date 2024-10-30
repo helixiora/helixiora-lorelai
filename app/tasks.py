@@ -141,13 +141,12 @@ def run_indexer(
 
         for indexer_class in indexers:
             # Initialize indexer
-            indexer = Indexer.create(indexer_class)
+            indexer = Indexer.create(indexer_type=indexer_class.__name__)
 
             # Initialize job meta with logs
             try:
                 logging.debug(f"Starting indexing {indexer_class.__name__}...")
                 job.meta["status"] = "Indexing"
-                job.meta["logs"].append("Starting indexing...")
                 job.save_meta()
                 logging.debug(f"{organisation},{users},{user_auths},{job},")
 
@@ -161,8 +160,6 @@ def run_indexer(
 
                 for result in results:
                     logging.debug(result)
-                    job.meta["logs"].append(result)
-                    job.save_meta()
 
                 add_notification(
                     user_id=started_by_user_id,
@@ -174,8 +171,4 @@ def run_indexer(
                 logging.debug("Indexing completed!")
             except Exception as e:
                 logging.error(f"Error in run_indexer task: {str(e)}", exc_info=True)
-                job.meta["logs"].append(f"Error in run_indexer task: {str(e)}")
-                job.save_meta()
                 job.set_status("failed")
-
-                return job.meta["progress"]
