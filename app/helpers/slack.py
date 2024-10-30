@@ -45,7 +45,7 @@ class SlackHelper:
             "Content-Type": "application/json",
         }
 
-        self.test_slack_token()
+        SlackHelper.test_slack_token(self.access_token)
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
@@ -174,7 +174,7 @@ class SlackHelper:
         channel_chat_history = []
 
         while True:
-            data = self.slack_api_call(url, params=params)
+            data = SlackHelper.slack_api_call(url=url, session=self.session, params=params)
             if data:
                 if "error" in data:
                     # see https://api.slack.com/methods/conversations.history#errors
@@ -261,7 +261,7 @@ class SlackHelper:
         params = {"channel": channel_id, "ts": thread_id, "limit": 200}
         complete_thread = ""
         while True:
-            data = self.slack_api_call(url, params=params)
+            data = SlackHelper.slack_api_call(url=url, session=self.session, params=params)
 
             if data:
                 if "messages" in data:
@@ -275,9 +275,13 @@ class SlackHelper:
                     break
         return complete_thread
 
-    def get_accessible_channels(self) -> dict[str, str]:
+    def get_accessible_channels(self, only_joined: bool = False) -> dict[str, str]:
         """
         Retrieve and return a dictionary mapping channel IDs to channel names from Slack.
+
+        Args:
+            only_joined (bool): If True, only return channels the bot has been invited to.
+                              If False, return all visible channels. Defaults to True.
 
         Returns
         -------
@@ -291,13 +295,16 @@ class SlackHelper:
         }
 
         channels_dict = {}
-
         while True:
-            data = self.slack_api_call(url, params=params)
+            data = SlackHelper.slack_api_call(url=url, session=self.session, params=params)
             if data:
                 if data.get("ok"):
                     for channel in data["channels"]:
+                        # For joined-only channels, we only include if we're a member
+                        if only_joined and not channel.get("is_member", False):
+                            continue
                         channels_dict[channel["id"]] = channel["name"]
+
                     if data.get("response_metadata", {}).get("next_cursor"):
                         params["cursor"] = data["response_metadata"]["next_cursor"]
                     else:
@@ -308,6 +315,8 @@ class SlackHelper:
             else:
                 logging.error(f"Failed to list channels. Error: {data.text}")
                 return None
+
+        logging.info(f"Found {len(channels_dict)} accessible channels")
         return channels_dict
 
     def timestamp_to_date(self, timestamp: str) -> str:
@@ -341,8 +350,9 @@ class SlackHelper:
             list: A list of email addresses of the users in the specified channel.
         """  # noqa: E501
         # Step 1: Get all user IDs in the channel using conversations.members
-        members_data = self.slack_api_call(
+        members_data = SlackHelper.slack_api_call(
             url="https://slack.com/api/conversations.members",
+            session=self.session,
             params={"channel": channel_id},
         )
 
@@ -362,8 +372,9 @@ class SlackHelper:
 
         # Step 2: Loop through each user ID and get their email using users.info
         for user_id in user_ids:
-            user_data = self.slack_api_call(
+            user_data = SlackHelper.slack_api_call(
                 url="https://slack.com/api/users.info",
+                session=self.session,
                 params={"user": user_id},
             )
 
@@ -412,7 +423,8 @@ class SlackHelper:
         else:
             raise Exception(f"Error retrieving access token: {response.text}")
 
-    def test_slack_token(self) -> bool:
+    @staticmethod
+    def test_slack_token(access_token: str) -> bool:
         """
         Verify if the Slack access token is valid.
 
@@ -429,7 +441,7 @@ class SlackHelper:
         """
         url = "https://slack.com/api/auth.test"
         headers = {
-            "Authorization": f"Bearer {self.access_token}",
+            "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
 
@@ -441,7 +453,8 @@ class SlackHelper:
                 logging.info("Slack token is valid!")
                 return True
             else:
-                raise RuntimeError(f"Slack token test failed: {data.get('error')}")
+                logging.error(f"Slack token is invalid: {data['error']}")
+                return False
         else:
             raise RuntimeError(f"HTTP Error: {response.status_code} - {response.text}")
 
@@ -453,7 +466,9 @@ class SlackHelper:
         -------
             dict: A dictionary mapping user IDs to user names.
         """
-        data = self.slack_api_call("https://slack.com/api/users.list")
+        data = SlackHelper.slack_api_call(
+            url="https://slack.com/api/users.list", session=self.session, params={}
+        )
 
         if data and "ok" in data and data["ok"] and "members" in data:
             users = data["members"]
@@ -504,7 +519,7 @@ class SlackHelper:
         url = "https://slack.com/api/chat.getPermalink"
 
         params = {"channel": channel_id, "message_ts": message_ts}
-        data = self.slack_api_call(url, params=params)
+        data = SlackHelper.slack_api_call(url=url, session=self.session, params=params)
         if data:
             if data.get("ok"):
                 return data["permalink"]
@@ -526,10 +541,11 @@ class SlackHelper:
         -------
             str or None: The Slack access token if found, otherwise None.
         """
+        datasource_id = Datasource.query.filter_by(name=DATASOURCE_SLACK).first().datasource_id
         auth_value = (
             db.session.query(UserAuth.auth_value)
             .join(User, User.id == UserAuth.user_id)
-            .filter(User.email == email, UserAuth.datasource_id == 3)
+            .filter(User.email == email, UserAuth.datasource_id == datasource_id)
             .first()
         )
         if auth_value:
@@ -552,7 +568,8 @@ class SlackHelper:
             thread_text = thread_text.replace(user_id, user_name)
         return thread_text
 
-    def slack_api_call(self, url: str, params: dict = None, max_retries: int = 3) -> dict | None:
+    @staticmethod
+    def slack_api_call(url: str, session: requests.Session, params: dict) -> dict | None:
         """
         Make a Slack API call and handle the response, including rate limiting.
 
@@ -566,11 +583,13 @@ class SlackHelper:
         -------
             dict: The response from the Slack API call.
         """
+        max_retries: int = 3
+
         for attempt in range(max_retries):
             if attempt > 0:
                 logging.debug(f"Making Slack API call to {url} with params: {params} \
                                         (Attempt {attempt + 1}/{max_retries})")
-            response = self.session.get(url, params=params or {})
+            response = session.get(url, params=params or {})
 
             # response.ok is true if status code is 200
             if response.ok:
@@ -592,14 +611,3 @@ class SlackHelper:
 
         logging.error(f"Max retries reached for Slack API call to {url}")
         return None
-
-    def handle_callback(self) -> bool:
-        """
-        Handle the OAuth callback, exchange code for token.
-
-        and update the user's Slack token in the database.
-
-        Returns
-        -------
-            Bool: True if the callback was successful, False otherwise.
-        """

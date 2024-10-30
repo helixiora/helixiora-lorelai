@@ -14,9 +14,9 @@
             <div class="card-body">
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item"><strong>Full Name:</strong> {{ user.full_name }}</li>
-                    <li class="list-group-item"><strong>Username:</strong> {{ user.user_name }}</li>
+                    <li class="list-group-item"><strong>Username:</strong> {{ user.username }}</li>
                     <li class="list-group-item"><strong>Email:</strong> {{ user.email }}</li>
-                    <li class="list-group-item"><strong>Organisation:</strong> {{ user.org_name }}</li>
+                    <li class="list-group-item"><strong>Organisation:</strong> {{ user.organisation }}</li>
                     <li class="list-group-item"><strong>Role:</strong>
                         {% for role in user.roles %}
                             {{ role.name }}{% if not loop.last %}, {% endif %}
@@ -68,13 +68,13 @@
         <div class="card mb-2 mt-2" id="card-integrations">
             <h5 class="h5 card-header">Integrations</h5>
             <div class="card-body">
-            {% if features.google_drive %}
+            {% if config.FEATURE_GOOGLE_DRIVE %}
                 {% include 'integrations/profile-google.html' %}
             {% else %}
                 <p>Google Drive is not available in this environment.</p>
             {% endif %}
 
-            {% if features.slack %}
+            {% if config.FEATURE_SLACK %}
                 {% include 'integrations/profile-slack.html' %}
             {% else %}
                 <p>Slack is not available in this environment.</p>

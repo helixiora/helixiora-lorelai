@@ -47,6 +47,7 @@ class Config:
     # Google settings
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID")
+    GOOGLE_APP_ID = GOOGLE_CLIENT_ID.split("-")[0]  # app id is everything before the first dash
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 

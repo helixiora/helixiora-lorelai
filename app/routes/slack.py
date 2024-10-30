@@ -33,20 +33,24 @@ def slack_callback():
     slack_datasource = Datasource.query.filter_by(name="Slack").first()
     if not slack_datasource:
         logging.error("Slack datasource not found")
-        return False
+        flash("Error: Slack integration not configured properly.", "error")
+        return redirect(url_for("auth.profile"))
 
     code = request.args.get("code")
     if not code:
         logging.error("No code received from Slack")
-        return False
+        flash("Error: No authorization code received from Slack.", "error")
+        return redirect(url_for("auth.profile"))
 
     try:
         auth_data = SlackHelper.get_access_token(code)
         if not auth_data:
             logging.error("Failed to get access token from Slack")
-            return False
+            flash("Error: Failed to get authorization from Slack.", "error")
+            return redirect(url_for("auth.profile"))
 
         access_token = auth_data["access_token"]
+        logging.info(f"Access token: {len(access_token)} characters")
         team_name = auth_data["team_name"]
         team_id = auth_data["team_id"]
 
@@ -55,6 +59,7 @@ def slack_callback():
         session["slack.team_name"] = team_name
         session["slack.team_id"] = team_id
 
+        # First try to find existing auth
         user_auth = UserAuth.query.filter_by(
             user_id=session["user.id"],
             datasource_id=slack_datasource.datasource_id,
@@ -62,21 +67,20 @@ def slack_callback():
         ).first()
 
         if user_auth:
+            # Update existing auth
             user_auth.auth_value = access_token
-            logging.info(f"Updated existing UserAuth for user {session['user.id']}")
+            user_auth.auth_type = "oauth"
         else:
-            new_auth = UserAuth(
+            # Create new auth
+            user_auth = UserAuth(
                 user_id=session["user.id"],
                 datasource_id=slack_datasource.datasource_id,
                 auth_key="access_token",
                 auth_value=access_token,
                 auth_type="oauth",
             )
-            db.session.add(new_auth)
-            logging.info(f"Created new UserAuth for slack for user {session['user.id']}")
+            db.session.add(user_auth)
 
-        # see if there are any pending changes to the database
-        logging.info(f"Committing pending changes to database for slack, user {session['user.id']}")
         db.session.commit()
         logging.info(f"Successfully saved access token for slack for user {session['user.id']}")
         flash("Slack account authorized successfully.", "success")
