@@ -27,14 +27,6 @@
                     </div>
                 {% endif %}
 
-                {% if ('super_admin' in session.get('user.user_roles', [])) or ('org_admin' in session.get('user.user_roles', [])) %}
-                    <div class="d-flex align-items-center mb-2">
-                        <button class="btn btn-primary btn-block me-2" style="flex: 0.5;" onclick="startSlackIndexing()">Start Slack indexer</button>
-                        <div style="flex: 2;">Indexes Slack for the current organisation.</div>
-                    </div>
-                {% endif %}
-
-
                 <div>
                     <div class="alert" id="statusMessage" role="alert" style="display: none;"></div>
                     <p>Once indexing is complete, you will receive a notification in the top-left corner of the screen as well as an email if you have enabled that.</p>

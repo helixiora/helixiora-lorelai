@@ -185,38 +185,3 @@ def run_indexer(
             return job.meta["progress"]
 
 
-def run_slack_indexer(user_email: str, org_name: str):
-    """
-    Run the Slack indexer for a given user and organisation.
-
-    This function retrieves the current job, logs task information, and initializes
-    the indexing progress. It then creates a SlackIndexer instance for the specified
-    user and organisation, and starts processing Slack messages.
-
-    Args:
-        user_email (str): The email of the user running the indexer.
-        org_name (str): The name of the organisation for which the Slack data is being indexed.
-    """
-    from app.factory import create_app
-
-    app = create_app()  # Create the Flask app
-    with app.app_context():  # Set up the application context
-        start_time = time.time()
-        job = get_current_job()
-        if job is None:
-            raise ValueError("Could not get the current job.")
-
-        logging.info(f"Task ID -> Run Slack Indexer: {job.id} for {org_name}")
-
-        # Initialize job meta with logs
-        job.meta["progress"] = {"current": 0, "total": 100, "status": "Initializing indexing..."}
-        job.meta["logs"] = []
-        job.save_meta()
-
-        indexer = SlackIndexer(user_email, org_name)
-
-        # this should be a generic function that can be called for any indexer
-        indexer.process_slack_message()
-
-        logging.info(f"Slack Indexer Completed for {org_name}")
-        logging.info(f"run_slack_indexer for {user_email} took {(time.time()-start_time)/60} mins")
