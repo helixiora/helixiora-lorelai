@@ -224,7 +224,7 @@ def start_indexing(type) -> str:
 
         for org_row in org_rows:
             user_rows = (
-                User.query.filter_by(org_id=org_row["id"])
+                User.query.filter_by(org_id=org_row.id)
                 if type in ["organisation", "all"]
                 else User.query.filter_by(id=user_id, org_id=org_id)
             )
