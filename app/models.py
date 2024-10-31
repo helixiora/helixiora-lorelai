@@ -3,6 +3,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+from sqlalchemy.dialects.mysql import INTEGER
 
 db = SQLAlchemy()
 
@@ -165,6 +166,8 @@ class User(UserMixin, db.Model):
     logins = db.relationship("UserLogin", backref="user", lazy=True)
 
     organisation = db.relationship("Organisation", back_populates="users", lazy=True)
+    # Relationship to extra messages
+    extra_messages = db.relationship("ExtraMessages", back_populates="user", lazy=True)
 
     def __repr__(self):
         """Return a string representation of the user."""
@@ -236,3 +239,26 @@ class Notification(db.Model):
     dismissed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ExtraMessages(db.Model):
+    """Model for the extra_messages table."""
+
+    __tablename__ = "extra_messages"
+
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.user_id", ondelete="CASCADE"), primary_key=True
+    )
+    quantity = db.Column(INTEGER(unsigned=True), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.TIMESTAMP, nullable=True, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.TIMESTAMP, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    # Relationship to User (optional)
+    user = db.relationship("User", back_populates="extra_messages")
+
+    def __repr__(self):
+        """Return a string representation of the extra message entry."""
+        return f"<ExtraMessages user_id={self.user_id}, quantity={self.quantity}, is_active={self.is_active}>"  # noqa: E501

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func, desc
 from app.helpers.users import is_admin
-from app.models import db, ChatThread, ChatMessage, UserPlan, Plan
+from app.models import db, ChatThread, ChatMessage, UserPlan, Plan, ExtraMessages
 from flask import current_app
 
 
@@ -277,7 +277,7 @@ def get_daily_message_limit(user_id: int) -> int:
         int : The daily message limit if an active plan is found, otherwise 0.
     """
     try:
-        active_plan = (
+        """active_plan = (
             db.session.query(Plan.message_limit_daily)
             .join(UserPlan)
             .filter(
@@ -287,12 +287,61 @@ def get_daily_message_limit(user_id: int) -> int:
                 UserPlan.end_date >= func.curdate(),
             )
             .first()
+        )"""
+
+        user_plan = (
+            db.session.query(Plan.message_limit_daily)
+            .join(UserPlan, UserPlan.plan_id == Plan.plan_id)
+            .filter(
+                UserPlan.user_id == user_id,
+                UserPlan.is_active,
+                UserPlan.start_date <= func.curdate(),
+                UserPlan.end_date >= func.curdate(),
+            )
+            .first()
         )
 
-        return active_plan.message_limit_daily if active_plan else 0
+        return user_plan.message_limit_daily if user_plan else 0
     except Exception as e:
         logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
         raise e
+
+
+def deduct_extra_message_if_available(user_id: int):
+    """
+    Deduct an extra message if available for the user.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns
+    -------
+        bool: True if the deduction was successful, otherwise False.
+    """
+    try:
+        # Check the current quantity of extra messages
+        extra_message_entry = (
+            db.session.query(ExtraMessages).filter_by(user_id=user_id, is_active=True).first()
+        )
+
+        if extra_message_entry is None:
+            # No active extra messages for this user
+            return False
+
+        if extra_message_entry.quantity <= 0:
+            return False
+
+        # Deduct one message
+        extra_message_entry.quantity -= 1
+
+        # Commit the changes to the database
+        db.session.commit()
+        return True
+
+    except Exception as e:
+        logging.error(f"Error deducting extra message for user_id {user_id}: {e}")
+        db.session.rollback()  # Rollback in case of error
+        return False
 
 
 def can_send_message(user_id: int) -> bool:
@@ -307,5 +356,13 @@ def can_send_message(user_id: int) -> bool:
         bool: True if the user can send a message, otherwise False.
     """
     daily_limit = get_daily_message_limit(user_id)
+    logging.info(f"Daily Message Limit for {user_id}: {daily_limit}")
     message_usages = get_msg_count_last_24hr(user_id)
-    return message_usages < daily_limit
+    logging.info(f"Daily Message Used for {user_id}: {message_usages}")
+    if message_usages < daily_limit:
+        return True
+
+    # In future we have to deduct extra message only if bot has replied. for now its ok.
+    status = deduct_extra_message_if_available(user_id=user_id)
+    # status True if extra message is available false if not
+    return status
