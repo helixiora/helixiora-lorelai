@@ -175,6 +175,7 @@ def job_status(job_id: str) -> str:
 
 @admin_bp.route("/admin/index/<type>", methods=["POST"])
 # note we don't require a role because a regular user should be able to index their own stuff
+@login_required
 def start_indexing(type) -> str:
     """Start indexing the data for the organisation of the logged-in user.
 
@@ -246,8 +247,8 @@ def start_indexing(type) -> str:
                     user_auths=user_auth_rows,
                     started_by_user_id=user_id,
                     job_timeout=3600,
-                    description=f"Indexing GDrive: {len(user_rows)} users in {org_row.name} - \
-Start time: {datetime.now()}",
+                    description=f"Indexing started by {user_id}: {len(user_rows)} users in \
+{org_row.name} - Start time: {datetime.now()}",
                 )
 
                 job_id = job.get_id()
@@ -267,6 +268,7 @@ Start time: {datetime.now()}",
 
 @admin_bp.route("/admin/pinecone")
 @role_required(["super_admin", "org_admin"])
+@login_required
 def list_indexes() -> str:
     """Return the list indexes page.
 
@@ -283,6 +285,7 @@ def list_indexes() -> str:
 
 @admin_bp.route("/admin/pinecone/<host_name>")
 @role_required(["super_admin", "org_admin"])
+@login_required
 def index_details(host_name: str) -> str:
     """Return the index details page."""
     pinecone_helper = PineconeHelper()
@@ -299,6 +302,7 @@ def index_details(host_name: str) -> str:
 
 @admin_bp.route("/admin/setup", methods=["GET"])
 @role_required(["super_admin", "org_admin"])
+@login_required
 def setup() -> str:
     """Return the LorelAI setup page.
 
@@ -322,6 +326,7 @@ def setup() -> str:
 
 @admin_bp.route("/admin/setup", methods=["POST"])
 @role_required(["super_admin", "org_admin"])
+@login_required
 def setup_post() -> str:
     """Create the database using the .db/baseline_schema.sql file.
 

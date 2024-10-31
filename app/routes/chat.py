@@ -188,7 +188,8 @@ def conversation(thread_id):
     session["thread_id"] = thread_id
     chat_template_requirements = get_chat_template_requirements(thread_id, session["user.id"])
     return render_template(
-        template_name_or_list="index_logged_in.html",
+        "index_logged_in.html",
+        username=session["user.user_name"],
         user_email=session["user.email"],
         recent_conversations=chat_template_requirements["recent_conversations"],
         is_admin=chat_template_requirements["is_admin_status"],
@@ -239,7 +240,7 @@ def index():
         return render_template(
             "index_logged_in.html",
             user_email=current_user.email,
-            user_name=current_user.user_name,
+            username=current_user.user_name,
             recent_conversations=chat_template_requirements["recent_conversations"],
             is_admin=chat_template_requirements["is_admin_status"],
             support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],
