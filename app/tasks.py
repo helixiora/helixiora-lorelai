@@ -11,10 +11,11 @@ from app.helpers.notifications import add_notification
 
 # import the indexer
 from lorelai.indexer import Indexer
-from lorelai.llm import Llm
+from lorelai.indexers.googledriveindexer import GoogleDriveIndexer
 from lorelai.indexers.slackindexer import SlackIndexer
+from lorelai.llm import Llm
 
-from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema, GoogleDriveItemSchema
+from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema
 
 logging_format = os.getenv(
     "LOG_FORMAT",
@@ -98,25 +99,25 @@ def get_answer_from_rag(
 
 
 def run_indexer(
-    org_row: OrganisationSchema,
-    user_rows: list[UserSchema],
-    user_auth_rows: list[UserAuthSchema],
-    user_data_rows: list[GoogleDriveItemSchema],
+    organisation: OrganisationSchema,
+    users: list[UserSchema],
+    user_auths: list[UserAuthSchema],
     started_by_user_id: int,
+    indexer_class: type[Indexer] = None,
 ):
     """
     Run the indexer. Should be called from an rq job.
 
     Arguments
     ---------
-    org_row: OrganisationSchema
+    organisation: OrganisationSchema
         Organisation data.
-    user_rows: List[UserSchema]
+    users: List[UserSchema]
         List of user data.
-    user_auth_rows: List[UserAuthSchema]
+    user_auths: List[UserAuthSchema]
         List of user authentication data.
-    user_data_rows: List[GoogleDriveItemSchema]
-        List of user data items.
+    indexer_class: type[Indexer]
+        The indexer class to use.
 
     Returns
     -------
@@ -131,92 +132,43 @@ def run_indexer(
         if job is None:
             raise ValueError("Could not get the current job.")
 
-        logging.debug(f"Task ID -> Run Indexer: {job.id} for {org_row['name']}")
+        logging.debug(f"Task ID -> Run Indexer: {job.id} for {organisation.name}")
 
-        # Initialize indexer
-        indexer = Indexer.create("GoogleDriveIndexer")
+        if indexer_class is None:
+            indexers = [GoogleDriveIndexer, SlackIndexer]
+        else:
+            indexers = [indexer_class]
 
-        # Initialize job meta with logs
-        job.meta["progress"] = {"current": 0, "total": 100, "status": "Initializing indexing..."}
-        job.meta["logs"] = []
-        job.save_meta()
+        for indexer_class in indexers:
+            # Initialize indexer
+            indexer = Indexer.create(indexer_type=indexer_class.__name__)
 
-        try:
-            logging.debug("Starting indexing...")
-            job.meta["status"] = "Indexing"
-            job.meta["logs"].append("Starting indexing...")
-            job.save_meta()
-            logging.debug(f"{org_row},{user_rows},{user_auth_rows},{job},")
-
-            # Perform indexing
-            results = indexer.index_org(
-                user_rows=user_rows,
-                user_auth_rows=user_auth_rows,
-                user_data_rows=user_data_rows,
-                org_row=org_row,
-                job=job,
-            )
-
-            for result in results:
-                logging.debug(result)
-                job.meta["logs"].append(result)
+            # Initialize job meta with logs
+            try:
+                logging.debug(f"Starting indexing {indexer_class.__name__}...")
+                job.meta["status"] = "Indexing"
                 job.save_meta()
+                logging.debug(f"{organisation},{users},{user_auths},{job},")
 
-            add_notification(
-                user_id=started_by_user_id,
-                title="Indexing completed",
-                type="success",
-                message=f"Indexing completed for {org_row['name']}",
-            )
+                # Perform indexing
+                results = indexer.index_org(
+                    organisation=organisation,
+                    users=users,
+                    user_auths=user_auths,
+                    job=job,
+                )
 
-            logging.debug("Indexing completed!")
-        except Exception as e:
-            logging.error(f"Error in run_indexer task: {str(e)}", exc_info=True)
-            job.meta["logs"].append(f"Error in run_indexer task: {str(e)}")
-            job.meta["progress"] = {
-                "current": 100,
-                "total": 100,
-                "status": f"Task failed! {e}",
-                "result": 0,
-            }
-            job.save_meta()
-            job.set_status("failed")
+                for result in results:
+                    logging.debug(result)
 
-            return job.meta["progress"]
+                add_notification(
+                    user_id=started_by_user_id,
+                    title="Indexing completed",
+                    type="success",
+                    message=f"Indexing completed for {organisation.name}",
+                )
 
-
-def run_slack_indexer(user_email: str, org_name: str):
-    """
-    Run the Slack indexer for a given user and organisation.
-
-    This function retrieves the current job, logs task information, and initializes
-    the indexing progress. It then creates a SlackIndexer instance for the specified
-    user and organisation, and starts processing Slack messages.
-
-    Args:
-        user_email (str): The email of the user running the indexer.
-        org_name (str): The name of the organisation for which the Slack data is being indexed.
-    """
-    from app.factory import create_app
-
-    app = create_app()  # Create the Flask app
-    with app.app_context():  # Set up the application context
-        start_time = time.time()
-        job = get_current_job()
-        if job is None:
-            raise ValueError("Could not get the current job.")
-
-        logging.info(f"Task ID -> Run Slack Indexer: {job.id} for {org_name}")
-
-        # Initialize job meta with logs
-        job.meta["progress"] = {"current": 0, "total": 100, "status": "Initializing indexing..."}
-        job.meta["logs"] = []
-        job.save_meta()
-
-        indexer = SlackIndexer(user_email, org_name)
-
-        # this should be a generic function that can be called for any indexer
-        indexer.process_slack_message()
-
-        logging.info(f"Slack Indexer Completed for {org_name}")
-        logging.info(f"run_slack_indexer for {user_email} took {(time.time()-start_time)/60} mins")
+                logging.debug("Indexing completed!")
+            except Exception as e:
+                logging.error(f"Error in run_indexer task: {str(e)}", exc_info=True)
+                job.set_status("failed")

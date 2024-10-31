@@ -12,7 +12,6 @@ from rq import job
 
 import pinecone
 
-
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
@@ -29,7 +28,6 @@ class Processor:
         """Initialize the Processor class."""
         # needed for the openai embeddings model
         os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
-
         os.environ["PINECONE_API_KEY"] = current_app.config["PINECONE_API_KEY"]
 
     def pinecone_filter_deduplicate_documents_list(
@@ -262,9 +260,8 @@ class Processor:
                 chunk = tuple(itertools.islice(it, batch_size))
 
         logging.info(f"Storing {len(docs)} documents for user: {user_email}")
-        job.meta["logs"].append(f"Storing {len(docs)} documents for user: {user_email}")
 
-        chunk_size = current_app.config["EMBEDDING_CHUNK_SIZE"]
+        chunk_size = current_app.config["EMBEDDINGS_CHUNK_SIZE"]
         embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
         logging.debug(f"Using chunk size: {chunk_size} and embedding model: {embedding_model_name}")
 
@@ -273,7 +270,6 @@ class Processor:
         # Iterate over documents and split each document's text into chunks
         document_chunks = splitter.split_documents(docs)
         logging.info(f"Converted {len(docs)} docs into {len(document_chunks)} Chunks")
-        job.meta["logs"].append(f"Converted {len(docs)} docs into {len(document_chunks)} Chunks")
 
         embedding_model = OpenAIEmbeddings(model=embedding_model_name)
         embedding_dimension = get_embedding_dimension(embedding_model_name)
@@ -282,7 +278,7 @@ class Processor:
 
         pinecone_helper = PineconeHelper()
         pc_index, index_name = pinecone_helper.get_index(
-            org=org_name,
+            org_name=org_name,
             datasource=datasource,
             environment=current_app.config["LORELAI_ENVIRONMENT"],
             env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
@@ -291,10 +287,6 @@ class Processor:
         )
 
         logging.info(
-            f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
-                using:embedding_model:{embedding_model_name}"
-        )
-        job.meta["logs"].append(
             f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
                 using:embedding_model:{embedding_model_name}"
         )

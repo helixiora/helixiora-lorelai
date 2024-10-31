@@ -1,10 +1,11 @@
 """Configuration for the Flask app."""
 
-from lorelai.utils import get_embedding_dimension
-
 import os
 from datetime import timedelta
+
 from dotenv import load_dotenv
+
+from lorelai.utils import get_embedding_dimension
 
 load_dotenv()
 
@@ -49,6 +50,7 @@ class Config:
     # Google settings
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID")
+    GOOGLE_APP_ID = GOOGLE_CLIENT_ID.split("-")[0]  # app id is everything before the first dash
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
@@ -79,10 +81,8 @@ class Config:
 
     # Embeddings settings
     EMBEDDINGS_MODEL = os.environ.get("EMBEDDINGS_MODEL", "text-embedding-3-small")
-    EMBEDDINGS_DIMENSION = get_embedding_dimension(EMBEDDINGS_MODEL)
-    # EMBEDDINGS_DIMENSION = os.environ.get("EMBEDDINGS_DIMENSION", 1536)
     EMBEDDINGS_CHUNK_SIZE = int(os.environ.get("EMBEDDINGS_CHUNK_SIZE", 4000))
-    EMBEDDINGS_DIMENSION = int(os.environ.get("EMBEDDINGS_DIMENSION", 1536))
+    EMBEDDINGS_DIMENSION = get_embedding_dimension(EMBEDDINGS_MODEL)
 
     # SendGrid settings
     SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")

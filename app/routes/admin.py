@@ -23,9 +23,9 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from flask_jwt_extended import jwt_required
-from app.models import User, Role, db, Organisation, UserAuth, GoogleDriveItem, Datasource
-from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema, GoogleDriveItemSchema
-from app.tasks import run_indexer, run_slack_indexer
+from app.models import User, Role, db, Organisation, UserAuth, Datasource
+from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
+from app.tasks import run_indexer
 from app.helpers.database import create_user
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from app.helpers.users import (
@@ -175,6 +175,7 @@ def job_status(job_id: str) -> str:
 
 @admin_bp.route("/admin/index/<type>", methods=["POST"])
 # note we don't require a role because a regular user should be able to index their own stuff
+@login_required
 def start_indexing(type) -> str:
     """Start indexing the data for the organisation of the logged-in user.
 
@@ -219,7 +220,7 @@ def start_indexing(type) -> str:
             if type in ["user", "organisation"]
             else Organisation.query.all()
         )
-        org_rows = [OrganisationSchema.from_orm(org).dict() for org in org_rows]
+        org_rows = [OrganisationSchema.from_orm(org) for org in org_rows]
 
         for org_row in org_rows:
             user_rows = (
@@ -228,36 +229,26 @@ def start_indexing(type) -> str:
                 else User.query.filter_by(id=user_id, org_id=org_id)
             )
             # Ensure all required fields are present
-            user_rows = [UserSchema.from_orm(user).dict(exclude_unset=True) for user in user_rows]
+            user_rows = [UserSchema.from_orm(user) for user in user_rows]
 
             user_auth_rows = []
-            user_data_rows = []
             for user_row in user_rows:
                 user_auth_rows_for_user = UserAuth.query.filter_by(
-                    user_id=user_row["id"], datasource_id=datasource_id
+                    user_id=user_row.id, datasource_id=datasource_id
                 )
                 user_auth_rows.extend(
-                    [UserAuthSchema.from_orm(auth).dict() for auth in user_auth_rows_for_user]
-                )
-
-                user_data_rows_for_user = GoogleDriveItem.query.filter_by(user_id=user_row["id"])
-                user_data_rows.extend(
-                    [
-                        GoogleDriveItemSchema.from_orm(data).dict()
-                        for data in user_data_rows_for_user
-                    ]
+                    [UserAuthSchema.from_orm(auth) for auth in user_auth_rows_for_user]
                 )
 
                 job = queue.enqueue(
                     run_indexer,
-                    org_row=org_row,
-                    user_rows=user_rows,
-                    user_auth_rows=user_auth_rows,
-                    user_data_rows=user_data_rows,
+                    organisation=org_row,
+                    users=user_rows,
+                    user_auths=user_auth_rows,
                     started_by_user_id=user_id,
                     job_timeout=3600,
-                    description=f"Indexing GDrive: {len(user_rows)} users in {org_row['name']} - \
-Start time: {datetime.now()}",
+                    description=f"Indexing started by {user_id}: {len(user_rows)} users in \
+{org_row.name} - Start time: {datetime.now()}",
                 )
 
                 job_id = job.get_id()
@@ -275,48 +266,9 @@ Start time: {datetime.now()}",
         db.session.close()
 
 
-@admin_bp.route("/admin/startslackindex", methods=["POST"])
-# @role_required(["super_admin", "org_admin"])
-# For Slack it logical that only org admin can run the indexer as the bot need to be added to
-# slack then added to channel  # noqa: E501
-@jwt_required(optional=False, locations=["cookies"])
-def start_slack_indexing() -> str:
-    """Start slack indexing the data for the organisation of the logged-in user.
-
-    Returns
-    -------
-    str
-        The job_id of the indexing job.
-
-    Raises
-    ------
-    ConnectionError
-        If the connection to the Redis server or the database fails.
-    """
-    try:
-        jobs = []
-        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-        queue = Queue(connection=redis_conn)
-        user_email = session["user.email"]
-        org_name = current_user.organisation.name
-        job = queue.enqueue(
-            run_slack_indexer,
-            user_email=user_email,
-            org_name=org_name,
-            job_timeout=3600 * 2,
-            description=f"Indexing Slack: for {org_name}",
-        )
-        job_id = job.get_id()
-        jobs.append(job_id)
-        logging.info("Started Slack Indexer")
-        return jsonify({"jobs": jobs}), 202
-    except Exception as e:
-        logging.error(f"Error starting Slack indexing: {e}")
-        return jsonify({"error": "Failed to start Slack indexing"}), 500
-
-
 @admin_bp.route("/admin/pinecone")
 @role_required(["super_admin", "org_admin"])
+@login_required
 def list_indexes() -> str:
     """Return the list indexes page.
 
@@ -333,6 +285,7 @@ def list_indexes() -> str:
 
 @admin_bp.route("/admin/pinecone/<host_name>")
 @role_required(["super_admin", "org_admin"])
+@login_required
 def index_details(host_name: str) -> str:
     """Return the index details page."""
     pinecone_helper = PineconeHelper()
@@ -349,6 +302,7 @@ def index_details(host_name: str) -> str:
 
 @admin_bp.route("/admin/setup", methods=["GET"])
 @role_required(["super_admin", "org_admin"])
+@login_required
 def setup() -> str:
     """Return the LorelAI setup page.
 
@@ -372,6 +326,7 @@ def setup() -> str:
 
 @admin_bp.route("/admin/setup", methods=["POST"])
 @role_required(["super_admin", "org_admin"])
+@login_required
 def setup_post() -> str:
     """Create the database using the .db/baseline_schema.sql file.
 

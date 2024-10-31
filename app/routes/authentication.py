@@ -43,8 +43,9 @@ import requests as lib_requests
 
 from flask import current_app
 
-from app.models import User, UserLogin, UserAuth, db, GoogleDriveItem, Organisation
-
+from app.models import User, UserLogin, UserAuth, db, GoogleDriveItem, Organisation, Datasource
+from app.helpers.slack import SlackHelper
+from app.helpers.datasources import DATASOURCE_SLACK, DATASOURCE_GOOGLE_DRIVE
 from app.helpers.users import (
     is_admin,
     validate_form,
@@ -53,7 +54,7 @@ from app.helpers.users import (
     get_user_profile,
     assign_free_plan_if_no_active,
 )
-from app.schemas import UserSchema
+from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 
 from flask_jwt_extended import (
     create_access_token,
@@ -79,6 +80,8 @@ def refresh_google_token_if_needed(access_token):
     str
         The refreshed access token or None if refresh failed.
     """
+    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+    # Check if the token is still valid
     token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
     response = lib_requests.get(token_info_url)
     if response.status_code == 200 and "error" not in response.json():
@@ -87,7 +90,9 @@ def refresh_google_token_if_needed(access_token):
     # If we're still here, the token is invalid or expired, refresh it
     refresh_token = session.get("google_drive.refresh_token")
     if not refresh_token:
-        result = UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").first()
+        result = UserAuth.query.filter_by(
+            user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+        ).first()
         if not result:
             logging.error("No refresh token found for user %s", current_user.id)
             return None
@@ -108,8 +113,12 @@ def refresh_google_token_if_needed(access_token):
         if error_data.get("error") == "invalid_grant":
             logging.error("Invalid grant error. Refresh token may be expired or revoked.")
             # Clear the invalid refresh token
-            UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").delete()
-            UserAuth.query.filter_by(user_id=current_user.id, auth_key="access_token").delete()
+            UserAuth.query.filter_by(
+                user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+            ).delete()
+            UserAuth.query.filter_by(
+                user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
+            ).delete()
             db.session.commit()
             # You may want to redirect the user to re-authenticate here
             return None
@@ -120,15 +129,15 @@ def refresh_google_token_if_needed(access_token):
     new_access_token = new_tokens["access_token"]
 
     # Update the access token in the database
-    UserAuth.query.filter_by(user_id=current_user.id, auth_key="access_token").update(
-        {"auth_value": new_access_token}
-    )
+    UserAuth.query.filter_by(
+        user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
+    ).update({"auth_value": new_access_token})
 
     # Update the refresh token if a new one was provided
     if "refresh_token" in new_tokens:
-        UserAuth.query.filter_by(user_id=current_user.id, auth_key="refresh_token").update(
-            {"auth_value": new_tokens["refresh_token"]}
-        )
+        UserAuth.query.filter_by(
+            user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+        ).update({"auth_value": new_tokens["refresh_token"]})
 
     db.session.commit()
     return new_access_token
@@ -147,6 +156,34 @@ def user_profile():
         update_user_profile(current_user.id, bio, location, birth_date, avatar_url)
         flash("Profile updated successfully", "success")
         return redirect(url_for("auth.profile"))
+
+
+def get_google_drive_access_token() -> str:
+    """Get the user's Google access token from the database if it's not in the session."""
+    google_drive_access_token = ""
+    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+
+    if session.get("google_drive.access_token") is None:
+        result = UserAuth.query.filter_by(
+            user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
+        ).first()
+
+        # if there is no result, the user has not authenticated with Google (yet)
+        if result:
+            logging.info("Access token found in user_auth for user %s", current_user.id)
+            google_drive_access_token = result.auth_value
+        else:
+            logging.info("No access token found in user_auth for user %s", current_user.id)
+            google_drive_access_token = ""
+    else:
+        logging.info("Access token found in session for user %s", current_user.id)
+        google_drive_access_token = session.get("google_drive.access_token")
+
+    if google_drive_access_token:
+        # Check if the token is still valid and refresh if necessary
+        google_drive_access_token = refresh_google_token_if_needed(google_drive_access_token)
+
+    return google_drive_access_token
 
 
 @auth_bp.route("/profile", methods=["GET"])
@@ -171,36 +208,10 @@ def profile():
         }
 
         profile = get_user_profile(current_user.id)
-        google_client_id = current_app.config["GOOGLE_CLIENT_ID"]
-        google_api_key = current_app.config["GOOGLE_API_KEY"]
-
-        # app id is everything before the first dash in the client id
-        google_app_id = google_client_id.split("-")[0]
-
-        # Get the user's Google access token from the database if it's not in the session
-        if session.get("google_drive.access_token") is None:
-            result = UserAuth.query.filter_by(
-                user_id=current_user.id, auth_key="access_token"
-            ).first()
-
-            # if there is no result, the user has not authenticated with Google (yet)
-            if result:
-                logging.info("Access token found in user_auth for user %s", current_user.id)
-                access_token = result.auth_value
-            else:
-                logging.info("No access token found in user_auth for user %s", current_user.id)
-                access_token = None
-        else:
-            logging.info("Access token found in session for user %s", current_user.id)
-            access_token = session.get("google_drive.access_token")
-
-        if access_token:
-            # Check if the token is still valid and refresh if necessary
-            access_token = refresh_google_token_if_needed(access_token)
 
         if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
+            google_drive_access_token = get_google_drive_access_token()
             google_docs_to_index = GoogleDriveItem.query.filter_by(user_id=current_user.id).all()
-
             logging.info(
                 "Google Drive feature is enabled. Found %s items to index.",
                 len(google_docs_to_index),
@@ -208,28 +219,59 @@ def profile():
         else:
             logging.warning("Google Drive feature is disabled.")
             google_docs_to_index = None
+            google_drive_access_token = None
 
-        logging.info(
-            "Rendering profile page for user %s with access_token %s", user["email"], access_token
-        )
-
+        slack_channels = None
         if int(current_app.config["FEATURE_SLACK"]) == 1:
             logging.info("Slack feature is enabled.")
+            # Get the Slack datasource ID
+            slack_datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+            if not slack_datasource:
+                logging.error("Slack datasource not found in database")
+                slack_channels = None
+            else:
+                slack_auth = UserAuth.query.filter_by(
+                    user_id=current_user.id,
+                    auth_key="access_token",
+                    datasource_id=slack_datasource.datasource_id,
+                ).first()
+
+                if slack_auth and slack_auth.auth_value:
+                    # Get all Slack auth records for the user
+                    user_auths = UserAuth.query.filter_by(
+                        user_id=current_user.id, datasource_id=slack_datasource.datasource_id
+                    ).all()
+
+                    try:
+                        slack = SlackHelper(
+                            user=UserSchema.from_orm(current_user),
+                            organisation=OrganisationSchema.from_orm(current_user.organisation),
+                            user_auths=[UserAuthSchema.from_orm(auth) for auth in user_auths],
+                        )
+                        if SlackHelper.test_slack_token(slack_auth.auth_value):
+                            slack_channels = slack.get_accessible_channels(only_joined=True)
+                            # convert from channelid = channelname to a list of #channelnames
+                            slack_channels = [f"#{name}" for name in slack_channels.values()]
+                        else:
+                            logging.warning("Slack token is invalid")
+                            slack_channels = None
+                    except Exception as e:
+                        logging.error(f"Error initializing SlackHelper: {e}")
+                        slack_channels = None
+                else:
+                    logging.info("No Slack access token found")
+                    slack_channels = None
+                    slack_auth = None
         else:
             logging.warning("Slack feature is disabled.")
+
         return render_template(
             "profile.html",
             user=user,
             is_admin=is_admin_status,
-            google_client_id=google_client_id,
-            google_api_key=google_api_key,
             google_docs_to_index=google_docs_to_index,
-            google_app_id=google_app_id,
-            google_drive_access_token=access_token,
-            features={
-                "google_drive": int(current_app.config["FEATURE_GOOGLE_DRIVE"]),
-                "slack": int(current_app.config["FEATURE_SLACK"]),
-            },
+            google_drive_access_token=google_drive_access_token,
+            slack_channels=slack_channels,
             profile=profile,
         )
     return "You are not logged in!", 403
