@@ -52,6 +52,7 @@ from app.helpers.users import (
     register_user_to_org,
     update_user_profile,
     get_user_profile,
+    assign_free_plan_if_no_active,
 )
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 
@@ -538,7 +539,7 @@ def login_user_function(
         session["lorelai_jwt.access_token"] = access_token
         session["lorelai_jwt.refresh_token"] = refresh_token
         user_schema = UserSchema.model_validate(user).model_dump()
-
+        assign_free_plan_if_no_active(user_id=user.id)
         for key, value in user_schema.items():
             logging.debug(f"user.{key} : {value}")
             session[f"user.{key}"] = value
