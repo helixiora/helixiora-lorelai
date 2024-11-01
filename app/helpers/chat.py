@@ -169,7 +169,9 @@ def get_all_thread_messages(thread_id: str) -> list:
     """
     try:
         messages = (
-            ChatMessage.query.filter_by(thread_id=thread_id)
+            db.session.query(ChatMessage)
+            .join(ChatThread, ChatMessage.thread_id == ChatThread.thread_id)
+            .filter(ChatMessage.thread_id == thread_id, ChatThread.marked_deleted == 0)
             .order_by(ChatMessage.created_at.asc())
             .all()
         )
