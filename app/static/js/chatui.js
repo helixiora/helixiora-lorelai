@@ -284,31 +284,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     async function get_conversation(conversationId) {
-        // add an API call here to fetch the conversation messages
-        console.log('Fetching conversation:', conversationId);
-        // get /api/conversation/conversationId
-        fetch(`/api/conversation/${conversationId}`)
-            .then(response => response.json())
-            .then(data => {
-                for (const message of data) {
-                    if (message.sender == "user") {
-                        addMessage(
-                            content=message.message_content,
-                            isUser=true,
-                            isHTML=true,
-                            isSources=false
-                        );
-                    } else {
-                        addMessage(
-                            content=message.message_content,
-                            isUser=false,
-                            isHTML=true,
-                            isSources=false
-                        );
+            console.log('Fetching conversation:', conversationId);
+
+            fetch(`/api/conversation/${conversationId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Check if the data is empty
+                    if (!data || data.length === 0) {
+                        console.warn('No messages found for this conversation.');
+                        window.location.href = '/';
+                        return;
                     }
-                }
-            });
-    }
+
+                    for (const message of data) {
+                        if (message.sender == "user") {
+                            addMessage(
+                                content=message.message_content,
+                                isUser=true,
+                                isHTML=true,
+                                isSources=false
+                            );
+                        } else {
+                            addMessage(
+                                content=message.message_content,
+                                isUser=false,
+                                isHTML=true,
+                                isSources=false
+                            );
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching conversation:', error);
+                    // Redirect to root if there's an error
+                    window.location.href = '/';
+                });
+        }
 
     // Add a welcoming message on page load
     const welcomeMessage = `## Welcome to Lorelai!
