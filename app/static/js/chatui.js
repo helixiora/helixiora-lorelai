@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add a welcoming message on page load
     const welcomeMessage = `## Welcome to Lorelai!
 
-We are excited to have you here! Feel free to ask any questions you have and set the datasource to the datasource you want to use.`;
+We are excited to have you here! Feel free to ask any questions you have, we will automatically retrieve the most relevant data from the datasources you have configured.`;
     addMessage(
         content=welcomeMessage,
         isUser=false,
