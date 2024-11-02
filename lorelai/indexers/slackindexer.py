@@ -133,7 +133,7 @@ class SlackIndexer(Indexer):
 
         try:
             # get the list of channels
-            channel_ids_dict = slack.get_accessible_channels()
+            channel_ids_dict = slack.get_accessible_channels(only_joined=True)
 
             # Process each channel
             for channel_id, channel_name in channel_ids_dict.items():
