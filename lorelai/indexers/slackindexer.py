@@ -151,8 +151,8 @@ class SlackIndexer(Indexer):
                 # TODO: check the size in bytes of the channel_chat_history
                 messages = slack.chunk_and_merge_metadata(
                     lst=channel_chat_history,
-                    word_limit=2200,
-                    word_overlap=800,
+                    word_limit=1500,
+                    word_overlap=600,
                     channel_id=channel_id,
                     channel_name=channel_name,
                 )

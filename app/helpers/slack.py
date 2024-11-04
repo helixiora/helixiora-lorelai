@@ -549,7 +549,7 @@ class SlackHelper:
                 logging.error(f"Error in response: {data['error']}")
                 return None
         else:
-            logging.error(f"Failed to get permalink. Error: {data.text}")
+            logging.error(f"Failed to get permalink. Error: {data}")
             return None
 
     def retrieve_access_token(self, email: str) -> str | None:
