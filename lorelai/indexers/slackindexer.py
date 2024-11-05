@@ -152,8 +152,8 @@ class SlackIndexer(Indexer):
                 # TODO: check the size in bytes of the channel_chat_history
                 messages = slack.chunk_and_merge_metadata(
                     lst=channel_chat_history,
-                    word_limit=3000,
-                    word_overlap=1000,
+                    word_limit=1500,
+                    word_overlap=600,
                     channel_id=channel_id,
                     channel_name=channel_name,
                 )
@@ -177,7 +177,6 @@ messages in batches batch_size: {batch_size}, total messages: {total_items}"
                     if batch:  # Only process if the batch is not empty
                         logging.info(f"processing batch {start_idx} to {end_idx} of {total_items} ")
                         logging.info("Creating embeds for batch for current batch")
-
                         # TODO: parameters ??!!
                         batch = self.add_embedding(self.embedding_model_name, batch)
 
@@ -215,7 +214,7 @@ messages in batches batch_size: {batch_size}, total messages: {total_items}"
                     f"Completed indexing for channel {channel_name} with channel_id {channel_id}"
                 )
             logging.info(
-                f"Slack Indexer ran successfully for org {self.org_name}, by user {self.email}"
+                f"Slack Indexer ran successfully for org {organisation.name}, by user {user.email}"
             )
             return True
         except Exception as e:

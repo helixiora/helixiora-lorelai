@@ -138,7 +138,6 @@ def run_indexer(
             indexers = [GoogleDriveIndexer, SlackIndexer]
         else:
             indexers = [indexer_class]
-
         for indexer_class in indexers:
             # Initialize indexer
             indexer = Indexer.create(indexer_type=indexer_class.__name__)
