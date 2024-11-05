@@ -67,8 +67,8 @@ class SlackHelper:
 
         This function processes a list of dictionaries, each containing metadata like text, source,
         timestamp, and channel information. It merges these dictionaries into chunks, each containing
-        up to `word_limit` words. Additionally, the function ensures there is an overlap of
-        `word_overlap` words between consecutive chunks.
+        up to word_limit words. Additionally, the function ensures there is an overlap of
+        word_overlap words between consecutive chunks.
 
 
         Args:
@@ -99,13 +99,39 @@ class SlackHelper:
         start = 0
         overlap_words = []  # List to store the overlapping words from the previous chunk
 
-        while start < len(lst):
+        # Step 1: Preprocess the list to handle oversized text fields
+        processed_lst = []
+        single_message_limit = int(word_limit / 2)
+        for item in lst:
+            words = item["metadata"]["text"].split()
+            # Check if the text exceeds the word limit
+            if len(words) > single_message_limit:
+                # Break the text into smaller chunks
+                for i in range(0, len(words), single_message_limit):
+                    sub_chunk_text = " ".join(words[i : i + single_message_limit])
+                    sub_chunk_item = {
+                        "id": item["id"],
+                        "values": item["values"],
+                        "metadata": {
+                            "text": sub_chunk_text,
+                            "source": item["metadata"]["source"],
+                            "msg_ts": item["metadata"]["msg_ts"],
+                            "channel_name": item["metadata"]["channel_name"],
+                            "users": item["metadata"]["users"],
+                        },
+                    }
+                    processed_lst.append(sub_chunk_item)
+            else:
+                processed_lst.append(item)
+
+        # Step 2: Continue with the original chunking and merging process
+        while start < len(processed_lst):
             chunk = []
             word_count = len(overlap_words)  # Start with overlap word count
 
             # Collect items into a chunk until the word limit is reached
-            while start < len(lst) and word_count < word_limit:
-                item = lst[start]
+            while start < len(processed_lst) and word_count < word_limit:
+                item = processed_lst[start]
                 chunk.append(item)
 
                 # Count words in the current item's metadata['text']
@@ -118,8 +144,6 @@ class SlackHelper:
 
             # Merge the metadata from all items in the chunk
             for item in chunk:
-                logging.debug(f'length of chunk {len(item["metadata"]["text"])}')
-                logging.debug(f'words in chunk {len(item["metadata"]["text"].split())}')
                 merged_text += item["metadata"]["text"] + " "
 
             # Remove trailing space from concatenated text
@@ -142,15 +166,13 @@ class SlackHelper:
             }
 
             result.append(merged_dict)
-
-            logging.debug(f"how many message added: {len(chunk)}")
-            logging.debug(f"length of merged text: {len(merged_text)}")
+            logging.info(
+                f"Words in Chunk: {len(merged_text.split())}\nLenght of Chunk: {len(merged_text)}"
+            )
             # Calculate overlap for the next chunk based on word_overlap
             if word_overlap > 0:
                 words_in_current_chunk = merged_text.split()
-                overlap_words = words_in_current_chunk[
-                    -word_overlap:
-                ]  # Get the last 'word_overlap' words
+                overlap_words = words_in_current_chunk[-word_overlap:]
 
         return result
 
@@ -527,7 +549,7 @@ class SlackHelper:
                 logging.error(f"Error in response: {data['error']}")
                 return None
         else:
-            logging.error(f"Failed to get permalink. Error: {data.text}")
+            logging.error(f"Failed to get permalink. Error: {data}")
             return None
 
     def retrieve_access_token(self, email: str) -> str | None:
