@@ -8,6 +8,7 @@ from flask import current_app
 
 import jwt
 import datetime
+from itertools import chain
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -230,3 +231,28 @@ def clean_text_for_vector(text):
     # Remove repeated punctuation
     text = re.sub(r"([!?.]){2,}", r"\1", text)
     return text
+
+
+def batch_embed_langchain_documents(embeddings_model, text_docs, batch_size=100):
+    """
+    Embed documents in batches to avoid memory issues with large lists.
+
+    Args:
+        embeddings_model: Model that provides the embed_documents method.
+        text_docs (list of str): List of text documents to embed.
+        batch_size (int): Number of documents per batch.
+
+    Returns
+    -------
+        list: List of embedding vectors in the original order.
+    """
+    # Split text_docs into batches
+    batches = [text_docs[i : i + batch_size] for i in range(0, len(text_docs), batch_size)]
+
+    # Embed each batch and collect results
+    embeds = [embeddings_model.embed_documents(batch) for batch in batches]
+
+    # Flatten the list of lists into a single list, preserving order
+    embeds_flat = list(chain.from_iterable(embeds))
+
+    return embeds_flat
