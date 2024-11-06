@@ -1,13 +1,14 @@
 # alembic and flask-migrate
 
-This app uses alembic for database migrations. Alembic and sqlalchemy are used to manage the database schema.
-Models are defined in app/models.py and migrations are defined in this folder.
+This app uses alembic for database migrations. Alembic and sqlalchemy are used to manage the
+database schema. Models are defined in app/models.py and migrations are defined in this folder.
 
 There's several operations that you regularly need to perform:
 
 - Create a new database (if you're setting up the project for the first time)
 - Create a new migration (when you add a new model or change a model)
-- Apply migrations (when you update the codebase with someone else's changes and need to update the database schema)
+- Apply migrations (when you update the codebase with someone else's changes and need to update the
+  database schema)
 
 ## Create a new database
 

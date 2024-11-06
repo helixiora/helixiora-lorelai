@@ -7,7 +7,7 @@ from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
 from flask_migrate import Migrate
-from flask_admin import Admin
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy_utils import database_exists, create_database
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -81,7 +81,6 @@ def create_app(config_name: str = "default") -> Flask:
 
     # Initialize JWT
     jwt = JWTManager(app)
-    # CSRFProtect(app)
 
     # Set up Sentry
     if app.config["SENTRY_DSN"]:
