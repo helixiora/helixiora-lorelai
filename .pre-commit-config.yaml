@@ -1,9 +1,9 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0  # Use version 4.6.0 of the standard pre-commit hooks
+    rev: v5.0.0 # Use version 4.6.0 of the standard pre-commit hooks
     hooks:
       - id: check-added-large-files
-        args: ['--maxkb=500']
+        args: ["--maxkb=500"]
         # Blocks commits that add large files, helping to keep the repository size manageable.
 
       - id: check-ast
@@ -34,7 +34,7 @@ repos:
         # Sorts simple YAML files to maintain a consistent order.
 
       - id: pretty-format-json
-        args: ['--autofix', '--indent=2']
+        args: ["--autofix", "--indent=2"]
         # Auto-formats JSON files to be more readable.
 
       - id: check-builtin-literals
@@ -65,6 +65,9 @@ repos:
       - id: detect-private-key
         # Blocks commits that contain private keys.
 
+      - id: double-quote-string-fixer
+        # Converts single-quoted strings to double-quoted strings in Python files.
+
       - id: end-of-file-fixer
         # Ensures files end with a newline.
 
@@ -75,7 +78,7 @@ repos:
     rev: v0.7.2
     hooks:
       - id: ruff
-        args: [ --fix ]
+        args: [--fix]
         # Runs Ruff linter to catch Python errors and automatically fix them if possible.
 
       - id: ruff-format
@@ -84,7 +87,7 @@ repos:
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.14.0
     hooks:
-    - id: markdownlint-cli2
+      - id: markdownlint-cli2
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.3.0
