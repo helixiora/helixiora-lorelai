@@ -6,8 +6,12 @@ import sys
 from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
-from flask_migrate import Migrate
+from flask_migrate import Migrate, upgrade
+from flask_admin import Admin
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy_utils import database_exists, create_database
 from werkzeug.middleware.proxy_fix import ProxyFix
+
 import sentry_sdk
 
 from app.models import db, User
@@ -19,6 +23,22 @@ from app.routes.google.authorization import googledrive_bp
 # from flask_wtf.csrf import CSRFProtect, generate_csrf
 from app.routes.slack import slack_bp
 from config import config
+
+
+def prepare_database(app: Flask, migrate: Migrate, db: SQLAlchemy):
+    """Prepare the database."""
+    with app.app_context():
+        # Create the database if it doesn't exist
+        if not database_exists(app.config["SQLALCHEMY_DATABASE_URI"]):
+            create_database(app.config["SQLALCHEMY_DATABASE_URI"])
+
+        # Create the tables if they don't exist
+        inspector = db.inspect(db.engine)
+        if "user" not in inspector.get_table_names():
+            db.create_all()
+
+        # Run migrations if they haven't been run yet
+        # upgrade()
 
 
 def create_app(config_name: str = "default") -> Flask:
@@ -43,12 +63,21 @@ def create_app(config_name: str = "default") -> Flask:
     app.config.from_object(config[config_name])
     config[config_name].init_app(app)
 
-    # Initialize extensions
+    # Initialize db
     db.init_app(app)
-    Migrate(app, db)
+
+    # Initialize Flask-Migrate
+    migrate = Migrate(app, db)
+    migrate.init_app(app, db)
+
+    prepare_database(app, migrate, db)
+
+    # Initialize LoginManager
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = "chat.index"
+
+    # Initialize JWT
     jwt = JWTManager(app)
     # CSRFProtect(app)
 
