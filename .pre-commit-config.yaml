@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0  # Use version 4.6.0 of the standard pre-commit hooks
+    rev: v5.0.0  # Use version 4.6.0 of the standard pre-commit hooks
     hooks:
       - id: check-added-large-files
         args: ['--maxkb=500']
@@ -72,7 +72,7 @@ repos:
         # Removes unnecessary trailing whitespace.
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.9
+    rev: v0.7.2
     hooks:
       - id: ruff
         args: [ --fix ]
@@ -82,7 +82,7 @@ repos:
         # Runs Ruff formatter to enforce a consistent code style in Python files.
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.13.0
+    rev: v0.14.0
     hooks:
     - id: markdownlint-cli2
 
@@ -92,6 +92,6 @@ repos:
       - id: codespell
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.17 # Use the desired version
+    rev: 0.7.18 # Use the desired version
     hooks:
       - id: mdformat
