@@ -6,11 +6,13 @@ import sys
 from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
-from flask_migrate import Migrate, upgrade
+from flask_migrate import Migrate
 from flask_admin import Admin
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy_utils import database_exists, create_database
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from app.cli import init_db_command, seed_db_command
 
 import sentry_sdk
 
@@ -111,7 +113,15 @@ def create_app(config_name: str = "default") -> Flask:
     setup_after_request(app)
     setup_jwt_handlers(jwt)
 
+    setup_cli(app)
+
     return app
+
+
+def setup_cli(app: Flask) -> None:
+    """Set up the CLI for the Flask app."""
+    app.cli.add_command(init_db_command)
+    app.cli.add_command(seed_db_command)
 
 
 def setup_error_handlers(app: Flask) -> None:
