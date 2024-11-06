@@ -14,10 +14,9 @@ from app.models import db, User
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
-from app.routes.google.authorization import googledrive_bp
+from app.routes.integrations.googledrive import googledrive_bp
+from app.routes.integrations.slack import slack_bp
 
-# from flask_wtf.csrf import CSRFProtect, generate_csrf
-from app.routes.slack import slack_bp
 from config import config
 
 
