@@ -65,9 +65,6 @@ repos:
       - id: detect-private-key
         # Blocks commits that contain private keys.
 
-      - id: double-quote-string-fixer
-        # Converts single-quoted strings to double-quoted strings in Python files.
-
       - id: end-of-file-fixer
         # Ensures files end with a newline.
 

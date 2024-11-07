@@ -30,7 +30,9 @@
                         <tbody id="content">
                         {% for doc in google_docs_to_index %}
                             <tr>
-                                <td><h5 class="mb-1">{{ doc.item_name }}
+                                <td>
+                                    <img src="{{ doc.icon_url }}" alt="Google Drive Icon" class="img-fluid me-2" style="width: 20px; height: 20px;">
+                                    <h5 class="mb-1">{{ doc.item_name }}
                                     <span class="info-icon" data-bs-toggle="tooltip" title="Google Docs ID: {{ doc.google_drive_id }}">
                                         <i class="bi bi-info-circle"></i>
                                     </span>
@@ -39,13 +41,7 @@
                                 <td>{{ doc.last_indexed_at }}</td>
                                 <td>
                                     <button class="btn btn-primary btn-sm mb-2" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove from Index</button>
-                                    {% if doc.item_type == 'document' %}
-                                        <button class="btn btn-primary btn-sm" onclick="window.open('https://docs.google.com/document/d/{{ doc.google_drive_id }}', '_blank')">View File</button>
-                                    {% elif doc.item_type == 'folder' %}
-                                        <button class="btn btn-primary btn-sm" onclick="window.open('https://drive.google.com/drive/folders/{{ doc.google_drive_id }}', '_blank')">Open Folder</button>
-                                    {% elif doc.item_type == 'file' %}
-                                        <button class="btn btn-primary btn-sm" onclick="window.open('https://drive.google.com/file/d/{{ doc.google_drive_id }}', '_blank')">View File</button>
-                                    {% endif %}
+                                    <button class="btn btn-primary btn-sm" onclick="window.open('{{ doc.item_url }}', '_blank')">View File</button>
                                 </td>
                             </tr>
                         {% endfor %}

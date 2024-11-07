@@ -59,6 +59,7 @@ class Datasource(db.Model):
     )
     name = db.Column(db.String(255), nullable=False, name="datasource_name", unique=True)
     type = db.Column(db.String(255), nullable=False, name="datasource_type")
+    active = db.Column(db.Boolean, default=True)
 
 
 class GoogleDriveItem(db.Model):
@@ -72,8 +73,18 @@ class GoogleDriveItem(db.Model):
     item_name = db.Column(db.String(255), nullable=False)
     item_type = db.Column(db.String(255), nullable=False)
     mime_type = db.Column(db.String(255), nullable=False)
+    item_url = db.Column(db.String(255), nullable=False)
+    icon_url = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_indexed_at = db.Column(db.DateTime, nullable=True)
+
+    def __repr__(self):
+        """Return a string representation of the Google Drive item."""
+        return f"<GoogleDriveItem {self.item_name} ({self.item_type})>"
+
+    def __str__(self):
+        """Return a string representation of the Google Drive item."""
+        return f"{self.item_name} ({self.item_type})"
 
 
 class Organisation(db.Model):
