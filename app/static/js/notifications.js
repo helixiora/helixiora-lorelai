@@ -4,23 +4,30 @@ document.addEventListener('DOMContentLoaded', function() {
     const notificationPopover = document.getElementById('notificationPopover');
     const notificationList = document.getElementById('notificationList');
 
+    let lastFetchTime = 0;
+    let fetchInterval;
+
     // Function to fetch notifications
-    function fetchNotifications() {
-        fetch('/api/notifications')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
+    async function fetchNotifications() {
+        lastFetchTime = Date.now();
+        try {
+            const csrfToken = getCookie('csrftoken');
+            const response = await fetch('/api/notifications', {
+                headers: {
+                    'X-CSRFToken': csrfToken
                 }
-                return response.json();
-            })
-            .then(notifications => {
-                updateNotificationBadge(notifications.length);
-                updateNotificationList(notifications);
-            })
-            .catch(error => {
-                console.error('Error fetching notifications:', error);
-                handleFetchError();
             });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const notifications = await response.json();
+            updateNotificationBadge(notifications.length);
+            updateNotificationList(notifications);
+        } catch (error) {
+            console.error('Error fetching notifications:', error);
+            handleFetchError();
+        }
     }
 
     // Function to update notification badge
@@ -112,10 +119,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to mark a notification as read
     async function markAsRead(notificationId) {
         try {
+            const csrfToken = getCookie('csrftoken');
             const response = await fetch(`/api/notifications/${notificationId}/read`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 },
             });
             if (response.ok) {
@@ -124,7 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
                     if (notificationItem) {
                         notificationItem.classList.add('read');
-                        const readBtn = notificationItem.querySelector('button:contains("Mark as Read")');
+                        const readBtn = notificationItem.querySelector('button[textContent="Mark as Read"]');
                         if (readBtn) {
                             readBtn.remove();
                         }
@@ -145,10 +154,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to dismiss a notification
     async function dismissNotification(notificationId) {
         try {
+            const csrfToken = getCookie('csrftoken');
             const response = await fetch(`/api/notifications/${notificationId}/dismiss`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 },
             });
             if (response.ok) {
@@ -157,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
                     if (notificationItem) {
                         notificationItem.classList.add('dismissed');
-                        const dismissBtn = notificationItem.querySelector('button:contains("Dismiss")');
+                        const dismissBtn = notificationItem.querySelector('button[textContent="Dismiss"]');
                         if (dismissBtn) {
                             dismissBtn.remove();
                         }
@@ -188,7 +199,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Show/hide popover on hover
     logoContainer.addEventListener('mouseenter', () => {
         notificationPopover.style.display = 'block';
-        fetchNotifications(); // Fetch notifications when hovering
+        // Only fetch if we haven't fetched recently
+        if (Date.now() - lastFetchTime > 5000) {
+            fetchNotifications();
+        }
     });
 
     logoContainer.addEventListener('mouseleave', () => {
@@ -198,10 +212,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial fetch of notifications
     fetchNotifications();
 
-    // Set up periodic fetching (e.g., every 5 minutes)
-    setInterval(fetchNotifications, 5000);
+    // Set up periodic fetching (e.g., every 30 seconds)
+    setInterval(fetchNotifications, 30000);
 
     // Add smooth scrolling to notification list if it exceeds the popover height
     notificationPopover.style.maxHeight = '300px';
     notificationPopover.style.overflowY = 'auto';
 });
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
