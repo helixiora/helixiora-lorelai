@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('No relevant source found.');
                 displayErrorMessage('No relevant source found for the question. Please try again \
                     with a different question or ask the question directly to LLM.');
-            } else if (attempt < 20) {
+            } else if (attempt < 40) {
                 console.log('Operation still in progress. Retrying...');
                 pollForResponse(jobId, attempt + 1);
             } else {
