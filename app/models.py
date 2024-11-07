@@ -99,6 +99,8 @@ class Plan(db.Model):
     plan_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     plan_name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Numeric(10, 2), nullable=False)
+    duration_months = db.Column(db.Integer, nullable=False, unsigned=True)
     message_limit_daily = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

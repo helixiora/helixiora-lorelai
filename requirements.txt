@@ -26,4 +26,5 @@ rq==2.0.0
 sendgrid==6.11.0
 sentry-sdk==2.18.0
 sqlalchemy==2.0.36
+sqlalchemy-utils==0.41.2
 werkzeug==3.1.2
