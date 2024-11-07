@@ -396,7 +396,7 @@ def login():
         return redirect(url_for("chat.index"))
 
     # get some values from the info we got from google
-    logging.info("Info from token: %s", idinfo)
+    logging.debug("Info from token: %s", idinfo)
     user_email = idinfo["email"]
     username = idinfo["name"]
     user_full_name = idinfo["name"]
