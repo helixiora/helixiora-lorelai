@@ -33,6 +33,7 @@ from flask import (
     url_for,
     make_response,
 )
+from datetime import datetime
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
@@ -525,7 +526,9 @@ def login_user_function(
         refresh_token = create_refresh_token(identity=user.id)
 
         # login_type, it is not necessary now but in future when we add multiple login method
-        user_login = UserLogin(user_id=user.id, login_type="google-oauth")
+        user_login = UserLogin(
+            user_id=user.id, login_type="google-oauth", login_time=datetime.utcnow()
+        )
         db.session.add(user_login)
         db.session.commit()
 
