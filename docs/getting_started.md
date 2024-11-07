@@ -15,10 +15,9 @@ There are two ways LorelAI can be deployed/ran:
    requirements for both the worker and web app. There's an additional requirements file for playing
    around with the more _experimental_ features called requirements-dev.txt.
 
-1. Get the database up and running, see the [readme in './db'](../db/readme.md)
+1. Get the database up and running, see the [readme in './migrations'](../migrations/readme.md)
 
-1. Create a `settings.json` file (see `settings.json.example`) and customise the values to your
-   liking
+1. Create a `.env` file (see `.env.example`) and customise the values to your liking
 
    1. You'll need a google cloud project for oauth
 
@@ -84,7 +83,7 @@ accessible from [https://127.0.0.1:5000/admin](https://127.0.0.1:5000/admin)
 
 ### Executing the Indexer
 
-#### From the command line
+#### From the command line (not currently used)
 
 1. Initiate the document crawling process: `./indexer.py`. The indexer lives in
    [the tools directory](../tools/readme.md).
