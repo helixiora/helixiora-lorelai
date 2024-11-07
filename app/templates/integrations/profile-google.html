@@ -18,30 +18,34 @@
                 <h5 class="card-title h5 mt-4">Documents Indexed:</h5>
                 <div class="list-group mt-3">
                 {%if google_docs_to_index %}
-                    <table class="table table-striped">
-                        <thead>
+                    <table class="table table-hover table-bordered">
+                        <thead class="table-light">
                             <tr>
-                                <th scope="col">Name</th>
-                                <th scope="col">Type</th>
-                                <th scope="col">Last Indexed</th>
-                                <th scope="col">Actions</th>
+                                <th scope="col" class="align-middle">Name</th>
+                                <th scope="col" class="align-middle">Type</th>
+                                <th scope="col" class="align-middle">Last Indexed</th>
+                                <th scope="col" class="align-middle">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="content">
                         {% for doc in google_docs_to_index %}
                             <tr>
-                                <td>
-                                    <img src="{{ doc.icon_url }}" alt="Google Drive Icon" class="img-fluid me-2" style="width: 20px; height: 20px;">
-                                    <h5 class="mb-1">{{ doc.item_name }}
-                                    <span class="info-icon" data-bs-toggle="tooltip" title="Google Docs ID: {{ doc.google_drive_id }}">
-                                        <i class="bi bi-info-circle"></i>
-                                    </span>
-                                </h5></td>
-                                <td>{{ doc.item_type }}</td>
-                                <td>{{ doc.last_indexed_at }}</td>
-                                <td>
-                                    <button class="btn btn-primary btn-sm mb-2" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove from Index</button>
-                                    <button class="btn btn-primary btn-sm" onclick="window.open('{{ doc.item_url }}', '_blank')">View File</button>
+                                <td class="align-middle">
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ doc.icon_url }}" alt="Google Drive Icon" class="me-2" style="width: 20px; height: 20px; object-fit: contain;">
+                                        <span>{{ doc.item_name }}</span>
+                                        <span class="info-icon" data-bs-toggle="tooltip" title="Google Docs ID: {{ doc.google_drive_id }}">
+                                            &nbsp;<i class="bi bi-info-circle"></i>
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="align-middle">{{ doc.item_type }}</td>
+                                <td class="align-middle">{{ doc.last_indexed_at }}</td>
+                                <td class="align-middle">
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-outline-danger btn-sm" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove</button>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="window.open('{{ doc.item_url }}', '_blank')">View</button>
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}

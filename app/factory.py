@@ -183,6 +183,7 @@ def setup_after_request(app: Flask) -> None:
             "https://csi.gstatic.com/csi",
             "https://cdn.datatables.net/",
             "https://platform.slack-edge.com/",
+            "https://drive-thirdparty.googleusercontent.com/",
         ]
 
         script_src_elem = [
