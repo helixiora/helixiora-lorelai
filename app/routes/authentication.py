@@ -446,7 +446,7 @@ def login():
         return redirect(url_for("chat.index"))
 
 
-@auth_bp.route("/refresh", methods=["POST"])
+@auth_bp.route("/api/token/refresh", methods=["POST"])
 @jwt_required(refresh=True)
 def refresh():
     """
