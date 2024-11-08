@@ -416,6 +416,19 @@ def get_user_profile(user_id):
     return Profile.query.filter_by(user_id=user_id).first()
 
 
+def is_valid_past_date(date_str: str, date_format: str = "%Y-%m-%d") -> bool:
+    """Check if a date string is a valid past date."""
+    try:
+        # Parse the date string into a datetime object
+        date = datetime.strptime(date_str, date_format)
+
+        # Check if the date is in the past
+        return date < datetime.now()
+    except ValueError:
+        # If parsing fails, the date is not valid
+        return False
+
+
 def update_user_profile(user_id, bio=None, location=None, birth_date=None, avatar_url=None):
     """Update a user's profile."""
     profile = Profile.query.filter_by(user_id=user_id).first()
@@ -425,11 +438,11 @@ def update_user_profile(user_id, bio=None, location=None, birth_date=None, avata
 
     if bio is not None:
         profile.bio = bio
-    if location is not None:
+    if location:
         profile.location = location
-    if birth_date is not None:
+    if birth_date and is_valid_past_date(birth_date):
         profile.birth_date = datetime.strptime(birth_date, "%Y-%m-%d").date()
-    if avatar_url is not None:
+    if avatar_url:
         profile.avatar_url = avatar_url
 
     db.session.commit()

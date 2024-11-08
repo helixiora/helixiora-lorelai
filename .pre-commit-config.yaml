@@ -1,9 +1,9 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0  # Use version 4.6.0 of the standard pre-commit hooks
+    rev: v5.0.0 # Use version 4.6.0 of the standard pre-commit hooks
     hooks:
       - id: check-added-large-files
-        args: ['--maxkb=500']
+        args: ["--maxkb=500"]
         # Blocks commits that add large files, helping to keep the repository size manageable.
 
       - id: check-ast
@@ -34,7 +34,7 @@ repos:
         # Sorts simple YAML files to maintain a consistent order.
 
       - id: pretty-format-json
-        args: ['--autofix', '--indent=2']
+        args: ["--autofix", "--indent=2"]
         # Auto-formats JSON files to be more readable.
 
       - id: check-builtin-literals
@@ -72,19 +72,19 @@ repos:
         # Removes unnecessary trailing whitespace.
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.9
+    rev: v0.7.2
     hooks:
       - id: ruff
-        args: [ --fix ]
+        args: [--fix]
         # Runs Ruff linter to catch Python errors and automatically fix them if possible.
 
       - id: ruff-format
         # Runs Ruff formatter to enforce a consistent code style in Python files.
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.13.0
+    rev: v0.14.0
     hooks:
-    - id: markdownlint-cli2
+      - id: markdownlint-cli2
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.3.0
@@ -92,6 +92,6 @@ repos:
       - id: codespell
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.17 # Use the desired version
+    rev: 0.7.18 # Use the desired version
     hooks:
       - id: mdformat
