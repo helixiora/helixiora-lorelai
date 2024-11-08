@@ -6,6 +6,7 @@ import sys
 from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
+from flask_restx import Api
 from flask_migrate import Migrate
 
 from flask_sqlalchemy import SQLAlchemy
@@ -17,6 +18,9 @@ from app.cli import init_db_command, seed_db_command
 import sentry_sdk
 
 from app.models import db, User
+from app.routes.api.chat import chat_ns
+from app.routes.api.conversation import conversation_ns
+from app.routes.api.notifications import notifications_ns
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
@@ -94,6 +98,21 @@ def create_app(config_name: str = "default") -> Flask:
 
     # Apply ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
+    # Initialize Flask-RestX
+    api = Api(
+        app,
+        version="1.0",
+        title="Lorelai API",
+        description="API documentation for Lorelai",
+        doc="/swagger",
+        prefix="/api",
+    )
+
+    # Register namespaces
+    api.add_namespace(chat_ns)
+    api.add_namespace(conversation_ns)
+    api.add_namespace(notifications_ns)
 
     # Register blueprints
     app.register_blueprint(googledrive_bp)
