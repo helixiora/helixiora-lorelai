@@ -50,28 +50,32 @@ class ChatResource(Resource):
             redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
             queue = Queue(connection=redis_conn)
 
-            # Create or retrieve chat thread
-            thread_id = session.get("thread_id") or str(uuid.uuid4())
-            session["thread_id"] = thread_id
+            # Create or retrieve chat conversation
+            conversation_id = session.get("conversation_id") or str(uuid.uuid4())
+            session["conversation_id"] = conversation_id
 
             # Enqueue task
             job = queue.enqueue(
                 get_answer_from_rag,
-                thread_id,
+                conversation_id,
                 message_content,
                 current_user.id,
                 current_user.email,
                 current_user.organisation.name,
                 model_type="OpenAILlm",
             )
-            logging.info("Enqueued job for chat, message %s, thread %s", message_content, thread_id)
+            logging.info(
+                "Enqueued job for chat, message %s, conversation %s",
+                message_content,
+                conversation_id,
+            )
 
             return jsonify(
                 {
                     "status": "success",
                     "message": "Your message is being processed.",
                     "job": job.id,
-                    "thread_id": thread_id,
+                    "conversation_id": conversation_id,
                 }
             ), 200
 
@@ -84,7 +88,7 @@ class ChatResource(Resource):
     def get(self):
         """Endpoint to fetch the result of a chat operation."""
         job_id = request.args.get("job_id")
-        thread_id = request.args.get("thread_id")
+        conversation_id = request.args.get("conversation_id")
         if not job_id:
             return jsonify({"status": "ERROR", "message": "Job ID is required"}), 400
 
@@ -105,7 +109,9 @@ class ChatResource(Resource):
                 return jsonify({"status": "FAILED", "error": job.result}), 500
             if job.result["status"] == "No Relevant Source":
                 return jsonify({"status": "NO_RELEVANT_SOURCE", "result": job.result}), 500
-            return jsonify({"status": "SUCCESS", "result": job.result, "thread_id": thread_id})
+            return jsonify(
+                {"status": "SUCCESS", "result": job.result, "conversation_id": conversation_id}
+            )
         else:
             # Job is either queued or started but not yet finished
             return jsonify({"status": "IN PROGRESS"}), 202

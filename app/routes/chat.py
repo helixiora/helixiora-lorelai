@@ -18,16 +18,16 @@ import uuid
 chat_bp = blueprints.Blueprint("chat", __name__)
 
 
-@chat_bp.route("/conversation/<thread_id>", methods=["GET"])
-def conversation(thread_id):
+@chat_bp.route("/conversation/<conversation_id>", methods=["GET"])
+def conversation(conversation_id):
     """Return the conversation page.
 
     Returns
     -------
         string: the conversation page
     """
-    session["thread_id"] = thread_id
-    chat_template_requirements = get_chat_template_requirements(thread_id, session["user.id"])
+    session["conversation_id"] = conversation_id
+    chat_template_requirements = get_chat_template_requirements(conversation_id, session["user.id"])
     return render_template(
         "index_logged_in.html",
         username=session["user.user_name"],
@@ -58,9 +58,11 @@ def index():
     # check if the user is logged in
     if current_user.is_authenticated:
         # render the index_logged_in page
-        thread_id = str(uuid.uuid4())
-        session["thread_id"] = thread_id
-        chat_template_requirements = get_chat_template_requirements(thread_id, current_user.id)
+        conversation_id = str(uuid.uuid4())
+        session["conversation_id"] = conversation_id
+        chat_template_requirements = get_chat_template_requirements(
+            conversation_id, current_user.id
+        )
 
         return render_template(
             "index_logged_in.html",

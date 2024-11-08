@@ -27,8 +27,8 @@ function hideLoadingIndicator() {
 }
 
 // Move the deleteConversation function outside of the DOMContentLoaded event listener
-async function deleteConversation(threadId) {
-    fetch(`/api/conversation/${threadId}/delete`, {
+async function deleteConversation(conversationId) {
+    fetch(`/api/conversation/${conversationId}/delete`, {
         method: 'DELETE',
     })
     .then(response => {
@@ -40,12 +40,12 @@ async function deleteConversation(threadId) {
     .then(data => {
         console.log('Conversation deleted successfully:', data);
         // Remove the conversation from the list
-        const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${threadId}"]`);
+        const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${conversationId}"]`);
         if (conversationItem) {
             conversationItem.remove();
         }
         // If we're currently viewing this conversation, clear the chat and reset the URL
-        if (window.location.pathname.includes(`/conversation/${threadId}`)) {
+        if (window.location.pathname.includes(`/conversation/${conversationId}`)) {
             document.getElementById('messages').innerHTML = '';
             history.pushState(null, '', '/');
         }
@@ -123,10 +123,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             console.log('Response:', data);
 
-            thread_id = data.thread_id;
-            if (thread_id) {
+            conversation_id = data.conversation_id;
+            if (conversation_id) {
                 //push the new url to the browser
-                history.pushState(null, '', `/conversation/${thread_id}`);
+                history.pushState(null, '', `/conversation/${conversation_id}`);
             }
 
             if (data.status === 'SUCCESS') {
@@ -382,9 +382,9 @@ document.querySelectorAll('.conversation-item').forEach(item => {
         console.log('Loading conversation:', conversationId);
         // You may want to add an API call here to fetch the conversation messages
         window.location.href = `/conversation/${conversationId}`;
-        // set the thread_id in the session
-        session["thread_id"] = conversationId;
-        console.log('Setting thread_id in session:', session["thread_id"]);
+        // set the conversation_id in the session
+        session["conversation_id"] = conversationId;
+        console.log('Setting conversation_id in session:', session["conversation_id"]);
 
         // reload the page
         location.reload();
