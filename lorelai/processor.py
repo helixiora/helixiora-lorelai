@@ -17,7 +17,11 @@ from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from lorelai.utils import get_embedding_dimension, clean_text_for_vector
+from lorelai.utils import (
+    get_embedding_dimension,
+    clean_text_for_vector,
+    batch_embed_langchain_documents,
+)
 from lorelai.pinecone import PineconeHelper
 
 
@@ -110,7 +114,8 @@ class Processor:
             texts = f"Documents Title: {doc.metadata['title']}: {texts}"
             texts = clean_text_for_vector(texts)
             text_docs.append(texts)
-        embeds = embeddings_model.embed_documents(text_docs)
+        # embeds = embeddings_model.embed_documents(text_docs)
+        embeds = batch_embed_langchain_documents(embeddings_model, text_docs, batch_size=100)
 
         # prepare pinecone vectors
         formatted_documents = []
