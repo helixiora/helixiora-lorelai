@@ -90,6 +90,7 @@ def chat():
 
 
 @chat_bp.route("/api/chat", methods=["GET"])
+@jwt_required(optional=False, locations=["cookies"])
 def fetch_chat_result():
     """Endpoint to fetch the result of a chat operation."""
     job_id = request.args.get("job_id")
@@ -121,6 +122,7 @@ def fetch_chat_result():
 
 
 @chat_bp.route("/api/notifications", methods=["GET"])
+@jwt_required(optional=False, locations=["cookies"])
 def api_notifications():
     """Get notifications for the current user."""
     try:
@@ -151,6 +153,7 @@ def api_notifications():
 
 
 @chat_bp.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
+@jwt_required(optional=False, locations=["cookies"])
 def api_notifications_read(notification_id):
     """Mark a notification as read."""
     logging.info(
@@ -165,6 +168,7 @@ def api_notifications_read(notification_id):
 
 
 @chat_bp.route("/api/notifications/<int:notification_id>/dismiss", methods=["POST"])
+@jwt_required(optional=False, locations=["cookies"])
 def api_notifications_dismiss(notification_id):
     """Mark a notification as dismissed."""
     logging.info(
@@ -200,6 +204,7 @@ def conversation(thread_id):
 
 # route to delete a thread and all its messages
 @chat_bp.route("/api/conversation/<thread_id>/delete", methods=["DELETE"])
+@jwt_required(optional=False, locations=["cookies"])
 def delete_conversation(thread_id):
     """Delete a thread and all its messages."""
     delete_thread(thread_id)
@@ -208,6 +213,7 @@ def delete_conversation(thread_id):
 
 # get all messages for a given thread
 @chat_bp.route("/api/conversation/<thread_id>")
+@jwt_required(optional=False, locations=["cookies"])
 def api_conversation(thread_id):
     """Get all messages for a given thread."""
     messages = get_all_thread_messages(thread_id)
@@ -216,6 +222,7 @@ def api_conversation(thread_id):
 
 # Improved index route using render_template
 @chat_bp.route("/")
+# don't require a login for the index page (it's the login page)
 def index():
     """Return the index page.
 
