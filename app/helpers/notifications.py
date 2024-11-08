@@ -70,12 +70,14 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
         # Get counts for different notification states
         counts = (
             db.session.query(
-                db.func.sum(db.case([(Notification.read is False, 1)], else_=0)).label(
+                db.func.sum(db.case((Notification.read.is_(False), 1), else_=0)).label(
                     "remaining_unread"
                 ),
-                db.func.sum(db.case([(Notification.read, 1)], else_=0)).label("read"),
-                db.func.sum(db.case([(Notification.dismissed, 1)], else_=0)).label("dismissed"),
-                db.func.sum(db.case([(Notification.dismissed is False, 1)], else_=0)).label(
+                db.func.sum(db.case((Notification.read.is_(True), 1), else_=0)).label("read"),
+                db.func.sum(db.case((Notification.dismissed.is_(True), 1), else_=0)).label(
+                    "dismissed"
+                ),
+                db.func.sum(db.case((Notification.dismissed.is_(False), 1), else_=0)).label(
                     "undismissed"
                 ),
             )
@@ -118,12 +120,14 @@ def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
         # Get counts for different notification states
         counts = (
             db.session.query(
-                db.func.sum(db.case([(Notification.read is False, 1)], else_=0)).label(
+                db.func.sum(db.case((Notification.read.is_(False), 1), else_=0)).label(
                     "remaining_unread"
                 ),
-                db.func.sum(db.case([(Notification.read, 1)], else_=0)).label("read"),
-                db.func.sum(db.case([(Notification.dismissed, 1)], else_=0)).label("dismissed"),
-                db.func.sum(db.case([(Notification.dismissed is False, 1)], else_=0)).label(
+                db.func.sum(db.case((Notification.read.is_(True), 1), else_=0)).label("read"),
+                db.func.sum(db.case((Notification.dismissed.is_(True), 1), else_=0)).label(
+                    "dismissed"
+                ),
+                db.func.sum(db.case((Notification.dismissed.is_(False), 1), else_=0)).label(
                     "undismissed"
                 ),
             )

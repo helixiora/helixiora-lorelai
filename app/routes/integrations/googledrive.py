@@ -239,6 +239,8 @@ def process_file_picker():
                 item_name=doc["name"],
                 mime_type=doc["mimeType"],
                 item_type=doc["type"],
+                item_url=doc["url"],
+                icon_url=doc["iconUrl"],
             )
             db.session.add(new_item)
             logging.info(f"Inserted google doc id: {doc['id']} for user id: {user_id}")
