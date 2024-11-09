@@ -20,7 +20,8 @@ Loading the app...
 Initialized the database.
 ```
 
-After that, you can run `FLASK_APP=run.py flask seed-db` to fill the database with some initial data.
+After that, you can run `FLASK_APP=run.py flask seed-db` to fill the database with some initial
+data.
 
 ```terminal
 > FLASK_APP=run.py flask seed-db
