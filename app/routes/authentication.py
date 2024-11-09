@@ -44,7 +44,16 @@ import requests as lib_requests
 
 from flask import current_app
 
-from app.models import User, UserLogin, UserAuth, db, GoogleDriveItem, Organisation, Datasource
+from app.models import (
+    User,
+    UserLogin,
+    UserAuth,
+    db,
+    GoogleDriveItem,
+    Organisation,
+    Datasource,
+    Profile,
+)
 from app.helpers.slack import SlackHelper
 from app.helpers.datasources import DATASOURCE_SLACK, DATASOURCE_GOOGLE_DRIVE
 from app.helpers.users import (
@@ -52,7 +61,6 @@ from app.helpers.users import (
     validate_form,
     register_user_to_org,
     update_user_profile,
-    get_user_profile,
     assign_free_plan_if_no_active,
 )
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
@@ -154,7 +162,13 @@ def user_profile():
         birth_date = request.form.get("birth_date")
         avatar_url = request.form.get("avatar_url")
 
-        update_user_profile(current_user.id, bio, location, birth_date, avatar_url)
+        update_user_profile(
+            user_id=current_user.id,
+            bio=bio,
+            location=location,
+            birth_date=birth_date,
+            avatar_url=avatar_url,
+        )
         flash("Profile updated successfully", "success")
         return redirect(url_for("auth.profile"))
 
@@ -208,7 +222,7 @@ def profile():
             "roles": current_user.roles,
         }
 
-        profile = get_user_profile(current_user.id)
+        profile = Profile.query.filter_by(user_id=current_user.id).first()
 
         if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
             google_drive_access_token = get_google_drive_access_token()
