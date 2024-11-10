@@ -74,8 +74,18 @@ class GoogleDriveItem(db.Model):
     item_name = db.Column(db.String(255), nullable=False)
     item_type = db.Column(db.String(255), nullable=False)
     mime_type = db.Column(db.String(255), nullable=False)
+    item_url = db.Column(db.String(255), nullable=False)
+    icon_url = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_indexed_at = db.Column(db.DateTime, nullable=True)
+
+    def __repr__(self):
+        """Return a string representation of the Google Drive item."""
+        return f"<GoogleDriveItem {self.item_name} ({self.item_type})>"
+
+    def __str__(self):
+        """Return a string representation of the Google Drive item."""
+        return f"{self.item_name} ({self.item_type})"
 
 
 class Organisation(db.Model):
@@ -102,7 +112,7 @@ class Plan(db.Model):
     plan_name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Numeric(10, 2), nullable=False)
-    duration_months = db.Column(db.Integer, nullable=False, unsigned=True)
+    duration_months = db.Column(INTEGER(unsigned=True), nullable=False)
     message_limit_daily = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -223,6 +233,12 @@ class UserPlan(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Fixing the index creation
+    __table_args__ = (
+        db.Index("idx_user_plans_plan_id", "plan_id"),
+        db.Index("idx_user_plans_user_id", "user_id"),
+    )
 
 
 class Notification(db.Model):

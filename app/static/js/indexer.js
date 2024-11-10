@@ -31,8 +31,15 @@ function startIndexing(type) {
 
 function checkStatus(jobStatus, type, jobStatuses) {
     console.log(jobStatus);
-    fetch(`/admin/job-status/${jobStatus.jobId}`)
-        .then(response => {
+    const csrfToken = getCookie('csrf_token');
+    console.log('CSRF Token:', csrfToken);
+    fetch(`/admin/job-status/${jobStatus.jobId}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    }).then(response => {
             if (response.ok) {
                 return response.json();
             } else {
@@ -74,4 +81,10 @@ function checkStatus(jobStatus, type, jobStatuses) {
         }).catch(error => {
             $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text('Error checking task status.');
         });
+}
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
 }

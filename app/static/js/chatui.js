@@ -28,16 +28,20 @@ function hideLoadingIndicator() {
 
 // Move the deleteConversation function outside of the DOMContentLoaded event listener
 async function deleteConversation(conversationId) {
-    fetch(`/api/conversation/${conversationId}/delete`, {
-        method: 'DELETE',
-    })
-    .then(response => {
+    try {
+        const csrfToken = getCookie('csrftoken');
+        const response = await fetch(`/api/conversation/${conversationId}/delete`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+
         if (!response.ok) {
             throw new Error('Network response was not ok');
         }
-        return response.json();
-    })
-    .then(data => {
+        const data = await response.json();
         console.log('Conversation deleted successfully:', data);
         // Remove the conversation from the list
         const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${conversationId}"]`);
@@ -49,12 +53,10 @@ async function deleteConversation(conversationId) {
             document.getElementById('messages').innerHTML = '';
             history.pushState(null, '', '/');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error deleting conversation:', error);
-        // Optionally, show an error message to the user
         alert('Failed to delete conversation. Please try again.');
-    });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -118,7 +120,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const response = await fetch(`/api/chat?job_id=${jobId}`);
+            const csrfToken = getCookie('csrftoken');
+            const response = await fetch(`/api/chat?job_id=${jobId}`, {
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
             const data = await response.json();
 
             console.log('Response:', data);
@@ -145,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('No relevant source found.');
                 displayErrorMessage('No relevant source found for the question. Please try again \
                     with a different question or ask the question directly to LLM.');
-            } else if (attempt < 20) {
+            } else if (attempt < 40) {
                 console.log('Operation still in progress. Retrying...');
                 pollForResponse(jobId, attempt + 1);
             } else {
@@ -202,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
 
         try {
-            const csrfToken = getCookie('csrf_token');
+            const csrfToken = getCookie('csrftoken');
             console.log('CSRF Token:', csrfToken);
             let response = await fetch('/api/chat', {
                 method: 'POST',
@@ -219,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // check if the responseData.msg starts with "Expired token"
                 if (responseData.msg.startsWith("Expired token")) {
                     // Token expired, try to refresh
-                    const refreshResponse = await fetch('/refresh', {
+                    const refreshResponse = await fetch('/api/token/refresh', {
                         method: 'POST',
                         headers: {
                             'X-CSRFToken': csrfToken
@@ -284,42 +291,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     async function get_conversation(conversationId) {
-            console.log('Fetching conversation:', conversationId);
+        try {
+            const csrfToken = getCookie('csrftoken');
+            const response = await fetch(`/api/conversation/${conversationId}`, {
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
 
-            fetch(`/api/conversation/${conversationId}`)
-                .then(response => response.json())
-                .then(data => {
-                    // Check if the data is empty
-                    if (!data || data.length === 0) {
-                        console.warn('No messages found for this conversation.');
-                        window.location.href = '/';
-                        return;
-                    }
+            const data = await response.json();
+            if (!data || data.length === 0) {
+                console.warn('No messages found for this conversation.');
+                window.location.href = '/';
+                return;
+            }
 
-                    for (const message of data) {
-                        if (message.sender == "user") {
-                            addMessage(
-                                content=message.message_content,
-                                isUser=true,
-                                isHTML=true,
-                                isSources=false
-                            );
-                        } else {
-                            addMessage(
-                                content=message.message_content,
-                                isUser=false,
-                                isHTML=true,
-                                isSources=false
-                            );
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching conversation:', error);
-                    // Redirect to root if there's an error
-                    window.location.href = '/';
-                });
+            for (const message of data) {
+                addMessage(
+                    content=message.message_content,
+                    isUser=(message.sender === "user"),
+                    isHTML=true,
+                    isSources=false
+                );
+            }
+        } catch (error) {
+            console.error('Error fetching conversation:', error);
+            window.location.href = '/';
         }
+    }
 
     // Add a welcoming message on page load
     const welcomeMessage = `## Welcome to Lorelai!

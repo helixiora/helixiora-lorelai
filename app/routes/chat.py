@@ -20,6 +20,7 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 
 @chat_bp.route("/conversation/<conversation_id>", methods=["GET"])
 def conversation(conversation_id):
+
     """Return the conversation page.
 
     Returns
@@ -38,9 +39,9 @@ def conversation(conversation_id):
         support_email=current_app.config["LORELAI_SUPPORT_EMAIL"],
     )
 
-
 # Improved index route using render_template
 @chat_bp.route("/")
+# don't require a login for the index page (it's the login page)
 def index():
     """Return the index page.
 

@@ -33,6 +33,7 @@ from flask import (
     url_for,
     make_response,
 )
+from datetime import datetime
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
@@ -396,7 +397,7 @@ def login():
         return redirect(url_for("chat.index"))
 
     # get some values from the info we got from google
-    logging.info("Info from token: %s", idinfo)
+    logging.debug("Info from token: %s", idinfo)
     user_email = idinfo["email"]
     username = idinfo["name"]
     user_full_name = idinfo["name"]
@@ -445,7 +446,7 @@ def login():
         return redirect(url_for("chat.index"))
 
 
-@auth_bp.route("/refresh", methods=["POST"])
+@auth_bp.route("/api/token/refresh", methods=["POST"])
 @jwt_required(refresh=True)
 def refresh():
     """
@@ -525,7 +526,9 @@ def login_user_function(
         refresh_token = create_refresh_token(identity=user.id)
 
         # login_type, it is not necessary now but in future when we add multiple login method
-        user_login = UserLogin(user_id=user.id, login_type="google-oauth")
+        user_login = UserLogin(
+            user_id=user.id, login_type="google-oauth", login_time=datetime.utcnow()
+        )
         db.session.add(user_login)
         db.session.commit()
 

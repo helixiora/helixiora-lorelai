@@ -106,6 +106,8 @@ async function pickerCallback(data) {
             name: doc[google.picker.Document.NAME],
             mimeType: doc[google.picker.Document.MIME_TYPE],
             type: doc[google.picker.Document.TYPE],
+            url: doc[google.picker.Document.URL],
+            iconUrl: doc[google.picker.Document.ICON_URL],
             lastIndexedAt: doc.last_indexed_at || 'N/A'  // Assuming last_indexed_at might not be available
         }));
 
