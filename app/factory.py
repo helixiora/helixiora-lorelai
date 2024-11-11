@@ -18,9 +18,9 @@ from app.cli import init_db_command, seed_db_command
 import sentry_sdk
 
 from app.models import db, User
-from app.routes.api.chat import chat_ns
-from app.routes.api.conversation import conversation_ns
-from app.routes.api.notifications import notifications_ns
+from app.routes.api.v1.chat import chat_ns
+from app.routes.api.v1.conversation import conversation_ns
+from app.routes.api.v1.notifications import notifications_ns
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp

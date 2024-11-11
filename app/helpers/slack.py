@@ -45,7 +45,7 @@ class SlackHelper:
             "Content-Type": "application/json",
         }
 
-        SlackHelper.test_slack_token(self.access_token)
+        self.test_slack_token = SlackHelper.test_slack_token(self.access_token)
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
