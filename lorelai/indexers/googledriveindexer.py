@@ -200,6 +200,95 @@ class GoogleDriveIndexer(Indexer):
                 )
                 loaded_doc.metadata["users"].append(user_email)
 
+    def load_google_doc_from_file_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load a Google Drive file from a file ID.
+
+        :param doc_google_drive_id: the Google Drive file ID
+        :param credentials_object: the credentials object to use for Google Drive API
+
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive file ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load()
+        logging.info(f"Loaded {len(docs_loaded)} docs from file: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_document_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load a Google Drive document from a document ID.
+
+        :param doc_google_drive_id: the Google Drive document ID
+        :param credentials_object: the credentials object to use for Google Drive API
+
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive document ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(
+            document_ids=[doc_google_drive_id], credentials=credentials_object
+        )
+        docs_loaded = loader.load()
+        logging.info(f"Loaded {len(docs_loaded)} docs from document: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_folder_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load a Google Drive folder from a folder ID.
+
+        :param doc_google_drive_id: the Google Drive folder ID
+        :param credentials_object: the credentials object to use for Google Drive API
+
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive folder ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(
+            folder_id=doc_google_drive_id,
+            recursive=True,
+            include_folders=True,
+            includeItemsFromAllDrives=True,
+            corpora="allDrives",
+            credentials=credentials_object,
+        )
+        docs_loaded = loader.load()
+        logging.info(f"Loaded {len(docs_loaded)} docs from folder: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_slides_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load a Google Drive slides from a slides ID.
+
+        :param doc_google_drive_id: the Google Drive slides ID
+        :param credentials_object: the credentials object to use for Google Drive API
+
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive slides ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load_slides_from_id(doc_google_drive_id)
+        logging.info(f"Loaded {len(docs_loaded)} slides from file: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_sheets_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load a Google Drive sheets from a sheets ID.
+
+        :param doc_google_drive_id: the Google Drive sheets ID
+        :param credentials_object: the credentials object to use for Google Drive API
+
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive sheets ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load_sheets_from_id(doc_google_drive_id)
+        logging.info(f"Loaded {len(docs_loaded)} sheets from file: {doc_google_drive_id}")
+        return docs_loaded
+
     def google_docs_to_langchain_docs(
         self: None,
         documents: list[dict[str, any]],
@@ -223,6 +312,7 @@ class GoogleDriveIndexer(Indexer):
         for doc in documents:
             doc_google_drive_id = doc["google_drive_id"]
             doc_item_type = doc["item_type"]
+            doc_mime_type = doc["mime_type"]
 
             if doc_item_type not in ALLOWED_ITEM_TYPES:
                 logging.error(
@@ -231,43 +321,39 @@ class GoogleDriveIndexer(Indexer):
                 raise ValueError(f"Invalid item type: {doc_item_type}")
 
             # use langchain google drive loader to load the content of the docs from google drive
-            if doc_item_type == "file":
-                logging.info(
-                    f"Loading Google Drive file ID {doc_google_drive_id} of type {doc_item_type}"
-                )
-                loader = GoogleDriveLoader(
-                    file_ids=[doc_google_drive_id], credentials=credentials_object
-                )
-                docs_loaded = loader.load()
-                logging.info(f"Loaded {len(docs_loaded)} docs from file: {doc_google_drive_id}")
-            elif doc_item_type == "document":
-                logging.info(
-                    f"Loading Google Drive doc ID {doc_google_drive_id} of type {doc_item_type}"
-                )
-                loader = GoogleDriveLoader(
-                    document_ids=[doc_google_drive_id], credentials=credentials_object
-                )
-                docs_loaded = loader.load()
-                logging.info(f"Loaded {len(docs_loaded)} docs from doc: {doc_google_drive_id}")
-            elif doc_item_type == "folder":
-                logging.info(
-                    f"Loading Google Drive folder ID {doc_google_drive_id} of type {doc_item_type}"
-                )
-                loader = GoogleDriveLoader(
-                    folder_id=doc_google_drive_id,
-                    recursive=True,
-                    include_folders=True,
-                    includeItemsFromAllDrives=True,
-                    corpora="allDrives",
-                    credentials=credentials_object,
-                )
-                docs_loaded = loader.load()
-                logging.info(
-                    f"Loaded {len(docs_loaded)} Google docs from folder: {doc_google_drive_id}"
-                )
-
-            else:
-                raise ValueError(f"Invalid item type: {doc_item_type}")
+            match doc_mime_type:
+                case "application/vnd.google-apps.presentation":
+                    docs_loaded = self.load_google_doc_from_slides_id(
+                        doc_google_drive_id, credentials_object
+                    )
+                case "application/vnd.google-apps.spreadsheet":
+                    docs_loaded = self.load_google_doc_from_sheets_id(
+                        doc_google_drive_id, credentials_object
+                    )
+                case "application/vnd.google-apps.document":
+                    docs_loaded = self.load_google_doc_from_document_id(
+                        doc_google_drive_id, credentials_object
+                    )
+                case "application/vnd.google-apps.folder":
+                    docs_loaded = self.load_google_doc_from_folder_id(
+                        doc_google_drive_id, credentials_object
+                    )
+                case _:
+                    match doc_item_type:
+                        case "document":
+                            docs_loaded = self.load_google_doc_from_file_id(
+                                doc_google_drive_id, credentials_object
+                            )
+                        case "folder":
+                            docs_loaded = self.load_google_doc_from_folder_id(
+                                doc_google_drive_id, credentials_object
+                            )
+                        case "file":
+                            docs_loaded = self.load_google_doc_from_file_id(
+                                doc_google_drive_id, credentials_object
+                            )
+                        case _:
+                            raise ValueError(f"Invalid item type: {doc_item_type}")
 
             # if the docs_loaded is not None, add the loaded docs to the docs list
             if docs_loaded:
