@@ -33,7 +33,9 @@ class ChatMessage(db.Model):
     sources = db.Column(db.JSON, nullable=True)
 
     # Relationship to the chat conversation
-    conversation = db.relationship("ChatConversation", back_populates="messages")
+    conversation = db.relationship(
+        "ChatConversation", back_populates="messages", foreign_keys=[conversation_id]
+    )
 
 
 class ChatConversation(db.Model):
@@ -48,7 +50,12 @@ class ChatConversation(db.Model):
     marked_deleted = db.Column(db.Integer, default=0)
 
     # Relationship to messages
-    messages = db.relationship("ChatMessage", back_populates="conversation", lazy=True)
+    messages = db.relationship(
+        "ChatMessage",
+        back_populates="conversation",
+        lazy=True,
+        foreign_keys=[ChatMessage.conversation_id],
+    )
 
 
 class Datasource(db.Model):

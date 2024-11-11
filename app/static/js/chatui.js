@@ -30,7 +30,7 @@ function hideLoadingIndicator() {
 async function deleteConversation(conversationId) {
     try {
         const csrfToken = getCookie('csrftoken');
-        const response = await fetch(`/api/conversation/${conversationId}/delete`, {
+        const response = await fetch(`/api/v1/conversation/${conversationId}/delete`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
             const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/chat?job_id=${jobId}`, {
+            const response = await fetch(`/api/v1/chat?job_id=${jobId}`, {
                 headers: {
                     'X-CSRFToken': csrfToken
                 }
@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const csrfToken = getCookie('csrftoken');
             console.log('CSRF Token:', csrfToken);
-            let response = await fetch('/api/chat', {
+            let response = await fetch('/api/v1/chat', {
                 method: 'POST',
                 body: JSON.stringify({message: message}),
                 headers: {
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // check if the responseData.msg starts with "Expired token"
                 if (responseData.msg.startsWith("Expired token")) {
                     // Token expired, try to refresh
-                    const refreshResponse = await fetch('/api/token/refresh', {
+                    const refreshResponse = await fetch('/api/v1/token/refresh', {
                         method: 'POST',
                         headers: {
                             'X-CSRFToken': csrfToken
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     if (refreshResponse.ok) {
                         // Token refreshed, retry the original request
-                        response = await fetch('/api/chat', {
+                        response = await fetch('/api/v1/chat', {
                         method: 'POST',
                         body: JSON.stringify({message: message}),
                         headers: {
@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function get_conversation(conversationId) {
         try {
             const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/conversation/${conversationId}`, {
+            const response = await fetch(`/api/v1/conversation/${conversationId}`, {
                 headers: {
                     'X-CSRFToken': csrfToken
                 }

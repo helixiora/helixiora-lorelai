@@ -1,8 +1,8 @@
 """API routes for notifications operations."""
 
-from flask import jsonify, session
+from flask import session
 from flask_restx import Namespace, Resource
-
+from decimal import Decimal
 import logging
 
 from app.helpers.notifications import (
@@ -12,6 +12,18 @@ from app.helpers.notifications import (
 )
 
 notifications_ns = Namespace("notifications", description="Notifications operations")
+
+
+def serialize_notification_response(data):
+    """Serialize helper function for notification response data."""
+    if isinstance(data, dict):
+        return {k: serialize_notification_response(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [serialize_notification_response(item) for item in data]
+    elif isinstance(data, Decimal):
+        return float(data)
+    else:
+        return data
 
 
 @notifications_ns.route("/")
@@ -40,11 +52,12 @@ class GetNotificationsResource(Resource):
                 for notification in notifications
             ]
 
-            return jsonify(serialized_notifications), 200
+            # Return the serialized list directly instead of wrapping it in jsonify
+            return serialized_notifications, 200
         except Exception as e:
             # Log the error (you should set up proper logging)
             logging.error(f"Error fetching notifications: {str(e)}")
-            return jsonify({"error": "Unable to fetch notifications"}), 500
+            return {"error": "Unable to fetch notifications"}, 500
 
 
 @notifications_ns.route("/<int:notification_id>/read")
@@ -58,12 +71,13 @@ class MarkNotificationAsReadResource(Resource):
         )
         result = mark_notification_as_read(notification_id, session.get("user.id"))
         logging.debug(f"Notification read result: {result}")
+
+        # Serialize the response data
+        serialized_result = serialize_notification_response(result)
+
         if isinstance(result, dict) and result.get("success", False):
-            return jsonify(result), 200
-        else:
-            return jsonify(
-                {"status": "error", "message": "Failed to mark notification as read"}
-            ), 400
+            return serialized_result, 200
+        return {"status": "error", "message": "Failed to mark notification as read"}, 400
 
 
 @notifications_ns.route("/<int:notification_id>/dismiss")
@@ -76,7 +90,10 @@ class MarkNotificationAsDismissedResource(Resource):
             f"Marking notification {notification_id} as dismissed for user {session.get('user.id')}"
         )
         result = mark_notification_as_dismissed(notification_id, session.get("user.id"))
+
+        # Serialize the response data
+        serialized_result = serialize_notification_response(result)
+
         if isinstance(result, dict) and result.get("success", False):
-            return jsonify(result), 200
-        else:
-            return jsonify({"status": "error", "message": "Failed to dismiss notification"}), 400
+            return serialized_result, 200
+        return {"status": "error", "message": "Failed to dismiss notification"}, 400
