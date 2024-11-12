@@ -31,9 +31,9 @@ function startIndexing(type) {
 
 function checkStatus(jobStatus, type, jobStatuses) {
     console.log(jobStatus);
-    const csrfToken = getCookie('csrf_token');
+    const csrfToken = getCookie('csrftoken');
     console.log('CSRF Token:', csrfToken);
-    fetch(`/admin/job-status/${jobStatus.jobId}`, {
+    fetch(`/admin/indexer/job-status/${jobStatus.jobId}`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',

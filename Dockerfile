@@ -29,10 +29,10 @@ CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "300", "-b", "0.0.0.0:5
 # Worker Production stage
 FROM base AS worker-production
 RUN pip install --no-cache-dir -r requirements-worker.txt
-ENTRYPOINT ["sh", "-c", "exec rq worker --url $REDIS_URL"]
+ENTRYPOINT ["sh", "-c", "exec rq worker --url $REDIS_URL indexer_queue question_queue default"]
 
 # Worker Development stage
 FROM worker-production AS worker-development
 EXPOSE 22
 RUN pip install --no-cache-dir -r requirements-dev.txt
-ENTRYPOINT ["sh", "-c", "exec rq worker --url $REDIS_URL"]
+ENTRYPOINT ["sh", "-c", "exec rq worker --url $REDIS_URL indexer_queue question_queue default"]

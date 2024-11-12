@@ -37,6 +37,7 @@ from app.helpers.users import (
     get_user_roles,
     add_user_role,
     remove_user_role,
+    create_user,
 )
 
 from lorelai.pinecone import PineconeHelper
@@ -104,7 +105,7 @@ def create_new_user():
         return jsonify({"status": "error", "message": "Failed to create user."}), 500
 
 
-@admin_bp.route("/admin/job-status/<job_id>")
+@admin_bp.route("/admin/indexer/job-status/<job_id>")
 @jwt_required(optional=False, locations=["cookies"])
 def job_status(job_id: str) -> str:
     """Return the status of a job given its job_id.
@@ -120,7 +121,7 @@ def job_status(job_id: str) -> str:
         The status of the job.
     """
     redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-    queue = Queue(connection=redis_conn)
+    queue = Queue(current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn)
     job = queue.fetch_job(job_id)
 
     if job is None:
@@ -200,7 +201,7 @@ def start_indexing(type) -> str:
 
     try:
         redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-        queue = Queue(connection=redis_conn)
+        queue = Queue(current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn)
 
         datasource_id = (
             Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
