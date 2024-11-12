@@ -84,10 +84,6 @@ manageable
 
 ![Lorelai System Diagram](./docs/imgs/Lorelai%20System%20Diagram.png)
 
-## Benchmarking
-
-See [the benchmark directory](benchmark/readme.md)
-
 ## Frequently Asked Questions
 
 For a number of in-depth questions, see the [FAQ](docs/faq.md)
