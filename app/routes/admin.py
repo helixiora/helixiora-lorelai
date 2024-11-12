@@ -37,7 +37,6 @@ from app.helpers.users import (
     get_user_roles,
     add_user_role,
     remove_user_role,
-    create_user,
 )
 
 from lorelai.pinecone import PineconeHelper

@@ -72,7 +72,7 @@ from flask_jwt_extended import (
 )
 
 import bleach
-from werkzeug.exceptions import ValidationError
+from pydantic import ValidationError
 
 auth_bp = Blueprint("auth", __name__)
 
