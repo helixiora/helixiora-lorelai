@@ -23,16 +23,16 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from flask_jwt_extended import jwt_required
-from app.models import User, Role, db, Organisation, UserAuth, Datasource
+from app.models import User, Role, db, Organisation, UserAuth, Datasource, VALID_ROLES
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 from app.tasks import run_indexer
-from app.helpers.database import create_user
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from app.helpers.users import (
     is_super_admin,
     is_org_admin,
     is_admin,
     role_required,
+    create_user,
     create_invited_user_in_db,
     get_user_roles,
     add_user_role,
@@ -490,7 +490,9 @@ def manage_user_roles(user_id):
     user = User.query.get_or_404(user_id)
     all_roles = Role.query.all()
     if request.method == "POST":
-        new_roles = request.form.getlist("roles")
+        # Get and sanitize roles
+        submitted_roles = request.form.getlist("roles")
+        new_roles = [role.strip() for role in submitted_roles if role.strip() in VALID_ROLES]
         current_roles = get_user_roles(user_id)
 
         # Add new roles
@@ -508,7 +510,10 @@ def manage_user_roles(user_id):
 
     user_roles = get_user_roles(user_id)
     return render_template(
-        "admin/manage_user_roles.html", user=user, all_roles=all_roles, user_roles=user_roles
+        "admin/manage_user_roles.html",
+        user=user,
+        all_roles=all_roles,
+        user_roles=user_roles,
     )
 
 
