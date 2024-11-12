@@ -45,7 +45,7 @@ class SlackHelper:
             "Content-Type": "application/json",
         }
 
-        SlackHelper.test_slack_token(self.access_token)
+        self.test_slack_token = SlackHelper.test_slack_token(self.access_token)
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
@@ -213,17 +213,17 @@ class SlackHelper:
                     for msg in data["messages"]:
                         try:
                             msg_ts = ""
-                            thread_text = ""
+                            conversation_text = ""
                             metadata = {}
 
-                            # if msg has no thread
+                            # if msg has no conversation
                             if msg.get("reply_count") is None:
-                                thread_text = self.extract_message_text(msg)
+                                conversation_text = self.extract_message_text(msg)
                                 msg_ts = msg["ts"]
-                            # get all thread msg
+                            # get all conversation msg
                             elif "reply_count" in msg:
-                                thread_text = self.get_thread(msg["ts"], channel_id)
-                                msg_ts = msg["ts"]  # thread_ts
+                                conversation_text = self.get_conversation(msg["ts"], channel_id)
+                                msg_ts = msg["ts"]  # conversation_ts
 
                             # get the permalink for the message
                             msg_link = self.get_message_permalink(channel_id, msg_ts)
@@ -232,12 +232,12 @@ class SlackHelper:
                             msg_datetime = self.timestamp_to_date(msg_ts)
 
                             # Slack uses user_id not names
-                            thread_text = self.replace_userid_with_name(thread_text)
+                            conversation_text = self.replace_userid_with_name(conversation_text)
                             # add datetime
-                            thread_text = f"{str(msg_datetime)} : {thread_text}"
-                            thread_text = clean_text_for_vector(thread_text)
+                            conversation_text = f"{str(msg_datetime)} : {conversation_text}"
+                            conversation_text = clean_text_for_vector(conversation_text)
                             metadata = {
-                                "text": thread_text,
+                                "text": conversation_text,
                                 "source": msg_link,
                                 "msg_ts": msg_ts,
                                 "channel_name": channel_name,
@@ -267,21 +267,21 @@ class SlackHelper:
         logging.debug(f"Total Messages in {channel_name}: {len(channel_chat_history)}")
         return channel_chat_history
 
-    def get_thread(self, thread_id: str, channel_id: str) -> str:
+    def get_conversation(self, conversation_id: str, channel_id: str) -> str:
         """
-        Retrieve and return the complete thread of messages from Slack.
+        Retrieve and return the complete conversation of messages from Slack.
 
         Args:
-            thread_id (str): The ID of the thread.
+            conversation_id (str): The ID of the conversation.
             channel_id (str): The ID of the Slack channel.
 
         Returns
         -------
-            str: The complete thread of messages as a single string.
+            str: The complete conversation of messages as a single string.
         """
         url = "https://slack.com/api/conversations.replies"
-        params = {"channel": channel_id, "ts": thread_id, "limit": 200}
-        complete_thread = ""
+        params = {"channel": channel_id, "ts": conversation_id, "limit": 200}
+        complete_conversation = ""
         while True:
             data = SlackHelper.slack_api_call(url=url, session=self.session, params=params)
 
@@ -289,13 +289,13 @@ class SlackHelper:
                 if "messages" in data:
                     for msg in data["messages"]:
                         msg_text = self.extract_message_text(msg)
-                        complete_thread += msg_text + "\n"
+                        complete_conversation += msg_text + "\n"
 
                 if data.get("response_metadata", {}).get("next_cursor"):
                     params["cursor"] = data["response_metadata"]["next_cursor"]
                 else:
                     break
-        return complete_thread
+        return complete_conversation
 
     def get_accessible_channels(self, only_joined: bool = False) -> dict[str, str]:
         """
@@ -575,20 +575,20 @@ class SlackHelper:
         else:
             raise ValueError(f"Slack Token not found for user {email}")
 
-    def replace_userid_with_name(self, thread_text: str) -> str:
+    def replace_userid_with_name(self, conversation_text: str) -> str:
         """
         Replace user IDs with user names in the given text.
 
         Args:
-            thread_text (str): The text containing user IDs.
+            conversation_text (str): The text containing user IDs.
 
         Returns
         -------
             str: The text with user IDs replaced by user names.
         """
         for user_id, user_name in self.userid_name_dict.items():
-            thread_text = thread_text.replace(user_id, user_name)
-        return thread_text
+            conversation_text = conversation_text.replace(user_id, user_name)
+        return conversation_text
 
     @staticmethod
     def slack_api_call(url: str, session: requests.Session, params: dict) -> dict | None:

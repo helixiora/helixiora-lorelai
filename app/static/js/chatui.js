@@ -27,10 +27,10 @@ function hideLoadingIndicator() {
 }
 
 // Move the deleteConversation function outside of the DOMContentLoaded event listener
-async function deleteConversation(threadId) {
+async function deleteConversation(conversationId) {
     try {
         const csrfToken = getCookie('csrftoken');
-        const response = await fetch(`/api/conversation/${threadId}/delete`, {
+        const response = await fetch(`/api/v1/conversation/${conversationId}/delete`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
@@ -43,13 +43,13 @@ async function deleteConversation(threadId) {
         }
         const data = await response.json();
         console.log('Conversation deleted successfully:', data);
-
-        const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${threadId}"]`);
+        // Remove the conversation from the list
+        const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${conversationId}"]`);
         if (conversationItem) {
             conversationItem.remove();
         }
-
-        if (window.location.pathname.includes(`/conversation/${threadId}`)) {
+        // If we're currently viewing this conversation, clear the chat and reset the URL
+        if (window.location.pathname.includes(`/conversation/${conversationId}`)) {
             document.getElementById('messages').innerHTML = '';
             history.pushState(null, '', '/');
         }
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
             const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/chat?job_id=${jobId}`, {
+            const response = await fetch(`/api/v1/chat?job_id=${jobId}`, {
                 headers: {
                     'X-CSRFToken': csrfToken
                 }
@@ -130,10 +130,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             console.log('Response:', data);
 
-            thread_id = data.thread_id;
-            if (thread_id) {
+            conversation_id = data.conversation_id;
+            if (conversation_id) {
                 //push the new url to the browser
-                history.pushState(null, '', `/conversation/${thread_id}`);
+                history.pushState(null, '', `/conversation/${conversation_id}`);
             }
 
             if (data.status === 'SUCCESS') {
@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const csrfToken = getCookie('csrftoken');
             console.log('CSRF Token:', csrfToken);
-            let response = await fetch('/api/chat', {
+            let response = await fetch('/api/v1/chat', {
                 method: 'POST',
                 body: JSON.stringify({message: message}),
                 headers: {
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // check if the responseData.msg starts with "Expired token"
                 if (responseData.msg.startsWith("Expired token")) {
                     // Token expired, try to refresh
-                    const refreshResponse = await fetch('/api/token/refresh', {
+                    const refreshResponse = await fetch('/api/v1/token/refresh', {
                         method: 'POST',
                         headers: {
                             'X-CSRFToken': csrfToken
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     if (refreshResponse.ok) {
                         // Token refreshed, retry the original request
-                        response = await fetch('/api/chat', {
+                        response = await fetch('/api/v1/chat', {
                         method: 'POST',
                         body: JSON.stringify({message: message}),
                         headers: {
@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function get_conversation(conversationId) {
         try {
             const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/conversation/${conversationId}`, {
+            const response = await fetch(`/api/v1/conversation/${conversationId}`, {
                 headers: {
                     'X-CSRFToken': csrfToken
                 }
@@ -381,9 +381,9 @@ document.querySelectorAll('.conversation-item').forEach(item => {
         console.log('Loading conversation:', conversationId);
         // You may want to add an API call here to fetch the conversation messages
         window.location.href = `/conversation/${conversationId}`;
-        // set the thread_id in the session
-        session["thread_id"] = conversationId;
-        console.log('Setting thread_id in session:', session["thread_id"]);
+        // set the conversation_id in the session
+        session["conversation_id"] = conversationId;
+        console.log('Setting conversation_id in session:', session["conversation_id"]);
 
         // reload the page
         location.reload();
