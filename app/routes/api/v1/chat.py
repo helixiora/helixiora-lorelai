@@ -11,7 +11,7 @@ from rq import Queue
 import logging
 import uuid
 
-from flask_restx import Namespace, Resource
+from flask_restx import Namespace, Resource, fields
 
 from app.models import User
 from app.tasks import get_answer_from_rag
@@ -19,15 +19,54 @@ from app.helpers.chat import can_send_message
 
 chat_ns = Namespace("chat", description="Chat operations")
 
+# Add model definitions
+message_input = chat_ns.model(
+    "MessageInput",
+    {"message": fields.String(required=True, description="Message content to process")},
+)
+
+message_response = chat_ns.model(
+    "MessageResponse",
+    {
+        "status": fields.String(description="Response status"),
+        "message": fields.String(description="Response message"),
+        "job": fields.String(description="Job ID for the processing task"),
+        "conversation_id": fields.String(description="Unique conversation identifier"),
+    },
+)
+
+result_response = chat_ns.model(
+    "ResultResponse",
+    {
+        "status": fields.String(description="Response status"),
+        "result": fields.Raw(description="Processing result"),
+        "conversation_id": fields.String(description="Conversation identifier"),
+    },
+)
+
 
 # a post route for chat messages
 @chat_ns.route("/")
 class ChatResource(Resource):
     """Resource for chat operations."""
 
-    @jwt_required(optional=False, locations=["cookies"])
+    @chat_ns.expect(message_input)
+    @chat_ns.response(200, "Success", message_response)
+    @chat_ns.response(400, "Validation Error")
+    @chat_ns.response(401, "Unauthorized - Invalid or missing JWT token")
+    @chat_ns.response(404, "User Not Found")
+    @chat_ns.response(429, "Message Limit Exceeded")
+    @chat_ns.response(500, "Internal Server Error")
+    @chat_ns.doc(security="jwt")
+    @jwt_required(optional=False, locations=["cookies", "headers"])
     def post(self):
-        """Post messages to RQ to process."""
+        """
+        Submit a new chat message for processing.
+
+        Returns a job ID and conversation ID for tracking the request.
+
+        Requires a valid JWT token in cookies for authentication.
+        """
         current_user_id = get_jwt_identity()
         user = User.query.get(current_user_id)
         if not user:
@@ -40,7 +79,9 @@ class ChatResource(Resource):
 
             message_content = content["message"]
             logging.info(
-                "Chat request received: %s from user %s", message_content, current_user.email
+                "Chat request received: %s from user %s",
+                message_content,
+                current_user.email,
             )
 
             user_id = current_user.id
@@ -83,8 +124,24 @@ class ChatResource(Resource):
             logging.exception("An error occurred while processing chat message")
             return {"status": "ERROR", "message": "An internal error occurred."}, 500
 
+    @chat_ns.doc(
+        params={
+            "job_id": "ID of the processing job to fetch results for",
+            "conversation_id": "ID of the conversation",
+        }
+    )
+    @chat_ns.response(200, "Success", result_response)
+    @chat_ns.response(202, "Processing In Progress")
+    @chat_ns.response(400, "Missing Job ID")
+    @chat_ns.response(404, "Job Not Found")
+    @chat_ns.response(500, "Processing Failed")
+    @jwt_required(optional=False, locations=["cookies", "headers"])
     def get(self):
-        """Endpoint to fetch the result of a chat operation."""
+        """
+        Fetch the result of a chat processing job.
+
+        Requires job_id query parameter.
+        """
         job_id = request.args.get("job_id")
         conversation_id = request.args.get("conversation_id")
         if not job_id:
