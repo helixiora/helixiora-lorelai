@@ -1,0 +1,53 @@
+"""Move from threads to conversations.
+
+Revision ID: 2ba475b5b68b
+Revises: d0ddd680748b
+Create Date: 2024-11-10 15:57:49.745425
+
+"""
+
+from collections.abc import Sequence
+
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = "2ba475b5b68b"
+down_revision: str | None = "d0ddd680748b"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+
+def upgrade() -> None:
+    """Upgrade the database."""
+    print("upgrading")
+
+    print("renaming table")
+    op.rename_table("chat_threads", "chat_conversations")
+    print("altering column")
+    op.alter_column("chat_conversations", "thread_id", new_column_name="conversation_id")
+    op.alter_column("chat_messages", "thread_id", new_column_name="conversation_id")
+    print("dropping constraint")
+    op.drop_constraint("chat_messages_ibfk_1", "chat_messages", type_="foreignkey")
+    print("creating foreign key")
+    op.create_foreign_key(
+        None, "chat_messages", "chat_conversations", ["conversation_id"], ["conversation_id"]
+    )
+    print("done")
+
+
+def downgrade() -> None:
+    """Downgrade the database."""
+    print("downgrading")
+
+    print("renaming table")
+    op.rename_table("chat_conversations", "chat_threads")
+    print("altering column")
+    op.alter_column("chat_threads", "conversation_id", new_column_name="thread_id")
+    op.alter_column("chat_messages", "conversation_id", new_column_name="thread_id")
+    print("dropping constraint")
+    op.drop_constraint(None, "chat_messages", type_="foreignkey")
+    print("creating foreign key")
+    op.create_foreign_key(
+        "chat_messages_ibfk_1", "chat_messages", "chat_threads", ["thread_id"], ["thread_id"]
+    )
+    print("done")
