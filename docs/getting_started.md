@@ -11,9 +11,8 @@ There are two ways LorelAI can be deployed/ran:
 
 1. Activate it with `source .venv/bin/activate`.
 
-1. Install required dependencies: `pip install -r requirements.txt`. _N.B_ this installs
-   requirements for both the worker and web app. There's an additional requirements file for playing
-   around with the more _experimental_ features called requirements-dev.txt.
+1. Install required dependencies: `pip install -r requirements.txt`. repeat for
+   `requirements-dev.txt`, `requirements-web.txt` and `requirements-worker.txt`
 
 1. Get the database up and running, see the [readme in './migrations'](../migrations/readme.md)
 
@@ -27,9 +26,9 @@ There are two ways LorelAI can be deployed/ran:
 
    See [prerequisites](./prerequisites.md) for more info
 
-1. Run an rq worker:
+1. Run an rq worker with all three queues:
 
-   `.venv/bin/rq worker &`
+   `.venv/bin/rq worker indexer_queue question_queue default &`
 
    ```log
     Worker rq:worker:dd2b92d43db1495383d426d5cb44ff79 started with PID 82721, version 1.16.1
@@ -83,12 +82,6 @@ accessible from [https://127.0.0.1:5000/admin](https://127.0.0.1:5000/admin)
 
 ### Executing the Indexer
 
-#### From the command line (not currently used)
-
-1. Initiate the document crawling process: `./indexer.py`. The indexer lives in
-   [the tools directory](../tools/readme.md).
-1. Check Pinecone to ensure your documents have been indexed successfully.
-
 #### From the web UI
 
 1. Go to [https://127.0.0.1:5000/admin](https://127.0.0.1:5000/admin) and press the indexer button
@@ -96,8 +89,8 @@ accessible from [https://127.0.0.1:5000/admin](https://127.0.0.1:5000/admin)
 
 ### Running Test Queries/CLI tool
 
-You can test your queries using the `lorelaicli.py` tool. It is located in
-[the tools directory](../tools/readme.md)
+(NOTE: this is not currently used) You can test your queries using the `lorelaicli.py` tool. It is
+located in [the tools directory](../tools/readme.md)
 
 ## Remote live deployment
 
@@ -109,86 +102,129 @@ Otherwise the steps are the same for the time being.
 
 Use the below settings to create configurations so you can debug from VS code:
 
+In `.vscode/launch.json`:
+
 ```json
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-    {
-      // Configuration to run the RQ worker
-      "name": "RQ Worker",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "rq.cli",
-      "env": {
-        // Specify the Redis URL
-        "RQ_REDIS_URL": "redis://localhost:6379/0",
-        // log level
-        "LOG_LEVEL": "DEBUG"
+      {
+          "name": "RQ Worker with Debugpy",
+          "type": "debugpy",
+          "request": "launch",
+          "module": "rq.cli",
+          "args": [
+              "worker",
+              "-c", "4",
+              "indexer_queue",
+              "question_queue",
+              "default"
+          ],
+          "env": {
+              "RQ_REDIS_URL": "redis://localhost:6379/0",
+              "OBJC_DISABLE_INITIALIZE_FORK_SAFETY": "1",
+              "LOG_LEVEL": "INFO",
+              "NO_PROXY": "*"
+          },
+          "console": "integratedTerminal",
+          "consoleName": "RQ Worker",
+          "justMyCode": false,
+          "subProcess": true
       },
-      "args": [
-        "worker" // Run the RQ worker
-      ],
-      // Specify where the program output goes
-      "console": "internalConsole"
-    },
-    {
-      // Configuration name
-      "name": "Flask",
-
-      // Type of configuration - use debugpy for Python
-      "type": "debugpy",
-
-      // Request type - launch the Flask module
-      "request": "launch",
-
-      // The Python module to launch
-      "module": "flask",
-
-      // Environment variables
-      "env": {
-        // Specify the entry point of the Flask application
-        "FLASK_APP": "run.py",
-        // Enable Flask debug mode
-        "FLASK_DEBUG": "1",
-        "LOG_LEVEL": "DEBUG"
-      },
-
-      // Arguments passed to the Flask application
-      "args": [
-        "run", // Run the Flask application
-        "--no-debugger", // Disable the Flask debugger
-        "--no-reload", // Disable the reloader
-        "--cert",
-        "./cert.pem", // Path to the SSL certificate
-        "--key",
-        "key.pem" // Path to the SSL key
-      ],
-
-      // Enable Jinja templating
-      "jinja": true,
-
-      // Common Parameters
-      // Specify the working directory for the Flask application
-      "cwd": "${workspaceFolder}",
-
-      // Debug only user-written code, ignoring library files
-      "justMyCode": true,
-
-      // Specify where the program output goes
-      "console": "internalConsole",
-
-      // Redirect logs to a specific file (optional)
-      "logToFile": true
-    }
+      {
+          "name": "Flask Debug",
+          "type": "debugpy",
+          "request": "launch",
+          "module": "flask",
+          "env": {
+              "FLASK_APP": "run.py",
+              "FLASK_ENV": "development",
+              "FLASK_DEBUG": "1",
+              "OBJC_DISABLE_INITIALIZE_FORK_SAFETY": "1",
+              "LOG_LEVEL": "INFO"
+          },
+          "args": [
+              "run",
+              "--cert=./cert.pem",
+              "--key=./key.pem",
+              "--host=0.0.0.0",
+              "--port=5000",
+              "--debug"
+          ],
+          "console": "integratedTerminal",
+          "consoleName": "Flask app",
+          "jinja": true,
+          "justMyCode": false,
+          "subProcess": true
+      }
   ],
   "compounds": [
-    {
-      "name": "Compound",
-      "configurations": ["Flask", "RQ Worker"]
-    }
+      {
+          "name": "Flask and RQ Worker with Debugpy",
+          "configurations": [
+              "Flask Debug",
+              "RQ Worker with Debugpy"
+          ]
+      }
   ]
+}
+
+```
+
+In `.vscode/tasks.json`:
+
+```json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start RQ Dashboard",
+            "type": "shell",
+            "command": "${command:python.interpreterPath}",
+            "args": [
+                "-m",
+                "rq_dashboard",
+                "--port",
+                "9181",
+                "--redis-url",
+                "redis://localhost:6379/0"
+            ],
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^$",
+                    "file": 1,
+                    "location": 2,
+                    "message": 3
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*Running on.*$",
+                    "endsPattern": "^.*Running on.*$"
+                }
+            }
+        },
+        {
+            "label": "Open RQ Dashboard in Browser",
+            "type": "shell",
+            "command": "open",
+            "args": ["http://localhost:9181"],
+            "presentation": {
+                "reveal": "never",
+                "close": true
+            },
+            "dependsOn": "Start RQ Dashboard"
+        },
+        {
+            "label": "Start Lorelai in Browser",
+            "type": "shell",
+            "command": "open",
+            "args": ["https://127.0.0.1:5000"],
+            "presentation": {
+                "reveal": "never",
+                "close": true
+            }
+        }
+    ]
 }
 ```
