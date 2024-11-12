@@ -39,11 +39,22 @@ from google.oauth2 import id_token
 from flask_login import login_required, login_user, logout_user, current_user
 import time
 
+from app.helpers import email_validator, url_validator
+
 import requests as lib_requests
 
 from flask import current_app
 
-from app.models import User, UserLogin, UserAuth, db, GoogleDriveItem, Organisation, Datasource
+from app.models import (
+    User,
+    UserLogin,
+    UserAuth,
+    db,
+    GoogleDriveItem,
+    Organisation,
+    Datasource,
+    Profile,
+)
 from app.helpers.slack import SlackHelper
 from app.helpers.datasources import DATASOURCE_SLACK, DATASOURCE_GOOGLE_DRIVE
 from app.helpers.users import (
@@ -51,7 +62,6 @@ from app.helpers.users import (
     validate_form,
     register_user_to_org,
     update_user_profile,
-    get_user_profile,
     assign_free_plan_if_no_active,
 )
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
@@ -60,6 +70,9 @@ from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
 )
+
+import bleach
+from pydantic import ValidationError
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -89,7 +102,9 @@ def refresh_google_token_if_needed(access_token):
     refresh_token = session.get("google_drive.refresh_token")
     if not refresh_token:
         result = UserAuth.query.filter_by(
-            user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+            user_id=current_user.id,
+            auth_key="refresh_token",
+            datasource_id=datasource_id,
         ).first()
         if not result:
             logging.error("No refresh token found for user %s", current_user.id)
@@ -112,10 +127,14 @@ def refresh_google_token_if_needed(access_token):
             logging.error("Invalid grant error. Refresh token may be expired or revoked.")
             # Clear the invalid refresh token
             UserAuth.query.filter_by(
-                user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+                user_id=current_user.id,
+                auth_key="refresh_token",
+                datasource_id=datasource_id,
             ).delete()
             UserAuth.query.filter_by(
-                user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
+                user_id=current_user.id,
+                auth_key="access_token",
+                datasource_id=datasource_id,
             ).delete()
             db.session.commit()
             # You may want to redirect the user to re-authenticate here
@@ -134,7 +153,9 @@ def refresh_google_token_if_needed(access_token):
     # Update the refresh token if a new one was provided
     if "refresh_token" in new_tokens:
         UserAuth.query.filter_by(
-            user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+            user_id=current_user.id,
+            auth_key="refresh_token",
+            datasource_id=datasource_id,
         ).update({"auth_value": new_tokens["refresh_token"]})
 
     db.session.commit()
@@ -146,12 +167,30 @@ def refresh_google_token_if_needed(access_token):
 def user_profile():
     """Manage the current user's profile."""
     if request.method == "POST":
-        bio = request.form.get("bio")
-        location = request.form.get("location")
-        birth_date = request.form.get("birth_date")
-        avatar_url = request.form.get("avatar_url")
+        # Sanitize and validate text inputs
+        bio = bleach.clean(request.form.get("bio", ""), strip=True)
+        location = bleach.clean(request.form.get("location", ""), strip=True)
 
-        update_user_profile(current_user.id, bio, location, birth_date, avatar_url)
+        # Validate date format
+        birth_date = request.form.get("birth_date", "")
+        try:
+            if birth_date:
+                datetime.strptime(birth_date, "%Y-%m-%d")
+        except ValueError:
+            birth_date = None
+
+        # Validate URL format
+        avatar_url = request.form.get("avatar_url", "")
+        if avatar_url and not url_validator(avatar_url):
+            avatar_url = None
+
+        update_user_profile(
+            user_id=current_user.id,
+            bio=bio,
+            location=location,
+            birth_date=birth_date,
+            avatar_url=avatar_url,
+        )
         flash("Profile updated successfully", "success")
         return redirect(url_for("auth.profile"))
 
@@ -163,7 +202,9 @@ def get_google_drive_access_token() -> str:
 
     if session.get("google_drive.access_token") is None:
         result = UserAuth.query.filter_by(
-            user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
+            user_id=current_user.id,
+            auth_key="access_token",
+            datasource_id=datasource_id,
         ).first()
 
         # if there is no result, the user has not authenticated with Google (yet)
@@ -205,7 +246,7 @@ def profile():
             "roles": current_user.roles,
         }
 
-        profile = get_user_profile(current_user.id)
+        profile = Profile.query.filter_by(user_id=current_user.id).first()
 
         if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
             google_drive_access_token = get_google_drive_access_token()
@@ -237,7 +278,8 @@ def profile():
                 if slack_auth and slack_auth.auth_value:
                     # Get all Slack auth records for the user
                     user_auths = UserAuth.query.filter_by(
-                        user_id=current_user.id, datasource_id=slack_datasource.datasource_id
+                        user_id=current_user.id,
+                        datasource_id=slack_datasource.datasource_id,
                     ).all()
 
                     try:
@@ -311,10 +353,19 @@ def register_post():
     -------
         str: The registration page or a redirect to the index page.
     """
-    email = request.form.get("email")
-    full_name = request.form.get("full_name")
-    organisation = request.form.get("organisation")
-    google_id = request.form.get("google_id")
+    # Sanitize and validate email
+    email = bleach.clean(request.form.get("email", ""), strip=True).lower()
+    if not email_validator(email):
+        raise ValidationError("Invalid email format")
+
+    # Sanitize name and organization
+    full_name = bleach.clean(request.form.get("full_name", ""), strip=True)
+    organisation = bleach.clean(request.form.get("organisation", ""), strip=True)
+
+    # Validate Google ID format (assuming it's a string of numbers)
+    google_id = request.form.get("google_id", "")
+    if google_id and not google_id.isdigit():
+        raise ValidationError("Invalid Google ID format")
 
     logging.info("Registering user: %s with google_id: %s", email, google_id)
 
@@ -371,10 +422,15 @@ def login():
     -------
         redirect: Redirects to the appropriate page based on the authentication result.
     """
-    id_token_received = request.form.get("credential")
-    # even thouugh we use csrf_token for our own token, we still need to use g_csrf_token
-    # because google expects it
-    csrf_token = request.form.get("g_csrf_token")
+    # Get and validate ID token
+    id_token_received = request.form.get("credential", "").strip()
+    if not id_token_received or not isinstance(id_token_received, str):
+        raise ValidationError("Invalid or missing ID token")
+
+    # Validate CSRF token from Google
+    csrf_token = request.form.get("g_csrf_token", "").strip()
+    if not csrf_token or not isinstance(csrf_token, str):
+        raise ValidationError("Invalid or missing CSRF token")
 
     try:
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
@@ -407,7 +463,12 @@ def login():
         # if we can't find the user, it means they are not registered
         # redirect them to the registration page
         return redirect(
-            url_for("auth.register_get", email=user_email, full_name=username, google_id=google_id)
+            url_for(
+                "auth.register_get",
+                email=user_email,
+                full_name=username,
+                google_id=google_id,
+            )
         )
 
     logging.info("User logging in: %s", user_email)

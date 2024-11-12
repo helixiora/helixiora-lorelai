@@ -7,6 +7,8 @@ from sqlalchemy.dialects.mysql import INTEGER
 
 db = SQLAlchemy()
 
+VALID_ROLES = {"super_admin", "org_admin", "user"}
+
 
 # Association table for User and Role
 class UserRole(db.Model):
