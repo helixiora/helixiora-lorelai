@@ -6,7 +6,7 @@ import time
 
 from rq import get_current_job
 
-from app.helpers.chat import insert_message, insert_thread_ignore
+from app.helpers.chat import insert_message, insert_conversation_ignore
 from app.helpers.notifications import add_notification
 
 # import the indexer
@@ -26,7 +26,7 @@ logging.basicConfig(level=log_level, format=logging_format)
 
 
 def get_answer_from_rag(
-    thread_id: str,
+    conversation_id: str,
     chat_message: str,
     user_id: int,
     user_email: str,
@@ -52,20 +52,24 @@ def get_answer_from_rag(
             if user_email is None or organisation_name is None:
                 raise ValueError("User and organisation cannot be None.")
 
-            thread_inserted = insert_thread_ignore(
-                thread_id=str(thread_id), user_id=user_id, thread_name=chat_message[:20]
+            conversation_inserted = insert_conversation_ignore(
+                conversation_id=str(conversation_id),
+                user_id=user_id,
+                conversation_name=chat_message[:20],
             )
 
-            if not thread_inserted:
-                logging.error(f"Failed to insert thread for user {user_id}")
+            if not conversation_inserted:
+                logging.error(f"Failed to insert conversation for user {user_id}")
                 return {
                     "answer": "An error occurred while processing your request. Please try again.",
                     "status": "error",
-                    "thread_id": thread_id,
+                    "conversation_id": conversation_id,
                 }
 
             # insert message
-            insert_message(thread_id=str(thread_id), sender="user", message_content=chat_message)
+            insert_message(
+                conversation_id=str(conversation_id), sender="user", message_content=chat_message
+            )
 
             llm = Llm.create(
                 model_type=model_type, user_email=user_email, org_name=organisation_name
@@ -76,19 +80,21 @@ def get_answer_from_rag(
             logging.info(f"Get Answer time {time.time()-start_time}")
 
             logging.info("Answer: %s", response)
-            insert_message(thread_id=str(thread_id), sender="bot", message_content=response)
+            insert_message(
+                conversation_id=str(conversation_id), sender="bot", message_content=response
+            )
 
             json_data = {
                 "answer": response,
                 "status": status,
-                "thread_id": thread_id,
+                "conversation_id": conversation_id,
             }
         except Exception as e:
             logging.error(f"Error in get_answer_from_rag: {str(e)}")
             return {
                 "answer": "An error occurred while processing your request. Please try again.",
                 "status": "error",
-                "thread_id": thread_id,
+                "conversation_id": conversation_id,
             }
 
         finally:

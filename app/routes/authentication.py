@@ -25,7 +25,6 @@ import logging
 from flask import (
     Blueprint,
     flash,
-    jsonify,
     redirect,
     render_template,
     request,
@@ -70,8 +69,6 @@ from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
-    jwt_required,
-    get_jwt_identity,
 )
 
 import bleach
@@ -505,29 +502,6 @@ def login():
     else:
         flash("Login failed. Please try again.", "error")
         return redirect(url_for("chat.index"))
-
-
-@auth_bp.route("/api/token/refresh", methods=["POST"])
-@jwt_required(refresh=True)
-def refresh():
-    """
-    Refresh the access token.
-
-    Returns
-    -------
-        str: The new access token.
-    """
-    current_user = get_jwt_identity()
-    new_access_token = create_access_token(identity=current_user)
-    response = make_response(jsonify(access_token=new_access_token), 200)
-    response.set_cookie(
-        key="access_token_cookie",
-        value=new_access_token,
-        httponly=True,
-        secure=True,
-        samesite="Strict",
-    )
-    return response
 
 
 def login_user_function(

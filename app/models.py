@@ -26,29 +26,38 @@ class ChatMessage(db.Model):
     __tablename__ = "chat_messages"
 
     message_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    thread_id = db.Column(db.String(50), db.ForeignKey("chat_threads.thread_id"), nullable=False)
+    conversation_id = db.Column(
+        db.String(50), db.ForeignKey("chat_conversations.conversation_id"), nullable=False
+    )
     sender = db.Column(db.Enum("bot", "user"), nullable=False)
     message_content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     sources = db.Column(db.JSON, nullable=True)
 
-    # Relationship to the chat thread
-    thread = db.relationship("ChatThread", back_populates="messages")
+    # Relationship to the chat conversation
+    conversation = db.relationship(
+        "ChatConversation", back_populates="messages", foreign_keys=[conversation_id]
+    )
 
 
-class ChatThread(db.Model):
-    """Model for the chat_threads table."""
+class ChatConversation(db.Model):
+    """Model for the chat_conversations table."""
 
-    __tablename__ = "chat_threads"
+    __tablename__ = "chat_conversations"
 
-    thread_id = db.Column(db.String(50), primary_key=True)
+    conversation_id = db.Column(db.String(50), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
-    thread_name = db.Column(db.String(255), nullable=True)
+    conversation_name = db.Column(db.String(255), nullable=True)
     marked_deleted = db.Column(db.Integer, default=0)
 
     # Relationship to messages
-    messages = db.relationship("ChatMessage", back_populates="thread", lazy=True)
+    messages = db.relationship(
+        "ChatMessage",
+        back_populates="conversation",
+        lazy=True,
+        foreign_keys=[ChatMessage.conversation_id],
+    )
 
 
 class Datasource(db.Model):
