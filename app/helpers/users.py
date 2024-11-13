@@ -193,13 +193,13 @@ def register_user_to_org(
             user_role = UserRole(user_id=user.id, role_id=role_id)
             db.session.add(user_role)
             db.session.commit()
-
         return True, "Registration successful!", user.id, org.id
 
     except Exception as e:
         logging.error("An error occurred: %s", e)
         db.session.rollback()
-        return False, f"An error occurred: {e}", -1
+        raise e
+        # return False, f"An error occurred: {e}", -1,-1
 
 
 def validate_form(email: str, name: str, organisation: str):

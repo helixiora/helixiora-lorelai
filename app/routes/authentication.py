@@ -322,8 +322,8 @@ def register_post():
     logging.info("Registering user: %s with google_id: %s", email, google_id)
 
     org = Organisation.query.filter_by(name=organisation).first()
-    if not org:
-        flash("Organisation does not exist. Please contact admin.", "danger")
+    if org:
+        flash("Organisation already exist. Please contact admin.", "danger")
         return redirect(url_for("org_exists"))
 
     missing = validate_form(email=email, name=full_name, organisation=organisation)
@@ -343,15 +343,26 @@ def register_post():
         email, full_name, organisation, google_id
     )
 
+    organisation = Organisation.query.get(org_id)
+    if not organisation:
+        raise ValueError("The organisation with the provided org_id does not exist.")
+    new_user = User(
+        id=user_id,
+        email=email,
+        google_id=google_id,
+        user_name=full_name,
+        full_name=full_name,
+        org_id=org_id,
+        organisation=organisation,
+    )
+
     if success:
-        login_user(
-            user_id=user_id,
+        login_user_function(
+            user=new_user,
             user_email=email,
             google_id=google_id,
             username=full_name,
             full_name=full_name,
-            org_id=org_id,
-            org_name=organisation,
         )
 
     flash("Registration successful!", "success")
