@@ -339,26 +339,11 @@ def register_post():
         )
 
     # register the user
-    success, message, user_id, org_id = register_user_to_org(
-        email, full_name, organisation, google_id
-    )
-
-    organisation = Organisation.query.get(org_id)
-    if not organisation:
-        raise ValueError("The organisation with the provided org_id does not exist.")
-    new_user = User(
-        id=user_id,
-        email=email,
-        google_id=google_id,
-        user_name=full_name,
-        full_name=full_name,
-        org_id=org_id,
-        organisation=organisation,
-    )
+    success, message, user = register_user_to_org(email, full_name, organisation, google_id)
 
     if success:
         login_user_function(
-            user=new_user,
+            user=user,
             user_email=email,
             google_id=google_id,
             username=full_name,
