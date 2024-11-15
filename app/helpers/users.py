@@ -199,7 +199,6 @@ def register_user_to_org(
         logging.error("An error occurred: %s", e)
         db.session.rollback()
         raise e
-        # return False, f"An error occurred: {e}", -1,-1
 
 
 def validate_form(email: str, name: str, organisation: str):
@@ -475,39 +474,3 @@ def remove_user_role(user_id, role_name):
         db.session.commit()
         return True
     return False
-
-
-# def create_api_token(user_id, token_name, expires_in_days=30):
-#     """Create an API token for a user."""
-#     user = User.query.get(user_id)
-#     if user:
-#         token = APIToken(user=user, name=token_name, expires_in_days=expires_in_days)
-#         db.session.add(token)
-#         db.session.commit()
-#         return token
-#     return None
-
-
-# def get_user_api_tokens(user_id):
-#     """Get a user's API tokens."""
-#     return APIToken.query.filter_by(user_id=user_id).all()
-
-
-# def revoke_api_token(token_id, user_id):
-#     """Revoke an API token for a user."""
-#     token = APIToken.query.filter_by(id=token_id, user_id=user_id).first()
-#     if token:
-#         db.session.delete(token)
-#         db.session.commit()
-#         return True
-#     return False
-
-
-# def validate_api_token(token):
-#     """Validate an API token."""
-#     api_token = APIToken.query.filter_by(token=token).first()
-#     if api_token and api_token.is_valid():
-#         api_token.last_used_at = datetime.utcnow()
-#         db.session.commit()
-#         return api_token.user
-#     return None
