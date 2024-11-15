@@ -130,6 +130,9 @@ class SlackIndexer(Indexer):
             Defaults to None.
         """
         slack = SlackHelper(user, organisation, user_auths)
+        if not slack.test_slack_token:
+            logging.critical("Slack token is invalid")
+            return False
 
         try:
             # get the list of channels

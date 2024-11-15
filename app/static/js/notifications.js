@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
         lastFetchTime = Date.now();
         try {
             const csrfToken = getCookie('csrftoken');
-            const response = await fetch('/api/notifications', {
+            const response = await fetch('/api/v1/notifications', {
                 headers: {
                     'X-CSRFToken': csrfToken
                 }
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function markAsRead(notificationId) {
         try {
             const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/notifications/${notificationId}/read`, {
+            const response = await fetch(`/api/v1/notifications/${notificationId}/read`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function dismissNotification(notificationId) {
         try {
             const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/notifications/${notificationId}/dismiss`, {
+            const response = await fetch(`/api/v1/notifications/${notificationId}/dismiss`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -186,14 +186,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // New function to update notification counts
+    // Function to update notification counts
     function updateNotificationCounts(data) {
         // Update any UI elements that display notification counts
-        // For example:
-        document.getElementById('readCount').textContent = data.read;
-        document.getElementById('unreadCount').textContent = data.remaining_unread;
-        document.getElementById('dismissedCount').textContent = data.dismissed;
-        document.getElementById('undismissedCount').textContent = data.undismissed;
+        // Only update if elements exist
+        const readCount = document.getElementById('readCount');
+        const unreadCount = document.getElementById('unreadCount');
+        const dismissedCount = document.getElementById('dismissedCount');
+        const undismissedCount = document.getElementById('undismissedCount');
+
+        if (readCount) readCount.textContent = data.read;
+        if (unreadCount) unreadCount.textContent = data.remaining_unread;
+        if (dismissedCount) dismissedCount.textContent = data.dismissed;
+        if (undismissedCount) undismissedCount.textContent = data.undismissed;
     }
 
     // Show/hide popover on hover

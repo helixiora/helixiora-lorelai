@@ -66,6 +66,9 @@ class Config:
 
     # Redis settings
     REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+    REDIS_QUEUE_INDEXER = os.environ.get("REDIS_QUEUE_INDEXER", "indexer_queue")
+    REDIS_QUEUE_QUESTION = os.environ.get("REDIS_QUEUE_QUESTION", "question_queue")
+    REDIS_QUEUE_DEFAULT = os.environ.get("REDIS_QUEUE_DEFAULT", "default")
 
     # Lorelai settings
     LORELAI_ENVIRONMENT = os.environ.get("LORELAI_ENVIRONMENT", "dev")

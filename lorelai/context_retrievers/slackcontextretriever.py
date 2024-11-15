@@ -98,7 +98,8 @@ class SlackContextRetriever(ContextRetriever):
         context_response = []
         for result in results:
             context_document = LorelaiContextDocument(
-                title=f"Thread in {result.metadata['channel_name']} on {result.metadata['msg_ts']}",
+                title=f"Conversation in {result.metadata['channel_name']} on \
+{result.metadata['msg_ts']}",
                 content=result.page_content,
                 link=result.metadata["source"],
                 when=result.metadata["msg_ts"],

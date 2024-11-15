@@ -1,13 +1,15 @@
 """User related helper functions."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from functools import wraps
 
 from flask import redirect, session, url_for
 
 from app.models import User, Organisation, Profile, Role, UserRole, db, UserPlan, Plan
+
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def is_org_admin(user_id: int) -> bool:
@@ -383,36 +385,42 @@ def assign_free_plan_if_no_active(user_id: int):
         raise e
 
 
-def create_user(email, full_name=None, org_name=None, roles=None):
+def create_user(
+    email: str,
+    full_name: str | None = None,
+    org_name: str | None = None,
+    roles: list[str] | None = None,
+) -> User:
     """Create a user."""
-    user = User(email=email, full_name=full_name)
-    if org_name:
-        org = Organisation.query.filter_by(name=org_name).first()
-        if not org:
-            org = Organisation(name=org_name)
-            db.session.add(org)
-        user.organisation = org
+    session = db.session
+    try:
+        user = User(email=email, full_name=full_name)
+        if org_name:
+            org = Organisation.query.filter_by(name=org_name).first()
+            if not org:
+                org = Organisation(name=org_name)
+                session.add(org)
+            user.organisation = org
 
-    if roles:
-        for role_name in roles:
-            role = Role.query.filter_by(name=role_name).first()
-            if role:
-                user.roles.append(role)
+        if roles:
+            for role_name in roles:
+                role = Role.query.filter_by(name=role_name).first()
+                if role:
+                    user.roles.append(role)
 
-    db.session.add(user)
-    db.session.commit()
+        session.add(user)
+        session.commit()
 
-    # Create an empty profile for the user
-    profile = Profile(user_id=user.id)
-    db.session.add(profile)
-    db.session.commit()
+        # Create an empty profile for the user
+        profile = Profile(user_id=user.id)
+        session.add(profile)
+        session.commit()
 
-    return user
-
-
-def get_user_profile(user_id):
-    """Get a user's profile."""
-    return Profile.query.filter_by(user_id=user_id).first()
+        return user
+    except SQLAlchemyError as e:
+        session.rollback()
+        logging.exception("Failed to create user")
+        raise e
 
 
 def is_valid_past_date(date_str: str, date_format: str = "%Y-%m-%d") -> bool:
@@ -428,24 +436,36 @@ def is_valid_past_date(date_str: str, date_format: str = "%Y-%m-%d") -> bool:
         return False
 
 
-def update_user_profile(user_id, bio=None, location=None, birth_date=None, avatar_url=None):
+def update_user_profile(
+    user_id: int,
+    bio: str | None = None,
+    location: str | None = None,
+    birth_date: date | None = None,
+    avatar_url: str | None = None,
+) -> Profile:
     """Update a user's profile."""
-    profile = Profile.query.filter_by(user_id=user_id).first()
-    if not profile:
-        profile = Profile(user_id=user_id)
-        db.session.add(profile)
+    session = db.session
+    try:
+        profile = Profile.query.filter_by(user_id=user_id).first()
+        if not profile:
+            profile = Profile(user_id=user_id)
+            session.add(profile)
 
-    if bio is not None:
-        profile.bio = bio
-    if location:
-        profile.location = location
-    if birth_date and is_valid_past_date(birth_date):
-        profile.birth_date = datetime.strptime(birth_date, "%Y-%m-%d").date()
-    if avatar_url:
-        profile.avatar_url = avatar_url
+        if bio is not None:
+            profile.bio = bio
+        if location is not None:
+            profile.location = location
+        if birth_date is not None:
+            profile.birth_date = birth_date
+        if avatar_url is not None:
+            profile.avatar_url = avatar_url
 
-    db.session.commit()
-    return profile
+        session.commit()
+        return profile
+    except SQLAlchemyError as e:
+        session.rollback()
+        logging.exception("Failed to update user profile")
+        raise e
 
 
 def get_user_roles(user_id):
