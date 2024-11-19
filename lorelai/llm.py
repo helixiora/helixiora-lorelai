@@ -102,7 +102,6 @@ class Llm:
                 except Exception as e:
                     logging.error(f"Exception during context retrieval: {e}")
         logging.info(f"retrieve_context took: {time.time() - retrieve_context_time}")
-        # logging.info(f"Context (get_answer): {context_list}")
         # Ask the LLM for an answer to the question
         ask_llm_time = time.time()
         answer = self._ask_llm(question=question, context_list=context_list)
