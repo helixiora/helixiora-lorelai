@@ -41,14 +41,10 @@ class OpenAILlm(Llm):
                     + "\n<<END_CONTENT>>>\n\n"
                 )
 
-        # logging.info("[OpenAILlm.get_answer] Prompt template: %s", self._prompt_template)
-        # logging.info("[OpenAILlm.get_answer] Context_doc_text: %s", context_doc_text)
-
         prompt = PromptTemplate.from_template(
             template=self.prompt_template, template_format="f-string"
         )
         prompt.input_variables = ["context_doc_text", "question"]
-        # logging.info("[OpenAILlm.get_answer] Prompt: %s", prompt)
 
         model = ChatOpenAI(model=self.model)
         output_parser_time = time.time()
@@ -57,5 +53,4 @@ class OpenAILlm(Llm):
             {"context_doc_text": context_doc_text, "question": question}
         )
         logging.info(f"StrOutputParser took: {time.time()-output_parser_time}")
-        # logging.info("[OpenAILlm.get_answer] Result: %s", result)
         return result
