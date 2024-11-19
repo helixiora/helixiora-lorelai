@@ -4,6 +4,8 @@ from flask import current_app
 from lorelai.context_retriever import ContextRetriever, LorelaiContextRetrievalResponse
 import importlib
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class Llm:
@@ -71,23 +73,41 @@ class Llm:
         """Retrieve an answer to a given question based on provided context.
 
         This method is in the baseclass as it doesn't need to know which LLM is being used.
-        It's purpose is to retrieve context from all the datasources and pass the context to the
-        __ask_llm method, which is implemented in the derived classes.
+        Its purpose is to retrieve context from all the datasources and pass the context to the
+        _ask_llm method, which is implemented in the derived classes.
         """
         context_list = []
+        retrieve_context_time = time.time()
 
-        # retrieve context from all the datasources and append to context list
-        for datasource in self.datasources:
+        def retrieve_context_wrapper(datasource):
+            """Wrap datasource context retrieval."""
             try:
-                context_retrieval_response = datasource.retrieve_context(question=question)
-                context_list.append(context_retrieval_response)
+                return datasource.retrieve_context(question=question)
             except Exception as e:
                 logging.error(f"Failed to retrieve context from {datasource}: {e}")
+                logging.error("Traceback:", exc_info=True)
+                return None
 
-        logging.info(f"Context (get_answer): {context_list}")
+        # Use ThreadPoolExecutor for multithreading
+        with ThreadPoolExecutor() as executor:
+            future_to_datasource = {
+                executor.submit(retrieve_context_wrapper, ds): ds for ds in self.datasources
+            }  # noqa: E501
 
-        # ask the LLM for an answer to the question
+            for future in as_completed(future_to_datasource):
+                try:
+                    result = future.result()
+                    if result:
+                        context_list.append(result)
+                except Exception as e:
+                    logging.error(f"Exception during context retrieval: {e}")
+        logging.info(f"retrieve_context took: {time.time() - retrieve_context_time}")
+        # logging.info(f"Context (get_answer): {context_list}")
+        # Ask the LLM for an answer to the question
+        ask_llm_time = time.time()
         answer = self._ask_llm(question=question, context_list=context_list)
+        end_time = time.time()
+        logging.info(f"ASK LLM took: {end_time - ask_llm_time}")
         return answer
 
     def _ask_llm(self, question: str, context_list: list[LorelaiContextRetrievalResponse]) -> str:
