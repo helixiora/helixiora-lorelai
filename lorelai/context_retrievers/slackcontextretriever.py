@@ -10,6 +10,7 @@ Classes:
 """
 
 import logging
+import time
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -61,7 +62,7 @@ class SlackContextRetriever(ContextRetriever):
         logging.info(
             f"[SlackContextRetriever] Retrieving context for q: {question} and u: {self.user_email}"
         )
-
+        start_time = time.time()
         try:
             index_name = PineconeHelper.get_index_name(
                 org_name=self.org_name,
@@ -107,7 +108,9 @@ class SlackContextRetriever(ContextRetriever):
                 raw_langchain_document=result,
             )
             context_response.append(context_document)
-
+        end_time = time.time()
+        logging.info(f"SlackContextRetriever took: {end_time-start_time}")
+        logging.info(f"Found {len(context_response)} context from Slack")
         return LorelaiContextRetrievalResponse(
             datasource_name=DATASOURCE_SLACK,
             context=context_response,

@@ -5,6 +5,8 @@ Note: the filename has to be openaillm.py to match the class lowercase name.
 
 import logging
 import os
+import time
+
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
@@ -39,19 +41,16 @@ class OpenAILlm(Llm):
                     + "\n<<END_CONTENT>>>\n\n"
                 )
 
-        logging.info("[OpenAILlm.get_answer] Prompt template: %s", self._prompt_template)
-        logging.info("[OpenAILlm.get_answer] Context_doc_text: %s", context_doc_text)
-
         prompt = PromptTemplate.from_template(
             template=self.prompt_template, template_format="f-string"
         )
         prompt.input_variables = ["context_doc_text", "question"]
-        logging.info("[OpenAILlm.get_answer] Prompt: %s", prompt)
 
         model = ChatOpenAI(model=self.model)
+        output_parser_time = time.time()
         output_parser = StrOutputParser()
         result = (prompt | model | output_parser).invoke(
             {"context_doc_text": context_doc_text, "question": question}
         )
-        logging.info("[OpenAILlm.get_answer] Result: %s", result)
+        logging.info(f"StrOutputParser took: {time.time()-output_parser_time}")
         return result
