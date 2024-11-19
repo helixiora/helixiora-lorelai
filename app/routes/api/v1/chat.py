@@ -89,7 +89,7 @@ class ChatResource(Resource):
                 return {"status": "ERROR", "message": "Message limit exceeded"}, 429
 
             redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-            queue = Queue(connection=redis_conn)
+            queue = Queue(current_app.config["REDIS_QUEUE_QUESTION"], connection=redis_conn)
 
             # Create or retrieve chat conversation
             conversation_id = session.get("conversation_id") or str(uuid.uuid4())
@@ -150,7 +150,7 @@ class ChatResource(Resource):
         logging.debug("Fetching job result for job ID: %s", job_id)
 
         redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-        queue = Queue(connection=redis_conn)
+        queue = Queue(current_app.config["REDIS_QUEUE_QUESTION"], connection=redis_conn)
         job = queue.fetch_job(job_id)
 
         logging.debug("Job status: %s", job.get_status())
