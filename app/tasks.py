@@ -74,10 +74,11 @@ def get_answer_from_rag(
             llm = Llm.create(
                 model_type=model_type, user_email=user_email, org_name=organisation_name
             )
+            get_answer_time = time.time()
             response = llm.get_answer(question=chat_message)
             status = "success"
 
-            logging.info(f"Get Answer time {time.time()-start_time}")
+            logging.info(f"Get Answer time {time.time()-get_answer_time}")
 
             logging.info("Answer: %s", response)
             insert_message(

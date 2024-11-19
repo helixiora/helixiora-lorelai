@@ -8,6 +8,7 @@ Classes:
 """
 
 import logging
+import time
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -59,6 +60,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
         logging.info(
             f"Retrieving Google Drive context for question: {question} and user: {self.user_email}"
         )
+        start_time = time.time()
         try:
             name = PineconeHelper.get_index_name(
                 org_name=self.org_name,
@@ -108,7 +110,9 @@ class GoogleDriveContextRetriever(ContextRetriever):
                 raw_langchain_document=result,
             )
             context_response.append(context_document)
-
+        end_time = time.time()
+        logging.info(f"GoogleDriveContextRetriever took: {end_time-start_time}")
+        logging.info(f"Found {len(context_response)} context from GoogleDrive")
         return LorelaiContextRetrievalResponse(
             datasource_name="googledrive",
             context=context_response,
