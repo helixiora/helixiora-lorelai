@@ -82,11 +82,13 @@ jobs:
 
       - name: Post build status to PR comment
         if: always() # Ensure this step runs regardless of job success or failure
+        env:
+          JOB_STATUS: ${{ job.status }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const status = github.context.job === 'success' ? 'succeeded' : 'failed';
+            const status = process.env.JOB_STATUS === 'success' ? 'succeeded' : 'failed';
             const runId = process.env.GITHUB_RUN_ID;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const buildLogUrl = `${repoUrl}/actions/runs/${runId}`;
@@ -96,7 +98,7 @@ jobs:
               issue_number: process.env.ISSUE_NUMBER,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `The build for this branch has ${status}.
+              body: `The build for this branch has **${status}**.
               - **Build Log**: [View Logs](${buildLogUrl})
               - **Web Image**: ${webImageUrl}
               - **Worker Image**: ${workerImageUrl}`
