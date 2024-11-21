@@ -4,7 +4,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
 from sqlalchemy.dialects.mysql import INTEGER
-from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
@@ -198,15 +197,13 @@ class User(UserMixin, db.Model):
     org_id = db.Column(db.Integer, db.ForeignKey("organisation.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # New field for storing the hashed password
-    password_hash = db.Column(db.String(128), nullable=True)
-
     profile = db.relationship("Profile", back_populates="user", uselist=False)
     roles = db.relationship("Role", secondary="user_roles", back_populates="users")
     user_plans = db.relationship("UserPlan", backref="user", lazy=True)
     logins = db.relationship("UserLogin", backref="user", lazy=True)
     organisation = db.relationship("Organisation", back_populates="users", lazy=True)
     extra_messages = db.relationship("ExtraMessages", back_populates="user", lazy=True)
+    api_keys = db.relationship("UserAPIKey", back_populates="user", lazy=True)
 
     def __repr__(self):
         """Return a string representation of the user."""
@@ -220,14 +217,6 @@ class User(UserMixin, db.Model):
         """Check if the user is an admin."""
         return self.has_role("org_admin") or self.has_role("super_admin")
 
-    def set_password(self, password: str) -> None:
-        """Hash and set the user's password."""
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password: str) -> bool:
-        """Check the user's password against the stored hash."""
-        return check_password_hash(self.password_hash, password)
-
 
 class UserAuth(db.Model):
     """Model for a user auth."""
@@ -240,6 +229,29 @@ class UserAuth(db.Model):
     auth_key = db.Column(db.String(255), nullable=False)
     auth_value = db.Column(db.String(255), nullable=False)
     auth_type = db.Column(db.String(255), nullable=False)
+
+
+class UserAPIKey(db.Model):
+    """Model for a user API key."""
+
+    __tablename__ = "user_api_keys"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True, name="user_api_key_id")
+    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
+    api_key = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", back_populates="api_keys")
+
+    def __repr__(self):
+        """Return a string representation of the user API key."""
+        return f"<UserAPIKey {self.api_key}>"
+
+    def is_expired(self) -> bool:
+        """Check if the API key is expired."""
+        return self.expires_at and self.expires_at < datetime.utcnow()
 
 
 class UserLogin(db.Model):
