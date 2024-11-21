@@ -453,7 +453,7 @@ def login():
     google_id = idinfo["sub"]
 
     # check if the user is already registered
-    user = User.query.filter_by(google_id=google_id).first()
+    user = User.query.filter_by(email=user_email).first()
 
     if not user:
         # if we can't find the user, it means they are not registered
