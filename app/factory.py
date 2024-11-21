@@ -22,6 +22,7 @@ from app.routes.api.v1.chat import chat_ns
 from app.routes.api.v1.conversation import conversation_ns
 from app.routes.api.v1.notifications import notifications_ns
 from app.routes.api.v1.token import token_ns
+from app.routes.api.v1.auth import auth_ns
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
@@ -114,7 +115,7 @@ def create_app(config_name: str = "default") -> Flask:
     api.add_namespace(conversation_ns)
     api.add_namespace(notifications_ns)
     api.add_namespace(token_ns)
-
+    api.add_namespace(auth_ns)
     # Register blueprints
     app.register_blueprint(googledrive_bp)
     app.register_blueprint(admin_bp)

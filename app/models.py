@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
 from sqlalchemy.dialects.mysql import INTEGER
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
@@ -27,12 +28,16 @@ class ChatMessage(db.Model):
 
     message_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     conversation_id = db.Column(
-        db.String(50), db.ForeignKey("chat_conversations.conversation_id"), nullable=False
+        db.String(50),
+        db.ForeignKey("chat_conversations.conversation_id"),
+        nullable=False,
     )
     sender = db.Column(db.Enum("bot", "user"), nullable=False)
     message_content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     sources = db.Column(db.JSON, nullable=True)
+
+    marked_deleted = db.Column(db.Boolean, default=False)
 
     # Relationship to the chat conversation
     conversation = db.relationship(
@@ -49,7 +54,7 @@ class ChatConversation(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     conversation_name = db.Column(db.String(255), nullable=True)
-    marked_deleted = db.Column(db.Integer, default=0)
+    marked_deleted = db.Column(db.Boolean, default=False)
 
     # Relationship to messages
     messages = db.relationship(
@@ -70,6 +75,7 @@ class Datasource(db.Model):
     )
     name = db.Column(db.String(255), nullable=False, name="datasource_name", unique=True)
     type = db.Column(db.String(255), nullable=False, name="datasource_type")
+    description = db.Column(db.Text, nullable=True)
 
 
 class GoogleDriveItem(db.Model):
@@ -163,9 +169,19 @@ class Role(db.Model):
 
     users = db.relationship("User", secondary="user_roles", back_populates="roles")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a string representation of the role."""
         return f"<Role {self.name}>"
+
+    def has_role(self, role_name: str) -> bool:
+        """Check if the role has a role."""
+        if not role_name:
+            return False
+        if not isinstance(role_name, str):
+            raise ValueError("Role name must be a string")
+        if role_name not in VALID_ROLES:
+            raise ValueError(f"Invalid role name: {role_name}")
+        return any(role.name == role_name for role in self.users)
 
 
 class User(UserMixin, db.Model):
@@ -182,14 +198,14 @@ class User(UserMixin, db.Model):
     org_id = db.Column(db.Integer, db.ForeignKey("organisation.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # New field for storing the hashed password
+    password_hash = db.Column(db.String(128), nullable=True)
+
     profile = db.relationship("Profile", back_populates="user", uselist=False)
     roles = db.relationship("Role", secondary="user_roles", back_populates="users")
-    # api_tokens = db.relationship("APIToken", backref="owner", lazy=True)
     user_plans = db.relationship("UserPlan", backref="user", lazy=True)
     logins = db.relationship("UserLogin", backref="user", lazy=True)
-
     organisation = db.relationship("Organisation", back_populates="users", lazy=True)
-    # Relationship to extra messages
     extra_messages = db.relationship("ExtraMessages", back_populates="user", lazy=True)
 
     def __repr__(self):
@@ -203,6 +219,14 @@ class User(UserMixin, db.Model):
     def is_admin(self) -> bool:
         """Check if the user is an admin."""
         return self.has_role("org_admin") or self.has_role("super_admin")
+
+    def set_password(self, password: str) -> None:
+        """Hash and set the user's password."""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        """Check the user's password against the stored hash."""
+        return check_password_hash(self.password_hash, password)
 
 
 class UserAuth(db.Model):
