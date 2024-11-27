@@ -47,16 +47,16 @@ def ask_question(message, access_token):
         data = response.json()
         job_id = data.get("job")
         conversation_id = data.get("conversation_id")
-        print("\nProcessing your question...\n")  # Simplified message
+        logging.info("\nProcessing your question...\n")  # Simplified message
 
         result = poll_for_result(job_id, conversation_id, access_token)
         if result:
             formatted_result = format_answer(result)
-            print(formatted_result)  # Removed extra newlines and "Answer:" prefix
+            logging.info(formatted_result)  # Removed extra newlines and "Answer:" prefix
         else:
-            print("Failed to retrieve the result.")
+            logging.info("Failed to retrieve the result.")
     else:
-        print(f"Error {response.status_code}: {response.text}")
+        logging.info(f"Error {response.status_code}: {response.text}")
 
 
 def poll_for_result(job_id, conversation_id, access_token):
@@ -66,22 +66,22 @@ def poll_for_result(job_id, conversation_id, access_token):
 
     params = {"job_id": job_id, "conversation_id": conversation_id}
 
-    print("Waiting for response", end="", flush=True)  # Initial message
+    logging.info("Waiting for response", end="", flush=True)  # Initial message
     while True:
         response = requests.get(chat_get_url, headers=headers, params=params, verify=False)
         if response.status_code == 200:
             data = response.json()
             result = data.get("result")
             if result:
-                print("\n")  # Clear the progress line
+                logging.info("\n")  # Clear the progress line
                 return result
-            print(".", end="", flush=True)  # Show progress
+            logging.info(".", end="", flush=True)  # Show progress
             time.sleep(2)
         elif response.status_code == 202:
-            print(".", end="", flush=True)  # Show progress
+            logging.info(".", end="", flush=True)  # Show progress
             time.sleep(2)
         else:
-            print(f"\nError {response.status_code}: {response.text}")
+            logging.error(f"\nError {response.status_code}: {response.text}")
             return None
 
 
@@ -111,4 +111,4 @@ if __name__ == "__main__":
         question = input("\nEnter your question: ")
         ask_question(question, access_token)
     else:
-        print("Failed to get access token. Please check your credentials.")
+        logging.error("Failed to get access token. Please check your credentials.")
