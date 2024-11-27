@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add this line at the beginning of the DOMContentLoaded event listener
     const username = document.body.dataset.username;
 
-    function addMessage(content, isUser = true, isHTML = false, isSources = false) {
+    function addMessage(content, isUser = true, isHTML = false, isSources = false, timestamp = null) {
         // Convert markdown content to HTML
         content = marked.parse(content);
 
@@ -84,11 +84,17 @@ document.addEventListener('DOMContentLoaded', function() {
             messageContentDiv.className = 'inline-block rounded-lg p-4 bg-white';
         }
         messageContentDiv.style.overflowWrap = 'break-word';
+
+        // Format timestamp
+        const formattedTimestamp = timestamp
+            ? new Date(timestamp).toLocaleString() // Convert to a readable format
+            : '';
+        // Use innerHTML for bot messages that need to render HTML content
         // Use innerHTML for bot messages that need to render HTML content
         if (isUser) {
-            messageContentDiv.innerHTML = '<strong>' + username + '</strong>: ' + content;
+            messageContentDiv.innerHTML = `<strong>${username}</strong> - ${formattedTimestamp}: ${content}`;
         } else {
-            messageContentDiv.innerHTML = '<strong>Lorelai</strong>: ' + content;
+            messageContentDiv.innerHTML = `<strong>Lorelai</strong> - ${formattedTimestamp}: ${content}`;
         }
         messageContainerDiv.appendChild(messageContentDiv);
         messagesDiv.appendChild(messageContainerDiv); // Append the message to messagesDiv
@@ -311,7 +317,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     content=message.message_content,
                     isUser=(message.sender === "user"),
                     isHTML=true,
-                    isSources=false
+                    isSources=false,
+                    timestamp = message.created_at
                 );
             }
         } catch (error) {
