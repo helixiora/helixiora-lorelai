@@ -24,6 +24,7 @@ pydantic[email]==2.9.2
 PyJWT==2.9.0
 python-ulid==3.0.0
 redis==5.2.0
+rerankers[flashrank]==0.6.0
 rq==2.0.0
 sendgrid==6.11.0
 sentry-sdk==2.18.0
