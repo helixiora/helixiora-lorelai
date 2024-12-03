@@ -41,14 +41,10 @@ function hideLoadingIndicator() {
 // Move the deleteConversation function outside of the DOMContentLoaded event listener
 async function deleteConversation(conversationId) {
     try {
-        const csrfToken = getCookie('csrf_token');
-        const response = await fetch(`/api/v1/conversation/${conversationId}/delete`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken
-            }
-        });
+        const response = await makeAuthenticatedRequest(
+            `/api/v1/conversation/${conversationId}/delete`,
+            'DELETE'
+        );
 
         if (!response.ok) {
             throw new Error('Network response was not ok');
@@ -138,17 +134,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const csrfToken = getCookie('csrf_token');
-            const accessToken = localStorage.getItem('lorelai_jwt_access_token');
 
-            const response = await fetch(`/api/v1/chat?job_id=${job_id}`, {
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/chat?job_id=${job_id}`,
+                'GET'
+            );
+
             const data = await response.json();
-
             console.log('Response:', data);
 
             conversation_id = data.conversation_id;
@@ -230,62 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showLoadingIndicator();
 
         try {
-            // Get fresh CSRF token
-            const csrfToken = await getCsrfToken();
-
-            // Check if we have an access token
-            const accessToken = localStorage.getItem('lorelai_jwt_access_token');
-            if (!accessToken) {
-                hideLoadingIndicator();
-                addMessage('You are not logged in. Please log in to continue.', false, false);
-                // Optionally redirect to login page
-                // window.location.href = '/login';
-                return;
-            }
-
-            let response = await fetch('/api/v1/chat', {
-                method: 'POST',
-                body: JSON.stringify({message: message}),
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            });
-
-            // Handle 401 (Unauthorized)
-            if (response.status === 401) {
-                const responseData = await response.json();
-                if (responseData.msg.startsWith("Expired token")) {
-                    // Token expired, try to refresh
-                    const refreshResponse = await fetch('/api/v1/token/refresh', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken,
-                            'Authorization': `Bearer ${localStorage.getItem('lorelai_jwt_refresh_token')}`
-                        }
-                    });
-
-                    if (refreshResponse.ok) {
-                        const newTokens = await refreshResponse.json();
-                        // Update stored tokens
-                        localStorage.setItem('lorelai_jwt_access_token', newTokens.access_token);
-
-                        // Retry original request with new token
-                        response = await fetch('/api/v1/chat', {
-                            method: 'POST',
-                            body: JSON.stringify({message: message}),
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken,
-                                'Authorization': `Bearer ${newTokens.access_token}`
-                            }
-                        });
-                    } else {
-                        throw new Error('Token refresh failed');
-                    }
-                }
-            }
+            const response = await makeAuthenticatedRequest('/api/v1/chat', 'POST', { message: message });
 
             if (!response.ok) {
                 hideLoadingIndicator();
@@ -323,15 +260,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-
     async function get_conversation(conversationId) {
         try {
-            const csrfToken = getCookie('csrf_token');
-            const response = await fetch(`/api/v1/conversation/${conversationId}`, {
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken
-                }
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/conversation/${conversationId}`,
+                'GET'
+            );
 
             const data = await response.json();
             if (!data || data.length === 0) {
