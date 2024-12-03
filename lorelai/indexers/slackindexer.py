@@ -138,6 +138,10 @@ class SlackIndexer(Indexer):
             # get the list of channels
             channel_ids_dict = slack.get_accessible_channels(only_joined=True)
 
+            if not channel_ids_dict:
+                logging.info("No channels found for the user")
+                return True
+
             # Process each channel
             for channel_id, channel_name in channel_ids_dict.items():
                 logging.info(f"Processing channel {channel_id} {channel_name}")
