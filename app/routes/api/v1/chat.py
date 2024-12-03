@@ -52,12 +52,12 @@ class ChatResource(Resource):
     @chat_ns.expect(message_input)
     @chat_ns.response(200, "Success", message_response)
     @chat_ns.response(400, "Validation Error")
-    @chat_ns.response(401, "Unauthorized - Invalid or missing JWT token")
+    @chat_ns.response(401, "Unauthorized")
     @chat_ns.response(404, "User Not Found")
     @chat_ns.response(429, "Message Limit Exceeded")
     @chat_ns.response(500, "Internal Server Error")
     @chat_ns.doc(security="jwt")
-    @jwt_required(optional=False, locations=["cookies", "headers"])
+    @jwt_required(locations=["headers"])
     def post(self):
         """
         Submit a new chat message for processing.
@@ -134,7 +134,7 @@ class ChatResource(Resource):
     @chat_ns.response(400, "Missing Job ID")
     @chat_ns.response(404, "Job Not Found")
     @chat_ns.response(500, "Processing Failed")
-    @jwt_required(optional=False, locations=["cookies", "headers"])
+    @jwt_required(optional=False, locations=["headers"])
     def get(self):
         """
         Fetch the result of a chat processing job.

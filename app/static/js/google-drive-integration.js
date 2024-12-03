@@ -55,9 +55,19 @@ async function maybeEnableButtons() {
 
 function handleSignoutClick() {
     if (accessToken) {
-        google.accounts.oauth2.revoke(accessToken);
-        accessToken = null;
-        maybeEnableButtons();
+        fetch('/api/v1/googledrive/revoke', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCookie('csrf_token')
+            }
+        })
+        .then(() => {
+            google.accounts.oauth2.revoke(accessToken);
+            accessToken = null;
+            maybeEnableButtons();
+        })
+        .catch(console.error);
     }
 }
 
@@ -108,18 +118,20 @@ async function pickerCallback(data) {
             type: doc[google.picker.Document.TYPE],
             url: doc[google.picker.Document.URL],
             iconUrl: doc[google.picker.Document.ICON_URL],
-            lastIndexedAt: doc.last_indexed_at || 'N/A'  // Assuming last_indexed_at might not be available
+            lastIndexedAt: doc.last_indexed_at || 'N/A'
         }));
 
         try {
-            const response = await fetch('/google/drive/processfilepicker', {
+            const response = await fetch('/api/v1/googledrive/processfilepicker', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCookie('csrf_token')
+                },
                 body: JSON.stringify(documents),
             });
 
             if (response.ok) {
-                // If the request is successful, reload the page
                 location.reload();
             } else {
                 console.error('Failed to process file picker:', response.statusText);
@@ -132,11 +144,15 @@ async function pickerCallback(data) {
 
 
 async function removeDocument(googleDriveId) {
-    await fetch('/google/drive/removefile', {
+    await fetch('/api/v1/googledrive/removefile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCookie('csrf_token')
+        },
         body: JSON.stringify({ google_drive_id: googleDriveId }),
-    }).catch(console.error)
+    })
+    .catch(console.error)
     .then(() => location.reload());
 }
 

@@ -81,4 +81,4 @@ def index():
     # will handle the login using the /login route in auth.py.
     # Depending on the output of that route, it's redirecting to /register if need be
 
-    return render_template("index.html", google_client_id=current_app.config["GOOGLE_CLIENT_ID"])
+    return render_template("index.html")

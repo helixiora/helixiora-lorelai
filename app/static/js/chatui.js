@@ -1,3 +1,15 @@
+// Add this function at the top of the file
+async function getCsrfToken() {
+    try {
+        const response = await fetch('/api/v1/csrf-token');
+        const data = await response.json();
+        return data.csrf_token;
+    } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+        throw error;
+    }
+}
+
 // Create a loading indicator that matches the bot message styling
 function showLoadingIndicator() {
     // Create the loading container div
@@ -29,12 +41,12 @@ function hideLoadingIndicator() {
 // Move the deleteConversation function outside of the DOMContentLoaded event listener
 async function deleteConversation(conversationId) {
     try {
-        const csrfToken = getCookie('csrftoken');
+        const csrfToken = getCookie('csrf_token');
         const response = await fetch(`/api/v1/conversation/${conversationId}/delete`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
+                'X-CSRF-TOKEN': csrfToken
             }
         });
 
@@ -120,16 +132,19 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {string} taskId The ID of the task for which to fetch the result.
      * @param {number} attempt The current attempt number.
      */
-    async function pollForResponse(jobId, attempt = 1) {
-        console.log(`Polling for response: ${jobId}, Attempt: ${attempt}`);
+    async function pollForResponse(job_id, conversation_id, attempt = 1) {
+        console.log(`Polling for response: ${job_id}, Attempt: ${attempt}`);
         const delay = calculateDelay(attempt);
 
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/v1/chat?job_id=${jobId}`, {
+            const csrfToken = getCookie('csrf_token');
+            const accessToken = localStorage.getItem('lorelai_jwt_access_token');
+
+            const response = await fetch(`/api/v1/chat?job_id=${job_id}`, {
                 headers: {
-                    'X-CSRFToken': csrfToken
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Authorization': `Bearer ${accessToken}`
                 }
             });
             const data = await response.json();
@@ -160,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     with a different question or ask the question directly to LLM.');
             } else if (attempt < 40) {
                 console.log('Operation still in progress. Retrying...');
-                pollForResponse(jobId, attempt + 1);
+                pollForResponse(job_id, conversation_id, attempt + 1);
             } else {
                 console.error('Error: No successful response after multiple attempts.');
                 displayErrorMessage('Error: No successful response after multiple attempts.');
@@ -168,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Fetch error:', error);
             if (attempt < 20) {
-                pollForResponse(jobId, attempt + 1);
+                pollForResponse(job_id, conversation_id, attempt + 1);
             } else {
                 displayErrorMessage('Error: Unable to retrieve response.');
             }
@@ -211,49 +226,64 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function sendMessage(message) {
         console.log('Sending message:', message);
-        addMessage(message, true); // Display the message as sent by the user
-        showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
+        addMessage(message, true);
+        showLoadingIndicator();
 
         try {
-            const csrfToken = getCookie('csrftoken');
-            console.log('CSRF Token:', csrfToken);
+            // Get fresh CSRF token
+            const csrfToken = await getCsrfToken();
+
+            // Check if we have an access token
+            const accessToken = localStorage.getItem('lorelai_jwt_access_token');
+            if (!accessToken) {
+                hideLoadingIndicator();
+                addMessage('You are not logged in. Please log in to continue.', false, false);
+                // Optionally redirect to login page
+                // window.location.href = '/login';
+                return;
+            }
+
             let response = await fetch('/api/v1/chat', {
                 method: 'POST',
                 body: JSON.stringify({message: message}),
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Authorization': `Bearer ${accessToken}`
                 }
             });
 
-            // if the token is expired, the body contains "Expired token"
+            // Handle 401 (Unauthorized)
             if (response.status === 401) {
                 const responseData = await response.json();
-                // check if the responseData.msg starts with "Expired token"
                 if (responseData.msg.startsWith("Expired token")) {
                     // Token expired, try to refresh
                     const refreshResponse = await fetch('/api/v1/token/refresh', {
                         method: 'POST',
                         headers: {
-                            'X-CSRFToken': csrfToken
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Authorization': `Bearer ${localStorage.getItem('lorelai_jwt_refresh_token')}`
                         }
                     });
 
                     if (refreshResponse.ok) {
-                        // Token refreshed, retry the original request
+                        const newTokens = await refreshResponse.json();
+                        // Update stored tokens
+                        localStorage.setItem('lorelai_jwt_access_token', newTokens.access_token);
+
+                        // Retry original request with new token
                         response = await fetch('/api/v1/chat', {
-                        method: 'POST',
-                        body: JSON.stringify({message: message}),
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
+                            method: 'POST',
+                            body: JSON.stringify({message: message}),
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                                'Authorization': `Bearer ${newTokens.access_token}`
                             }
                         });
                     } else {
                         throw new Error('Token refresh failed');
                     }
-                } else {
-                    throw new Error('Token expired');
                 }
             }
 
@@ -287,21 +317,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } catch (error) {
-            // Handle network errors or issues with the fetch operation itself
             console.error('Fetch error:', error);
-            hideLoadingIndicator(); // Hide the loading indicator as there's been an error
-            addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
+            hideLoadingIndicator();
+            addMessage('Error: Unable to send the message. Please try again later.', false, false);
         }
     }
 
 
-
     async function get_conversation(conversationId) {
         try {
-            const csrfToken = getCookie('csrftoken');
+            const csrfToken = getCookie('csrf_token');
             const response = await fetch(`/api/v1/conversation/${conversationId}`, {
                 headers: {
-                    'X-CSRFToken': csrfToken
+                    'X-CSRF-TOKEN': csrfToken
                 }
             });
 
@@ -396,10 +424,3 @@ document.querySelectorAll('.conversation-item').forEach(item => {
         location.reload();
     });
 });
-
-// Add this function before the sendMessage function
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-}

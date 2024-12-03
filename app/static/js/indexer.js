@@ -1,9 +1,7 @@
-
-
 function startIndexing(type) {
     $('#statusMessage').hide().removeClass('alert-danger alert-success').addClass('alert-info').text(`Starting ${type} indexing...`).show();
 
-    fetch(`/admin/index/${type}`, { method: 'POST' })
+    fetch(`/api/v1/admin/index/${type}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCookie('csrf_token') } })
         .then(response => {
             if (response.ok) {
                 return response.json();
@@ -31,13 +29,13 @@ function startIndexing(type) {
 
 function checkStatus(jobStatus, type, jobStatuses) {
     console.log(jobStatus);
-    const csrfToken = getCookie('csrftoken');
+    const csrfToken = getCookie('csrf_token');
     console.log('CSRF Token:', csrfToken);
-    fetch(`/admin/indexer/job-status/${jobStatus.jobId}`, {
+    fetch(`/api/v1/admin/indexer/job-status/${jobStatus.jobId}`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
+            'X-CSRF-TOKEN': csrfToken
         }
     }).then(response => {
             if (response.ok) {
@@ -81,10 +79,4 @@ function checkStatus(jobStatus, type, jobStatuses) {
         }).catch(error => {
             $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text('Error checking task status.');
         });
-}
-
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
 }

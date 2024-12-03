@@ -2,13 +2,8 @@
 
 import logging
 
-from datetime import datetime
-
-from redis import Redis
-from rq import Queue
 from sqlalchemy.exc import SQLAlchemyError
 import mysql
-from pydantic import ValidationError
 
 from flask import (
     Blueprint,
@@ -22,17 +17,11 @@ from flask import (
     current_app,
 )
 from flask_login import login_required, current_user
-from flask_jwt_extended import jwt_required
-from app.models import User, Role, db, Organisation, UserAuth, Datasource, VALID_ROLES
-from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
-from app.tasks import run_indexer
-from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
+from app.models import User, Role, VALID_ROLES
+from app.schemas import UserSchema
 from app.helpers.users import (
-    is_super_admin,
-    is_org_admin,
     is_admin,
     role_required,
-    create_user,
     create_invited_user_in_db,
     get_user_roles,
     add_user_role,
@@ -76,194 +65,6 @@ def admin_dashboard():
     except SQLAlchemyError:
         flash("Failed to retrieve users.", "error")
         return render_template("admin.html", is_admin=True, users=[])
-
-
-@admin_bp.route("/admin/create_user", methods=["POST"])
-@login_required
-def create_new_user():
-    """Create a new user."""
-    if not current_user.is_admin:
-        flash("Unauthorized access.", "error")
-        return redirect(url_for("index"))
-
-    data = request.get_json()
-    try:
-        user_data = UserSchema(**data)
-    except ValidationError as e:
-        return jsonify({"status": "error", "message": e.errors()}), 400
-
-    try:
-        user = create_user(
-            email=user_data.email,
-            full_name=user_data.full_name,
-            org_name=data.get("org_name"),
-            roles=[role.name for role in user_data.roles],
-        )
-        return jsonify({"status": "success", "user": UserSchema.from_orm(user).dict()}), 201
-    except SQLAlchemyError:
-        return jsonify({"status": "error", "message": "Failed to create user."}), 500
-
-
-@admin_bp.route("/admin/indexer/job-status/<job_id>")
-@jwt_required(optional=False, locations=["cookies"])
-def job_status(job_id: str) -> str:
-    """Return the status of a job given its job_id.
-
-    Parameters
-    ----------
-    job_id : str
-        The job_id of the job to check the status of.
-
-    Returns
-    -------
-    str
-        The status of the job.
-    """
-    redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-    queue = Queue(current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn)
-    job = queue.fetch_job(job_id)
-
-    if job is None:
-        logging.error(f"Job {job_id} not found")
-        response = {"job_id": job_id, "state": "unknown", "status": "unknown"}
-    else:
-        logging.info(f"Job {job_id} status: {job._status}")
-        match job:
-            case job.is_queued:
-                logging.info(f"Job {job_id} queued")
-                response = {
-                    "job_id": job_id,
-                    "state": "queued",
-                    "metadata": job.meta,
-                }
-            case job.is_finished:
-                logging.info(f"Job {job_id} finished")
-                response = {
-                    "job_id": job_id,
-                    "state": "finished",
-                    "metadata": job.meta,
-                    "result": job.result,
-                }
-            case job.is_failed:
-                logging.error(f"Job {job_id} failed")
-                response = {
-                    "job_id": job_id,
-                    "state": "failed",
-                    "metadata": job.meta,
-                    "result": job.result,
-                }
-            case job.is_started:
-                logging.info(f"Job {job_id} started")
-                response = {
-                    "job_id": job_id,
-                    "state": "started",
-                    "metadata": job.meta,
-                    "result": job.result,
-                }
-            case _:
-                logging.info(f"Job {job_id} unknown state")
-                response = {
-                    "job_id": job_id,
-                    "state": job._status,
-                    "metadata": job.meta,
-                    "result": job.result,
-                }
-
-    logging.debug(f"Job id: {job_id}, status: {response}")
-    return jsonify(response)
-
-
-@admin_bp.route("/admin/index/<type>", methods=["POST"])
-# note we don't require a role because a regular user should be able to index their own stuff
-@login_required
-def start_indexing(type) -> str:
-    """Start indexing the data for the organisation of the logged-in user.
-
-    Returns
-    -------
-    str
-        The job_id of the indexing job.
-
-    Raises
-    ------
-    ConnectionError
-        If the connection to the Redis server or the database fails.
-    """
-    logging.info("Started indexing (type: %s)", type)
-    if type == "organisation" and not is_org_admin(session["user.id"]):
-        return jsonify({"error": "Only organisation admins can index their organisation"}), 403
-    if type == "all" and not is_super_admin(session["user.id"]):
-        return jsonify({"error": "Only super admins can index all organisations"}), 403
-
-    if type not in ["user", "organisation", "all"]:
-        return jsonify({"error": "Invalid type"}), 400
-
-    try:
-        redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-        queue = Queue(current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn)
-
-        datasource_id = (
-            Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
-        )
-        user_id = session["user.id"]
-        org_id = session.get("user.org_id")
-        if not org_id and type != "all":
-            return jsonify(
-                {"error": "No organisation ID found for the user in the session details"}
-            ), 403
-
-        jobs = []
-
-        # Convert SQLAlchemy objects to Pydantic models
-        org_rows = (
-            Organisation.query.filter_by(id=org_id)
-            if type in ["user", "organisation"]
-            else Organisation.query.all()
-        )
-        org_rows = [OrganisationSchema.from_orm(org) for org in org_rows]
-
-        for org_row in org_rows:
-            user_rows = (
-                User.query.filter_by(org_id=org_row.id)
-                if type in ["organisation", "all"]
-                else User.query.filter_by(id=user_id, org_id=org_id)
-            )
-            # Ensure all required fields are present
-            user_rows = [UserSchema.from_orm(user) for user in user_rows]
-
-            user_auth_rows = []
-            for user_row in user_rows:
-                user_auth_rows_for_user = UserAuth.query.filter_by(
-                    user_id=user_row.id, datasource_id=datasource_id
-                )
-                user_auth_rows.extend(
-                    [UserAuthSchema.from_orm(auth) for auth in user_auth_rows_for_user]
-                )
-
-                job = queue.enqueue(
-                    run_indexer,
-                    organisation=org_row,
-                    users=user_rows,
-                    user_auths=user_auth_rows,
-                    started_by_user_id=user_id,
-                    job_timeout=3600,
-                    description=f"Indexing started by {user_id}: {len(user_rows)} users in \
-{org_row.name} - Start time: {datetime.now()}",
-                )
-
-                job_id = job.get_id()
-                jobs.append(job_id)
-
-        logging.info("Started indexing for %s jobs", len(jobs))
-        return jsonify({"jobs": jobs}), 202
-    except ValidationError as e:
-        logging.error(f"Validation error: {e}")
-        return jsonify({"error": "Validation error", "details": e.errors()}), 400
-    except Exception:
-        logging.exception("Error starting indexing")
-        return jsonify({"error": "Failed to start indexing"}), 500
-    finally:
-        db.session.close()
 
 
 @admin_bp.route("/admin/pinecone")
@@ -453,35 +254,6 @@ def invite_user():
     return redirect(url_for("admin.admin_dashboard"))
 
 
-@admin_bp.route("/admin/test_connection", methods=["POST"])
-@role_required(["super_admin", "org_admin"])
-def test_connection() -> str:
-    """The test connection route.
-
-    Test the connection to the MySQL database.
-
-    Returns
-    -------
-    str
-        A message indicating the result of the connection test.
-
-    Raises
-    ------
-    mysql.connector.Error
-        If the connection to the MySQL database fails.
-    """
-    try:
-        if db.session.execute("SELECT 1").fetchone():
-            return "Connected to database"
-        else:
-            return "Failed to connect to database"
-    except mysql.connector.Error as e:
-        if e.errno == 1049:
-            return f"{e.msg} (error {str(e.errno)})"
-        else:
-            raise
-
-
 @admin_bp.route("/admin/user/<int:user_id>/roles", methods=["GET", "POST"])
 @login_required
 @role_required(["super_admin", "org_admin"])
@@ -515,29 +287,3 @@ def manage_user_roles(user_id):
         all_roles=all_roles,
         user_roles=user_roles,
     )
-
-
-# @admin_bp.route("/api-tokens", methods=["GET", "POST"])
-# @login_required
-# def manage_api_tokens():
-#     """Manage API tokens for the current user."""
-#     if request.method == "POST":
-#         token_name = request.form.get("token_name")
-#         if token_name:
-#             token = create_api_token(current_user.id, token_name)
-#           flash(f"API token '{token_name}' created successfully. Token: {token.token}", "success")
-#         return redirect(url_for("admin.manage_api_tokens"))
-
-#     tokens = get_user_api_tokens(current_user.id)
-#     return render_template("admin/api_tokens.html", tokens=tokens)
-
-
-# @admin_bp.route("/api-tokens/<int:token_id>/revoke", methods=["POST"])
-# @login_required
-# def revoke_token(token_id):
-#     """Revoke an API token for the current user."""
-#     if revoke_api_token(token_id, current_user.id):
-#         flash("API token revoked successfully", "success")
-#     else:
-#         flash("Failed to revoke API token", "error")
-#     return redirect(url_for("admin.manage_api_tokens"))

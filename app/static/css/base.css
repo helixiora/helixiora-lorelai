@@ -125,3 +125,31 @@ body {
     min-height: 38px;
     max-height: 150px;
 }
+
+.notification-summary {
+    border-top: 1px solid #eee;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.notification-counts {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.notification-counts span {
+    margin-right: 15px;
+}
+
+.view-all-link {
+    display: block;
+    text-align: center;
+    font-size: 0.9em;
+    color: #007bff;
+    text-decoration: none;
+}
+
+.view-all-link:hover {
+    text-decoration: underline;
+}

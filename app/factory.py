@@ -3,7 +3,7 @@
 import logging
 import os
 import sys
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request, abort, session
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
 from flask_restx import Api
@@ -17,7 +17,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.cli import init_db_command, seed_db_command
 
+from sentry_sdk.integrations.rq import RqIntegration
+
 import sentry_sdk
+from secrets import token_urlsafe
 
 # models
 from app.models import db, User
@@ -29,6 +32,8 @@ from app.routes.api.v1.notifications import notifications_ns
 from app.routes.api.v1.token import token_ns
 from app.routes.api.v1.auth import auth_ns
 from app.routes.api.v1.api_keys import api_keys_ns
+from app.routes.api.v1.admin import admin_ns
+from app.routes.api.v1.googledrive import googledrive_ns
 
 # blueprints
 from app.routes.admin import admin_bp
@@ -94,6 +99,25 @@ def create_app(config_name: str = "default") -> Flask:
     # Initialize JWT
     jwt = JWTManager(app)
 
+    # Add CSRF token generator endpoint
+    @app.route("/api/v1/csrf-token", methods=["GET"])
+    def get_csrf_token():
+        token = token_urlsafe(32)
+        session["csrf_token"] = token
+        return jsonify({"csrf_token": token})
+
+    # Add CSRF protection middleware
+    @app.before_request
+    def csrf_protect():
+        # Skip CSRF check for Google OAuth login since it uses its own CSRF protection
+        if request.endpoint == "auth.login" and request.method == "POST":
+            return
+
+        if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
+            token = request.headers.get(app.config["CSRF_TOKEN_HEADER"])
+            if not token or token != session.get("csrf_token"):
+                abort(403, description="Invalid CSRF token")
+
     # Set up Sentry
     if app.config["SENTRY_DSN"]:
         sentry_sdk.init(
@@ -101,6 +125,7 @@ def create_app(config_name: str = "default") -> Flask:
             environment=app.config["SENTRY_ENVIRONMENT"],
             traces_sample_rate=1.0,
             profiles_sample_rate=1.0,
+            integrations=[RqIntegration()],
         )
         logging.info("Sentry initialized in environment %s", app.config["SENTRY_ENVIRONMENT"])
 
@@ -124,9 +149,12 @@ def create_app(config_name: str = "default") -> Flask:
     api.add_namespace(token_ns)
     api.add_namespace(auth_ns)
     api.add_namespace(api_keys_ns)
+    api.add_namespace(admin_ns)
+    api.add_namespace(googledrive_ns)
+
     # Register blueprints
-    app.register_blueprint(googledrive_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(googledrive_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(slack_bp)
@@ -179,7 +207,6 @@ def setup_error_handlers(app: Flask) -> None:
 def setup_after_request(app: Flask) -> None:
     """Set up after request handlers for the Flask app."""
 
-    # Implement your after request handlers here
     @app.after_request
     def set_security_headers(response):
         """Set the security headers for the response."""
@@ -188,6 +215,7 @@ def setup_after_request(app: Flask) -> None:
         connect_src = [
             "'self'",
             "https://accounts.google.com/gsi/",
+            "https://accounts.google.com/.well-known/",
             "https://oauth2.googleapis.com/",
             "https://o4507884621791232.ingest.de.sentry.io/api/",
         ]
@@ -277,9 +305,6 @@ def setup_after_request(app: Flask) -> None:
         response.headers["Cross-Origin-Opener-Policy"] = cross_origin_opener_policy
         response.headers["Content-Security-Policy"] = content_security_policy
 
-        # logging.info("Setting CSRF token")
-        # response.set_cookie("csrf_token", value=generate_csrf(), secure=True, samesite="Strict")
-
         return response
 
 
@@ -289,14 +314,26 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
     @jwt.unauthorized_loader
     def custom_unauthorized_response(_err):
         """Handle unauthorized access."""
-        logging.error("Unauthorized access: %s", _err)
-        return jsonify({"msg": f"Unauthorized access: {_err}"}), 401
+        logging.error("Unauthorized access attempt - %s", _err)
+        return jsonify(
+            {
+                "msg": "Authentication required",
+                "error": "missing_authorization",
+                "details": str(_err),
+            }
+        ), 401
 
     @jwt.invalid_token_loader
     def custom_invalid_token_response(error_string):
         """Handle invalid token."""
-        logging.error("Invalid token: %s", error_string)
-        return jsonify({"msg": f"Invalid token: {error_string}"}), 401
+        logging.error("Invalid token provided - %s", error_string)
+        return jsonify(
+            {
+                "msg": "Invalid authentication token",
+                "error": "invalid_token",
+                "details": error_string,
+            }
+        ), 401
 
     @jwt.expired_token_loader
     def custom_expired_token_response(jwt_header, jwt_payload):

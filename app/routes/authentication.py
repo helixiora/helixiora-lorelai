@@ -37,7 +37,6 @@ from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from flask_login import login_required, login_user, logout_user, current_user
-import time
 
 from app.helpers import email_validator, url_validator
 
@@ -268,6 +267,7 @@ def profile():
             if not slack_datasource:
                 logging.error("Slack datasource not found in database")
                 slack_channels = None
+                slack_auth = None
             else:
                 slack_auth = UserAuth.query.filter_by(
                     user_id=current_user.id,
@@ -276,34 +276,48 @@ def profile():
                 ).first()
 
                 if slack_auth and slack_auth.auth_value:
-                    # Get all Slack auth records for the user
-                    user_auths = UserAuth.query.filter_by(
-                        user_id=current_user.id,
-                        datasource_id=slack_datasource.datasource_id,
-                    ).all()
-
-                    try:
-                        slack = SlackHelper(
-                            user=UserSchema.from_orm(current_user),
-                            organisation=OrganisationSchema.from_orm(current_user.organisation),
-                            user_auths=[UserAuthSchema.from_orm(auth) for auth in user_auths],
-                        )
-                        if SlackHelper.test_slack_token(slack_auth.auth_value):
-                            slack_channels = slack.get_accessible_channels(only_joined=True)
-                            # convert from channelid = channelname to a list of #channelnames
-                            slack_channels = [f"#{name}" for name in slack_channels.values()]
-                        else:
-                            logging.warning("Slack token is invalid")
-                            slack_channels = None
-                    except Exception as e:
-                        logging.error(f"Error initializing SlackHelper: {e}")
+                    # Test the token validity
+                    is_valid = SlackHelper.test_slack_token(slack_auth.auth_value)
+                    if not is_valid:
+                        logging.warning("Slack token is invalid")
                         slack_channels = None
+                        # Keep slack_auth so template knows to show revoke button
+                    else:
+                        # Get all Slack auth records for the user
+                        user_auths = UserAuth.query.filter_by(
+                            user_id=current_user.id,
+                            datasource_id=slack_datasource.datasource_id,
+                        ).all()
+
+                        try:
+                            slack = SlackHelper(
+                                user=UserSchema.from_orm(current_user),
+                                organisation=OrganisationSchema.from_orm(current_user.organisation),
+                                user_auths=[UserAuthSchema.from_orm(auth) for auth in user_auths],
+                            )
+                            try:
+                                channels = slack.get_accessible_channels(only_joined=True)
+                                if channels:
+                                    slack_channels = [f"#{name}" for name in channels.values()]
+                                else:
+                                    logging.warning("No accessible Slack channels found")
+                                    slack_channels = None
+                            except AttributeError:
+                                logging.warning(
+                                    "Error accessing Slack channels - possible permissions issue"
+                                )
+                                slack_channels = None
+                        except Exception as e:
+                            logging.error(f"Error initializing SlackHelper: {e}")
+                            slack_channels = None
                 else:
                     logging.info("No Slack access token found")
                     slack_channels = None
                     slack_auth = None
         else:
             logging.warning("Slack feature is disabled.")
+            slack_channels = None
+            slack_auth = None
 
         return render_template(
             "profile.html",
@@ -424,10 +438,19 @@ def login():
     if not id_token_received or not isinstance(id_token_received, str):
         raise ValidationError("Invalid or missing ID token")
 
-    # Validate CSRF token from Google
-    csrf_token = request.form.get("g_csrf_token", "").strip()
-    if not csrf_token or not isinstance(csrf_token, str):
-        raise ValidationError("Invalid or missing CSRF token")
+    # Get Google's CSRF token
+    g_csrf_token = request.form.get("g_csrf_token", "").strip()
+
+    # Validate Google's CSRF token
+    if not g_csrf_token:
+        raise exceptions.GoogleAuthError("No CSRF token in post body.")
+
+    g_csrf_token_cookie = request.cookies.get("g_csrf_token")
+    if not g_csrf_token_cookie:
+        raise exceptions.GoogleAuthError("No CSRF token in cookie.")
+
+    if g_csrf_token != g_csrf_token_cookie:
+        raise exceptions.GoogleAuthError("CSRF token mismatch.")
 
     try:
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
@@ -435,7 +458,7 @@ def login():
         if not idinfo:
             raise exceptions.GoogleAuthError("Invalid token")
 
-        validate_id_token(idinfo, csrf_token=csrf_token)
+        validate_id_token(idinfo)
 
     except (ValueError, exceptions.GoogleAuthError) as e:
         logging.error("Authentication error: %s", str(e))
@@ -478,27 +501,21 @@ def login():
     )
 
     if login_success:
-        response = make_response(redirect(url_for("auth.profile")))
-        response.set_cookie(
-            key="access_token_cookie",
-            value=session["lorelai_jwt.access_token"],
-            httponly=True,
-            secure=True,
-            samesite="Strict",
-        )
-        response.set_cookie(
-            key="refresh_token_cookie",
-            value=session["lorelai_jwt.refresh_token"],
-            httponly=True,
-            secure=True,
-            samesite="Strict",
-        )
+        # Create tokens
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
 
-        flash("Login successful!", "success")
+        # Create response with redirect
+        response = make_response(redirect(url_for("auth.profile")))
+
+        # Set tokens in session
+        session["lorelai_jwt.access_token"] = access_token
+        session["lorelai_jwt.refresh_token"] = refresh_token
+
         return response
-    else:
-        flash("Login failed. Please try again.", "error")
-        return redirect(url_for("chat.index"))
+
+    flash("Login failed", "error")
+    return redirect(url_for("chat.index"))
 
 
 def login_user_function(
@@ -608,7 +625,7 @@ def is_username_available(username: str) -> bool:
     return True
 
 
-def validate_id_token(idinfo: dict, csrf_token: str):
+def validate_id_token(idinfo: dict):
     """
     Validate the ID token.
 
@@ -616,8 +633,6 @@ def validate_id_token(idinfo: dict, csrf_token: str):
     ----------
     idinfo : dict
         The ID token information.
-    csrf_token : str
-        The CSRF token from the body of the POST request.
 
     Raises
     ------
@@ -627,24 +642,6 @@ def validate_id_token(idinfo: dict, csrf_token: str):
     # TODO: Add more checks here, see
     # https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
 
-    if not csrf_token:
-        raise exceptions.GoogleAuthError("No CSRF token in post body.")
-
-    csrf_token_cookie = request.cookies.get("g_csrf_token")
-    if not csrf_token_cookie:
-        raise exceptions.GoogleAuthError("No CSRF token in cookie.")
-
-    if csrf_token != csrf_token_cookie:
-        raise exceptions.GoogleAuthError("CSRF token mismatch.")
-
-    if idinfo["aud"] not in current_app.config["GOOGLE_CLIENT_ID"]:
-        raise exceptions.GoogleAuthError("Wrong client ID.")
-
-    if idinfo["exp"] < time.time():
-        raise exceptions.GoogleAuthError("Token expired.")
-
-    if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
-        raise exceptions.GoogleAuthError("Wrong issuer.")
     if not idinfo.get("email_verified"):
         raise exceptions.GoogleAuthError("Email not verified")
 
