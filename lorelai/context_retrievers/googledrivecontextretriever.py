@@ -12,8 +12,7 @@ import time
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
-from langchain_community.document_compressors import FlashrankRerank
-
+from rerankers import Reranker
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
 
 from lorelai.context_retriever import (
@@ -91,8 +90,9 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         # Reranker takes the result from base retriever than reranks those retrieved.
         # flash reranker is used as its standalone, lightweight. and free and open source
-        compressor = FlashrankRerank(top_n=3, model=self.reranker)
+        ranker = Reranker(model_name=self.reranker, model_type="flashrank", verbose=1)
 
+        compressor = ranker.as_langchain_compressor(k=3)
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
