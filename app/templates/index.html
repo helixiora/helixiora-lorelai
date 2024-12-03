@@ -77,15 +77,10 @@
     <script>
     document.addEventListener('DOMContentLoaded', async function() {
         try {
-            // Get CSRF token
-            const response = await fetch('/api/v1/csrf-token');
-            const data = await response.json();
-
             // Initialize Google Sign-In with the CSRF token
             google.accounts.id.initialize({
                 client_id: "{{ config['GOOGLE_CLIENT_ID'] }}",
                 login_uri: "{{ url_for('auth.login', _external=True ) }}",
-                state: data.csrf_token  // Pass CSRF token as state parameter
             });
 
             // Render the button

@@ -28,10 +28,6 @@ class Config:
     JWT_HEADER_NAME = "Authorization"
     JWT_HEADER_TYPE = "Bearer"
 
-    # CSRF settings (without WTF)
-    CSRF_TOKEN_HEADER = "X-CSRF-TOKEN"
-    CSRF_TOKEN_EXPIRES = timedelta(hours=24)
-
     # Application settings
     APP_NAME = "Lorelai"
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
@@ -127,7 +123,6 @@ class TestingConfig(Config):
     """Testing configuration."""
 
     TESTING = True
-    WTF_CSRF_ENABLED = False
 
 
 class ProductionConfig(Config):

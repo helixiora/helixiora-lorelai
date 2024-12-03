@@ -3,7 +3,7 @@
 import logging
 import os
 import sys
-from flask import Flask, jsonify, render_template, request, abort, session
+from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
 from flask_restx import Api
@@ -20,7 +20,6 @@ from app.cli import init_db_command, seed_db_command
 from sentry_sdk.integrations.rq import RqIntegration
 
 import sentry_sdk
-from secrets import token_urlsafe
 
 # models
 from app.models import db, User
@@ -98,25 +97,6 @@ def create_app(config_name: str = "default") -> Flask:
 
     # Initialize JWT
     jwt = JWTManager(app)
-
-    # Add CSRF token generator endpoint
-    @app.route("/api/v1/csrf-token", methods=["GET"])
-    def get_csrf_token():
-        token = token_urlsafe(32)
-        session["csrf_token"] = token
-        return jsonify({"csrf_token": token})
-
-    # Add CSRF protection middleware
-    @app.before_request
-    def csrf_protect():
-        # Skip CSRF check for Google OAuth login since it uses its own CSRF protection
-        if request.endpoint == "auth.login" and request.method == "POST":
-            return
-
-        if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
-            token = request.headers.get(app.config["CSRF_TOKEN_HEADER"])
-            if not token or token != session.get("csrf_token"):
-                abort(403, description="Invalid CSRF token")
 
     # Set up Sentry
     if app.config["SENTRY_DSN"]:

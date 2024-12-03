@@ -14,11 +14,6 @@ getCookie = function(name) {
  */
 async function makeAuthenticatedRequest(url, method, body = null, additionalHeaders = {}) {
     try {
-        // Get fresh CSRF token
-        const csrfResponse = await fetch('/api/v1/csrf-token');
-        const csrfData = await csrfResponse.json();
-        const csrfToken = csrfData.csrf_token;
-
         // Check if we have an access token
         const accessToken = localStorage.getItem('lorelai_jwt_access_token');
         if (!accessToken) {
@@ -28,7 +23,6 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
         // Prepare headers
         const headers = {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken,
             'Authorization': `Bearer ${accessToken}`,
             ...additionalHeaders
         };
@@ -48,7 +42,6 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
                 const refreshResponse = await fetch('/api/v1/token/refresh', {
                     method: 'POST',
                     headers: {
-                        'X-CSRF-TOKEN': csrfToken,
                         'Authorization': `Bearer ${localStorage.getItem('lorelai_jwt_refresh_token')}`
                     }
                 });

@@ -1,15 +1,3 @@
-// Add this function at the top of the file
-async function getCsrfToken() {
-    try {
-        const response = await fetch('/api/v1/csrf-token');
-        const data = await response.json();
-        return data.csrf_token;
-    } catch (error) {
-        console.error('Error fetching CSRF token:', error);
-        throw error;
-    }
-}
-
 // Create a loading indicator that matches the bot message styling
 function showLoadingIndicator() {
     // Create the loading container div
