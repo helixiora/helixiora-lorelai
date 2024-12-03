@@ -18,12 +18,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 show_dismissed: 'false'  // Don't show dismissed
             });
 
-            const csrfToken = getCookie('csrf_token');
-            const response = await fetch(`/api/v1/notifications?${params.toString()}`, {
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken
-                }
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/notifications?${params.toString()}`,
+                'GET'
+            );
 
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -35,32 +33,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error fetching notifications:', error);
             handleFetchError();
-        }
-    }
-
-    // Add a new function for fetching all notifications (for the full notifications page)
-    async function fetchAllNotifications() {
-        try {
-            const params = new URLSearchParams({
-                show_read: 'true',
-                show_unread: 'true',
-                show_dismissed: 'true'
-            });
-
-            const csrfToken = getCookie('csrf_token');
-            const response = await fetch(`/api/v1/notifications?${params.toString()}`, {
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return await response.json();
-        } catch (error) {
-            console.error('Error fetching all notifications:', error);
-            throw error;
         }
     }
 
@@ -165,14 +137,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to mark a notification as read
     async function markAsRead(notificationId) {
         try {
-            const csrfToken = getCookie('csrf_token');
-            const response = await fetch(`/api/v1/notifications/${notificationId}/read`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
-                },
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/notifications/${notificationId}/read`,
+                'POST'
+            );
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
@@ -192,14 +161,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to dismiss a notification
     async function dismissNotification(notificationId) {
         try {
-            const csrfToken = getCookie('csrf_token');
-            const response = await fetch(`/api/v1/notifications/${notificationId}/dismiss`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
-                },
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/notifications/${notificationId}/dismiss`,
+                'POST'
+            );
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {

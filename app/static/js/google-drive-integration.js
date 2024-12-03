@@ -1,8 +1,6 @@
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-
 let codeClient;
-
 let authorizationCode = null;
 let pickerInited = false;
 let gisInited = false;
@@ -32,7 +30,6 @@ async function gisLoaded() {
         },
         redirect_uri: window.location.origin + '/google/drive/codeclientcallback',
         state: 'google_drive'
-
     });
     gisInited = true;
     maybeEnableButtons();
@@ -55,19 +52,13 @@ async function maybeEnableButtons() {
 
 function handleSignoutClick() {
     if (accessToken) {
-        fetch('/api/v1/googledrive/revoke', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': getCookie('csrf_token')
-            }
-        })
-        .then(() => {
-            google.accounts.oauth2.revoke(accessToken);
-            accessToken = null;
-            maybeEnableButtons();
-        })
-        .catch(console.error);
+        makeAuthenticatedRequest('/api/v1/googledrive/revoke', 'POST')
+            .then(() => {
+                google.accounts.oauth2.revoke(accessToken);
+                accessToken = null;
+                maybeEnableButtons();
+            })
+            .catch(console.error);
     }
 }
 
@@ -122,14 +113,11 @@ async function pickerCallback(data) {
         }));
 
         try {
-            const response = await fetch('/api/v1/googledrive/processfilepicker', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': getCookie('csrf_token')
-                },
-                body: JSON.stringify(documents),
-            });
+            const response = await makeAuthenticatedRequest(
+                '/api/v1/googledrive/processfilepicker',
+                'POST',
+                documents
+            );
 
             if (response.ok) {
                 location.reload();
@@ -142,18 +130,22 @@ async function pickerCallback(data) {
     }
 }
 
-
 async function removeDocument(googleDriveId) {
-    await fetch('/api/v1/googledrive/removefile', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': getCookie('csrf_token')
-        },
-        body: JSON.stringify({ google_drive_id: googleDriveId }),
-    })
-    .catch(console.error)
-    .then(() => location.reload());
+    try {
+        const response = await makeAuthenticatedRequest(
+            '/api/v1/googledrive/removefile',
+            'POST',
+            { google_drive_id: googleDriveId }
+        );
+
+        if (response.ok) {
+            location.reload();
+        } else {
+            console.error('Failed to remove document:', response.statusText);
+        }
+    } catch (error) {
+        console.error('Error removing document:', error);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
