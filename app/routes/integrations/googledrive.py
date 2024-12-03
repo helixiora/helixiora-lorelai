@@ -27,7 +27,7 @@ from oauthlib.oauth2.rfc6749.errors import (
 )
 
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
-from app.models import db, User, UserAuth, Datasource, GoogleDriveItem
+from app.models import db, User, UserAuth, Datasource
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -191,83 +191,3 @@ def jsonify_success(access_token, refresh_token, expires_at):
             "expires_at": expires_at,
         }
     ), 200
-
-
-@googledrive_bp.route("/google/drive/revoke", methods=["POST"])
-def deauthorize():
-    """Deauthorize the user by removing the tokens from the database."""
-    user_id = session.get("user.id")
-    if not user_id:
-        return jsonify_error("User not logged in or session expired", 401)
-
-    try:
-        datasource = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first()
-        if not datasource:
-            raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db")
-
-        # Remove the tokens from the database
-        UserAuth.query.filter_by(user_id=user_id, datasource_id=datasource.datasource_id).delete()
-
-        # Remove the Google Drive items from the database
-        GoogleDriveItem.query.filter_by(user_id=user_id).delete()
-
-        db.session.commit()
-        logging.info(f"User deauthorized from Google Drive for user id: {user_id}")
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logging.error(f"Database error: {e}")
-        return jsonify_error(f"Database error: {str(e)}", 500)
-
-    return jsonify({"status": "success", "message": "User deauthorized from Google Drive"}), 200
-
-
-@googledrive_bp.route("/google/drive/processfilepicker", methods=["POST"])
-def process_file_picker():
-    """Process the list of google docs ids returned by the file picker."""
-    user_id = session["user.id"]
-    documents = request.get_json()
-
-    if not documents:
-        logging.error("No documents selected")
-        return "No documents selected"
-
-    try:
-        for doc in documents:
-            new_item = GoogleDriveItem(
-                user_id=user_id,
-                google_drive_id=doc["id"],
-                item_name=doc["name"],
-                mime_type=doc["mimeType"],
-                item_type=doc["type"],
-                item_url=doc["url"],
-                icon_url=doc["iconUrl"],
-            )
-            db.session.add(new_item)
-            logging.info(f"Inserted google doc id: {doc['id']} for user id: {user_id}")
-        db.session.commit()
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logging.error(f"Error inserting google doc: {e}")
-        return f"Error inserting google doc: {str(e)}"
-
-    return "Success"
-
-
-# /google/drive/removefile
-@googledrive_bp.route("/google/drive/removefile", methods=["POST"])
-def remove_file():
-    """Remove a google drive item from the database."""
-    user_id = session["user.id"]
-    data = request.get_json()
-    google_drive_id = data["google_drive_id"]
-
-    try:
-        GoogleDriveItem.query.filter_by(user_id=user_id, google_drive_id=google_drive_id).delete()
-        db.session.commit()
-        logging.info(f"Deleted google doc id: {google_drive_id} for user id: {user_id}")
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logging.error(f"Error deleting google doc id: {google_drive_id}: {e}")
-        return f"Error deleting google doc id: {google_drive_id}"
-
-    return "OK"
