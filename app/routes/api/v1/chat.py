@@ -6,6 +6,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from redis import Redis
 from rq import Queue
 
+from app.swagger import authorizations
+
 
 import logging
 import uuid
@@ -16,7 +18,7 @@ from app.models import User
 from app.tasks import get_answer_from_rag
 from app.helpers.chat import can_send_message
 
-chat_ns = Namespace("chat", description="Chat operations")
+chat_ns = Namespace("chat", description="Chat operations", authorizations=authorizations)
 
 # Add model definitions
 message_input = chat_ns.model(
@@ -56,7 +58,7 @@ class ChatResource(Resource):
     @chat_ns.response(404, "User Not Found")
     @chat_ns.response(429, "Message Limit Exceeded")
     @chat_ns.response(500, "Internal Server Error")
-    @chat_ns.doc(security="jwt")
+    @chat_ns.doc(security="Bearer Auth")
     @jwt_required(locations=["headers"])
     def post(self):
         """
@@ -64,7 +66,7 @@ class ChatResource(Resource):
 
         Returns a job ID and conversation ID for tracking the request.
 
-        Requires a valid JWT token in cookies for authentication.
+        Requires a valid Bearer token in Authorization header for authentication.
         """
         current_user_id = get_jwt_identity()
         current_user = User.query.get(current_user_id)
@@ -134,7 +136,8 @@ class ChatResource(Resource):
     @chat_ns.response(400, "Missing Job ID")
     @chat_ns.response(404, "Job Not Found")
     @chat_ns.response(500, "Processing Failed")
-    @jwt_required(optional=False, locations=["headers"])
+    @chat_ns.doc(security="bearerAuth")
+    @jwt_required(locations=["headers"])
     def get(self):
         """
         Fetch the result of a chat processing job.

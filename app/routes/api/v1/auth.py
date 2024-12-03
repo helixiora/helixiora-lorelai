@@ -18,6 +18,11 @@ login_model = auth_ns.model(
     {
         "email": fields.String(required=True, description="User email address"),
         "apikey": fields.String(required=True, description="API Key"),
+        "expires": fields.Integer(
+            required=False,
+            description="Token expiration time in seconds. Defaults to 15 minutes. \
+                Pass 0 for no expiration.",
+        ),
     },
 )
 
@@ -26,6 +31,7 @@ token_model = auth_ns.model(
     {
         "access_token": fields.String(description="JWT access token"),
         "message": fields.String(description="Success message"),
+        "expiration": fields.DateTime(description="Token expiration time"),
     },
 )
 
@@ -45,18 +51,50 @@ class LoginResource(Resource):
     @auth_ns.expect(login_model)
     @auth_ns.response(200, "Success", token_model)
     @auth_ns.response(401, "Authentication failed", error_model)
-    def post(self) -> tuple[dict[str, str], int]:
-        """Login a user and return JWT token.
+    def post(self) -> dict[str, str] | tuple[dict[str, str], int]:
+        """Authenticate a user and generate a JWT access token.
+
+        Request Body
+        -----------
+        [Login model](#model-Login)
+            - email (str, required): User's email address
+            - apikey (str, required): User's 32+ character API key
+            - expires (int, optional): Token expiration time in seconds (default: 900)
+                Set to 0 for no expiration
 
         Returns
         -------
-            tuple: Contains response dictionary and HTTP status code
-            - On success: {'access_token': 'token', 'message': 'success'}, 200
-            - On failure: {'message': 'error details'}, 401
+        200:
+            [Token model](#model-Token) containing:
+            - access_token (str): JWT access token for authentication
+            - message (str): Success confirmation message
+            - expiration (datetime): Token expiration timestamp
+
+        401:
+            Error model containing:
+            - message (str): Authentication error details
+
+        500:
+            Error model containing:
+            - message (str): Unexpected error details
 
         Raises
         ------
-            AuthenticationError: If login credentials are invalid
+        PermissionError: If the email or API key is invalid
+        Exception: Unexpected error
+
+        Example
+        -------
+
+        ```
+        POST /api/v1/auth/login
+        {
+            "email": "user@example.com",
+            "apikey": "your-32-character-api-key",
+            "expires": 3600
+        }
+        ```
+
         """
         try:
             data = request.get_json()
@@ -106,15 +144,35 @@ class LogoutResource(Resource):
     @auth_ns.response(200, "Success")
     @auth_ns.response(401, "Invalid token")
     def post(self) -> tuple[dict[str, str], int]:
-        """Logout a user.
+        """Invalidate the current user's JWT token.
 
-        Requires a valid JWT token in the Authorization header.
+        Requires authentication using a valid JWT token.
+
+        Request Headers
+        --------------
+        - Authorization (str, required): Bearer token
+            Format: "Bearer <jwt_token>"
 
         Returns
         -------
-            tuple: Contains response dictionary and HTTP status code
-            - On success: {'message': 'success'}, 200
-            - On failure: {'message': 'error details'}, 401
+        200:
+            Success response containing:
+            - message (str): Logout confirmation
+
+        401:
+            Error model containing:
+            - message (str): Invalid or missing token error
+
+        500:
+            Error model containing:
+            - message (str): Unexpected error details
+
+        Example
+        -------
+        ```
+        POST /api/v1/auth/logout
+        Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+        ```
         """
         try:
             # Note: You might want to add token to a blacklist here

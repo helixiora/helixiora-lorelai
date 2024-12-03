@@ -42,6 +42,8 @@ from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
 from app.routes.api_keys import api_keys_bp
 
+from app.swagger import authorizations
+
 
 def prepare_database(app: Flask, migrate: Migrate, db: SQLAlchemy):
     """Prepare the database."""
@@ -112,14 +114,35 @@ def create_app(config_name: str = "default") -> Flask:
     # Apply ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
+    api_description = """API documentation for Lorelai.
+
+    Getting started
+    --------------
+    To get started, create an API key in the Lorelai dashboard and use it to authenticate using the
+    `/auth/login` endpoint. This will return a JWT token that you can use to authenticate your
+    requests.
+
+    To authenticate your requests, pass the JWT token in the `Authorization` header as a Bearer
+    token.
+
+    The JWT token will be valid for 15 minutes by default. You can change this by passing an
+    `expires` value in the login request. Pass 0 to disable the expiration.
+
+    For more information on how to use the API, see the individual endpoints in the documentation.
+
+    If you find any issues, please report them to [Support](mailto:support@helixiora.com).
+    """
+
     # Initialize Flask-RestX
     api = Api(
         app,
         version="1.0",
         title="Lorelai API",
-        description="API documentation for Lorelai",
+        description=api_description,
+        security="Bearer Auth",
         doc="/swagger",
         prefix="/api/v1",
+        authorizations=authorizations,
     )
 
     # Register namespaces
