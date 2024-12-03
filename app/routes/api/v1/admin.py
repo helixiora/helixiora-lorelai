@@ -1,7 +1,7 @@
 """Admin API routes."""
 
 from flask_restx import Namespace, Resource, fields
-from flask import jsonify, session, current_app
+from flask import session, current_app
 from flask_login import login_required, current_user
 from flask_jwt_extended import jwt_required
 from sqlalchemy.exc import SQLAlchemyError
@@ -118,14 +118,12 @@ class StartIndexing(Resource):
         try:
             logging.info("Started indexing (type: %s)", type)
             if type == "organisation" and not is_org_admin(session["user.id"]):
-                return jsonify(
-                    {"error": "Only organisation admins can index their organisation"}
-                ), 403
+                return {"error": "Only organisation admins can index their organisation"}, 403
             if type == "all" and not is_super_admin(session["user.id"]):
-                return jsonify({"error": "Only super admins can index all organisations"}), 403
+                return {"error": "Only super admins can index all organisations"}, 403
 
             if type not in ["user", "organisation", "all"]:
-                return jsonify({"error": "Invalid type"}), 400
+                return {"error": "Invalid type"}, 400
 
             try:
                 redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
@@ -137,9 +135,9 @@ class StartIndexing(Resource):
                 user_id = session["user.id"]
                 org_id = session.get("user.org_id")
                 if not org_id and type != "all":
-                    return jsonify(
-                        {"error": "No organisation ID found for the user in the session details"}
-                    ), 403
+                    return {
+                        "error": "No organisation ID found for the user in the session details"
+                    }, 403
 
                 jobs = []
 
@@ -184,13 +182,13 @@ class StartIndexing(Resource):
                         jobs.append(job_id)
 
                 logging.info("Started indexing for %s jobs", len(jobs))
-                return jsonify({"jobs": jobs}), 202
+                return {"jobs": jobs}, 202
             except ValidationError as e:
                 logging.error(f"Validation error: {e}")
-                return jsonify({"error": "Validation error", "details": e.errors()}), 400
+                return {"error": "Validation error", "details": e.errors()}, 400
             except Exception:
                 logging.exception("Error starting indexing")
-                return jsonify({"error": "Failed to start indexing"}), 500
+                return {"error": "Failed to start indexing"}, 500
         finally:
             db.session.close()
 
