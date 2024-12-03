@@ -54,7 +54,7 @@ class RevokeAccess(Resource):
             return {"error": f"Database error: {str(e)}"}, 500
 
 
-@googledrive_ns.route("/processfilepicker")
+@googledrive_ns.route("/processfilepicker", doc=False)
 class ProcessFilePicker(Resource):
     """Process selected Google Drive files."""
 

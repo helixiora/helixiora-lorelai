@@ -193,11 +193,13 @@ class StartIndexing(Resource):
             db.session.close()
 
 
-@admin_ns.route("/test-connection")
+# doc=False to disable this endpoint from the API docs and remove it from swagger.json
+@admin_ns.route("/test-connection", doc=False)
 class TestConnection(Resource):
     """Test database connection."""
 
-    @admin_ns.doc("test_connection")
+    # Disable this endpoint from the API docs
+    @admin_ns.hide
     @admin_ns.response(200, "Connection successful")
     @admin_ns.response(500, "Connection failed")
     def post(self):
