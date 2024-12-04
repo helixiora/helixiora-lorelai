@@ -202,6 +202,7 @@ def profile():
             google_docs_to_index=google_docs_to_index,
             google_drive_access_token=google_drive_access_token,
             slack_channels=slack_channels,
+            slack_auth=slack_auth,
             profile=profile,
             api_keys=current_user.api_keys,
         )

@@ -43,6 +43,7 @@ class SlackHelper:
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
+            "Scope": self.scopes,
         }
 
         self.test_slack_token = SlackHelper.test_slack_token(self.access_token)
@@ -332,7 +333,7 @@ class SlackHelper:
                     else:
                         break
                 else:
-                    logging.error(f"Error in response: {data['error']}")
+                    logging.error(f"Error in response: {data}")
                     return None
             else:
                 logging.error(f"Failed to list channels. Error: {data.text}")
