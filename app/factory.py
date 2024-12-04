@@ -17,8 +17,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.cli import init_db_command, seed_db_command
 
-from sentry_sdk.integrations.rq import RqIntegration
-
 import sentry_sdk
 from sentry_sdk.integrations.rq import RqIntegration
 from sentry_sdk.integrations.flask import FlaskIntegration
