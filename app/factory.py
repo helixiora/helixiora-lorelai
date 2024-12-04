@@ -20,6 +20,9 @@ from app.cli import init_db_command, seed_db_command
 from sentry_sdk.integrations.rq import RqIntegration
 
 import sentry_sdk
+from sentry_sdk.integrations.rq import RqIntegration
+from sentry_sdk.integrations.flask import FlaskIntegration
+
 
 # models
 from app.models import db, User
@@ -107,7 +110,8 @@ def create_app(config_name: str = "default") -> Flask:
             environment=app.config["SENTRY_ENVIRONMENT"],
             traces_sample_rate=1.0,
             profiles_sample_rate=1.0,
-            integrations=[RqIntegration()],
+            integrations=[FlaskIntegration(), RqIntegration()],
+            debug=False,
         )
         logging.info("Sentry initialized in environment %s", app.config["SENTRY_ENVIRONMENT"])
 
