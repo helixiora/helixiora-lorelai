@@ -27,7 +27,7 @@ file_model = googledrive_ns.model(
 class RevokeAccess(Resource):
     """Revoke Google Drive access."""
 
-    @googledrive_ns.doc("revoke_access")
+    @googledrive_ns.doc("revoke_access", security="Bearer Auth")
     @googledrive_ns.response(200, "Access revoked successfully")
     @googledrive_ns.response(401, "Unauthorized")
     @googledrive_ns.response(500, "Internal server error")
@@ -60,7 +60,7 @@ class RevokeAccess(Resource):
 class ProcessFilePicker(Resource):
     """Process selected Google Drive files."""
 
-    @googledrive_ns.doc("process_files")
+    @googledrive_ns.doc("process_files", security="Bearer Auth")
     @googledrive_ns.expect([file_model])
     @googledrive_ns.response(200, "Files processed successfully")
     @googledrive_ns.response(400, "No documents selected")
@@ -97,7 +97,7 @@ class ProcessFilePicker(Resource):
 class RemoveFile(Resource):
     """Remove a Google Drive file from the database."""
 
-    @googledrive_ns.doc("remove_file")
+    @googledrive_ns.doc("remove_file", security="Bearer Auth")
     @googledrive_ns.expect(
         googledrive_ns.model(
             "RemoveFile",

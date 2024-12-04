@@ -48,7 +48,7 @@ job_status_model = admin_ns.model(
 class CreateUser(Resource):
     """Create a new user."""
 
-    @admin_ns.doc("create_user", security="Bearer")
+    @admin_ns.doc("create_user", security="Bearer Auth")
     @admin_ns.expect(user_model)
     @admin_ns.response(201, "User created successfully")
     @admin_ns.response(400, "Validation error")
@@ -78,7 +78,7 @@ class CreateUser(Resource):
 class JobStatus(Resource):
     """Get the status of an indexing job."""
 
-    @admin_ns.doc("get_job_status")
+    @admin_ns.doc("get_job_status", security="Bearer Auth")
     @admin_ns.response(200, "Success", job_status_model)
     @admin_ns.response(404, "Job not found")
     @jwt_required(locations=["headers"])
@@ -103,7 +103,7 @@ class JobStatus(Resource):
 class StartIndexing(Resource):
     """Start indexing data for the organization."""
 
-    @admin_ns.doc("start_indexing")
+    @admin_ns.doc("start_indexing", security="Bearer Auth")
     @admin_ns.response(200, "Indexing started")
     @admin_ns.response(403, "Unauthorized")
     @admin_ns.response(500, "Internal server error")
