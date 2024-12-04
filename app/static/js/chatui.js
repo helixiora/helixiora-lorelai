@@ -82,21 +82,20 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContentDiv.style.overflowWrap = 'break-word';
 
         // Format timestamp
-        const formattedTimestamp = timestamp
-            ? new Date(timestamp).toLocaleString() // Convert to a readable format
-            : '';
-        // Use innerHTML for bot messages that need to render HTML content
-        // Use innerHTML for bot messages that need to render HTML content
+        // Format timestamp and only include dash if timestamp exists
+        const timestampSection = timestamp
+            ? ` - ${new Date(timestamp).toLocaleString()}: `
+            : ': ';
+
         if (isUser) {
-            messageContentDiv.innerHTML = `<strong>${username}</strong> - ${formattedTimestamp}: ${content}`;
+            messageContentDiv.innerHTML = `<strong>${username}</strong>${timestampSection}${content}`;
         } else {
-            messageContentDiv.innerHTML = `<strong>Lorelai</strong> - ${formattedTimestamp}: ${content}`;
+            messageContentDiv.innerHTML = `<strong>Lorelai</strong>${timestampSection}${content}`;
         }
         messageContainerDiv.appendChild(messageContentDiv);
         messagesDiv.appendChild(messageContainerDiv); // Append the message to messagesDiv
         messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom of the chat
     }
-
     /**
      * Calculates the delay before making the next poll based on the attempt number.
      *
