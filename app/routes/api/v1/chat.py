@@ -3,7 +3,6 @@
 from flask import current_app, request, session
 from pydantic import ValidationError
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_login import current_user
 from redis import Redis
 from rq import Queue
 from sentry_sdk import start_transaction
@@ -70,8 +69,8 @@ class ChatResource(Resource):
         """
         with start_transaction(name="chat_post", op="api.post"):
             current_user_id = get_jwt_identity()
-            user = User.query.get(current_user_id)
-            if not user:
+            current_user = User.query.get(current_user_id)
+            if not current_user:
                 return {"status": "ERROR", "message": "User not found"}, 404
 
             try:
@@ -145,6 +144,7 @@ class ChatResource(Resource):
         """
         job_id = request.args.get("job_id")
         conversation_id = request.args.get("conversation_id")
+
         if not job_id:
             return {"status": "ERROR", "message": "Job ID is required"}, 400
 

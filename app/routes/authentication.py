@@ -313,6 +313,7 @@ def profile():
             google_drive_access_token=google_drive_access_token,
             slack_channels=slack_channels,
             profile=profile,
+            api_keys=current_user.api_keys,
         )
     return "You are not logged in!", 403
 

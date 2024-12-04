@@ -66,3 +66,54 @@ function getCookie(name) {
     }
     return cookieValue;
 }
+
+// Add this new utility function for handling API requests with token refresh
+async function makeAuthenticatedRequest(url, options = {}) {
+    // Ensure headers exist
+    options.headers = options.headers || {};
+
+    // Add default headers
+    options.headers = {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken'),
+        ...options.headers
+    };
+
+    try {
+        // Make initial request
+        let response = await fetch(url, options);
+
+        // Check if token is expired
+        if (response.status === 401) {
+            const responseData = await response.json();
+
+            if (responseData.msg?.startsWith("Expired token")) {
+                // Try to refresh the token
+                const refreshResponse = await fetch('/api/v1/token/refresh', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+
+                if (refreshResponse.ok) {
+                    // Retry the original request after token refresh
+                    response = await fetch(url, options);
+                } else {
+                    throw new Error('Token refresh failed');
+                }
+            } else {
+                throw new Error('Unauthorized');
+            }
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return response;
+    } catch (error) {
+        console.error('Request failed:', error);
+        throw error;
+    }
+}

@@ -10,6 +10,8 @@ from flask_restx import Api
 from flask_migrate import Migrate
 
 from flask_sqlalchemy import SQLAlchemy
+from config import config
+
 from sqlalchemy_utils import database_exists, create_database
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -20,18 +22,24 @@ from sentry_sdk.integrations.rq import RqIntegration
 from sentry_sdk.integrations.flask import FlaskIntegration
 
 
+# models
 from app.models import db, User
+
+# namespaces
 from app.routes.api.v1.chat import chat_ns
 from app.routes.api.v1.conversation import conversation_ns
 from app.routes.api.v1.notifications import notifications_ns
 from app.routes.api.v1.token import token_ns
+from app.routes.api.v1.auth import auth_ns
+from app.routes.api.v1.api_keys import api_keys_ns
+
+# blueprints
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
-
-from config import config
+from app.routes.api_keys import api_keys_bp
 
 
 def prepare_database(app: Flask, migrate: Migrate, db: SQLAlchemy):
@@ -119,13 +127,15 @@ def create_app(config_name: str = "default") -> Flask:
     api.add_namespace(conversation_ns)
     api.add_namespace(notifications_ns)
     api.add_namespace(token_ns)
-
+    api.add_namespace(auth_ns)
+    api.add_namespace(api_keys_ns)
     # Register blueprints
     app.register_blueprint(googledrive_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(slack_bp)
+    app.register_blueprint(api_keys_bp)
 
     # Set up user loader
     @login_manager.user_loader
