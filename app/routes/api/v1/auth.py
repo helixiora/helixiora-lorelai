@@ -124,7 +124,7 @@ class LoginResource(Resource):
                 raise PermissionError("Invalid email or API key")
 
             # Create access token
-            access_token = create_access_token(identity=user.id)
+            access_token = create_access_token(identity=str(user.id))
             logging.info(f"Successful login for user: {email}")
 
             return {"access_token": access_token, "message": "Login successful"}, 200

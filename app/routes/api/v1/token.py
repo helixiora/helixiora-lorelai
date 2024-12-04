@@ -25,7 +25,7 @@ class TokenRefresh(Resource):
             str: The new access token.
         """
         current_user = get_jwt_identity()
-        new_access_token = create_access_token(identity=current_user)
+        new_access_token = create_access_token(identity=str(current_user))
         response = make_response(jsonify(access_token=new_access_token), 200)
         response.set_cookie(
             key="access_token_cookie",

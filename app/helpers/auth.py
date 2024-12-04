@@ -67,8 +67,8 @@ def login_user_function(
 
         # Create access and refresh tokens
         # duration is determined by the JWT_ACCESS_TOKEN_EXPIRES and JWT_REFRESH_TOKEN_EXPIRES
-        access_token = create_access_token(identity=user.id)
-        refresh_token = create_refresh_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
+        refresh_token = create_refresh_token(identity=str(user.id))
 
         # login_type, it is not necessary now but in future when we add multiple login method
         user_login = UserLogin(

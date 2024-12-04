@@ -56,10 +56,6 @@ from app.helpers.datasources import DATASOURCE_SLACK
 from app.helpers.users import is_admin, validate_form, register_user_to_org, update_user_profile
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 
-from flask_jwt_extended import (
-    create_access_token,
-    create_refresh_token,
-)
 
 import bleach
 from pydantic import ValidationError
@@ -378,17 +374,8 @@ def login():
     )
 
     if login_success:
-        # Create tokens
-        access_token = create_access_token(identity=user.id)
-        refresh_token = create_refresh_token(identity=user.id)
-
         # Create response with redirect
         response = make_response(redirect(url_for("auth.profile")))
-
-        # Set tokens in session
-        session["lorelai_jwt.access_token"] = access_token
-        session["lorelai_jwt.refresh_token"] = refresh_token
-
         return response
 
     flash("Login failed", "error")
