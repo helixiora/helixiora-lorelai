@@ -325,7 +325,6 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
             {
                 "msg": "Authentication required",
                 "error": "missing_authorization",
-                "details": str(_err),
             }
         ), 401
 
@@ -337,24 +336,23 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
             {
                 "msg": "Invalid authentication token",
                 "error": "invalid_token",
-                "details": error_string,
             }
         ), 401
 
     @jwt.expired_token_loader
     def custom_expired_token_response(jwt_header, jwt_payload):
         """Handle expired token."""
-        logging.error("Expired token: %s", jwt_payload)
-        return jsonify({"msg": f"Expired token: {jwt_payload}"}), 401
+        logging.error("Expired token for user: %s", jwt_payload.get("sub", "unknown"))
+        return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
 
     @jwt.needs_fresh_token_loader
-    def custom_needs_fresh_token_response(error_string):
+    def custom_needs_fresh_token_response(jwt_header, jwt_payload):
         """Handle needs fresh token."""
-        logging.error("Needs fresh token: %s", error_string)
-        return jsonify({"msg": f"Needs fresh token: {error_string}"}), 401
+        logging.error("Fresh token required for user: %s", jwt_payload.get("sub", "unknown"))
+        return jsonify({"msg": "Fresh token required", "error": "fresh_token_required"}), 401
 
     @jwt.revoked_token_loader
-    def custom_revoked_token_response(error_string):
+    def custom_revoked_token_response(jwt_header, jwt_payload):
         """Handle revoked token."""
-        logging.error("Revoked token: %s", error_string)
-        return jsonify({"msg": f"Revoked token: {error_string}"}), 401
+        logging.error("Revoked token used for user: %s", jwt_payload.get("sub", "unknown"))
+        return jsonify({"msg": "Token has been revoked", "error": "token_revoked"}), 401
