@@ -3,104 +3,18 @@
 from flask import session, request
 from flask_restx import Namespace, Resource
 from flask_jwt_extended import jwt_required
-from decimal import Decimal
 import logging
-from typing import Any
-import bleach
 
 from app.helpers.notifications import (
     get_notifications,
     mark_notification_as_read,
     mark_notification_as_dismissed,
+    serialize_notification_response,
+    parse_boolean_param,
+    sanitize_notification,
 )
 
 notifications_ns = Namespace("notifications", description="Notifications operations")
-
-
-def sanitize_param(param: str | None) -> str:
-    """Sanitize a string parameter using bleach.
-
-    Parameters
-    ----------
-    param : Optional[str]
-        The parameter to sanitize
-
-    Returns
-    -------
-    str
-        The sanitized parameter
-    """
-    if param is None:
-        return ""
-    return bleach.clean(str(param).strip(), tags=[], strip=True)
-
-
-def parse_boolean_param(param: str | None, default: bool = True) -> bool:
-    """Safely parse a string parameter to boolean.
-
-    Parameters
-    ----------
-    param : Optional[str]
-        The parameter to parse
-    default : bool
-        Default value if param is None or invalid
-
-    Returns
-    -------
-    bool
-        The parsed boolean value
-    """
-    if param is None:
-        return default
-
-    param = sanitize_param(param)
-    if param.lower() in ("true", "1", "yes", "on"):
-        return True
-    if param.lower() in ("false", "0", "no", "off"):
-        return False
-    return default
-
-
-def sanitize_notification(notification: dict[str, Any]) -> dict[str, Any]:
-    """Sanitize notification data before sending to client.
-
-    Parameters
-    ----------
-    notification : Dict[str, Any]
-        The notification data to sanitize
-
-    Returns
-    -------
-    Dict[str, Any]
-        The sanitized notification data
-    """
-    return {
-        "id": notification["id"],
-        "user_id": notification["user_id"],
-        "message": bleach.clean(
-            notification["message"], tags=["b", "i", "a"], attributes={"a": ["href"]}
-        ),
-        "created_at": notification["created_at"],
-        "read_at": notification["read_at"],
-        "dismissed_at": notification["dismissed_at"],
-        "type": bleach.clean(notification["type"], tags=[], strip=True),
-        "title": bleach.clean(notification.get("title", ""), tags=[], strip=True),
-        "url": bleach.clean(notification.get("url", ""), tags=[], strip=True)
-        if notification.get("url")
-        else None,
-    }
-
-
-def serialize_notification_response(data):
-    """Serialize helper function for notification response data."""
-    if isinstance(data, dict):
-        return {k: serialize_notification_response(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [serialize_notification_response(item) for item in data]
-    elif isinstance(data, Decimal):
-        return float(data)
-    else:
-        return data
 
 
 @notifications_ns.route("/")
