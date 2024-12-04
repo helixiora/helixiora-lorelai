@@ -16,6 +16,9 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from app.cli import init_db_command, seed_db_command
 
 import sentry_sdk
+from sentry_sdk.integrations.rq import RqIntegration
+from sentry_sdk.integrations.flask import FlaskIntegration
+
 
 from app.models import db, User
 from app.routes.api.v1.chat import chat_ns
@@ -93,6 +96,8 @@ def create_app(config_name: str = "default") -> Flask:
             environment=app.config["SENTRY_ENVIRONMENT"],
             traces_sample_rate=1.0,
             profiles_sample_rate=1.0,
+            integrations=[FlaskIntegration(), RqIntegration()],
+            debug=False,
         )
         logging.info("Sentry initialized in environment %s", app.config["SENTRY_ENVIRONMENT"])
 

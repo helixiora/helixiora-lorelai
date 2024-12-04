@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_login import current_user
 from redis import Redis
 from rq import Queue
+from sentry_sdk import start_transaction
 
 
 import logging
@@ -67,62 +68,62 @@ class ChatResource(Resource):
 
         Requires a valid JWT token in cookies for authentication.
         """
-        current_user_id = get_jwt_identity()
-        user = User.query.get(current_user_id)
-        if not user:
-            return {"status": "ERROR", "message": "User not found"}, 404
+        with start_transaction(name="chat_post", op="api.post"):
+            current_user_id = get_jwt_identity()
+            user = User.query.get(current_user_id)
+            if not user:
+                return {"status": "ERROR", "message": "User not found"}, 404
 
-        try:
-            content = request.get_json()
-            if not content or "message" not in content:
-                return {"status": "ERROR", "message": "Message is required"}, 400
+            try:
+                content = request.get_json()
+                if not content or "message" not in content:
+                    return {"status": "ERROR", "message": "Message is required"}, 400
 
-            message_content = content["message"]
-            logging.info(
-                "Chat request received: %s from user %s",
-                message_content,
-                current_user.email,
-            )
+                message_content = content["message"]
+                logging.info(
+                    "Chat request received: %s from user %s",
+                    message_content,
+                    current_user.email,
+                )
 
-            user_id = current_user.id
-            if not can_send_message(user_id=user_id):
-                return {"status": "ERROR", "message": "Message limit exceeded"}, 429
+                user_id = current_user.id
+                if not can_send_message(user_id=user_id):
+                    return {"status": "ERROR", "message": "Message limit exceeded"}, 429
 
-            redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-            queue = Queue(current_app.config["REDIS_QUEUE_QUESTION"], connection=redis_conn)
+                redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
+                queue = Queue(current_app.config["REDIS_QUEUE_QUESTION"], connection=redis_conn)
 
-            # Create or retrieve chat conversation
-            conversation_id = session.get("conversation_id") or str(uuid.uuid4())
-            session["conversation_id"] = conversation_id
+                # Create or retrieve chat conversation
+                conversation_id = session.get("conversation_id") or str(uuid.uuid4())
+                session["conversation_id"] = conversation_id
+                # Enqueue task
+                job = queue.enqueue(
+                    get_answer_from_rag,
+                    conversation_id,
+                    message_content,
+                    current_user.id,
+                    current_user.email,
+                    current_user.organisation.name,
+                    model_type="OpenAILlm",
+                )
+                logging.info(
+                    "Enqueued job for chat, message %s, conversation %s",
+                    message_content,
+                    conversation_id,
+                )
 
-            # Enqueue task
-            job = queue.enqueue(
-                get_answer_from_rag,
-                conversation_id,
-                message_content,
-                current_user.id,
-                current_user.email,
-                current_user.organisation.name,
-                model_type="OpenAILlm",
-            )
-            logging.info(
-                "Enqueued job for chat, message %s, conversation %s",
-                message_content,
-                conversation_id,
-            )
+                return {
+                    "status": "success",
+                    "message": "Your message is being processed.",
+                    "job": job.id,
+                    "conversation_id": conversation_id,
+                }, 200
 
-            return {
-                "status": "success",
-                "message": "Your message is being processed.",
-                "job": job.id,
-                "conversation_id": conversation_id,
-            }, 200
-
-        except ValidationError as e:
-            return {"status": "ERROR", "message": e.errors()}, 400
-        except Exception:
-            logging.exception("An error occurred while processing chat message")
-            return {"status": "ERROR", "message": "An internal error occurred."}, 500
+            except ValidationError as e:
+                return {"status": "ERROR", "message": e.errors()}, 400
+            except Exception:
+                logging.exception("An error occurred while processing chat message")
+                return {"status": "ERROR", "message": "An internal error occurred."}, 500
 
     @chat_ns.doc(
         params={
