@@ -2,6 +2,7 @@
 
 from flask import session, request
 from flask_restx import Namespace, Resource
+from flask_jwt_extended import jwt_required
 from decimal import Decimal
 import logging
 from typing import Any
@@ -106,6 +107,11 @@ def serialize_notification_response(data):
 class GetNotificationsResource(Resource):
     """Resource to get notifications for the current user."""
 
+    @notifications_ns.doc(security="Bearer Auth")
+    @notifications_ns.response(200, "Notifications retrieved successfully")
+    @notifications_ns.response(401, "Unauthorized")
+    @notifications_ns.response(500, "Internal server error")
+    @jwt_required(locations=["headers"])
     def get(self):
         """Get notifications for the current user."""
         try:
@@ -181,6 +187,11 @@ class GetNotificationsResource(Resource):
 class MarkNotificationAsReadResource(Resource):
     """Resource to mark a notification as read."""
 
+    @notifications_ns.doc(security="Bearer Auth")
+    @notifications_ns.response(200, "Notification marked as read")
+    @notifications_ns.response(401, "Unauthorized")
+    @notifications_ns.response(500, "Internal server error")
+    @jwt_required(locations=["headers"])
     def post(self, notification_id):
         """Mark a notification as read."""
         try:
@@ -205,6 +216,11 @@ class MarkNotificationAsReadResource(Resource):
 class MarkNotificationAsDismissedResource(Resource):
     """Resource to mark a notification as dismissed."""
 
+    @notifications_ns.doc(security="Bearer Auth")
+    @notifications_ns.response(200, "Notification marked as dismissed")
+    @notifications_ns.response(401, "Unauthorized")
+    @notifications_ns.response(500, "Internal server error")
+    @jwt_required(locations=["headers"])
     def post(self, notification_id):
         """Mark a notification as dismissed."""
         try:

@@ -16,7 +16,8 @@ import logging
 
 from app.models import db, User, UserAuth, Datasource
 import requests as lib_requests
-from flask import session, current_user
+from flask import session
+from flask_login import current_user
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from sqlalchemy.exc import SQLAlchemyError
 

@@ -8,10 +8,9 @@ from flask_login import login_user
 from google.auth import exceptions
 import re
 
-from app.models import User, UserLogin
+from app.models import User, UserLogin, db
 from app.schemas import UserSchema
-from app.extensions import db
-from app.utils import create_access_token, create_refresh_token
+from flask_jwt_extended import create_access_token, create_refresh_token
 from app.helpers.users import assign_free_plan_if_no_active
 
 

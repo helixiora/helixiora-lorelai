@@ -15,6 +15,7 @@ slack_bp = Blueprint("slack_auth", __name__)
 
 
 @slack_bp.route("/slack/auth")
+@login_required
 def slack_auth():
     """Slack OAuth route. Redirects to the Slack OAuth URL."""
     params = {

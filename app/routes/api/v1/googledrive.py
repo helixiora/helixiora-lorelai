@@ -7,6 +7,7 @@ import logging
 
 from app.models import db, UserAuth, Datasource, GoogleDriveItem
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
+from flask_jwt_extended import jwt_required
 
 googledrive_ns = Namespace("googledrive", description="Google Drive operations")
 
@@ -30,6 +31,7 @@ class RevokeAccess(Resource):
     @googledrive_ns.response(200, "Access revoked successfully")
     @googledrive_ns.response(401, "Unauthorized")
     @googledrive_ns.response(500, "Internal server error")
+    @jwt_required(locations=["headers"])
     def post(self):
         """Post method to revoke Google Drive access."""
         user_id = session.get("user.id")
@@ -79,6 +81,8 @@ class ProcessFilePicker(Resource):
                     item_name=doc["name"],
                     mime_type=doc["mimeType"],
                     item_type=doc["type"],
+                    item_url=doc["url"],
+                    icon_url=doc["iconUrl"],
                 )
                 db.session.add(new_item)
                 logging.info(f"Inserted google doc id: {doc['id']} for user id: {user_id}")
@@ -102,6 +106,7 @@ class RemoveFile(Resource):
     )
     @googledrive_ns.response(200, "File removed successfully")
     @googledrive_ns.response(500, "Removal error")
+    @jwt_required(locations=["headers"])
     def post(self):
         """Post method to remove a Google Drive file from the database."""
         user_id = session["user.id"]

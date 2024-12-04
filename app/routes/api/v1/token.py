@@ -11,6 +11,10 @@ token_ns = Namespace("token", description="Token operations")
 class TokenRefresh(Resource):
     """Resource for token refresh operations."""
 
+    @token_ns.doc(security="Bearer Auth")
+    @token_ns.response(200, "Token refreshed successfully")
+    @token_ns.response(401, "Unauthorized")
+    @token_ns.response(500, "Internal server error")
     @jwt_required(refresh=True)
     def post(self):
         """

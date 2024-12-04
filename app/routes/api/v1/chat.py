@@ -136,7 +136,7 @@ class ChatResource(Resource):
     @chat_ns.response(400, "Missing Job ID")
     @chat_ns.response(404, "Job Not Found")
     @chat_ns.response(500, "Processing Failed")
-    @chat_ns.doc(security="bearerAuth")
+    @chat_ns.doc(security="Bearer Auth")
     @jwt_required(locations=["headers"])
     def get(self):
         """

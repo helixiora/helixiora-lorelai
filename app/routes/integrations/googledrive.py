@@ -15,6 +15,7 @@ import logging
 import os
 
 from flask import Blueprint, request, session, jsonify, redirect, url_for, current_app, flash
+from flask_login import login_required
 from google_auth_oauthlib.flow import Flow
 
 from oauthlib.oauth2.rfc6749.errors import (
@@ -35,6 +36,7 @@ googledrive_bp = Blueprint("googledrive", __name__)
 
 
 @googledrive_bp.route("/google/drive/codeclientcallback", methods=["GET"])
+@login_required
 def google_auth_redirect():
     """Handle callback for Google CodeClient."""
     authorization_code = request.args.get("code")
