@@ -53,12 +53,18 @@ async function maybeEnableButtons() {
 function handleSignoutClick() {
     if (accessToken) {
         makeAuthenticatedRequest('/api/v1/googledrive/revoke', 'POST')
-            .then(() => {
+            .then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.msg || 'Revoke failed');
+                }
                 google.accounts.oauth2.revoke(accessToken);
                 accessToken = null;
                 maybeEnableButtons();
             })
-            .catch(console.error);
+            .catch(error => {
+                console.error('Signout error:', error);
+            });
     }
 }
 
@@ -119,11 +125,11 @@ async function pickerCallback(data) {
                 documents
             );
 
-            if (response.ok) {
-                location.reload();
-            } else {
-                console.error('Failed to process file picker:', response.statusText);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.msg || 'Failed to process file picker');
             }
+            location.reload();
         } catch (error) {
             console.error('Error processing file picker:', error);
         }
@@ -138,11 +144,11 @@ async function removeDocument(googleDriveId) {
             { google_drive_id: googleDriveId }
         );
 
-        if (response.ok) {
-            location.reload();
-        } else {
-            console.error('Failed to remove document:', response.statusText);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.msg || 'Failed to remove document');
         }
+        location.reload();
     } catch (error) {
         console.error('Error removing document:', error);
     }

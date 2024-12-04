@@ -36,18 +36,32 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
 
         // Handle 401 (Unauthorized)
         if (response.status === 401) {
-            const responseData = await response.json();
-            if (responseData.msg.startsWith("Expired token")) {
+            // Clone the response before reading it
+            const responseClone = response.clone();
+            const responseData = await responseClone.json();
+
+            console.log('Auth error response:', responseData);
+
+            if (responseData.msg && responseData.msg.startsWith("Expired token")) {
+                console.log('Token expired, attempting refresh...');
+
                 // Token expired, try to refresh
+                const refreshToken = localStorage.getItem('lorelai_jwt_refresh_token');
+                if (!refreshToken) {
+                    throw new Error('No refresh token available');
+                }
+
                 const refreshResponse = await fetch('/api/v1/token/refresh', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('lorelai_jwt_refresh_token')}`
+                        'Authorization': `Bearer ${refreshToken}`
                     }
                 });
 
                 if (refreshResponse.ok) {
                     const newTokens = await refreshResponse.json();
+                    console.log('Token refresh successful');
+
                     // Update stored tokens
                     localStorage.setItem('lorelai_jwt_access_token', newTokens.access_token);
 
@@ -61,8 +75,11 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
                         ...(body && { body: JSON.stringify(body) })
                     });
                 } else {
+                    console.error('Token refresh failed:', await refreshResponse.text());
                     throw new Error('Token refresh failed');
                 }
+            } else {
+                throw new Error(responseData.msg || 'Unauthorized');
             }
         }
 
@@ -71,5 +88,40 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
     } catch (error) {
         console.error('Request error:', error);
         throw error;
+    }
+}
+
+/**
+ * Checks the validity of the access token and refreshes it if expired.
+ */
+async function checkAndRefreshToken() {
+    const accessToken = localStorage.getItem('lorelai_jwt_access_token');
+    if (!accessToken) {
+        console.warn('No access token found. User might not be logged in.');
+        return;
+    }
+
+    // Decode the token to check its expiration
+    const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
+    const isExpired = tokenPayload.exp * 1000 < Date.now();
+
+    if (isExpired) {
+        console.log('Access token expired. Attempting to refresh...');
+        const refreshResponse = await fetch('/api/v1/token/refresh', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('lorelai_jwt_refresh_token')}`
+            }
+        });
+
+        if (refreshResponse.ok) {
+            const newTokens = await refreshResponse.json();
+            localStorage.setItem('lorelai_jwt_access_token', newTokens.access_token);
+            console.log('Access token refreshed successfully.');
+        } else {
+            console.error('Failed to refresh access token.');
+        }
+    } else {
+        console.log('Access token is still valid.');
     }
 }

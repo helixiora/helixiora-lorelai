@@ -60,6 +60,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('messageInput');
     const messagesDiv = document.getElementById('messages');
 
+    // Check and refresh token on page load
+    checkAndRefreshToken();
+
     // Add this line at the beginning of the DOMContentLoaded event listener
     const username = document.body.dataset.username;
 

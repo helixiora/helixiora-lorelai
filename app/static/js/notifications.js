@@ -11,22 +11,39 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchNotifications() {
         lastFetchTime = Date.now();
         try {
-            // For the popup, we want unread and non-dismissed notifications
             const params = new URLSearchParams({
-                show_read: 'false',     // Only show unread
-                show_unread: 'true',    // Show unread
-                show_dismissed: 'false'  // Don't show dismissed
+                show_read: 'false',
+                show_unread: 'true',
+                show_dismissed: 'false'
             });
 
-            const response = await makeAuthenticatedRequest(
-                `/api/v1/notifications?${params.toString()}`,
-                'GET'
-            );
+            const url = `/api/v1/notifications?${params.toString()}`;
+            console.log('Fetching notifications from:', url);
+
+            const response = await makeAuthenticatedRequest(url, 'GET');
+            console.log('Notifications response status:', response.status);
 
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                // Clone the response before reading it
+                const errorResponse = response.clone();
+                try {
+                    const errorData = await errorResponse.json();
+                    console.error('Error response data:', errorData);
+                    throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+                } catch (e) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status} ${errorText}`);
+                }
             }
+
             const data = await response.json();
+            console.log('Notifications data received:', data);
+
+            if (!data.counts || !data.notifications) {
+                console.error('Unexpected response format:', data);
+                throw new Error('Invalid response format from server');
+            }
+
             updateNotificationBadge(data.counts.unread);
             updateNotificationList(data.notifications);
             updateNotificationCounts(data.counts);
