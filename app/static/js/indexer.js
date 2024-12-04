@@ -48,9 +48,13 @@ function checkStatus(jobStatus, type, jobStatuses) {
                     $('#statusMessage').removeClass('alert-danger alert-success').addClass('alert-info').text(`${type} indexing is in progress...`);
                     setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
                     break;
-                case 'queued':
-                    $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${type} indexing is queued for job ${jobStatus.jobId}.`);
+                case 'pending':
+                    $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${type} indexing is pending for job ${jobStatus.jobId}.`);
 
+                    setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
+                    break;
+                case 'queued':
+                    $('#statusMessage').removeClass('alert-info alert-danger').addClass('alert-warning').text(`${type} indexing is queued for job ${jobStatus.jobId}.`);
                     setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
                     break;
                 case 'finished':
