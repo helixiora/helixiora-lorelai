@@ -11,6 +11,10 @@ token_ns = Namespace("token", description="Token operations")
 class TokenRefresh(Resource):
     """Resource for token refresh operations."""
 
+    @token_ns.doc(security="Bearer Auth")
+    @token_ns.response(200, "Token refreshed successfully")
+    @token_ns.response(401, "Unauthorized")
+    @token_ns.response(500, "Internal server error")
     @jwt_required(refresh=True)
     def post(self):
         """
@@ -21,7 +25,7 @@ class TokenRefresh(Resource):
             str: The new access token.
         """
         current_user = get_jwt_identity()
-        new_access_token = create_access_token(identity=current_user)
+        new_access_token = create_access_token(identity=str(current_user))
         response = make_response(jsonify(access_token=new_access_token), 200)
         response.set_cookie(
             key="access_token_cookie",

@@ -10,7 +10,7 @@ from flask import (
     current_app,
     render_template,
 )
-from flask_login import current_user
+from flask_login import current_user, login_required
 
 from app.helpers.chat import get_chat_template_requirements
 import uuid
@@ -19,6 +19,7 @@ chat_bp = blueprints.Blueprint("chat", __name__)
 
 
 @chat_bp.route("/conversation/<conversation_id>", methods=["GET"])
+@login_required
 def conversation(conversation_id):
     """Return the conversation page.
 
@@ -81,4 +82,4 @@ def index():
     # will handle the login using the /login route in auth.py.
     # Depending on the output of that route, it's redirecting to /register if need be
 
-    return render_template("index.html", google_client_id=current_app.config["GOOGLE_CLIENT_ID"])
+    return render_template("index.html")

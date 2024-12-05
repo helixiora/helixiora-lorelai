@@ -3,11 +3,10 @@
 from flask import request
 from flask_restx import Namespace, Resource, fields
 from flask_jwt_extended import create_access_token, jwt_required
-import bleach
 import logging
-import re
 import secrets
 
+from app.helpers.auth import validate_email, validate_api_key
 from app.models import User
 
 
@@ -19,6 +18,11 @@ login_model = auth_ns.model(
     {
         "email": fields.String(required=True, description="User email address"),
         "apikey": fields.String(required=True, description="API Key"),
+        "expires": fields.Integer(
+            required=False,
+            description="Token expiration time in seconds. Defaults to 15 minutes. \
+                Pass 0 for no expiration.",
+        ),
     },
 )
 
@@ -27,67 +31,19 @@ token_model = auth_ns.model(
     {
         "access_token": fields.String(description="JWT access token"),
         "message": fields.String(description="Success message"),
+        "expiration": fields.DateTime(description="Token expiration time"),
     },
 )
 
 error_model = auth_ns.model("Error", {"message": fields.String(description="Error message")})
 
 
-def validate_email(raw_email: str) -> str:
-    """Validate and sanitize email input.
-
-    Args:
-        raw_email: User provided email
-
-    Returns
-    -------
-        Cleaned email string
-
-    Raises
-    ------
-        ValueError: If email is invalid
-    """
-    if not raw_email:
-        raise ValueError("Email is required")
-
-    # Sanitize input
-    clean_email = bleach.clean(raw_email.lower(), tags=[], strip=True)
-
-    # Basic email format validation
-    email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-    if not re.match(email_pattern, clean_email):
-        raise ValueError("Invalid email format")
-
-    return clean_email
-
-
-def validate_api_key(raw_key: str) -> str:
-    """Validate and sanitize API key input.
-
-    Args:
-        raw_key: User provided API key
-
-    Returns
-    -------
-        Cleaned API key string
-
-    Raises
-    ------
-        ValueError: If API key is invalid
-    """
-    if not raw_key:
-        raise ValueError("API key is required")
-
-    # Sanitize input
-    clean_key = bleach.clean(raw_key, tags=[], strip=True)
-
-    # Validate key format (adjust pattern based on your API key format)
-    if not re.match(r"^[a-zA-Z0-9_-]{32,}$", clean_key):
-        raise ValueError("Invalid API key format")
-
-    return clean_key
-
-
+# curl -X POST http://localhost:5000/api/v1/auth/login \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "email": "your.email@example.com",
+#     "apikey": "your-32-character-or-longer-api-key"
+#   }'
 @auth_ns.route("/login")
 class LoginResource(Resource):
     """Resource for user login."""
@@ -95,18 +51,50 @@ class LoginResource(Resource):
     @auth_ns.expect(login_model)
     @auth_ns.response(200, "Success", token_model)
     @auth_ns.response(401, "Authentication failed", error_model)
-    def post(self) -> tuple[dict[str, str], int]:
-        """Login a user and return JWT token.
+    def post(self) -> dict[str, str] | tuple[dict[str, str], int]:
+        """Authenticate a user and generate a JWT access token.
+
+        Request Body
+        -----------
+        [Login model](#model-Login)
+            - email (str, required): User's email address
+            - apikey (str, required): User's 32+ character API key
+            - expires (int, optional): Token expiration time in seconds (default: 900)
+                Set to 0 for no expiration
 
         Returns
         -------
-            tuple: Contains response dictionary and HTTP status code
-            - On success: {'access_token': 'token', 'message': 'success'}, 200
-            - On failure: {'message': 'error details'}, 401
+        200:
+            [Token model](#model-Token) containing:
+            - access_token (str): JWT access token for authentication
+            - message (str): Success confirmation message
+            - expiration (datetime): Token expiration timestamp
+
+        401:
+            Error model containing:
+            - message (str): Authentication error details
+
+        500:
+            Error model containing:
+            - message (str): Unexpected error details
 
         Raises
         ------
-            AuthenticationError: If login credentials are invalid
+        PermissionError: If the email or API key is invalid
+        Exception: Unexpected error
+
+        Example
+        -------
+
+        ```
+        POST /api/v1/auth/login
+        {
+            "email": "user@example.com",
+            "apikey": "your-32-character-api-key",
+            "expires": 3600
+        }
+        ```
+
         """
         try:
             data = request.get_json()
@@ -136,7 +124,7 @@ class LoginResource(Resource):
                 raise PermissionError("Invalid email or API key")
 
             # Create access token
-            access_token = create_access_token(identity=user.id)
+            access_token = create_access_token(identity=str(user.id))
             logging.info(f"Successful login for user: {email}")
 
             return {"access_token": access_token, "message": "Login successful"}, 200
@@ -156,15 +144,35 @@ class LogoutResource(Resource):
     @auth_ns.response(200, "Success")
     @auth_ns.response(401, "Invalid token")
     def post(self) -> tuple[dict[str, str], int]:
-        """Logout a user.
+        """Invalidate the current user's JWT token.
 
-        Requires a valid JWT token in the Authorization header.
+        Requires authentication using a valid JWT token.
+
+        Request Headers
+        --------------
+        - Authorization (str, required): Bearer token
+            Format: "Bearer <jwt_token>"
 
         Returns
         -------
-            tuple: Contains response dictionary and HTTP status code
-            - On success: {'message': 'success'}, 200
-            - On failure: {'message': 'error details'}, 401
+        200:
+            Success response containing:
+            - message (str): Logout confirmation
+
+        401:
+            Error model containing:
+            - message (str): Invalid or missing token error
+
+        500:
+            Error model containing:
+            - message (str): Unexpected error details
+
+        Example
+        -------
+        ```
+        POST /api/v1/auth/logout
+        Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
+        ```
         """
         try:
             # Note: You might want to add token to a blacklist here

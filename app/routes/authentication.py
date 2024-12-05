@@ -36,130 +36,31 @@ from datetime import datetime
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from flask_login import login_required, login_user, logout_user, current_user
-import time
+from flask_login import login_required, logout_user, current_user
 
 from app.helpers import email_validator, url_validator
-
-import requests as lib_requests
-
+from app.helpers.auth import login_user_function, validate_id_token
+from app.helpers.googledrive import get_google_drive_access_token
 from flask import current_app
 
 from app.models import (
     User,
-    UserLogin,
     UserAuth,
-    db,
     GoogleDriveItem,
     Organisation,
     Datasource,
     Profile,
 )
 from app.helpers.slack import SlackHelper
-from app.helpers.datasources import DATASOURCE_SLACK, DATASOURCE_GOOGLE_DRIVE
-from app.helpers.users import (
-    is_admin,
-    validate_form,
-    register_user_to_org,
-    update_user_profile,
-    assign_free_plan_if_no_active,
-)
+from app.helpers.datasources import DATASOURCE_SLACK
+from app.helpers.users import is_admin, validate_form, register_user_to_org, update_user_profile
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 
-from flask_jwt_extended import (
-    create_access_token,
-    create_refresh_token,
-)
 
 import bleach
 from pydantic import ValidationError
 
 auth_bp = Blueprint("auth", __name__)
-
-
-def refresh_google_token_if_needed(access_token):
-    """
-    Refresh the Google access token if needed.
-
-    Parameters
-    ----------
-    access_token : str
-        The Google access token.
-
-    Returns
-    -------
-    str
-        The refreshed access token or None if refresh failed.
-    """
-    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
-    # Check if the token is still valid
-    token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
-    response = lib_requests.get(token_info_url)
-    if response.status_code == 200 and "error" not in response.json():
-        return access_token  # Token is still valid
-
-    # If we're still here, the token is invalid or expired, refresh it
-    refresh_token = session.get("google_drive.refresh_token")
-    if not refresh_token:
-        result = UserAuth.query.filter_by(
-            user_id=current_user.id,
-            auth_key="refresh_token",
-            datasource_id=datasource_id,
-        ).first()
-        if not result:
-            logging.error("No refresh token found for user %s", current_user.id)
-            return None
-        refresh_token = result.auth_value
-
-    logging.info("Refreshing token for user %s", current_user.email)
-
-    token_url = "https://oauth2.googleapis.com/token"
-    payload = {
-        "client_id": current_app.config["GOOGLE_CLIENT_ID"],
-        "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    }
-    token_response = lib_requests.post(token_url, data=payload)
-    if token_response.status_code != 200:
-        error_data = token_response.json()
-        if error_data.get("error") == "invalid_grant":
-            logging.error("Invalid grant error. Refresh token may be expired or revoked.")
-            # Clear the invalid refresh token
-            UserAuth.query.filter_by(
-                user_id=current_user.id,
-                auth_key="refresh_token",
-                datasource_id=datasource_id,
-            ).delete()
-            UserAuth.query.filter_by(
-                user_id=current_user.id,
-                auth_key="access_token",
-                datasource_id=datasource_id,
-            ).delete()
-            db.session.commit()
-            # You may want to redirect the user to re-authenticate here
-            return None
-        logging.error("Failed to refresh token: %s", token_response.text)
-        return None
-
-    new_tokens = token_response.json()
-    new_access_token = new_tokens["access_token"]
-
-    # Update the access token in the database
-    UserAuth.query.filter_by(
-        user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
-    ).update({"auth_value": new_access_token})
-
-    # Update the refresh token if a new one was provided
-    if "refresh_token" in new_tokens:
-        UserAuth.query.filter_by(
-            user_id=current_user.id,
-            auth_key="refresh_token",
-            datasource_id=datasource_id,
-        ).update({"auth_value": new_tokens["refresh_token"]})
-
-    db.session.commit()
-    return new_access_token
 
 
 @auth_bp.route("/profile", methods=["POST"])
@@ -193,36 +94,6 @@ def user_profile():
         )
         flash("Profile updated successfully", "success")
         return redirect(url_for("auth.profile"))
-
-
-def get_google_drive_access_token() -> str:
-    """Get the user's Google access token from the database if it's not in the session."""
-    google_drive_access_token = ""
-    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
-
-    if session.get("google_drive.access_token") is None:
-        result = UserAuth.query.filter_by(
-            user_id=current_user.id,
-            auth_key="access_token",
-            datasource_id=datasource_id,
-        ).first()
-
-        # if there is no result, the user has not authenticated with Google (yet)
-        if result:
-            logging.info("Access token found in user_auth for user %s", current_user.id)
-            google_drive_access_token = result.auth_value
-        else:
-            logging.info("No access token found in user_auth for user %s", current_user.id)
-            google_drive_access_token = ""
-    else:
-        logging.info("Access token found in session for user %s", current_user.id)
-        google_drive_access_token = session.get("google_drive.access_token")
-
-    if google_drive_access_token:
-        # Check if the token is still valid and refresh if necessary
-        google_drive_access_token = refresh_google_token_if_needed(google_drive_access_token)
-
-    return google_drive_access_token
 
 
 @auth_bp.route("/profile", methods=["GET"])
@@ -268,6 +139,7 @@ def profile():
             if not slack_datasource:
                 logging.error("Slack datasource not found in database")
                 slack_channels = None
+                slack_auth = None
             else:
                 slack_auth = UserAuth.query.filter_by(
                     user_id=current_user.id,
@@ -276,34 +148,48 @@ def profile():
                 ).first()
 
                 if slack_auth and slack_auth.auth_value:
-                    # Get all Slack auth records for the user
-                    user_auths = UserAuth.query.filter_by(
-                        user_id=current_user.id,
-                        datasource_id=slack_datasource.datasource_id,
-                    ).all()
-
-                    try:
-                        slack = SlackHelper(
-                            user=UserSchema.from_orm(current_user),
-                            organisation=OrganisationSchema.from_orm(current_user.organisation),
-                            user_auths=[UserAuthSchema.from_orm(auth) for auth in user_auths],
-                        )
-                        if SlackHelper.test_slack_token(slack_auth.auth_value):
-                            slack_channels = slack.get_accessible_channels(only_joined=True)
-                            # convert from channelid = channelname to a list of #channelnames
-                            slack_channels = [f"#{name}" for name in slack_channels.values()]
-                        else:
-                            logging.warning("Slack token is invalid")
-                            slack_channels = None
-                    except Exception as e:
-                        logging.error(f"Error initializing SlackHelper: {e}")
+                    # Test the token validity
+                    is_valid = SlackHelper.test_slack_token(slack_auth.auth_value)
+                    if not is_valid:
+                        logging.warning("Slack token is invalid")
                         slack_channels = None
+                        # Keep slack_auth so template knows to show revoke button
+                    else:
+                        # Get all Slack auth records for the user
+                        user_auths = UserAuth.query.filter_by(
+                            user_id=current_user.id,
+                            datasource_id=slack_datasource.datasource_id,
+                        ).all()
+
+                        try:
+                            slack = SlackHelper(
+                                user=UserSchema.from_orm(current_user),
+                                organisation=OrganisationSchema.from_orm(current_user.organisation),
+                                user_auths=[UserAuthSchema.from_orm(auth) for auth in user_auths],
+                            )
+                            try:
+                                channels = slack.get_accessible_channels(only_joined=True)
+                                if channels:
+                                    slack_channels = [f"#{name}" for name in channels.values()]
+                                else:
+                                    logging.warning("No accessible Slack channels found")
+                                    slack_channels = None
+                            except AttributeError:
+                                logging.warning(
+                                    "Error accessing Slack channels - possible permissions issue"
+                                )
+                                slack_channels = None
+                        except Exception as e:
+                            logging.error(f"Error initializing SlackHelper: {e}")
+                            slack_channels = None
                 else:
                     logging.info("No Slack access token found")
                     slack_channels = None
                     slack_auth = None
         else:
             logging.warning("Slack feature is disabled.")
+            slack_channels = None
+            slack_auth = None
 
         return render_template(
             "profile.html",
@@ -312,6 +198,7 @@ def profile():
             google_docs_to_index=google_docs_to_index,
             google_drive_access_token=google_drive_access_token,
             slack_channels=slack_channels,
+            slack_auth=slack_auth,
             profile=profile,
             api_keys=current_user.api_keys,
         )
@@ -424,10 +311,19 @@ def login():
     if not id_token_received or not isinstance(id_token_received, str):
         raise ValidationError("Invalid or missing ID token")
 
-    # Validate CSRF token from Google
-    csrf_token = request.form.get("g_csrf_token", "").strip()
-    if not csrf_token or not isinstance(csrf_token, str):
-        raise ValidationError("Invalid or missing CSRF token")
+    # Get Google's CSRF token
+    g_csrf_token = request.form.get("g_csrf_token", "").strip()
+
+    # Validate Google's CSRF token
+    if not g_csrf_token:
+        raise exceptions.GoogleAuthError("No CSRF token in post body.")
+
+    g_csrf_token_cookie = request.cookies.get("g_csrf_token")
+    if not g_csrf_token_cookie:
+        raise exceptions.GoogleAuthError("No CSRF token in cookie.")
+
+    if g_csrf_token != g_csrf_token_cookie:
+        raise exceptions.GoogleAuthError("CSRF token mismatch.")
 
     try:
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
@@ -435,7 +331,7 @@ def login():
         if not idinfo:
             raise exceptions.GoogleAuthError("Invalid token")
 
-        validate_id_token(idinfo, csrf_token=csrf_token)
+        validate_id_token(idinfo)
 
     except (ValueError, exceptions.GoogleAuthError) as e:
         logging.error("Authentication error: %s", str(e))
@@ -478,175 +374,12 @@ def login():
     )
 
     if login_success:
+        # Create response with redirect
         response = make_response(redirect(url_for("auth.profile")))
-        response.set_cookie(
-            key="access_token_cookie",
-            value=session["lorelai_jwt.access_token"],
-            httponly=True,
-            secure=True,
-            samesite="Strict",
-        )
-        response.set_cookie(
-            key="refresh_token_cookie",
-            value=session["lorelai_jwt.refresh_token"],
-            httponly=True,
-            secure=True,
-            samesite="Strict",
-        )
-
-        flash("Login successful!", "success")
         return response
-    else:
-        flash("Login failed. Please try again.", "error")
-        return redirect(url_for("chat.index"))
 
-
-def login_user_function(
-    user: User,
-    user_email: str,
-    google_id: str,
-    username: str,
-    full_name: str,
-):
-    """
-    Create a session for the user, update the user's Google ID in the database.
-
-    also create access and refresh tokens.
-
-    Parameters
-    ----------
-    user : User
-        The user.
-    user_email : str
-        The user email.
-    google_id : str
-        The Google ID, uniquely identifies the user with Google.
-    username : str
-        The username.
-    full_name : str
-        The full name.
-
-    Returns
-    -------
-    bool
-        True if login was successful, False otherwise.
-    """
-    # Ensure all details are provided
-    if not all(
-        [
-            user,
-            user_email,
-            google_id,
-            username,
-            full_name,
-            user.organisation.id,
-            user.organisation.name,
-        ]
-    ):
-        logging.error("Missing user or organisation details")
-        return False
-
-    try:
-        user.google_id = google_id
-        user.user_name = username
-        user.full_name = full_name
-        db.session.commit()
-
-        # Create access and refresh tokens
-        # duration is determined by the JWT_ACCESS_TOKEN_EXPIRES and JWT_REFRESH_TOKEN_EXPIRES
-        access_token = create_access_token(identity=user.id)
-        refresh_token = create_refresh_token(identity=user.id)
-
-        # login_type, it is not necessary now but in future when we add multiple login method
-        user_login = UserLogin(
-            user_id=user.id, login_type="google-oauth", login_time=datetime.utcnow()
-        )
-        db.session.add(user_login)
-        db.session.commit()
-
-        # login_user is a Flask-Login function that sets the current user to the user object
-        login_user(user)
-
-        # store the user's roles in the session
-        session["user.user_roles"] = [role.name for role in user.roles]
-        session["user.org_name"] = user.organisation.name
-        # store the access and refresh tokens in the session
-        session["lorelai_jwt.access_token"] = access_token
-        session["lorelai_jwt.refresh_token"] = refresh_token
-        user_schema = UserSchema.model_validate(user).model_dump()
-        assign_free_plan_if_no_active(user_id=user.id)
-        for key, value in user_schema.items():
-            logging.debug(f"user.{key} : {value}")
-            session[f"user.{key}"] = value
-
-        return True
-
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error during login: {str(e)}")
-        return False
-
-
-def is_username_available(username: str) -> bool:
-    """
-    Check if the username is available.
-
-    Parameters
-    ----------
-    username : str
-        The username to check.
-
-    Returns
-    -------
-    bool
-        True if the username is available, False otherwise.
-    """
-    # check if the username is already taken
-    user = User.query.filter_by(user_name=username).first()
-    if user:
-        return False
-    return True
-
-
-def validate_id_token(idinfo: dict, csrf_token: str):
-    """
-    Validate the ID token.
-
-    Parameters
-    ----------
-    idinfo : dict
-        The ID token information.
-    csrf_token : str
-        The CSRF token from the body of the POST request.
-
-    Raises
-    ------
-    ValueError
-        If the issuer is wrong or the email is not verified.
-    """
-    # TODO: Add more checks here, see
-    # https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
-
-    if not csrf_token:
-        raise exceptions.GoogleAuthError("No CSRF token in post body.")
-
-    csrf_token_cookie = request.cookies.get("g_csrf_token")
-    if not csrf_token_cookie:
-        raise exceptions.GoogleAuthError("No CSRF token in cookie.")
-
-    if csrf_token != csrf_token_cookie:
-        raise exceptions.GoogleAuthError("CSRF token mismatch.")
-
-    if idinfo["aud"] not in current_app.config["GOOGLE_CLIENT_ID"]:
-        raise exceptions.GoogleAuthError("Wrong client ID.")
-
-    if idinfo["exp"] < time.time():
-        raise exceptions.GoogleAuthError("Token expired.")
-
-    if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
-        raise exceptions.GoogleAuthError("Wrong issuer.")
-    if not idinfo.get("email_verified"):
-        raise exceptions.GoogleAuthError("Email not verified")
+    flash("Login failed", "error")
+    return redirect(url_for("chat.index"))
 
 
 @auth_bp.route("/logout", methods=["GET"])

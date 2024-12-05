@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-5">
+<div id="profile-container" class="container mt-5">
     {% if user is none %}
         <div class="alert alert-danger" role="alert">
             <h4 class="alert-heading">Unauthorized Access!</h4>
-            <p>You are not authorized to access this page. Please <a href="/login" class="alert-link">login</a> to access this page.</p>
+            <p>You are not authorized to access this page. Please <a href="/" class="alert-link">login</a> to access this page.</p>
         </div>
     {% else %}
         <!-- User Information Section -->
-        <div class="card mb-2 mt-2" id="card-welcome">
+        <div id="card-welcome" class="card mb-2 mt-2">
             <h5 class="card-header h5">Welcome, {{ user.full_name }}!</h5>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -36,7 +36,7 @@
         {% endwith %}
 
         <!-- Profile Update Form -->
-        <div class="card mb-2 mt-2" id="card-update-profile">
+        <div id="card-update-profile" class="card mb-2 mt-2">
             <h5 class="card-header h5">Update Profile</h5>
             <div class="card-body">
                 <form method="POST">
@@ -68,7 +68,7 @@
         {% include 'sections/indexer.html' %}
 
         <!-- Marketplace Integration Section -->
-        <div class="card mb-2 mt-2" id="card-integrations">
+        <div id="card-integrations" class="card mb-2 mt-2">
             <h5 class="h5 card-header">Integrations</h5>
             <div class="card-body">
             {% if config.FEATURE_GOOGLE_DRIVE %}

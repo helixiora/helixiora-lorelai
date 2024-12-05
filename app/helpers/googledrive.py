@@ -15,8 +15,126 @@ from oauthlib.oauth2.rfc6749.errors import (
 import logging
 
 from app.models import db, User, UserAuth, Datasource
+import requests as lib_requests
+from flask import session
+from flask_login import current_user
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from sqlalchemy.exc import SQLAlchemyError
+
+
+def get_google_drive_access_token() -> str:
+    """Get the user's Google access token from the database if it's not in the session."""
+    google_drive_access_token = ""
+    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+
+    if session.get("google_drive.access_token") is None:
+        result = UserAuth.query.filter_by(
+            user_id=current_user.id,
+            auth_key="access_token",
+            datasource_id=datasource_id,
+        ).first()
+
+        # if there is no result, the user has not authenticated with Google (yet)
+        if result:
+            logging.info("Access token found in user_auth for user %s", current_user.id)
+            google_drive_access_token = result.auth_value
+        else:
+            logging.info("No access token found in user_auth for user %s", current_user.id)
+            google_drive_access_token = ""
+    else:
+        logging.info("Access token found in session for user %s", current_user.id)
+        google_drive_access_token = session.get("google_drive.access_token")
+
+    if google_drive_access_token:
+        # Check if the token is still valid and refresh if necessary
+        google_drive_access_token = refresh_google_token_if_needed(google_drive_access_token)
+
+    return google_drive_access_token
+
+
+def refresh_google_token_if_needed(access_token):
+    """
+    Refresh the Google access token if needed.
+
+    Parameters
+    ----------
+    access_token : str
+        The Google access token.
+
+    Returns
+    -------
+    str
+        The refreshed access token or None if refresh failed.
+    """
+    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+    # Check if the token is still valid
+    token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+    response = lib_requests.get(token_info_url)
+    if response.status_code == 200 and "error" not in response.json():
+        return access_token  # Token is still valid
+
+    # If we're still here, the token is invalid or expired, refresh it
+    refresh_token = session.get("google_drive.refresh_token")
+    if not refresh_token:
+        result = UserAuth.query.filter_by(
+            user_id=current_user.id,
+            auth_key="refresh_token",
+            datasource_id=datasource_id,
+        ).first()
+        if not result:
+            logging.error("No refresh token found for user %s", current_user.id)
+            return None
+        refresh_token = result.auth_value
+
+    logging.info("Refreshing token for user %s", current_user.email)
+
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+        "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    }
+    token_response = lib_requests.post(token_url, data=payload)
+    if token_response.status_code != 200:
+        error_data = token_response.json()
+        if error_data.get("error") == "invalid_grant":
+            logging.error("Invalid grant error. Refresh token may be expired or revoked.")
+            # Clear the invalid refresh token
+            UserAuth.query.filter_by(
+                user_id=current_user.id,
+                auth_key="refresh_token",
+                datasource_id=datasource_id,
+            ).delete()
+            UserAuth.query.filter_by(
+                user_id=current_user.id,
+                auth_key="access_token",
+                datasource_id=datasource_id,
+            ).delete()
+            db.session.commit()
+            # You may want to redirect the user to re-authenticate here
+            return None
+        logging.error("Failed to refresh token: %s", token_response.text)
+        return None
+
+    new_tokens = token_response.json()
+    new_access_token = new_tokens["access_token"]
+
+    # Update the access token in the database
+    UserAuth.query.filter_by(
+        user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
+    ).update({"auth_value": new_access_token})
+
+    # Update the refresh token if a new one was provided
+    if "refresh_token" in new_tokens:
+        UserAuth.query.filter_by(
+            user_id=current_user.id,
+            auth_key="refresh_token",
+            datasource_id=datasource_id,
+        ).update({"auth_value": new_tokens["refresh_token"]})
+
+    db.session.commit()
+    return new_access_token
 
 
 def initialize_oauth_flow():
