@@ -10,10 +10,11 @@ Classes:
 """
 
 import logging
+import time
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
-from langchain_community.document_compressors import FlashrankRerank
+from rerankers import Reranker
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
 
 from lorelai.context_retriever import (
@@ -61,7 +62,7 @@ class SlackContextRetriever(ContextRetriever):
         logging.info(
             f"[SlackContextRetriever] Retrieving context for q: {question} and u: {self.user_email}"
         )
-
+        start_time = time.time()
         try:
             index_name = PineconeHelper.get_index_name(
                 org_name=self.org_name,
@@ -88,7 +89,9 @@ class SlackContextRetriever(ContextRetriever):
             search_kwargs={"k": 10, "filter": {"users": {"$eq": self.user_email}}},
         )
 
-        compressor = FlashrankRerank(top_n=3, model=self.reranker)
+        ranker = Reranker(model_name=self.reranker, model_type="flashrank", verbose=1)
+
+        compressor = ranker.as_langchain_compressor(k=3)
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
@@ -98,7 +101,8 @@ class SlackContextRetriever(ContextRetriever):
         context_response = []
         for result in results:
             context_document = LorelaiContextDocument(
-                title=f"Thread in {result.metadata['channel_name']} on {result.metadata['msg_ts']}",
+                title=f"Conversation in {result.metadata['channel_name']} on \
+{result.metadata['msg_ts']}",
                 content=result.page_content,
                 link=result.metadata["source"],
                 when=result.metadata["msg_ts"],
@@ -106,7 +110,9 @@ class SlackContextRetriever(ContextRetriever):
                 raw_langchain_document=result,
             )
             context_response.append(context_document)
-
+        end_time = time.time()
+        logging.info(f"SlackContextRetriever took: {end_time-start_time}")
+        logging.info(f"Found {len(context_response)} context from Slack")
         return LorelaiContextRetrievalResponse(
             datasource_name=DATASOURCE_SLACK,
             context=context_response,

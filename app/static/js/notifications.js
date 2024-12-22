@@ -11,19 +11,42 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchNotifications() {
         lastFetchTime = Date.now();
         try {
-            const csrfToken = getCookie('csrftoken');
-            const response = await fetch('/api/notifications', {
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
+            const params = new URLSearchParams({
+                show_read: 'false',
+                show_unread: 'true',
+                show_dismissed: 'false'
             });
 
+            const url = `/api/v1/notifications?${params.toString()}`;
+            console.log('Fetching notifications from:', url);
+
+            const response = await makeAuthenticatedRequest(url, 'GET');
+            console.log('Notifications response status:', response.status);
+
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                // Clone the response before reading it
+                const errorResponse = response.clone();
+                try {
+                    const errorData = await errorResponse.json();
+                    console.error('Error response data:', errorData);
+                    throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+                } catch (e) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status} ${errorText}`);
+                }
             }
-            const notifications = await response.json();
-            updateNotificationBadge(notifications.length);
-            updateNotificationList(notifications);
+
+            const data = await response.json();
+            console.log('Notifications data received:', data);
+
+            if (!data.counts || !data.notifications) {
+                console.error('Unexpected response format:', data);
+                throw new Error('Invalid response format from server');
+            }
+
+            updateNotificationBadge(data.counts.unread);
+            updateNotificationList(data.notifications);
+            updateNotificationCounts(data.counts);
         } catch (error) {
             console.error('Error fetching notifications:', error);
             handleFetchError();
@@ -51,18 +74,18 @@ document.addEventListener('DOMContentLoaded', function() {
             notificationList.appendChild(li);
         } else {
             notifications.forEach(notification => {
+                // Skip dismissed notifications
+                if (notification.dismissed_at) return;
+
                 const li = document.createElement('li');
                 li.className = `notification-item ${notification.type}`;
                 li.dataset.id = notification.id;
 
                 // Add 'read' class if the notification is read
-                if (notification.read) {
+                if (notification.read_at) {
                     li.classList.add('read');
-                }
-
-                // Add 'dismissed' class if the notification is dismissed
-                if (notification.dismissed) {
-                    li.classList.add('dismissed');
+                } else {
+                    li.style.fontWeight = 'bold'; // Make unread notifications bold
                 }
 
                 const title = document.createElement('strong');
@@ -87,7 +110,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const actionDiv = document.createElement('div');
                 actionDiv.className = 'notification-actions';
 
-                if (!notification.read) {
+                // Only show "Mark as Read" button if the notification is unread
+                if (!notification.read_at) {
                     const readBtn = document.createElement('button');
                     readBtn.textContent = 'Mark as Read';
                     readBtn.classList.add('btn', 'btn-primary', 'btn-sm');
@@ -95,19 +119,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     actionDiv.appendChild(readBtn);
                 }
 
-                if (!notification.dismissed) {
-                    const dismissBtn = document.createElement('button');
-                    dismissBtn.textContent = 'Dismiss';
-                    dismissBtn.classList.add('btn', 'btn-primary', 'btn-sm');
-                    dismissBtn.onclick = () => dismissNotification(notification.id);
-                    actionDiv.appendChild(dismissBtn);
-                }
+                const dismissBtn = document.createElement('button');
+                dismissBtn.textContent = 'Dismiss';
+                dismissBtn.classList.add('btn', 'btn-primary', 'btn-sm');
+                dismissBtn.onclick = () => dismissNotification(notification.id);
+                actionDiv.appendChild(dismissBtn);
 
                 li.appendChild(actionDiv);
 
                 notificationList.appendChild(li);
             });
         }
+
+        // Add summary section at the bottom
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'notification-summary';
+        summaryDiv.innerHTML = `
+            <div class="notification-counts">
+                <span>Read: <span id="readCount">-</span></span>
+                <span>Unread: <span id="unreadCount">-</span></span>
+                <span>Dismissed: <span id="dismissedCount">-</span></span>
+            </div>
+            <a href="/notifications" class="view-all-link">View All Notifications</a>
+        `;
+        notificationList.appendChild(summaryDiv);
     }
 
     // Function to handle fetch errors
@@ -119,27 +154,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to mark a notification as read
     async function markAsRead(notificationId) {
         try {
-            const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/notifications/${notificationId}/read`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/notifications/${notificationId}/read`,
+                'POST'
+            );
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
-                    if (notificationItem) {
-                        notificationItem.classList.add('read');
-                        const readBtn = notificationItem.querySelector('button[textContent="Mark as Read"]');
-                        if (readBtn) {
-                            readBtn.remove();
-                        }
-                    }
-                    updateNotificationBadge(data.remaining_unread);
-                    updateNotificationCounts(data);
+                    // Fetch fresh notifications instead of manually updating the UI
+                    fetchNotifications();
                 } else {
                     console.error('Failed to mark notification as read:', data.error);
                 }
@@ -154,27 +178,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to dismiss a notification
     async function dismissNotification(notificationId) {
         try {
-            const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/notifications/${notificationId}/dismiss`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/notifications/${notificationId}/dismiss`,
+                'POST'
+            );
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    const notificationItem = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
-                    if (notificationItem) {
-                        notificationItem.classList.add('dismissed');
-                        const dismissBtn = notificationItem.querySelector('button[textContent="Dismiss"]');
-                        if (dismissBtn) {
-                            dismissBtn.remove();
-                        }
-                    }
-                    updateNotificationBadge(data.remaining_unread);
-                    updateNotificationCounts(data);
+                    // Fetch fresh notifications instead of manually updating the UI
+                    fetchNotifications();
                 } else {
                     console.error('Failed to dismiss notification:', data.error);
                 }
@@ -186,14 +199,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // New function to update notification counts
-    function updateNotificationCounts(data) {
-        // Update any UI elements that display notification counts
-        // For example:
-        document.getElementById('readCount').textContent = data.read;
-        document.getElementById('unreadCount').textContent = data.remaining_unread;
-        document.getElementById('dismissedCount').textContent = data.dismissed;
-        document.getElementById('undismissedCount').textContent = data.undismissed;
+    // Function to update notification counts
+    function updateNotificationCounts(counts) {
+        const readCount = document.getElementById('readCount');
+        const unreadCount = document.getElementById('unreadCount');
+        const dismissedCount = document.getElementById('dismissedCount');
+
+        if (readCount) readCount.textContent = counts.read;
+        if (unreadCount) unreadCount.textContent = counts.unread;
+        if (dismissedCount) dismissedCount.textContent = counts.dismissed;
     }
 
     // Show/hide popover on hover
@@ -219,9 +233,3 @@ document.addEventListener('DOMContentLoaded', function() {
     notificationPopover.style.maxHeight = '300px';
     notificationPopover.style.overflowY = 'auto';
 });
-
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-}

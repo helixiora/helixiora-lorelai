@@ -27,29 +27,25 @@ function hideLoadingIndicator() {
 }
 
 // Move the deleteConversation function outside of the DOMContentLoaded event listener
-async function deleteConversation(threadId) {
+async function deleteConversation(conversationId) {
     try {
-        const csrfToken = getCookie('csrftoken');
-        const response = await fetch(`/api/conversation/${threadId}/delete`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        });
+        const response = await makeAuthenticatedRequest(
+            `/api/v1/conversation/${conversationId}/delete`,
+            'DELETE'
+        );
 
         if (!response.ok) {
             throw new Error('Network response was not ok');
         }
         const data = await response.json();
         console.log('Conversation deleted successfully:', data);
-
-        const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${threadId}"]`);
+        // Remove the conversation from the list
+        const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${conversationId}"]`);
         if (conversationItem) {
             conversationItem.remove();
         }
-
-        if (window.location.pathname.includes(`/conversation/${threadId}`)) {
+        // If we're currently viewing this conversation, clear the chat and reset the URL
+        if (window.location.pathname.includes(`/conversation/${conversationId}`)) {
             document.getElementById('messages').innerHTML = '';
             history.pushState(null, '', '/');
         }
@@ -64,10 +60,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('messageInput');
     const messagesDiv = document.getElementById('messages');
 
+    // Check and refresh token on page load
+    checkAndRefreshToken();
+
     // Add this line at the beginning of the DOMContentLoaded event listener
     const username = document.body.dataset.username;
 
-    function addMessage(content, isUser = true, isHTML = false, isSources = false) {
+    function addMessage(content, isUser = true, isHTML = false, isSources = false, timestamp = null) {
         // Convert markdown content to HTML
         content = marked.parse(content);
 
@@ -84,17 +83,22 @@ document.addEventListener('DOMContentLoaded', function() {
             messageContentDiv.className = 'inline-block rounded-lg p-4 bg-white';
         }
         messageContentDiv.style.overflowWrap = 'break-word';
-        // Use innerHTML for bot messages that need to render HTML content
+
+        // Format timestamp
+        // Format timestamp and only include dash if timestamp exists
+        const timestampSection = timestamp
+            ? ` - ${new Date(timestamp).toLocaleString()}: `
+            : ': ';
+
         if (isUser) {
-            messageContentDiv.innerHTML = '<strong>' + username + '</strong>: ' + content;
+            messageContentDiv.innerHTML = `<strong>${username}</strong>${timestampSection}${content}`;
         } else {
-            messageContentDiv.innerHTML = '<strong>Lorelai</strong>: ' + content;
+            messageContentDiv.innerHTML = `<strong>Lorelai</strong>${timestampSection}${content}`;
         }
         messageContainerDiv.appendChild(messageContentDiv);
         messagesDiv.appendChild(messageContainerDiv); // Append the message to messagesDiv
         messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to the bottom of the chat
     }
-
     /**
      * Calculates the delay before making the next poll based on the attempt number.
      *
@@ -114,26 +118,25 @@ document.addEventListener('DOMContentLoaded', function() {
      * @param {string} taskId The ID of the task for which to fetch the result.
      * @param {number} attempt The current attempt number.
      */
-    async function pollForResponse(jobId, attempt = 1) {
-        console.log(`Polling for response: ${jobId}, Attempt: ${attempt}`);
+    async function pollForResponse(job_id, conversation_id, attempt = 1) {
+        console.log(`Polling for response: ${job_id}, Attempt: ${attempt}`);
         const delay = calculateDelay(attempt);
 
         try {
             await new Promise(resolve => setTimeout(resolve, delay));
-            const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/chat?job_id=${jobId}`, {
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
-            });
-            const data = await response.json();
 
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/chat?job_id=${job_id}`,
+                'GET'
+            );
+
+            const data = await response.json();
             console.log('Response:', data);
 
-            thread_id = data.thread_id;
-            if (thread_id) {
+            conversation_id = data.conversation_id;
+            if (conversation_id) {
                 //push the new url to the browser
-                history.pushState(null, '', `/conversation/${thread_id}`);
+                history.pushState(null, '', `/conversation/${conversation_id}`);
             }
 
             if (data.status === 'SUCCESS') {
@@ -154,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     with a different question or ask the question directly to LLM.');
             } else if (attempt < 40) {
                 console.log('Operation still in progress. Retrying...');
-                pollForResponse(jobId, attempt + 1);
+                pollForResponse(job_id, conversation_id, attempt + 1);
             } else {
                 console.error('Error: No successful response after multiple attempts.');
                 displayErrorMessage('Error: No successful response after multiple attempts.');
@@ -162,7 +165,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Fetch error:', error);
             if (attempt < 20) {
-                pollForResponse(jobId, attempt + 1);
+                pollForResponse(job_id, conversation_id, attempt + 1);
             } else {
                 displayErrorMessage('Error: Unable to retrieve response.');
             }
@@ -205,51 +208,11 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function sendMessage(message) {
         console.log('Sending message:', message);
-        addMessage(message, true); // Display the message as sent by the user
-        showLoadingIndicator(); // Show the loading indicator to indicate that the message is being processed
+        addMessage(message, true);
+        showLoadingIndicator();
 
         try {
-            const csrfToken = getCookie('csrftoken');
-            console.log('CSRF Token:', csrfToken);
-            let response = await fetch('/api/chat', {
-                method: 'POST',
-                body: JSON.stringify({message: message}),
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                }
-            });
-
-            // if the token is expired, the body contains "Expired token"
-            if (response.status === 401) {
-                const responseData = await response.json();
-                // check if the responseData.msg starts with "Expired token"
-                if (responseData.msg.startsWith("Expired token")) {
-                    // Token expired, try to refresh
-                    const refreshResponse = await fetch('/api/token/refresh', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRFToken': csrfToken
-                        }
-                    });
-
-                    if (refreshResponse.ok) {
-                        // Token refreshed, retry the original request
-                        response = await fetch('/api/chat', {
-                        method: 'POST',
-                        body: JSON.stringify({message: message}),
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                            }
-                        });
-                    } else {
-                        throw new Error('Token refresh failed');
-                    }
-                } else {
-                    throw new Error('Token expired');
-                }
-            }
+            const response = await makeAuthenticatedRequest('/api/v1/chat', 'POST', { message: message });
 
             if (!response.ok) {
                 hideLoadingIndicator();
@@ -281,23 +244,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } catch (error) {
-            // Handle network errors or issues with the fetch operation itself
             console.error('Fetch error:', error);
-            hideLoadingIndicator(); // Hide the loading indicator as there's been an error
-            addMessage('Error: Unable to send the message. Please try again later.', false, false); // Display an error message to the user
+            hideLoadingIndicator();
+            addMessage('Error: Unable to send the message. Please try again later.', false, false);
         }
     }
 
-
-
     async function get_conversation(conversationId) {
         try {
-            const csrfToken = getCookie('csrftoken');
-            const response = await fetch(`/api/conversation/${conversationId}`, {
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
-            });
+            const response = await makeAuthenticatedRequest(
+                `/api/v1/conversation/${conversationId}`,
+                'GET'
+            );
 
             const data = await response.json();
             if (!data || data.length === 0) {
@@ -311,7 +269,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     content=message.message_content,
                     isUser=(message.sender === "user"),
                     isHTML=true,
-                    isSources=false
+                    isSources=false,
+                    timestamp = message.created_at
                 );
             }
         } catch (error) {
@@ -381,18 +340,11 @@ document.querySelectorAll('.conversation-item').forEach(item => {
         console.log('Loading conversation:', conversationId);
         // You may want to add an API call here to fetch the conversation messages
         window.location.href = `/conversation/${conversationId}`;
-        // set the thread_id in the session
-        session["thread_id"] = conversationId;
-        console.log('Setting thread_id in session:', session["thread_id"]);
+        // set the conversation_id in the session
+        session["conversation_id"] = conversationId;
+        console.log('Setting conversation_id in session:', session["conversation_id"]);
 
         // reload the page
         location.reload();
     });
 });
-
-// Add this function before the sendMessage function
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-}

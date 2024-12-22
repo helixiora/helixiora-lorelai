@@ -1,9 +1,7 @@
-
-
 function startIndexing(type) {
     $('#statusMessage').hide().removeClass('alert-danger alert-success').addClass('alert-info').text(`Starting ${type} indexing...`).show();
 
-    fetch(`/admin/index/${type}`, { method: 'POST' })
+    makeAuthenticatedRequest(`/api/v1/admin/index/${type}`, 'POST')
         .then(response => {
             if (response.ok) {
                 return response.json();
@@ -31,15 +29,8 @@ function startIndexing(type) {
 
 function checkStatus(jobStatus, type, jobStatuses) {
     console.log(jobStatus);
-    const csrfToken = getCookie('csrf_token');
-    console.log('CSRF Token:', csrfToken);
-    fetch(`/admin/job-status/${jobStatus.jobId}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        }
-    }).then(response => {
+    makeAuthenticatedRequest(`/api/v1/admin/indexer/job-status/${jobStatus.jobId}`, 'GET')
+        .then(response => {
             if (response.ok) {
                 return response.json();
             } else {
@@ -57,9 +48,13 @@ function checkStatus(jobStatus, type, jobStatuses) {
                     $('#statusMessage').removeClass('alert-danger alert-success').addClass('alert-info').text(`${type} indexing is in progress...`);
                     setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
                     break;
-                case 'queued':
-                    $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${type} indexing is queued for job ${jobStatus.jobId}.`);
+                case 'pending':
+                    $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${type} indexing is pending for job ${jobStatus.jobId}.`);
 
+                    setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
+                    break;
+                case 'queued':
+                    $('#statusMessage').removeClass('alert-info alert-danger').addClass('alert-warning').text(`${type} indexing is queued for job ${jobStatus.jobId}.`);
                     setTimeout(() => checkStatus(jobStatus, type, jobStatuses), 1000);
                     break;
                 case 'finished':
@@ -67,6 +62,7 @@ function checkStatus(jobStatus, type, jobStatuses) {
                     break;
                 case 'failed':
                     $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${type} indexing failed for job ${jobStatus.jobId}.`);
+                    break;
                 case 'unknown':
                     $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text(`${type} indexing ${data.state} for job ${jobStatus.jobId}.`);
                     break;
@@ -78,13 +74,8 @@ function checkStatus(jobStatus, type, jobStatuses) {
             if (jobStatuses.every(job => job.state === 'done' || job.state === 'failed')) {
                 $('#statusMessage').removeClass('alert-info').addClass('alert-success').text(`${type} indexing completed.`);
             }
-        }).catch(error => {
+        })
+        .catch(error => {
             $('#statusMessage').removeClass('alert-info alert-success').addClass('alert-danger').text('Error checking task status.');
         });
-}
-
-function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
 }

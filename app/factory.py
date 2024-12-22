@@ -6,24 +6,44 @@ import sys
 from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
+from flask_restx import Api
 from flask_migrate import Migrate
 
 from flask_sqlalchemy import SQLAlchemy
+from config import config
+
 from sqlalchemy_utils import database_exists, create_database
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.cli import init_db_command, seed_db_command
 
 import sentry_sdk
+from sentry_sdk.integrations.rq import RqIntegration
+from sentry_sdk.integrations.flask import FlaskIntegration
 
+
+# models
 from app.models import db, User
+
+# namespaces
+from app.routes.api.v1.chat import chat_ns
+from app.routes.api.v1.conversation import conversation_ns
+from app.routes.api.v1.notifications import notifications_ns
+from app.routes.api.v1.token import token_ns
+from app.routes.api.v1.auth import auth_ns
+from app.routes.api.v1.api_keys import api_keys_ns
+from app.routes.api.v1.admin import admin_ns
+from app.routes.api.v1.googledrive import googledrive_ns
+
+# blueprints
 from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
+from app.routes.api_keys import api_keys_bp
 
-from config import config
+from app.swagger import authorizations
 
 
 def prepare_database(app: Flask, migrate: Migrate, db: SQLAlchemy):
@@ -88,18 +108,63 @@ def create_app(config_name: str = "default") -> Flask:
             environment=app.config["SENTRY_ENVIRONMENT"],
             traces_sample_rate=1.0,
             profiles_sample_rate=1.0,
+            integrations=[FlaskIntegration(), RqIntegration()],
+            debug=False,
         )
         logging.info("Sentry initialized in environment %s", app.config["SENTRY_ENVIRONMENT"])
 
     # Apply ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
+    api_description = """API documentation for Lorelai.
+
+    Getting started
+    --------------
+    To get started, create an API key in the Lorelai dashboard and use it to authenticate using the
+    `/auth/login` endpoint. This will return a JWT token that you can use to authenticate your
+    requests.
+
+    To authenticate your requests, pass the JWT token in the `Authorization` header as a Bearer
+    token.
+
+    The JWT token will be valid for 15 minutes by default. You can change this by passing an
+    `expires` value in the login request. Pass 0 to disable the expiration.
+
+    For more information on how to use the API, see the individual endpoints in the documentation.
+
+    If you find any issues, please report them to [Support](mailto:support@helixiora.com).
+    """
+
+    # Initialize Flask-RestX
+    api = Api(
+        app,
+        version="1.0",
+        title="Lorelai API",
+        contact="support@helixiora.com",
+        description=api_description,
+        # security="Bearer Auth",
+        doc="/swagger",
+        prefix="/api/v1",
+        authorizations=authorizations,
+    )
+
+    # Register namespaces
+    api.add_namespace(chat_ns)
+    api.add_namespace(conversation_ns)
+    api.add_namespace(notifications_ns)
+    api.add_namespace(token_ns)
+    api.add_namespace(auth_ns)
+    api.add_namespace(api_keys_ns)
+    api.add_namespace(admin_ns)
+    api.add_namespace(googledrive_ns)
+
     # Register blueprints
-    app.register_blueprint(googledrive_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(googledrive_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(slack_bp)
+    app.register_blueprint(api_keys_bp)
 
     # Set up user loader
     @login_manager.user_loader
@@ -148,7 +213,6 @@ def setup_error_handlers(app: Flask) -> None:
 def setup_after_request(app: Flask) -> None:
     """Set up after request handlers for the Flask app."""
 
-    # Implement your after request handlers here
     @app.after_request
     def set_security_headers(response):
         """Set the security headers for the response."""
@@ -157,6 +221,7 @@ def setup_after_request(app: Flask) -> None:
         connect_src = [
             "'self'",
             "https://accounts.google.com/gsi/",
+            "https://accounts.google.com/.well-known/",
             "https://oauth2.googleapis.com/",
             "https://o4507884621791232.ingest.de.sentry.io/api/",
         ]
@@ -246,9 +311,6 @@ def setup_after_request(app: Flask) -> None:
         response.headers["Cross-Origin-Opener-Policy"] = cross_origin_opener_policy
         response.headers["Content-Security-Policy"] = content_security_policy
 
-        # logging.info("Setting CSRF token")
-        # response.set_cookie("csrf_token", value=generate_csrf(), secure=True, samesite="Strict")
-
         return response
 
 
@@ -258,29 +320,39 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
     @jwt.unauthorized_loader
     def custom_unauthorized_response(_err):
         """Handle unauthorized access."""
-        logging.error("Unauthorized access: %s", _err)
-        return jsonify({"msg": f"Unauthorized access: {_err}"}), 401
+        logging.error("Unauthorized access attempt - %s", _err)
+        return jsonify(
+            {
+                "msg": "Authentication required",
+                "error": "missing_authorization",
+            }
+        ), 401
 
     @jwt.invalid_token_loader
     def custom_invalid_token_response(error_string):
         """Handle invalid token."""
-        logging.error("Invalid token: %s", error_string)
-        return jsonify({"msg": f"Invalid token: {error_string}"}), 401
+        logging.error("Invalid token provided - %s", error_string)
+        return jsonify(
+            {
+                "msg": "Invalid authentication token",
+                "error": "invalid_token",
+            }
+        ), 401
 
     @jwt.expired_token_loader
     def custom_expired_token_response(jwt_header, jwt_payload):
         """Handle expired token."""
-        logging.error("Expired token: %s", jwt_payload)
-        return jsonify({"msg": f"Expired token: {jwt_payload}"}), 401
+        logging.error("Expired token for user: %s", jwt_payload.get("sub", "unknown"))
+        return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
 
     @jwt.needs_fresh_token_loader
-    def custom_needs_fresh_token_response(error_string):
+    def custom_needs_fresh_token_response(jwt_header, jwt_payload):
         """Handle needs fresh token."""
-        logging.error("Needs fresh token: %s", error_string)
-        return jsonify({"msg": f"Needs fresh token: {error_string}"}), 401
+        logging.error("Fresh token required for user: %s", jwt_payload.get("sub", "unknown"))
+        return jsonify({"msg": "Fresh token required", "error": "fresh_token_required"}), 401
 
     @jwt.revoked_token_loader
-    def custom_revoked_token_response(error_string):
+    def custom_revoked_token_response(jwt_header, jwt_payload):
         """Handle revoked token."""
-        logging.error("Revoked token: %s", error_string)
-        return jsonify({"msg": f"Revoked token: {error_string}"}), 401
+        logging.error("Revoked token used for user: %s", jwt_payload.get("sub", "unknown"))
+        return jsonify({"msg": "Token has been revoked", "error": "token_revoked"}), 401

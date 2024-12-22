@@ -1,0 +1,47 @@
+<div id="card-api-keys" class="card mb-2 mt-2">
+    <h5 class="h5 card-header">API Keys</h5>
+    <div class="card-body">
+        <p>API keys are used to authenticate requests to the LorelAI API.</p>
+        <table id="apiKeysTable" class="table table-hover table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>API Key</th>
+                    <th>Expires At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="content">
+                {% if api_keys %}
+                    {% for api_key in api_keys %}
+                        <tr>
+                            <td>{{ api_key.api_key }}</td>
+                            <td>{{ api_key.expires_at.strftime('%Y-%m-%d') if api_key.expires_at else 'Never' }}</td>
+                            <td>
+                                <button class="btn btn-danger" onclick="deleteAPIKey('{{ api_key.id }}')">Delete</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center">No API keys found</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card mb-2 mt-2 mx-3" id="card-create-api-key">
+        <h5 class="h5 card-header">Create API Key</h5>
+        <div class="card-body">
+            <form method="POST" action="/api-keys/create">
+                <div class="form-group">
+                    <label for="expires_at">Expires At</label>
+                    <input type="date" class="form-control" id="expires_at" name="expires_at">
+                    <small class="form-text text-muted">If no expiry date is provided, the API key will never expire.</small>
+                </div>
+                <button type="submit" class="btn btn-primary">Create API Key</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/api-keys.js') }}"></script>

@@ -24,16 +24,9 @@ class Config:
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or "super-secret"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
-    JWT_COOKIE_SECURE = True
-    JWT_COOKIE_SAMESITE = "Strict"
-    JWT_COOKIE_HTTPONLY = True
-    JWT_TOKEN_LOCATION = ["cookies"]
-    JWT_COOKIE_CSRF_PROTECT = False
-    JWT_CSRF_CHECK_FORM = False
-    JWT_ACCESS_CSRF_COOKIE_NAME = "csrf_token"
-    JWT_REFRESH_CSRF_COOKIE_NAME = "csrf_token"
-    JWT_COOKIE_DOMAIN = None
-    JWT_COOKIE_PATH = "/"
+    JWT_TOKEN_LOCATION = ["headers"]
+    JWT_HEADER_NAME = "Authorization"
+    JWT_HEADER_TYPE = "Bearer"
 
     # Application settings
     APP_NAME = "Lorelai"
@@ -66,6 +59,9 @@ class Config:
 
     # Redis settings
     REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+    REDIS_QUEUE_INDEXER = os.environ.get("REDIS_QUEUE_INDEXER", "indexer_queue")
+    REDIS_QUEUE_QUESTION = os.environ.get("REDIS_QUEUE_QUESTION", "question_queue")
+    REDIS_QUEUE_DEFAULT = os.environ.get("REDIS_QUEUE_DEFAULT", "default")
 
     # Lorelai settings
     LORELAI_ENVIRONMENT = os.environ.get("LORELAI_ENVIRONMENT", "dev")
@@ -108,8 +104,7 @@ class Config:
     )
     SLACK_TOKEN_URL = os.environ.get("SLACK_TOKEN_URL", "https://slack.com/api/oauth.v2.access")
     SLACK_SCOPES = os.environ.get(
-        "SLACK_SCOPES",
-        "channels:history,channels:read,users:read,users:read.email",
+        "SLACK_SCOPES", "channels:history,channels:read,groups:read,users:read,users:read.email"
     )
 
     @classmethod
@@ -128,7 +123,6 @@ class TestingConfig(Config):
     """Testing configuration."""
 
     TESTING = True
-    WTF_CSRF_ENABLED = False
 
 
 class ProductionConfig(Config):

@@ -1,8 +1,6 @@
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-
 let codeClient;
-
 let authorizationCode = null;
 let pickerInited = false;
 let gisInited = false;
@@ -32,7 +30,6 @@ async function gisLoaded() {
         },
         redirect_uri: window.location.origin + '/google/drive/codeclientcallback',
         state: 'google_drive'
-
     });
     gisInited = true;
     maybeEnableButtons();
@@ -55,9 +52,19 @@ async function maybeEnableButtons() {
 
 function handleSignoutClick() {
     if (accessToken) {
-        google.accounts.oauth2.revoke(accessToken);
-        accessToken = null;
-        maybeEnableButtons();
+        makeAuthenticatedRequest('/api/v1/googledrive/revoke', 'POST')
+            .then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.msg || 'Revoke failed');
+                }
+                google.accounts.oauth2.revoke(accessToken);
+                accessToken = null;
+                maybeEnableButtons();
+            })
+            .catch(error => {
+                console.error('Signout error:', error);
+            });
     }
 }
 
@@ -108,36 +115,43 @@ async function pickerCallback(data) {
             type: doc[google.picker.Document.TYPE],
             url: doc[google.picker.Document.URL],
             iconUrl: doc[google.picker.Document.ICON_URL],
-            lastIndexedAt: doc.last_indexed_at || 'N/A'  // Assuming last_indexed_at might not be available
+            lastIndexedAt: doc.last_indexed_at || 'N/A'
         }));
 
         try {
-            const response = await fetch('/google/drive/processfilepicker', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(documents),
-            });
+            const response = await makeAuthenticatedRequest(
+                '/api/v1/googledrive/processfilepicker',
+                'POST',
+                documents
+            );
 
-            if (response.ok) {
-                // If the request is successful, reload the page
-                location.reload();
-            } else {
-                console.error('Failed to process file picker:', response.statusText);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.msg || 'Failed to process file picker');
             }
+            location.reload();
         } catch (error) {
             console.error('Error processing file picker:', error);
         }
     }
 }
 
-
 async function removeDocument(googleDriveId) {
-    await fetch('/google/drive/removefile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ google_drive_id: googleDriveId }),
-    }).catch(console.error)
-    .then(() => location.reload());
+    try {
+        const response = await makeAuthenticatedRequest(
+            '/api/v1/googledrive/removefile',
+            'POST',
+            { google_drive_id: googleDriveId }
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.msg || 'Failed to remove document');
+        }
+        location.reload();
+    } catch (error) {
+        console.error('Error removing document:', error);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function () {

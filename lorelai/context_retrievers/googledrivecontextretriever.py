@@ -8,11 +8,11 @@ Classes:
 """
 
 import logging
+import time
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
-from langchain_community.document_compressors import FlashrankRerank
-
+from rerankers import Reranker
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
 
 from lorelai.context_retriever import (
@@ -59,6 +59,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
         logging.info(
             f"Retrieving Google Drive context for question: {question} and user: {self.user_email}"
         )
+        start_time = time.time()
         try:
             name = PineconeHelper.get_index_name(
                 org_name=self.org_name,
@@ -89,8 +90,9 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         # Reranker takes the result from base retriever than reranks those retrieved.
         # flash reranker is used as its standalone, lightweight. and free and open source
-        compressor = FlashrankRerank(top_n=3, model=self.reranker)
+        ranker = Reranker(model_name=self.reranker, model_type="flashrank", verbose=1)
 
+        compressor = ranker.as_langchain_compressor(k=3)
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
@@ -108,7 +110,9 @@ class GoogleDriveContextRetriever(ContextRetriever):
                 raw_langchain_document=result,
             )
             context_response.append(context_document)
-
+        end_time = time.time()
+        logging.info(f"GoogleDriveContextRetriever took: {end_time-start_time}")
+        logging.info(f"Found {len(context_response)} context from GoogleDrive")
         return LorelaiContextRetrievalResponse(
             datasource_name="googledrive",
             context=context_response,

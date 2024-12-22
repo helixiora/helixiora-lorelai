@@ -7,6 +7,8 @@ from sqlalchemy.dialects.mysql import INTEGER
 
 db = SQLAlchemy()
 
+VALID_ROLES = {"super_admin", "org_admin", "user"}
+
 
 # Association table for User and Role
 class UserRole(db.Model):
@@ -24,29 +26,42 @@ class ChatMessage(db.Model):
     __tablename__ = "chat_messages"
 
     message_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    thread_id = db.Column(db.String(50), db.ForeignKey("chat_threads.thread_id"), nullable=False)
+    conversation_id = db.Column(
+        db.String(50),
+        db.ForeignKey("chat_conversations.conversation_id"),
+        nullable=False,
+    )
     sender = db.Column(db.Enum("bot", "user"), nullable=False)
     message_content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     sources = db.Column(db.JSON, nullable=True)
 
-    # Relationship to the chat thread
-    thread = db.relationship("ChatThread", back_populates="messages")
+    marked_deleted = db.Column(db.Boolean, default=False)
+
+    # Relationship to the chat conversation
+    conversation = db.relationship(
+        "ChatConversation", back_populates="messages", foreign_keys=[conversation_id]
+    )
 
 
-class ChatThread(db.Model):
-    """Model for the chat_threads table."""
+class ChatConversation(db.Model):
+    """Model for the chat_conversations table."""
 
-    __tablename__ = "chat_threads"
+    __tablename__ = "chat_conversations"
 
-    thread_id = db.Column(db.String(50), primary_key=True)
+    conversation_id = db.Column(db.String(50), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
-    thread_name = db.Column(db.String(255), nullable=True)
-    marked_deleted = db.Column(db.Integer, default=0)
+    conversation_name = db.Column(db.String(255), nullable=True)
+    marked_deleted = db.Column(db.Boolean, default=False)
 
     # Relationship to messages
-    messages = db.relationship("ChatMessage", back_populates="thread", lazy=True)
+    messages = db.relationship(
+        "ChatMessage",
+        back_populates="conversation",
+        lazy=True,
+        foreign_keys=[ChatMessage.conversation_id],
+    )
 
 
 class Datasource(db.Model):
@@ -59,6 +74,7 @@ class Datasource(db.Model):
     )
     name = db.Column(db.String(255), nullable=False, name="datasource_name", unique=True)
     type = db.Column(db.String(255), nullable=False, name="datasource_type")
+    description = db.Column(db.Text, nullable=True)
 
 
 class GoogleDriveItem(db.Model):
@@ -152,9 +168,19 @@ class Role(db.Model):
 
     users = db.relationship("User", secondary="user_roles", back_populates="roles")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a string representation of the role."""
         return f"<Role {self.name}>"
+
+    def has_role(self, role_name: str) -> bool:
+        """Check if the role has a role."""
+        if not role_name:
+            return False
+        if not isinstance(role_name, str):
+            raise ValueError("Role name must be a string")
+        if role_name not in VALID_ROLES:
+            raise ValueError(f"Invalid role name: {role_name}")
+        return any(role.name == role_name for role in self.users)
 
 
 class User(UserMixin, db.Model):
@@ -173,13 +199,11 @@ class User(UserMixin, db.Model):
 
     profile = db.relationship("Profile", back_populates="user", uselist=False)
     roles = db.relationship("Role", secondary="user_roles", back_populates="users")
-    # api_tokens = db.relationship("APIToken", backref="owner", lazy=True)
     user_plans = db.relationship("UserPlan", backref="user", lazy=True)
     logins = db.relationship("UserLogin", backref="user", lazy=True)
-
     organisation = db.relationship("Organisation", back_populates="users", lazy=True)
-    # Relationship to extra messages
     extra_messages = db.relationship("ExtraMessages", back_populates="user", lazy=True)
+    api_keys = db.relationship("UserAPIKey", back_populates="user", lazy=True)
 
     def __repr__(self):
         """Return a string representation of the user."""
@@ -205,6 +229,29 @@ class UserAuth(db.Model):
     auth_key = db.Column(db.String(255), nullable=False)
     auth_value = db.Column(db.String(255), nullable=False)
     auth_type = db.Column(db.String(255), nullable=False)
+
+
+class UserAPIKey(db.Model):
+    """Model for a user API key."""
+
+    __tablename__ = "user_api_keys"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True, name="user_api_key_id")
+    user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
+    api_key = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", back_populates="api_keys")
+
+    def __repr__(self):
+        """Return a string representation of the user API key."""
+        return f"<UserAPIKey {self.api_key}>"
+
+    def is_expired(self) -> bool:
+        """Check if the API key is expired."""
+        return self.expires_at and self.expires_at < datetime.utcnow()
 
 
 class UserLogin(db.Model):
