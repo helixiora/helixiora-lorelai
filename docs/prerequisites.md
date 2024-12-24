@@ -67,12 +67,9 @@ they also deploy a redis instance.
 
 In order to pass these keys, connection strings for the MySQL database etc you have two options:
 
-### JSON settings file
+### .env settings file
 
-_Note_ this option is a bit more difficult to pull of with a container, since you need to ensure the
-file doesn't get overwritten on new image deploy
-
-The [example settings](./.env.example) file contains examples of all
+The [example settings](../.env.example) file contains examples of all
 
 ## Env vars
 
