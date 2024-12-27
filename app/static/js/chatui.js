@@ -234,10 +234,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Server response did not include a job_id. Data received: ', data.job);
                 hideLoadingIndicator();
                 addMessage('Error: The message could not be processed at this time. Please try again later.', false, false);
-                // Handle cases where the server response might not include a job ID
-                console.error('Server response did not include a job_id. Data received: ', data.job);
-                hideLoadingIndicator();
-                addMessage('Error: The message could not be processed at this time. Please try again later.', false, false);
             }
         } catch (error) {
             console.error('Fetch error:', error);
