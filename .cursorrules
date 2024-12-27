@@ -1,50 +1,72 @@
 # Flask Application Guidelines
 
 ## 1. Project Structure
+
 - Use a modular project structure with clear separation of concerns
-- Follow the application factory pattern, run.py is the entry point with the factory in `project_root/app/factory.py`
-- Organize code into blueprints for scalability
+- Follow the application factory pattern
+- Entry point is `run.py` with factory in `project_root/app/factory.py`
+- Organize code into blueprints for scalability and maintainability
+- Use environment variables for configuration (stored in `.env`)
 
 ### Recommended Directory Layout
+
 project_root/
-├── app/
+├── app/ # Main application package
 │ ├── templates/ # Jinja2 templates
-│ ├── static/ # Static files
-│ ├── models/ # Database models
+│ ├── static/ # Static files (CSS, JS, images)
+│ │ ├── css/
+│ │ ├── js/
+│ │ └── img/
+│ ├── helpers/ # Helper functions and utilities
 │ ├── routes/ # Blueprint routes
-│ └── init.py # App factory
+│ ├── routes/api/v1/ # API routes
+│ ├── models.py # SQLAlchemy models
+│ ├── factory.py # App factory
 ├── migrations/ # Database migrations
 ├── tests/ # Test suite
-├── config.py # Configuration
-├── requirements.txt # Dependencies
-└── run.py # Entry point
+├── docs/ # Documentation
+├── .env # Environment variables
+├── .env.example # Example environment variables
+├── .gitignore # Git ignore rules
+├── .pre-commit-config.yaml # Pre-commit hooks
+├── readme.md # Project documentation
+├── pyproject.toml # Project configuration
+├── Dockerfile # Docker configuration
+├── docker-compose.yml # Docker compose configuration
+├── config.py # Project configuration
+├── requirements.txt # Project dependencies
+└── run.py # Application entry point
 
 ## 2. Code Organization
+
 - Use blueprints for feature-based code organization
-- Keep models in separate files by domain
+- routes that don't return a page or reroute the user should be in the api/v1/ folder
 - Implement clear configuration management
 - Follow PEP 8 style guidelines
 
 ## 3. Security Best Practices
+
 - Store secrets in environment variables
-- Enable CSRF protection
 - Use secure password hashing
 - Implement proper session management
 - Sanitize all user inputs
 
 ## 4. Database Guidelines
+
 - Use SQLAlchemy for database operations
 - Implement database migrations
 - Follow proper session management
 - Use appropriate indexing strategies
 
 ## 5. Testing Requirements
+
 - Write unit tests for all features
 - Maintain separate test configurations
 - Use pytest as testing framework
 - Aim for high test coverage
 
 ## 6. Deployment Considerations
+
 - Use production-grade WSGI server
 - Implement proper logging
 - Configure error handling
@@ -52,6 +74,7 @@ project_root/
 - Use SSL/TLS in production
 
 ## 7. Documentation
+
 - Document API endpoints
 - Maintain requirements.txt
 - Include setup instructions
