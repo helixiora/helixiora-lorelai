@@ -230,23 +230,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
             } else {
-
-                const data = await response.json();
-
-                // Check if the server has accepted the message and is processing it
-                if (data.job) {
-                    pollForResponse(data.job); // Begin polling for the response based on the provided job ID
-                } else {
-                    // Handle cases where the server response might not include a job ID due to an error or other issue
-                    console.error('Server response did not include a job_id. Data received: ', data.job);
-                    hideLoadingIndicator();
-                    addMessage('Error: The message could not be processed at this time. Please try again later.', false, false); // Display a generic error message
-                }
+                // Handle cases where the server response might not include a job ID
+                console.error('Server response did not include a job_id. Data received: ', data.job);
+                hideLoadingIndicator();
+                addMessage('Error: The message could not be processed at this time. Please try again later.', false, false);
             }
         } catch (error) {
             console.error('Fetch error:', error);
             hideLoadingIndicator();
             addMessage('Error: Unable to send the message. Please try again later.', false, false);
+            console.error('Send message error:', error);
+            hideLoadingIndicator();
+
+            if (error.message === 'Unauthorized') {
+                addMessage('Your session has expired. Please log in again.', false, false);
+            } else if (error.message.includes('429')) {
+                addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
+            } else {
+                addMessage('Error: Unable to send the message. Please try again later.', false, false);
+            }
         }
     }
 
