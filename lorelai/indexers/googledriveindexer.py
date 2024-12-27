@@ -21,7 +21,12 @@ from langchain_core.documents import Document
 from rq import job
 from app.models import db, GoogleDriveItem
 from sqlalchemy.exc import SQLAlchemyError
-from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema, GoogleDriveItemSchema
+from app.schemas import (
+    OrganisationSchema,
+    UserSchema,
+    UserAuthSchema,
+    GoogleDriveItemSchema,
+)
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 
@@ -146,8 +151,10 @@ class GoogleDriveIndexer(Indexer):
 {user.email}"
                 )
             except Exception as e:
-                logging.error(f"Failed to validate Google Drive credentials for user: \
-{user.email} with a simple API call: {e}")
+                logging.error(
+                    f"Failed to validate Google Drive credentials for user: \
+{user.email} with a simple API call: {e}"
+                )
                 return False
 
         # convert the documents to langchain documents
@@ -289,26 +296,111 @@ class GoogleDriveIndexer(Indexer):
         logging.info(f"Loaded {len(docs_loaded)} sheets from file: {doc_google_drive_id}")
         return docs_loaded
 
+    def load_google_doc_from_pdf_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load a Google Drive PDF from a PDF ID.
+
+        :param doc_google_drive_id: the Google Drive PDF ID
+        :param credentials_object: the credentials object to use for Google Drive API
+
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive PDF ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load()
+        logging.info(f"Loaded {len(docs_loaded)} pages from PDF: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_text_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load text-based files (txt, csv, html, xml, json) from Google Drive.
+
+        :param doc_google_drive_id: the Google Drive file ID
+        :param credentials_object: the credentials object to use for Google Drive API
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive text file ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load()
+        logging.info(f"Loaded text content from file: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_ms_office_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load Microsoft Office files from Google Drive.
+
+        :param doc_google_drive_id: the Google Drive file ID
+        :param credentials_object: the credentials object to use for Google Drive API
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive MS Office file ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load()
+        logging.info(f"Loaded content from MS Office file: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_image_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load image files from Google Drive.
+
+        Note: This requires OCR capabilities to extract text from images.
+
+        :param doc_google_drive_id: the Google Drive file ID
+        :param credentials_object: the credentials object to use for Google Drive API
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive image file ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load()
+        logging.info(f"Loaded content from image file: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_media_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load media files (audio/video) from Google Drive.
+
+        Note: This requires speech-to-text capabilities for meaningful text extraction.
+
+        :param doc_google_drive_id: the Google Drive file ID
+        :param credentials_object: the credentials object to use for Google Drive API
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive media file ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load()
+        logging.info(f"Loaded content from media file: {doc_google_drive_id}")
+        return docs_loaded
+
+    def load_google_doc_from_archive_id(
+        self, doc_google_drive_id: str, credentials_object: credentials.Credentials
+    ) -> list[Document]:
+        """Load archive files (zip, rar, tar, gz) from Google Drive.
+
+        Note: This requires archive extraction capabilities.
+
+        :param doc_google_drive_id: the Google Drive file ID
+        :param credentials_object: the credentials object to use for Google Drive API
+        :return: the list of documents loaded from Google Drive
+        """
+        logging.info(f"Loading Google Drive archive file ID: {doc_google_drive_id}")
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
+        docs_loaded = loader.load()
+        logging.info(f"Loaded content from archive file: {doc_google_drive_id}")
+        return docs_loaded
+
     def google_docs_to_langchain_docs(
         self: None,
         documents: list[dict[str, any]],
         credentials_object: credentials.Credentials,
         job: job.Job,
     ) -> list[Document]:
-        """Process the Google Drive documents and divide them into pinecone compatible chunks.
-
-        :param documents: the list of google documents to process. Each document is a dictionary
-            with the following keys: google_drive_id, item_type
-        :param credentials_object: the credentials object to use for Google Drive API
-        :param job: the job object
-
-
-        :return: the list of documents loaded from Google Drive
-        """
+        """Process the Google Drive documents and divide them into pinecone compatible chunks."""
         docs: list[Document] = []
-        # documents contain a list of dictionaries with the following keys:
-        # user_id, google_drive_id, item_type, item_name
-        # loop through the documents and load them from Google Drive
         for doc in documents:
             doc_google_drive_id = doc["google_drive_id"]
             doc_item_type = doc["item_type"]
@@ -320,8 +412,9 @@ class GoogleDriveIndexer(Indexer):
                 )
                 raise ValueError(f"Invalid item type: {doc_item_type}")
 
-            # use langchain google drive loader to load the content of the docs from google drive
+            # Match on mime type categories
             match doc_mime_type:
+                # Google Workspace files
                 case "application/vnd.google-apps.presentation":
                     docs_loaded = self.load_google_doc_from_slides_id(
                         doc_google_drive_id, credentials_object
@@ -338,6 +431,78 @@ class GoogleDriveIndexer(Indexer):
                     docs_loaded = self.load_google_doc_from_folder_id(
                         doc_google_drive_id, credentials_object
                     )
+
+                # Microsoft Office files
+                case mime if mime in [
+                    "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.ms-excel",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-powerpoint",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ]:
+                    docs_loaded = self.load_google_doc_from_ms_office_id(
+                        doc_google_drive_id, credentials_object
+                    )
+
+                # Text-based files
+                case mime if mime in [
+                    "text/plain",
+                    "text/csv",
+                    "text/html",
+                    "text/xml",
+                    "application/json",
+                    "application/xml",
+                    "application/javascript",
+                    "application/x-python-code",
+                ]:
+                    docs_loaded = self.load_google_doc_from_text_id(
+                        doc_google_drive_id, credentials_object
+                    )
+
+                # Image files
+                case mime if mime in [
+                    "image/jpeg",
+                    "image/png",
+                    "image/gif",
+                    "image/bmp",
+                    "image/svg+xml",
+                    "image/tiff",
+                ]:
+                    docs_loaded = self.load_google_doc_from_image_id(
+                        doc_google_drive_id, credentials_object
+                    )
+
+                # Audio/Video files
+                case mime if mime in [
+                    "audio/mpeg",
+                    "audio/wav",
+                    "video/mp4",
+                    "video/mpeg",
+                    "video/quicktime",
+                ]:
+                    docs_loaded = self.load_google_doc_from_media_id(
+                        doc_google_drive_id, credentials_object
+                    )
+
+                # Archive files
+                case mime if mime in [
+                    "application/zip",
+                    "application/x-rar-compressed",
+                    "application/x-tar",
+                    "application/gzip",
+                ]:
+                    docs_loaded = self.load_google_doc_from_archive_id(
+                        doc_google_drive_id, credentials_object
+                    )
+
+                # PDF files
+                case "application/pdf":
+                    docs_loaded = self.load_google_doc_from_pdf_id(
+                        doc_google_drive_id, credentials_object
+                    )
+
+                # Default fallback
                 case _:
                     match doc_item_type:
                         case "document":
@@ -355,10 +520,8 @@ class GoogleDriveIndexer(Indexer):
                         case _:
                             raise ValueError(f"Invalid item type: {doc_item_type}")
 
-            # if the docs_loaded is not None, add the loaded docs to the docs list
             if docs_loaded:
                 docs.extend(docs_loaded)
-
                 for loaded_doc in docs_loaded:
                     logging.info(
                         f"Loaded Google doc: {loaded_doc.metadata['title']} with ID: \
@@ -371,7 +534,6 @@ class GoogleDriveIndexer(Indexer):
                 )
 
         logging.debug(f"Total {len(docs)} Google docs loaded from Google Drive using langchain")
-
         return docs
 
     def update_last_indexed_for_docs(self, documents, job: job.Job) -> None:
