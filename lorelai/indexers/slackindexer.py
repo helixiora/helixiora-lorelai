@@ -16,13 +16,15 @@ from flask import current_app
 
 from lorelai.indexer import Indexer
 from lorelai.pinecone import PineconeHelper
-from lorelai.utils import get_size
 
-from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
-from rq import job
+from app.schemas import (
+    IndexingRunSchema,
+    UserAuthSchema,
+)
 
 from app.helpers.datasources import DATASOURCE_SLACK
 from app.helpers.slack import SlackHelper
+from app.models import IndexingRunItem, db
 
 
 class SlackIndexer(Indexer):
@@ -87,7 +89,7 @@ class SlackIndexer(Indexer):
         return new_messages_dict_list
 
     def load_to_pinecone(
-        self, complete_chat_history: list[dict], user: UserSchema, organisation: OrganisationSchema
+        self, complete_chat_history: list[dict], indexing_run: IndexingRunSchema
     ) -> int:
         """
         Load the complete chat history with embeddings into Pinecone.
@@ -103,7 +105,7 @@ class SlackIndexer(Indexer):
             int: The number of records loaded into Pinecone.
         """
         index, name = self.pinecone_helper.get_index(
-            org_name=organisation.name,
+            org_name=indexing_run.organisation.name,
             datasource=DATASOURCE_SLACK,
             environment=current_app.config["LORELAI_ENVIRONMENT"],
             env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
@@ -117,10 +119,8 @@ class SlackIndexer(Indexer):
 
     def index_user(
         self,
-        user: UserSchema,
-        organisation: OrganisationSchema,
+        indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
-        job: job.Job,
     ) -> bool | None:
         """
         Process Slack messages, generate embeddings, and load them into Pinecone.
@@ -129,26 +129,37 @@ class SlackIndexer(Indexer):
             channel_id (str, optional): The ID of a specific Slack channel to process.
             Defaults to None.
         """
-        slack = SlackHelper(user, organisation, user_auths)
+        slack = SlackHelper(indexing_run.user, indexing_run.organisation, user_auths)
         if not slack.test_slack_token:
             logging.critical("Slack token is invalid")
             return False
 
-        try:
-            # get the list of channels
-            channel_ids_dict = slack.get_accessible_channels(only_joined=True)
+        # get the list of channels
+        channel_ids_dict = slack.get_accessible_channels(only_joined=True)
 
-            if not channel_ids_dict:
-                logging.info("No channels found for the user")
-                return True
+        if not channel_ids_dict:
+            logging.info("No channels found for the user")
+            return True
 
-            # Process each channel
-            for channel_id, channel_name in channel_ids_dict.items():
-                logging.info(f"Processing channel {channel_id} {channel_name}")
+        # Process each channel
+        for channel_id, channel_name in channel_ids_dict.items():
+            try:
+                indexing_run_item = IndexingRunItem(
+                    indexing_run_id=indexing_run.id,
+                    item_id=channel_id,
+                    item_type="channel",
+                    item_name=channel_name,
+                    item_url=f"https://app.slack.com/client/{channel_id}",
+                    item_status="pending",
+                )
+                db.session.add(indexing_run_item)
+                db.session.commit()
 
                 # 1. get all messages from the channel
                 channel_chat_history = slack.get_messages_from_channel(
-                    channel_id=channel_id, channel_name=channel_name, user_email=user.email
+                    channel_id=channel_id,
+                    channel_name=channel_name,
+                    user_email=indexing_run.user.email,
                 )
 
                 if not channel_chat_history:
@@ -171,8 +182,8 @@ class SlackIndexer(Indexer):
                 batch_size = 1
                 total_items = len(messages)
                 logging.info(
-                    f"Getting Embeds and Inserting to DB for {total_items} \
-messages in batches batch_size: {batch_size}, total messages: {total_items}"
+                    f"Getting Embeds and Inserting to DB for {total_items} messages in batches \
+batch_size: {batch_size}, total messages: {total_items}"
                 )
 
                 # now doing without size as just batch with 1 element
@@ -187,32 +198,9 @@ messages in batches batch_size: {batch_size}, total messages: {total_items}"
                         # TODO: parameters ??!!
                         batch = self.add_embedding(self.embedding_model_name, batch)
 
-                        logging.debug(f"size of metadata: {get_size(batch[0]['metadata'])}")
-                        logging.debug(
-                            f"size of metadata text: {get_size(batch[0]['metadata']['text'])}"
-                        )
-                        logging.debug(
-                            f"size of metadata text length: {len(batch[0]['metadata']['text'])}"
-                        )
-                        logging.debug(
-                            f"number of words in text: {len(batch[0]['metadata']['text'].split())}"
-                        )
-                        logging.debug(
-                            f"size of metadata: msg_ts {get_size(batch[0]['metadata']['msg_ts'])}"
-                        )
-                        logging.debug(
-                            f"size of metadata source: {get_size(batch[0]['metadata']['source'])}"
-                        )
-                        logging.debug(
-                            f"size of metadata channel_name: {get_size(batch[0]['metadata']['channel_name'])}"  # noqa: E501
-                        )
-                        logging.debug(
-                            f"size of metadata users: {get_size(batch[0]['metadata']['users'])}"
-                        )
-
                         logging.info("Loading to pinecone for current batch")
                         try:
-                            self.load_to_pinecone(batch, user, organisation)
+                            self.load_to_pinecone(batch, indexing_run)
                         except Exception as e:
                             logging.critical("failed to load to pinecone for current batch", e)
 
@@ -220,9 +208,20 @@ messages in batches batch_size: {batch_size}, total messages: {total_items}"
                 logging.info(
                     f"Completed indexing for channel {channel_name} with channel_id {channel_id}"
                 )
-            logging.info(
-                f"Slack Indexer ran successfully for org {organisation.name}, by user {user.email}"
-            )
-            return True
-        except Exception as e:
-            raise e
+
+                # Update status after successful processing of THIS channel
+                indexing_run_item.item_status = "completed"
+                db.session.commit()
+
+            except Exception as e:
+                indexing_run_item.item_status = "failed"
+                indexing_run_item.item_error = str(e)
+                db.session.commit()
+                logging.error(f"Error processing channel {channel_name}: {str(e)}")
+                continue  # Continue with next channel instead of raising
+
+        logging.info(
+            f"Slack Indexer ran successfully for org {indexing_run.organisation.name}, by user \
+{indexing_run.user.email}"
+        )
+        return True

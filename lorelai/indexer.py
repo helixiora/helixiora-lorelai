@@ -4,6 +4,8 @@ import logging
 from rq import job
 import importlib
 from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema
+from app.models import db, IndexingRun, IndexingRunItem
+from app.schemas import IndexingRunSchema
 
 # The scopes needed to read documents in Google Drive
 # (see: https://developers.google.com/drive/api/guides/api-specific-auth)
@@ -52,9 +54,12 @@ class Indexer:
         organisation: OrganisationSchema,
         users: list[UserSchema],
         user_auths: list[UserAuthSchema],
-        job: job.Job | None = None,
+        job: job.Job,
     ) -> list[dict[str, any]]:
         """Process the organisation, indexing all its users.
+
+        This method should be called from an rq job. It will create an indexing run and index each
+        user. It will return a list of dictionaries containing the results of indexing each user.
 
         Arguments
         ---------
@@ -82,50 +87,58 @@ class Indexer:
 
         result = []
         for user in users:
-            if job:
-                job.meta["org"] = organisation.name
-                job.meta["user"] = user.email
-                job.save_meta()
-
-            # get the user auth rows for this user
-            user_auth_rows_filtered = [
-                user_auth_row for user_auth_row in user_auths if user_auth_row.user_id == user.id
-            ]
-
-            # index the user
-            success = self.index_user(
-                user=user,
-                organisation=organisation,
-                user_auths=user_auth_rows_filtered,
-                job=job,
+            # create a new indexing run in the database, this is used for logging and tracking
+            indexing_run = IndexingRun(
+                rq_job_id=job.id,
+                status="pending",
+                user_id=user.id,
+                organisation_id=organisation.id,
             )
+            db.session.add(indexing_run)
+            db.session.commit()
 
-            message = f"User {user.email} indexing {'succeeded' if success else 'failed'}"
-            logging.info(message)
+            try:
+                # get the user auth rows for this user
+                user_auth_rows_filtered = [
+                    user_auth_row
+                    for user_auth_row in user_auths
+                    if user_auth_row.user_id == user.id
+                ]
 
-            if job:
-                job.meta["org"] = organisation.name
-                job.meta["user"] = user.email
-                job.save_meta()
+                # Convert the model to a schema
+                indexing_run_schema = IndexingRunSchema.from_orm(indexing_run)
 
-            result.append(
-                {
-                    "job_id": job.id if job else "",
-                    "user_id": user.id,
-                    "success": success,
-                    "message": message,
-                }
-            )
+                # index the user
+                self.index_user(
+                    indexing_run=indexing_run_schema,
+                    user_auths=user_auth_rows_filtered,
+                )
+
+                # Update run status based on items
+                failed_items = IndexingRunItem.query.filter_by(
+                    indexing_run_id=indexing_run.id, item_status="failed"
+                ).count()
+
+                if failed_items > 0:
+                    indexing_run.status = "completed_with_errors"
+                else:
+                    indexing_run.status = "completed"
+
+                db.session.commit()
+
+            except Exception as e:
+                logging.error(f"Error indexing user {user.email}: {e}")
+                indexing_run.status = "failed"
+                indexing_run.error = str(e)
+                db.session.commit()
 
         logging.debug(f"Indexing complete for org: {organisation.name}. Results: {result}")
         return result
 
     def index_user(
         self,
-        user: UserSchema,
-        organisation: OrganisationSchema,
+        indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
-        job: job.Job | None,
     ) -> tuple[bool, str]:
         """Process the Google Drive documents for a user and index them in Pinecone.
 

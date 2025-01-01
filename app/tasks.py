@@ -162,7 +162,7 @@ def run_indexer(
     user_auths: List[UserAuthSchema]
         List of user authentication data.
     indexer_class: type[Indexer]
-        The indexer class to use.
+        The indexer class to use (optional, defaults to all indexers)
 
     Returns
     -------
