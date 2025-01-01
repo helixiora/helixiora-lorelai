@@ -149,7 +149,7 @@ def run_indexer(
     user_auths: list[UserAuthSchema],
     started_by_user_id: int,
     indexer_class: type[Indexer] = None,
-):
+) -> None:
     """
     Run the indexer. Should be called from an rq job.
 
@@ -166,7 +166,7 @@ def run_indexer(
 
     Returns
     -------
-    dict: A dictionary containing the progress and result of the job.
+    None
     """
     from app.factory import create_app
 
@@ -193,18 +193,14 @@ def run_indexer(
                     logging.debug(f"Starting indexing {indexer_class.__name__}...")
                     job.meta["status"] = "Indexing"
                     job.save_meta()
-                    logging.debug(f"{organisation},{users},{user_auths},{job},")
 
                     # Perform indexing
-                    results = indexer.index_org(
+                    indexer.index_org(
                         organisation=organisation,
                         users=users,
                         user_auths=user_auths,
                         job=job,
                     )
-
-                    for result in results:
-                        logging.debug(result)
 
                     add_notification(
                         user_id=started_by_user_id,

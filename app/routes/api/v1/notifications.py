@@ -92,7 +92,7 @@ class GetNotificationsResource(Resource):
                 },
             }
 
-            logging.debug(f"Response data: {response_data}")
+            logging.debug(f"Response data[counts]: {response_data['counts']}")
 
             # Serialize the response data to handle Decimal objects
             return serialize_notification_response(response_data), 200

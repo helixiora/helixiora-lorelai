@@ -24,11 +24,15 @@ from app.schemas import (
 
 from app.helpers.datasources import DATASOURCE_SLACK
 from app.helpers.slack import SlackHelper
-from app.models import IndexingRunItem, db
+from app.models import IndexingRunItem, db, Datasource
 
 
 class SlackIndexer(Indexer):
     """Retrieves, processes, and loads Slack messages into Pinecone."""
+
+    def get_datasource(self) -> Datasource:
+        """Get the datasource for this indexer."""
+        return Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
 
     def __init__(self) -> None:
         """
@@ -149,7 +153,7 @@ class SlackIndexer(Indexer):
                     item_id=channel_id,
                     item_type="channel",
                     item_name=channel_name,
-                    item_url=f"https://app.slack.com/client/{channel_id}",
+                    item_url=f"https://app.slack.com/client/{slack.get_workspace_id()}/{channel_id}",
                     item_status="pending",
                 )
                 db.session.add(indexing_run_item)
@@ -164,6 +168,9 @@ class SlackIndexer(Indexer):
 
                 if not channel_chat_history:
                     logging.info(f"No messages found for channel {channel_id} {channel_name}")
+                    indexing_run_item.item_status = "completed"  # Mark as completed even if empty
+                    indexing_run_item.item_error = "No messages found in channel"
+                    db.session.commit()
                     continue
 
                 # 2. divide the messages into chunks with overlap

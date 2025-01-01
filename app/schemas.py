@@ -187,10 +187,14 @@ class OrganisationSchema(BaseModel):
 class GoogleDriveItemSchema(BaseModel):
     """Schema for a Google Drive item."""
 
+    id: int
+    user_id: int
     google_drive_id: str
     item_name: str
     item_type: str
     mime_type: str
+    item_url: str
+    icon_url: str
     created_at: datetime
     last_indexed_at: datetime | None
 
@@ -206,6 +210,7 @@ class DatasourceSchema(BaseModel):
     datasource_id: int
     datasource_name: str
     datasource_type: str
+    description: str | None = None
 
     class Config:
         """Config for the datasource schema."""
@@ -257,8 +262,12 @@ class IndexingRunSchema(BaseModel):
     status: str
     user_id: int
     organisation_id: int
+    datasource_id: int
     error: str | None = None
     items: list[IndexingRunItemSchema] = []
+    user: UserSchema
+    organisation: OrganisationSchema
+    datasource: DatasourceSchema
 
     class Config:
         """Config for the indexing run schema."""

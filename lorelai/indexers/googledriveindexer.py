@@ -24,12 +24,18 @@ from app.schemas import (
     UserAuthSchema,
     GoogleDriveItemSchema,
 )
+from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
+from app.models import Datasource
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 
 
 class GoogleDriveIndexer(Indexer):
     """Used to process the Google Drive documents and index them in Pinecone."""
+
+    def get_datasource(self) -> Datasource:
+        """Get the datasource for this indexer."""
+        return Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
 
     def __get_token_details(self, user_auths: list[UserAuthSchema]) -> tuple[str, str, str]:
         access_token = next(
@@ -58,6 +64,10 @@ class GoogleDriveIndexer(Indexer):
             ),
             None,
         )
+
+        if not access_token or not refresh_token:
+            raise ValueError("Missing required Google Drive authentication tokens")
+
         return access_token, refresh_token, expires_at
 
     def __init__(self) -> None:
@@ -82,6 +92,9 @@ class GoogleDriveIndexer(Indexer):
         bool
             True if indexing was successful, False otherwise.
         """
+        if not isinstance(indexing_run, IndexingRunSchema):
+            raise TypeError(f"Expected IndexingRunSchema but got {type(indexing_run)}")
+
         logging.info(
             f"Indexing user: {indexing_run.user.email} from org: {indexing_run.organisation.name}"
         )
@@ -103,6 +116,7 @@ class GoogleDriveIndexer(Indexer):
         # 3. Check if there are any Google Drive documents for the user
         documents = []
         for drive_item in user_data:
+            indexing_run_item = None
             try:
                 # Create indexing run item
                 indexing_run_item = IndexingRunItem(
@@ -110,7 +124,9 @@ class GoogleDriveIndexer(Indexer):
                     item_id=drive_item.google_drive_id,
                     item_type=drive_item.item_type,
                     item_name=drive_item.item_name,
-                    item_url=drive_item.item_url,
+                    item_url=drive_item.item_url
+                    if drive_item.item_url
+                    else "Original item has no URL",
                     item_status="pending",
                 )
                 db.session.add(indexing_run_item)
@@ -131,16 +147,15 @@ class GoogleDriveIndexer(Indexer):
                         "item_type": drive_item.item_type,
                         "item_name": drive_item.item_name,
                         "mime_type": drive_item.mime_type,
+                        "indexing_run_item_id": indexing_run_item.id,
                     }
                 )
 
-                indexing_run_item.item_status = "completed"
-                db.session.commit()
-
             except Exception as e:
-                indexing_run_item.item_status = "failed"
-                indexing_run_item.item_error = str(e)
-                db.session.commit()
+                if indexing_run_item:
+                    indexing_run_item.item_status = "failed"
+                    indexing_run_item.item_error = str(e)
+                    db.session.commit()
                 logging.error(f"Error processing item {drive_item.item_name}: {str(e)}")
                 continue
 
@@ -153,59 +168,64 @@ class GoogleDriveIndexer(Indexer):
             f"Processing {len(documents)} Google documents for user: {indexing_run.user.email}"
         )
 
-        # create a credentials object
-        credentials_object = credentials.Credentials(
-            token=access_token,
-            refresh_token=refresh_token,
-            token_uri="https://oauth2.googleapis.com/token",
-            client_id=current_app.config["GOOGLE_CLIENT_ID"],
-            client_secret=current_app.config["GOOGLE_CLIENT_SECRET"],
-        )
+        try:
+            # create a credentials object
+            credentials_object = credentials.Credentials(
+                token=access_token,
+                refresh_token=refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=current_app.config["GOOGLE_CLIENT_ID"],
+                client_secret=current_app.config["GOOGLE_CLIENT_SECRET"],
+            )
 
-        # test the credentials object
-        if credentials_object.token_state == TokenState.INVALID:
-            logging.error("Credentials object is invalid")
-            return False
-        else:
-            logging.info("Credentials object state: %s", credentials_object.token_state)
-
-            # Perform a simple API operation to ensure the credentials are working
-            try:
-                drive_service = build("drive", "v3", credentials=credentials_object)
-                drive_service.files().list(pageSize=1).execute()
-                logging.info(
-                    f"Google Drive credentials are valid and working for user: \
-{indexing_run.user.email}"
-                )
-            except Exception as e:
-                logging.error(
-                    f"Failed to validate Google Drive credentials for user: \
-{indexing_run.user.email} with a simple API call: {e}"
-                )
+            # test the credentials object
+            if credentials_object.token_state == TokenState.INVALID:
+                logging.error("Credentials object is invalid")
                 return False
+            else:
+                logging.info("Credentials object state: %s", credentials_object.token_state)
 
-        # convert the documents to langchain documents
-        langchain_docs = self.google_docs_to_langchain_docs(
-            documents=documents,
-            credentials_object=credentials_object,
-            indexing_run=indexing_run,
-        )
+                # Perform a simple API operation to ensure the credentials are working
+                try:
+                    drive_service = build("drive", "v3", credentials=credentials_object)
+                    drive_service.files().list(pageSize=1).execute()
+                    logging.info(
+                        f"Google Drive credentials are valid and working for user: \
+{indexing_run.user.email}"
+                    )
+                except Exception as e:
+                    logging.error(
+                        f"Failed to validate Google Drive credentials for user: \
+{indexing_run.user.email} with a simple API call: {e}"
+                    )
+                    return False
 
-        # add the user for whom were indexing the docs to the documents' metadata
-        self.add_user_to_docs_metadata(langchain_docs, indexing_run.user.email)
+            # convert the documents to langchain documents
+            langchain_docs = self.google_docs_to_langchain_docs(
+                documents=documents,
+                credentials_object=credentials_object,
+                indexing_run=indexing_run,
+            )
 
-        pinecone_processor = Processor()
+            # add the user for whom were indexing the docs to the documents' metadata
+            self.add_user_to_docs_metadata(langchain_docs, indexing_run)
 
-        # store the documents in Pinecone
-        pinecone_processor.store_docs_in_pinecone(
-            langchain_docs,
-            indexing_run=indexing_run,
-        )
+            pinecone_processor = Processor()
 
-        self.update_last_indexed_for_docs(documents, indexing_run)
-        logging.info(f"Indexing Google Drive complete for user: {indexing_run.user.email}")
+            # store the documents in Pinecone
+            pinecone_processor.store_docs_in_pinecone(
+                langchain_docs,
+                indexing_run=indexing_run,
+            )
 
-        return True
+            self.update_last_indexed_for_docs(documents, indexing_run)
+            logging.info(f"Indexing Google Drive complete for user: {indexing_run.user.email}")
+
+            return True
+
+        except Exception as e:
+            logging.error(f"Failed to process Google Drive documents: {str(e)}")
+            return False
 
     def add_user_to_docs_metadata(
         self: None, langchain_docs: list[Document], indexing_run: IndexingRunSchema
@@ -215,6 +235,9 @@ class GoogleDriveIndexer(Indexer):
         :param langchain_docs: the list of langchain documents to add the users to
         :param indexing_run: the indexing run to add the users to
         """
+        if not isinstance(indexing_run, IndexingRunSchema):
+            raise TypeError(f"Expected IndexingRunSchema but got {type(indexing_run)}")
+
         # go through all docs. For each doc, see if the user is already in the metadata. If not,
         # add the user to the metadata
         for loaded_doc in langchain_docs:
@@ -466,133 +489,171 @@ class GoogleDriveIndexer(Indexer):
             doc_google_drive_id = doc["google_drive_id"]
             doc_item_type = doc["item_type"]
             doc_mime_type = doc["mime_type"]
+            indexing_run_item_id = doc["indexing_run_item_id"]
 
-            if doc_item_type not in ALLOWED_ITEM_TYPES:
-                logging.error(
-                    f"Invalid item type: {doc_item_type} for document ID: {doc_google_drive_id}"
-                )
-                raise ValueError(f"Invalid item type: {doc_item_type}")
+            try:
+                if doc_item_type not in ALLOWED_ITEM_TYPES:
+                    logging.error(
+                        f"Invalid item type: {doc_item_type} for document ID: {doc_google_drive_id}"
+                    )
+                    raise ValueError(f"Invalid item type: {doc_item_type}")
 
-            # Match on mime type categories
-            match doc_mime_type:
-                # Google Workspace files
-                case "application/vnd.google-apps.presentation":
-                    docs_loaded = self.load_google_doc_from_slides_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
-                case "application/vnd.google-apps.spreadsheet":
-                    docs_loaded = self.load_google_doc_from_sheets_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
-                case "application/vnd.google-apps.document":
-                    docs_loaded = self.load_google_doc_from_document_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
-                case "application/vnd.google-apps.folder":
-                    docs_loaded = self.load_google_doc_from_folder_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
+                # Match on mime type categories
+                match doc_mime_type:
+                    # Google Workspace files
+                    case "application/vnd.google-apps.presentation":
+                        docs_loaded = self.load_google_doc_from_slides_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
+                    case "application/vnd.google-apps.spreadsheet":
+                        docs_loaded = self.load_google_doc_from_sheets_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
+                    case "application/vnd.google-apps.document":
+                        docs_loaded = self.load_google_doc_from_document_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
+                    case "application/vnd.google-apps.folder":
+                        docs_loaded = self.load_google_doc_from_folder_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
 
-                # Microsoft Office files
-                case mime if mime in [
-                    "application/msword",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "application/vnd.ms-excel",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "application/vnd.ms-powerpoint",
-                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                ]:
-                    docs_loaded = self.load_google_doc_from_ms_office_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
+                    # Microsoft Office files
+                    case mime if mime in [
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.ms-excel",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "application/vnd.ms-powerpoint",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    ]:
+                        docs_loaded = self.load_google_doc_from_ms_office_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
 
-                # Text-based files
-                case mime if mime in [
-                    "text/plain",
-                    "text/csv",
-                    "text/html",
-                    "text/xml",
-                    "application/json",
-                    "application/xml",
-                    "application/javascript",
-                    "application/x-python-code",
-                ]:
-                    docs_loaded = self.load_google_doc_from_text_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
+                    # Text-based files
+                    case mime if mime in [
+                        "text/plain",
+                        "text/csv",
+                        "text/html",
+                        "text/xml",
+                        "application/json",
+                        "application/xml",
+                        "application/javascript",
+                        "application/x-python-code",
+                    ]:
+                        docs_loaded = self.load_google_doc_from_text_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
 
-                # Image files
-                case mime if mime in [
-                    "image/jpeg",
-                    "image/png",
-                    "image/gif",
-                    "image/bmp",
-                    "image/svg+xml",
-                    "image/tiff",
-                ]:
-                    docs_loaded = self.load_google_doc_from_image_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
+                    # Image files
+                    case mime if mime in [
+                        "image/jpeg",
+                        "image/png",
+                        "image/gif",
+                        "image/bmp",
+                        "image/svg+xml",
+                        "image/tiff",
+                    ]:
+                        docs_loaded = self.load_google_doc_from_image_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
 
-                # Audio/Video files
-                case mime if mime in [
-                    "audio/mpeg",
-                    "audio/wav",
-                    "video/mp4",
-                    "video/mpeg",
-                    "video/quicktime",
-                ]:
-                    docs_loaded = self.load_google_doc_from_media_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
+                    # Audio/Video files
+                    case mime if mime in [
+                        "audio/mpeg",
+                        "audio/wav",
+                        "video/mp4",
+                        "video/mpeg",
+                        "video/quicktime",
+                    ]:
+                        docs_loaded = self.load_google_doc_from_media_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
 
-                # Archive files
-                case mime if mime in [
-                    "application/zip",
-                    "application/x-rar-compressed",
-                    "application/x-tar",
-                    "application/gzip",
-                ]:
-                    docs_loaded = self.load_google_doc_from_archive_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
+                    # Archive files
+                    case mime if mime in [
+                        "application/zip",
+                        "application/x-rar-compressed",
+                        "application/x-tar",
+                        "application/gzip",
+                    ]:
+                        docs_loaded = self.load_google_doc_from_archive_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
 
-                # PDF files
-                case "application/pdf":
-                    docs_loaded = self.load_google_doc_from_pdf_id(
-                        doc_google_drive_id, credentials_object, indexing_run
-                    )
+                    # PDF files
+                    case "application/pdf":
+                        docs_loaded = self.load_google_doc_from_pdf_id(
+                            doc_google_drive_id, credentials_object, indexing_run
+                        )
 
-                # Default fallback
-                case _:
-                    match doc_item_type:
-                        case "document":
-                            docs_loaded = self.load_google_doc_from_file_id(
-                                doc_google_drive_id, credentials_object, indexing_run
-                            )
-                        case "folder":
-                            docs_loaded = self.load_google_doc_from_folder_id(
-                                doc_google_drive_id, credentials_object, indexing_run
-                            )
-                        case "file":
-                            docs_loaded = self.load_google_doc_from_file_id(
-                                doc_google_drive_id, credentials_object, indexing_run
-                            )
-                        case _:
-                            raise ValueError(f"Invalid item type: {doc_item_type}")
+                    # Default fallback
+                    case _:
+                        match doc_item_type:
+                            case "document":
+                                docs_loaded = self.load_google_doc_from_file_id(
+                                    doc_google_drive_id, credentials_object, indexing_run
+                                )
+                            case "folder":
+                                docs_loaded = self.load_google_doc_from_folder_id(
+                                    doc_google_drive_id, credentials_object, indexing_run
+                                )
+                            case "file":
+                                docs_loaded = self.load_google_doc_from_file_id(
+                                    doc_google_drive_id, credentials_object, indexing_run
+                                )
+                            case _:
+                                raise ValueError(f"Invalid item type: {doc_item_type}")
 
-            if docs_loaded:
-                docs.extend(docs_loaded)
-                for loaded_doc in docs_loaded:
-                    logging.info(
-                        f"Loaded Google doc: {loaded_doc.metadata['title']} with ID: \
+                if docs_loaded:
+                    docs.extend(docs_loaded)
+                    for loaded_doc in docs_loaded:
+                        logging.info(
+                            f"Loaded Google doc: {loaded_doc.metadata['title']} with ID: \
+{doc_google_drive_id}"
+                        )
+                    # Update status to completed after successful processing
+                    indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
+                    if indexing_run_item:
+                        indexing_run_item.item_status = "completed"
+                        # docs_loaded is a list of langchain documents
+                        # each document has a metadata field with a title
+                        # we want: the number of langchain documents loaded
+                        # plus the unique list of titles of the documents loaded
+                        titles = list(
+                            set([doc.metadata.get("title", "Untitled") for doc in docs_loaded])
+                        )
+                        # limit the titles to 20
+                        if len(titles) > 20:
+                            text = "First 20 titles: " + ", ".join(titles[:20]) + "..."
+                        else:
+                            text = ", ".join(titles)
+
+                        indexing_run_item.item_error = (
+                            f"Successfully loaded {len(titles)} files; {text}"
+                        )
+                        db.session.commit()
+                else:
+                    logging.error(
+                        f"No documents loaded from Google Drive {doc_item_type} with ID: \
 {doc_google_drive_id}"
                     )
-            else:
-                logging.error(
-                    f"No documents loaded from Google Drive {doc_item_type} with ID: \
-{doc_google_drive_id}"
-                )
+                    # Update status to failed if no documents were loaded
+                    indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
+                    if indexing_run_item:
+                        indexing_run_item.item_status = "failed"
+                        indexing_run_item.item_error = "No documents loaded from Google Drive"
+                        db.session.commit()
+
+            except Exception as e:
+                logging.error(f"Error processing document {doc_google_drive_id}: {str(e)}")
+                # Update status to failed on exception
+                indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
+                if indexing_run_item:
+                    indexing_run_item.item_status = "failed"
+                    indexing_run_item.item_error = str(e)
+                    db.session.commit()
 
         logging.debug(f"Total {len(docs)} Google docs loaded from Google Drive using langchain")
         return docs

@@ -16,6 +16,7 @@
                             Revoke Slack Access
                         </button>
                     </form>
+                    <a href="{{ url_for('indexing.indexing_runs', datasource_type='slack') }}" class="btn btn-info">View Indexing History</a>
 
                     {% if slack_channels %}
                         <div class="mt-3">

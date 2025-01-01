@@ -6,6 +6,7 @@ import importlib
 from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema
 from app.models import db, IndexingRun, IndexingRunItem
 from app.schemas import IndexingRunSchema
+from app.models import Datasource
 
 # The scopes needed to read documents in Google Drive
 # (see: https://developers.google.com/drive/api/guides/api-specific-auth)
@@ -49,13 +50,17 @@ class Indexer:
         """Retrieve the name of the indexer."""
         return self.__class__.__name__
 
+    def get_datasource(self) -> Datasource:
+        """Get the datasource for this indexer."""
+        raise NotImplementedError
+
     def index_org(
         self,
         organisation: OrganisationSchema,
         users: list[UserSchema],
         user_auths: list[UserAuthSchema],
         job: job.Job,
-    ) -> list[dict[str, any]]:
+    ) -> None:
         """Process the organisation, indexing all its users.
 
         This method should be called from an rq job. It will create an indexing run and index each
@@ -74,8 +79,7 @@ class Indexer:
 
         Returns
         -------
-        list[dict[str, any]]
-            A list of dictionaries containing the results of indexing each user.
+        None
         """
         logging.debug(f"Indexing org: {organisation.name}")
         logging.debug(f"Users: {[user.email for user in users]}")
@@ -85,14 +89,20 @@ class Indexer:
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
             logging.info("Indexing %s: %s", self.get_indexer_name(), job.id)
 
-        result = []
         for user in users:
+            # Get the datasource ID based on the indexer type
+            datasource = self.get_datasource()
+            if not datasource:
+                logging.error("Could not find datasource for this Indexer class")
+                continue
+
             # create a new indexing run in the database, this is used for logging and tracking
             indexing_run = IndexingRun(
                 rq_job_id=job.id,
                 status="pending",
                 user_id=user.id,
                 organisation_id=organisation.id,
+                datasource_id=datasource.datasource_id,
             )
             db.session.add(indexing_run)
             db.session.commit()
@@ -105,7 +115,8 @@ class Indexer:
                     if user_auth_row.user_id == user.id
                 ]
 
-                # Convert the model to a schema
+                # Convert the model to a schema, including the user relationship
+                db.session.refresh(indexing_run)  # Refresh to ensure relationships are loaded
                 indexing_run_schema = IndexingRunSchema.from_orm(indexing_run)
 
                 # index the user
@@ -132,8 +143,7 @@ class Indexer:
                 indexing_run.error = str(e)
                 db.session.commit()
 
-        logging.debug(f"Indexing complete for org: {organisation.name}. Results: {result}")
-        return result
+        logging.debug(f"Indexing complete for org: {organisation.name}")
 
     def index_user(
         self,

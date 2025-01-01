@@ -14,6 +14,7 @@
                 <button class="btn btn-primary" id="authorize_button" onclick="codeClient.requestCode()">Authorize</button>
                 <button class="btn btn-secondary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
                 <button class="btn btn-secondary" id="select_button" onclick="createPicker()">Select Folders/Documents</button>
+                <a href="{{ url_for('indexing.indexing_runs', datasource_type='google_drive') }}" class="btn btn-info">View Indexing History</a>
 
                 <h5 class="card-title h5 mt-4">Documents Indexed:</h5>
                 <div class="list-group mt-3">

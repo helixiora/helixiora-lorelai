@@ -72,9 +72,12 @@ class Datasource(db.Model):
     datasource_id = db.Column(
         db.Integer, primary_key=True, autoincrement=True, name="datasource_id"
     )
-    name = db.Column(db.String(255), nullable=False, name="datasource_name", unique=True)
-    type = db.Column(db.String(255), nullable=False, name="datasource_type")
+    datasource_name = db.Column(db.String(255), nullable=False, unique=True)
+    datasource_type = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
+
+    # Add the relationship to IndexingRun
+    indexing_runs = db.relationship("IndexingRun", back_populates="datasource")
 
 
 class GoogleDriveItem(db.Model):
@@ -115,10 +118,12 @@ class IndexingRun(db.Model):
     error = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
     organisation_id = db.Column(db.Integer, db.ForeignKey("organisation.id"), nullable=False)
+    datasource_id = db.Column(db.Integer, db.ForeignKey("datasource.datasource_id"), nullable=False)
 
     items = db.relationship("IndexingRunItem", back_populates="indexing_run")
     user = db.relationship("User", back_populates="indexing_runs")
     organisation = db.relationship("Organisation", back_populates="indexing_runs")
+    datasource = db.relationship("Datasource", back_populates="indexing_runs")
 
     def __repr__(self):
         """Return a string representation of the indexing run."""

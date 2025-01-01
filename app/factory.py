@@ -43,6 +43,7 @@ from app.routes.chat import chat_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
 from app.routes.api_keys import api_keys_bp
+from app.routes.indexing import bp as indexing_bp
 
 from app.swagger import authorizations
 
@@ -171,6 +172,7 @@ def create_app(config_name: str = "default") -> Flask:
     app.register_blueprint(chat_bp)
     app.register_blueprint(slack_bp)
     app.register_blueprint(api_keys_bp)
+    app.register_blueprint(indexing_bp)
 
     # Set up user loader
     @login_manager.user_loader
