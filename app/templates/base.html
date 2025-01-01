@@ -83,7 +83,7 @@
 
     <script>
         window.SENTRY_DSN = "{{ config['SENTRY_DSN'] }}"
-        window.SENTRY_ENVIRONMENT = "{{ config['SENTRY_ENVIRONMENT'] }}"
+        window.SENTRY_ENVIRONMENT = "{{ config['FLASK_ENV'] }}"
     </script>
 
     {% block scripts %}

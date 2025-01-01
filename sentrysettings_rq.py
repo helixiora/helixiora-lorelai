@@ -17,7 +17,7 @@ config_name = os.getenv("ENVIRONMENT", "development")
 current_config = config[config_name]
 sentry_sdk.init(
     dsn=current_config.SENTRY_DSN,
-    environment=current_config.SENTRY_ENVIRONMENT,
+    environment=current_config.FLASK_ENV,
     traces_sample_rate=1.0,
     profiles_sample_rate=1.0,
 )
