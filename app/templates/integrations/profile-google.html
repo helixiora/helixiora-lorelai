@@ -62,7 +62,6 @@
     const CLIENT_ID = '{{ config["GOOGLE_CLIENT_ID"] }}';
     const API_KEY = '{{ config["GOOGLE_API_KEY"] }}';
     const APP_ID = '{{ config["GOOGLE_APP_ID"] }}';
-
     let accessToken = '{{ google_drive_access_token if google_drive_access_token else null }}';
 </script>
 <script src="{{ url_for('static', filename='js/google-drive-integration.js') }}"></script>
