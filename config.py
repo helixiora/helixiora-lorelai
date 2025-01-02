@@ -13,8 +13,16 @@ load_dotenv()
 class Config:
     """Base configuration class."""
 
+    FLASK_ENV = os.environ.get("FLASK_ENV", "development")
+
     # Secret key for signing cookies
     SECRET_KEY = os.environ.get("SECRET_KEY") or "you-will-never-guess"
+
+    # Session configuration
+    PERMANENT_SESSION_LIFETIME = timedelta(days=1)  # Session expires after 1 day
+    SESSION_COOKIE_SECURE = True  # Only send cookie over HTTPS
+    SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
+    SESSION_COOKIE_SAMESITE = "Lax"  # CSRF protection
 
     # SQLAlchemy settings
     SQLALCHEMY_DATABASE_URI = os.environ.get("SQLALCHEMY_DATABASE_URI")
@@ -38,7 +46,6 @@ class Config:
 
     # Sentry settings
     SENTRY_DSN = os.environ.get("SENTRY_DSN")
-    SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", "production")
 
     # Google settings
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")

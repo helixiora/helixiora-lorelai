@@ -8,7 +8,6 @@ import uuid
 from collections.abc import Iterable
 
 import numpy as np
-from rq import job
 
 import pinecone
 
@@ -24,6 +23,8 @@ from lorelai.utils import (
 )
 from lorelai.pinecone import PineconeHelper
 
+from app.schemas import IndexingRunSchema
+
 
 class Processor:
     """Used to process the langchain documents and index them in Pinecone."""
@@ -34,10 +35,14 @@ class Processor:
         os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
         os.environ["PINECONE_API_KEY"] = current_app.config["PINECONE_API_KEY"]
 
+        # Initialize PineconeHelper
+        self.pinecone_helper = PineconeHelper()
+
     def pinecone_filter_deduplicate_documents_list(
         self,
         formatted_documents: Iterable[Document],
         pc_index: pinecone.Index,
+        indexing_run: IndexingRunSchema,
     ) -> list:
         """Process the vectors and removes vector which exist in database.
 
@@ -50,12 +55,17 @@ class Processor:
                 2. (number of documents tagged with current user)
                 3. (number of document already exist and tagged by current user)
         """
-        documents = formatted_documents.copy()
-        logging.info(f"Checking {len(documents)} documents for duplicates in Pinecone index")
+        # Create a new list from the iterable to avoid modifying it while iterating
+        documents = list(formatted_documents)
+        logging.info(
+            f"Checking {len(documents)} docs for dupes in Pinecone for: {indexing_run.user.email}"
+        )
         tagged_existing_doc_with_user = 0
         already_exist_and_tagged = 0
         # Check if docs exist in pinecone.
-        for doc in documents[:]:
+        # Create a list to store documents to remove to avoid modifying list during iteration
+        docs_to_remove = []
+        for doc in documents:
             # doc["metadata"]["users"]=["newuser.com"]
             result = pc_index.query(
                 vector=doc["values"],
@@ -71,33 +81,41 @@ class Processor:
                     and result["matches"][0]["metadata"]["source"] == doc["metadata"]["source"]
                 ):
                     # Check if doc already tag for this users
-                    if doc["metadata"]["users"][0] in result["matches"][0]["metadata"]["users"]:
+                    if indexing_run.user.email in result["matches"][0]["metadata"]["users"]:
                         logging.info(
                             f"Document {doc['metadata']['title']} already exists in Pinecone and \
- tagged by {doc['metadata']['users'][0]}, removing from list"
+tagged by {indexing_run.user.email}, removing from list"
                         )
-                        # if so then we remove doc form the document list
-                        documents.remove(doc)
+                        # Mark document for removal
+                        docs_to_remove.append(doc)
                         already_exist_and_tagged += 1
 
                     # if doc is not tagged for user, then we update the meta data
                     # to include this user and we remove the doc.
                     else:
-                        users_list = (
-                            result["matches"][0]["metadata"]["users"] + doc["metadata"]["users"]
-                        )
+                        users_list = result["matches"][0]["metadata"]["users"] + [
+                            indexing_run.user.email
+                        ]
                         logging.info(f"Tagging {doc['metadata']['title']} with {users_list}")
                         pc_index.update(
                             id=result["matches"][0]["id"],
                             set_metadata={"users": users_list},
                         )
-                        documents.remove(doc)
+                        docs_to_remove.append(doc)
                         tagged_existing_doc_with_user += 1
+
+        # Remove documents after iteration is complete
+        for doc in docs_to_remove:
+            documents.remove(doc)
+
         logging.info("Completed Deduplication")
         return documents, tagged_existing_doc_with_user, already_exist_and_tagged
 
     def pinecone_format_vectors(
-        self, documents: Iterable[Document], embeddings_model: Embeddings
+        self,
+        documents: Iterable[Document],
+        embeddings_model: Embeddings,
+        indexing_run: IndexingRunSchema,
     ) -> list:
         """Process the documents and format them for pinecone insert.
 
@@ -106,7 +124,10 @@ class Processor:
 
         :return: list of documents ready to be inserted in pinecone
         """
-        logging.info(f"Formatting {len(documents)} chunked docs to Pinecone format")
+        logging.info(
+            f"Formatting {len(documents)} chunked docs to Pinecone format for user: \
+{indexing_run.user.email} indexing run: {indexing_run.id}"
+        )
         # Get Text
         text_docs = []
         for doc in documents:
@@ -114,8 +135,12 @@ class Processor:
             texts = f"Documents Title: {doc.metadata['title']}: {texts}"
             texts = clean_text_for_vector(texts)
             text_docs.append(texts)
-        # embeds = embeddings_model.embed_documents(text_docs)
-        embeds = batch_embed_langchain_documents(embeddings_model, text_docs, batch_size=100)
+
+        try:
+            embeds = batch_embed_langchain_documents(embeddings_model, text_docs, batch_size=100)
+        except Exception as e:
+            logging.error(f"Failed to generate embeddings for documents: {str(e)}")
+            raise ValueError(f"Failed to generate embeddings: {str(e)}") from e
 
         # prepare pinecone vectors
         formatted_documents = []
@@ -146,7 +171,7 @@ class Processor:
         formatted_documents: list[dict[str, any]],
         pc_index: pinecone.Index,
         embedding_dimension: int,
-        user_email: str,
+        indexing_run: IndexingRunSchema,
     ):
         """Delete document which user no longer has access to from Pinecone.
 
@@ -170,7 +195,7 @@ class Processor:
             top_k=10000,
             include_metadata=True,
             include_values=False,
-            filter={"users": {"$eq": user_email}},
+            filter={"users": {"$eq": indexing_run.user.email}},
         )
 
         # This dict contains all doc accessed by this user in db.
@@ -189,24 +214,32 @@ class Processor:
                 i["metadata"]["source"]
             ]["ids"] + [i["id"]]
 
-        logging.info(f"Documents in pinecone {len(db_vector_dict)}")
+        logging.info(
+            f"Documents in pinecone {len(db_vector_dict)} for user: {indexing_run.user.email} \
+indexing run: {indexing_run.id}"
+        )
         # Compare current doc list accessible by user to the doc in the db.
         # only keep which is not accessible by user
         logging.info(f"FORMATTED DOC SIZE {len(formatted_documents)}")
         for doc in formatted_documents:
             if doc["metadata"]["source"] in db_vector_dict:
-                logging.debug(f'{doc["metadata"]["source"]} already in pinecone index')
+                logging.debug(
+                    f'{doc["metadata"]["source"]} already in pinecone index for user: \
+{indexing_run.user.email} indexing run: {indexing_run.id}'
+                )
                 logging.debug(f"Size before {len(db_vector_dict)}")
                 db_vector_dict.pop(doc["metadata"]["source"])
                 logging.debug(f"Size after {len(db_vector_dict)}")
         delete_vector_ids_list = []
         delete_vector_title_list = []
         for key in db_vector_dict:
-            logging.info(f'{user_email} does not have access to {db_vector_dict[key]["title"]}')
+            logging.info(
+                f'{indexing_run.user.email} does not have access to {db_vector_dict[key]["title"]}'
+            )
             # if document have 2 users in metadata, then remove only 1 user
             if len(db_vector_dict[key]["users"]) >= 2:
                 new_user_list = db_vector_dict[key]["users"]
-                new_user_list.remove(user_email)
+                new_user_list.remove(indexing_run.user.email)
                 logging.info("Removing access without deleting docs from Pinecone")
                 for id in db_vector_dict[key]["ids"]:
                     pc_index.update(
@@ -230,26 +263,24 @@ class Processor:
             count_deleted = len(delete_vector_ids_list)
         else:
             count_deleted = 0
-            logging.info("No document to delete from pinecone")
+            logging.info(
+                "No document to delete from pinecone for user: {indexing_run.user.email} indexing \
+run: {indexing_run.id}"
+            )
         # store ids of doc in db to be delete as user does not have access
         return count_updated, count_deleted
 
     def store_docs_in_pinecone(
         self,
         docs: Iterable[Document],
-        user_email: str,
-        job: job.Job,
-        org_name: str,
-        datasource: str,
+        indexing_run: IndexingRunSchema,
     ) -> int:
         """Process the documents and index them in Pinecone.
 
         Arguments
         ---------
-            :param docs: the langchaindocuments to process
-            :param user_email: the user to process
-            :param job: the job object
-            :param org_name: the name of the organisation
+            :param docs: the langchain documents to process
+            :param indexing_run: the indexing run to store the documents for
 
         Returns
         -------
@@ -264,7 +295,11 @@ class Processor:
                 yield chunk
                 chunk = tuple(itertools.islice(it, batch_size))
 
-        logging.info(f"Storing {len(docs)} documents for user: {user_email}")
+        if not docs:
+            logging.warning("No documents to store in Pinecone")
+            return 0
+
+        logging.info(f"Storing {len(docs)} documents for user: {indexing_run.user.email}")
 
         chunk_size = current_app.config["EMBEDDINGS_CHUNK_SIZE"]
         embedding_model_name = current_app.config["EMBEDDINGS_MODEL"]
@@ -281,10 +316,10 @@ class Processor:
         if embedding_dimension == -1:
             raise ValueError(f"Could not find embedding dimension for model '{embedding_model}'")
 
-        pinecone_helper = PineconeHelper()
-        pc_index, index_name = pinecone_helper.get_index(
-            org_name=org_name,
-            datasource=datasource,
+        # get the pinecone index
+        pc_index, index_name = self.pinecone_helper.get_index(
+            org_name=indexing_run.organisation.name,
+            datasource=indexing_run.datasource.datasource_name,
             environment=current_app.config["LORELAI_ENVIRONMENT"],
             env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
             version="v1",
@@ -293,23 +328,28 @@ class Processor:
 
         logging.info(
             f"Indexing {len(document_chunks)} documents in Pinecone index {index_name} \
-                using:embedding_model:{embedding_model_name}"
+using embedding_model:{embedding_model_name}"
         )
 
         # Format the document for insertion
-        formatted_document_chunks = self.pinecone_format_vectors(document_chunks, embedding_model)
+        formatted_document_chunks = self.pinecone_format_vectors(
+            document_chunks, embedding_model, indexing_run
+        )
         filtered_document_chunks, tagged_existing_doc_with_user, already_exist_and_tagged = (
-            self.pinecone_filter_deduplicate_documents_list(formatted_document_chunks, pc_index)
+            self.pinecone_filter_deduplicate_documents_list(
+                formatted_document_chunks, pc_index, indexing_run
+            )
         )
 
         count_removed_access, count_deleted = self.remove_nolonger_accessed_documents(
-            formatted_document_chunks, pc_index, embedding_dimension, user_email
+            formatted_document_chunks, pc_index, embedding_dimension, indexing_run
         )
 
-        # inserting  the documents
+        # inserting the documents
         if filtered_document_chunks:
             logging.info(
-                f"Inserting {len(filtered_document_chunks)} documents in Pinecone {index_name}"
+                f"Inserting {len(filtered_document_chunks)} documents in Pinecone {index_name} for \
+user: {indexing_run.user.email} indexing run: {indexing_run.id}"
             )
             for chunk in chunks(filtered_document_chunks, 50):
                 response = pc_index.upsert(vectors=chunk)
@@ -318,16 +358,17 @@ class Processor:
         logging.info(f"Total Number of langchain documents {len(docs)}")
         logging.info(f"Total Number of document chunks, ie after chunking {len(document_chunks)}")
         logging.info(
-            f"{already_exist_and_tagged} documents  already exist / tagged in index {index_name}"
+            f"{already_exist_and_tagged} documents already exist / tagged in index {index_name}"
         )
         logging.info(
-            f"Added user tag to {tagged_existing_doc_with_user} documents which already exist\
-in index {index_name}"
+            f"Added user tag to {tagged_existing_doc_with_user} documents which already exist \
+in index {index_name} for user: {indexing_run.user.email} indexing run: {indexing_run.id}"
         )
         logging.info(f"removed user tag to {count_removed_access} documents in index {index_name}")
         logging.info(f"Deleted {count_deleted} documents in Pinecone index {index_name}")
         logging.info(
-            f"Added {len(filtered_document_chunks)} new document chunks in index {index_name}"
+            f"Added {len(filtered_document_chunks)} new document chunks in index {index_name} for \
+user: {indexing_run.user.email} indexing run: {indexing_run.id}"
         )
 
         return len(filtered_document_chunks)

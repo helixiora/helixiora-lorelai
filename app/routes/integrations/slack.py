@@ -34,7 +34,7 @@ def slack_auth():
 @slack_bp.route("/slack/auth/callback")
 def slack_callback():
     """Slack OAuth callback route. Handles the Slack OAuth callback."""
-    slack_datasource = Datasource.query.filter_by(name="Slack").first()
+    slack_datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
     if not slack_datasource:
         logging.error("Slack datasource not found")
         flash("Error: Slack integration not configured properly.", "error")
@@ -106,7 +106,7 @@ def slack_callback():
 def revoke():
     """Revoke Slack access and remove auth records."""
     try:
-        slack_datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+        slack_datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
         if slack_datasource:
             UserAuth.query.filter_by(
                 user_id=current_user.id, datasource_id=slack_datasource.datasource_id

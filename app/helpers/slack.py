@@ -36,7 +36,7 @@ class SlackHelper:
         self.client_secret = current_app.config["SLACK_CLIENT_SECRET"]
         self.redirect_uri = current_app.config["SLACK_REDIRECT_URI"]
 
-        self.datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+        self.datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
 
         # Config for slack api
         self.access_token = self.retrieve_access_token(email=user.email)
@@ -208,9 +208,11 @@ class SlackHelper:
                     return False
 
                 if "messages" in data:
-                    logging.info(f"Processing messages for channel: {channel_name} Start: \
+                    logging.info(
+                        f"Processing messages for channel: {channel_name} Start: \
 {data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
-{data['messages'][0]['text']}")
+{data['messages'][0]['text']}"
+                    )
                     for msg in data["messages"]:
                         try:
                             msg_ts = ""
@@ -387,8 +389,10 @@ class SlackHelper:
         ):  # noqa: E501
             user_ids = members_data["members"]
         else:
-            logging.error(f"Failed to retrieve members for channel {channel_id}. \
-                Error: {members_data['error'] if members_data else 'Unknown error'}")
+            logging.error(
+                f"Failed to retrieve members for channel {channel_id}. \
+                Error: {members_data['error'] if members_data else 'Unknown error'}"
+            )
             return []
 
         emails = []
@@ -407,8 +411,10 @@ class SlackHelper:
                 if "profile" in user_info and "email" in user_info["profile"]:
                     emails.append(user_info["profile"]["email"])
             else:
-                logging.warning(f"Failed to retrieve user info for user ID {user_id}. \
-                    Error: {user_data['error'] if user_data else 'Unknown error'}")
+                logging.warning(
+                    f"Failed to retrieve user info for user ID {user_id}. \
+                    Error: {user_data['error'] if user_data else 'Unknown error'}"
+                )
 
         return emails
 
@@ -564,7 +570,9 @@ class SlackHelper:
         -------
             str or None: The Slack access token if found, otherwise None.
         """
-        datasource_id = Datasource.query.filter_by(name=DATASOURCE_SLACK).first().datasource_id
+        datasource_id = (
+            Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first().datasource_id
+        )
         auth_value = (
             db.session.query(UserAuth.auth_value)
             .join(User, User.id == UserAuth.user_id)
@@ -610,8 +618,10 @@ class SlackHelper:
 
         for attempt in range(max_retries):
             if attempt > 0:
-                logging.debug(f"Making Slack API call to {url} with params: {params} \
-                                        (Attempt {attempt + 1}/{max_retries})")
+                logging.debug(
+                    f"Making Slack API call to {url} with params: {params} \
+                                        (Attempt {attempt + 1}/{max_retries})"
+                )
             response = session.get(url, params=params or {})
 
             # response.ok is true if status code is 200
@@ -620,8 +630,10 @@ class SlackHelper:
                 # in the response.json()
                 response_json = response.json()
                 if "ok" in response_json and not response_json["ok"]:
-                    logging.error(f"Slack API call failed to {url} with params: {params} \
-                                    Error: {response_json['error']}")
+                    logging.error(
+                        f"Slack API call failed to {url} with params: {params} \
+                                    Error: {response_json['error']}"
+                    )
                     return response_json
                 return response_json
             elif response.status_code == 429:  # Rate limited

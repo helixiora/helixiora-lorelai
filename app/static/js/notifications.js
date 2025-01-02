@@ -6,10 +6,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let lastFetchTime = 0;
     let fetchInterval;
+    let isRefreshing = false;
 
     // Function to fetch notifications
     async function fetchNotifications() {
-        lastFetchTime = Date.now();
+        // Prevent multiple simultaneous fetches
+        if (isRefreshing) {
+            console.log('Already fetching notifications, skipping...');
+            return;
+        }
+
+        // Rate limit fetches
+        const now = Date.now();
+        if (now - lastFetchTime < 5000) {
+            console.log('Fetching too frequently, skipping...');
+            return;
+        }
+
+        isRefreshing = true;
+        lastFetchTime = now;
+
         try {
             const params = new URLSearchParams({
                 show_read: 'false',
@@ -17,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 show_dismissed: 'false'
             });
 
-            const url = `/api/v1/notifications?${params.toString()}`;
+            const url = `/api/v1/notifications/?${params.toString()}`;
             console.log('Fetching notifications from:', url);
 
             const response = await makeAuthenticatedRequest(url, 'GET');
@@ -50,6 +66,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error fetching notifications:', error);
             handleFetchError();
+        } finally {
+            isRefreshing = false;
         }
     }
 
@@ -223,13 +241,60 @@ document.addEventListener('DOMContentLoaded', function() {
         notificationPopover.style.display = 'none';
     });
 
-    // Initial fetch of notifications
-    fetchNotifications();
+    // Initial fetch of notifications with a small delay to ensure tokens are ready
+    setTimeout(fetchNotifications, 1000);
 
-    // Set up periodic fetching (e.g., every 30 seconds)
-    setInterval(fetchNotifications, 30000);
+    // Clear any existing interval
+    if (fetchInterval) {
+        clearInterval(fetchInterval);
+    }
+
+    // Set up periodic fetching (every 30 seconds)
+    fetchInterval = setInterval(fetchNotifications, 30000);
 
     // Add smooth scrolling to notification list if it exceeds the popover height
     notificationPopover.style.maxHeight = '300px';
     notificationPopover.style.overflowY = 'auto';
+
+    // Listen for token expiration events
+    window.addEventListener('tokenExpired', function(event) {
+        const message = event.detail.message;
+
+        // Create or update the expiration notice
+        let notice = document.getElementById('token-expiration-notice');
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.id = 'token-expiration-notice';
+            notice.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #f8d7da;
+                color: #721c24;
+                padding: 15px;
+                border-radius: 4px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                z-index: 9999;
+                max-width: 400px;
+            `;
+            document.body.appendChild(notice);
+        }
+
+        notice.innerHTML = `
+            <div style="margin-bottom: 10px;">${message}</div>
+            <button onclick="resetSession()" style="
+                background: #dc3545;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                cursor: pointer;
+            ">Return to Login</button>
+        `;
+
+        // Clear any existing notification fetch intervals
+        if (fetchInterval) {
+            clearInterval(fetchInterval);
+        }
+    });
 });

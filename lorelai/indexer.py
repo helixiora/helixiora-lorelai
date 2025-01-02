@@ -4,6 +4,9 @@ import logging
 from rq import job
 import importlib
 from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema
+from app.models import db, IndexingRun, IndexingRunItem
+from app.schemas import IndexingRunSchema
+from app.models import Datasource
 
 # The scopes needed to read documents in Google Drive
 # (see: https://developers.google.com/drive/api/guides/api-specific-auth)
@@ -47,14 +50,21 @@ class Indexer:
         """Retrieve the name of the indexer."""
         return self.__class__.__name__
 
+    def get_datasource(self) -> Datasource:
+        """Get the datasource for this indexer."""
+        raise NotImplementedError
+
     def index_org(
         self,
         organisation: OrganisationSchema,
         users: list[UserSchema],
         user_auths: list[UserAuthSchema],
-        job: job.Job | None = None,
-    ) -> list[dict[str, any]]:
+        job: job.Job,
+    ) -> None:
         """Process the organisation, indexing all its users.
+
+        This method should be called from an rq job. It will create an indexing run and index each
+        user. It will return a list of dictionaries containing the results of indexing each user.
 
         Arguments
         ---------
@@ -69,8 +79,7 @@ class Indexer:
 
         Returns
         -------
-        list[dict[str, any]]
-            A list of dictionaries containing the results of indexing each user.
+        None
         """
         logging.debug(f"Indexing org: {organisation.name}")
         logging.debug(f"Users: {[user.email for user in users]}")
@@ -80,52 +89,73 @@ class Indexer:
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
             logging.info("Indexing %s: %s", self.get_indexer_name(), job.id)
 
-        result = []
         for user in users:
-            if job:
-                job.meta["org"] = organisation.name
-                job.meta["user"] = user.email
-                job.save_meta()
+            # Get the datasource ID based on the indexer type
+            datasource = self.get_datasource()
+            if not datasource:
+                logging.error("Could not find datasource for this Indexer class")
+                continue
 
-            # get the user auth rows for this user
-            user_auth_rows_filtered = [
-                user_auth_row for user_auth_row in user_auths if user_auth_row.user_id == user.id
-            ]
-
-            # index the user
-            success = self.index_user(
-                user=user,
-                organisation=organisation,
-                user_auths=user_auth_rows_filtered,
-                job=job,
+            # create a new indexing run in the database, this is used for logging and tracking
+            indexing_run = IndexingRun(
+                rq_job_id=job.id,
+                status="pending",
+                user_id=user.id,
+                organisation_id=organisation.id,
+                datasource_id=datasource.datasource_id,
             )
+            db.session.add(indexing_run)
+            db.session.commit()
 
-            message = f"User {user.email} indexing {'succeeded' if success else 'failed'}"
-            logging.info(message)
+            try:
+                # get the user auth rows for this user
+                user_auth_rows_filtered = [
+                    user_auth_row
+                    for user_auth_row in user_auths
+                    if user_auth_row.user_id == user.id
+                ]
 
-            if job:
-                job.meta["org"] = organisation.name
-                job.meta["user"] = user.email
-                job.save_meta()
+                # Refresh to ensure relationships are loaded
+                db.session.refresh(indexing_run)
 
-            result.append(
-                {
-                    "job_id": job.id if job else "",
-                    "user_id": user.id,
-                    "success": success,
-                    "message": message,
-                }
-            )
+                # Explicitly load the relationships
+                _ = indexing_run.user
+                _ = indexing_run.organisation
+                _ = indexing_run.datasource
 
-        logging.debug(f"Indexing complete for org: {organisation.name}. Results: {result}")
-        return result
+                # Convert the model to a schema
+                indexing_run_schema = IndexingRunSchema.from_orm(indexing_run)
+
+                # index the user
+                self.index_user(
+                    indexing_run=indexing_run_schema,
+                    user_auths=user_auth_rows_filtered,
+                )
+
+                # Update run status based on items
+                failed_items = IndexingRunItem.query.filter_by(
+                    indexing_run_id=indexing_run.id, item_status="failed"
+                ).count()
+
+                if failed_items > 0:
+                    indexing_run.status = "completed_with_errors"
+                else:
+                    indexing_run.status = "completed"
+
+                db.session.commit()
+
+            except Exception as e:
+                logging.error(f"Error indexing user {user.email}: {e}")
+                indexing_run.status = "failed"
+                indexing_run.error = str(e)
+                db.session.commit()
+
+        logging.debug(f"Indexing complete for org: {organisation.name}")
 
     def index_user(
         self,
-        user: UserSchema,
-        organisation: OrganisationSchema,
+        indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
-        job: job.Job | None,
     ) -> tuple[bool, str]:
         """Process the Google Drive documents for a user and index them in Pinecone.
 

@@ -134,8 +134,8 @@ def profile():
         slack_channels = None
         if int(current_app.config["FEATURE_SLACK"]) == 1:
             logging.info("Slack feature is enabled.")
-            # Get the Slack datasource ID
-            slack_datasource = Datasource.query.filter_by(name=DATASOURCE_SLACK).first()
+            # Get the Slack datasource
+            slack_datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
             if not slack_datasource:
                 logging.error("Slack datasource not found in database")
                 slack_channels = None

@@ -130,7 +130,9 @@ class StartIndexing(Resource):
                 queue = Queue(current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn)
 
                 datasource_id = (
-                    Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+                    Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE)
+                    .first()
+                    .datasource_id
                 )
                 user_id = session["user.id"]
                 org_id = session.get("user.org_id")
