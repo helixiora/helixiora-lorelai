@@ -66,7 +66,7 @@ class GoogleDriveIndexer(Indexer):
         )
 
         if not access_token or not refresh_token:
-            raise ValueError("Missing required Google Drive authentication tokens")
+            raise ValueError("Missing Google Drive authentication tokens for user")
 
         return access_token, refresh_token, expires_at
 
@@ -77,7 +77,7 @@ class GoogleDriveIndexer(Indexer):
         self,
         indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
-    ) -> bool:
+    ) -> None:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         Arguments
@@ -89,8 +89,7 @@ class GoogleDriveIndexer(Indexer):
 
         Returns
         -------
-        bool
-            True if indexing was successful, False otherwise.
+        None
         """
         if not isinstance(indexing_run, IndexingRunSchema):
             raise TypeError(f"Expected IndexingRunSchema but got {type(indexing_run)}")
@@ -224,8 +223,10 @@ class GoogleDriveIndexer(Indexer):
             return True
 
         except Exception as e:
-            logging.error(f"Failed to process Google Drive documents: {str(e)}")
-            return False
+            logging.error(f"Error processing Google Drive documents: {str(e)}")
+            return
+
+        return
 
     def add_user_to_docs_metadata(
         self: None, langchain_docs: list[Document], indexing_run: IndexingRunSchema
@@ -606,7 +607,7 @@ class GoogleDriveIndexer(Indexer):
                             case _:
                                 raise ValueError(f"Invalid item type: {doc_item_type}")
 
-                if docs_loaded:
+                if docs_loaded and len(docs_loaded) > 0:
                     docs.extend(docs_loaded)
                     for loaded_doc in docs_loaded:
                         logging.info(

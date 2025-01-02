@@ -125,7 +125,7 @@ class SlackIndexer(Indexer):
         self,
         indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
-    ) -> bool | None:
+    ) -> None:
         """
         Process Slack messages, generate embeddings, and load them into Pinecone.
 
@@ -136,14 +136,14 @@ class SlackIndexer(Indexer):
         slack = SlackHelper(indexing_run.user, indexing_run.organisation, user_auths)
         if not slack.test_slack_token:
             logging.critical("Slack token is invalid")
-            return False
+            return
 
         # get the list of channels
         channel_ids_dict = slack.get_accessible_channels(only_joined=True)
 
         if not channel_ids_dict:
             logging.info("No channels found for the user")
-            return True
+            return
 
         # Process each channel
         for channel_id, channel_name in channel_ids_dict.items():
@@ -231,4 +231,4 @@ batch_size: {batch_size}, total messages: {total_items}"
             f"Slack Indexer ran successfully for org {indexing_run.organisation.name}, by user \
 {indexing_run.user.email}"
         )
-        return True
+        return

@@ -109,11 +109,22 @@ class Indexer:
 
             try:
                 # get the user auth rows for this user
+                logging.debug(f"Filtering auth rows for user {user.email} (id: {user.id})")
+                logging.debug(f"Available auth rows before filtering: {len(user_auths)}")
                 user_auth_rows_filtered = [
                     user_auth_row
                     for user_auth_row in user_auths
-                    if user_auth_row.user_id == user.id
+                    if str(user_auth_row.user_id) == str(user.id)
                 ]
+                logging.debug(f"Auth rows after filtering: {len(user_auth_rows_filtered)}")
+                logging.debug(f"Auth row user_ids: {[ua.user_id for ua in user_auths]}")
+
+                if not user_auth_rows_filtered or len(user_auth_rows_filtered) == 0:
+                    logging.error(f"No auth rows found for user {user.email} (id: {user.id})")
+                    indexing_run.status = "completed"
+                    indexing_run.error = "No auth rows found for user"
+                    db.session.commit()
+                    continue
 
                 # Refresh to ensure relationships are loaded
                 db.session.refresh(indexing_run)
@@ -131,7 +142,14 @@ class Indexer:
                     indexing_run=indexing_run_schema,
                     user_auths=user_auth_rows_filtered,
                 )
+            except Exception as e:
+                logging.error(f"Error indexing user {user.email}: {e}")
+                indexing_run.status = "failed"
+                indexing_run.error = str(e)
+                db.session.commit()
+                continue
 
+            finally:
                 # Update run status based on items
                 failed_items = IndexingRunItem.query.filter_by(
                     indexing_run_id=indexing_run.id, item_status="failed"
@@ -139,15 +157,11 @@ class Indexer:
 
                 if failed_items > 0:
                     indexing_run.status = "completed_with_errors"
+                    indexing_run.error = f"Failed items: {failed_items}"
                 else:
                     indexing_run.status = "completed"
+                    indexing_run.error = "No errors"
 
-                db.session.commit()
-
-            except Exception as e:
-                logging.error(f"Error indexing user {user.email}: {e}")
-                indexing_run.status = "failed"
-                indexing_run.error = str(e)
                 db.session.commit()
 
         logging.debug(f"Indexing complete for org: {organisation.name}")
@@ -156,7 +170,7 @@ class Indexer:
         self,
         indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
-    ) -> tuple[bool, str]:
+    ) -> None:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         Arguments
@@ -172,7 +186,6 @@ class Indexer:
 
         Returns
         -------
-        Tuple[bool, str]
-            A tuple containing a success flag and a message.
+        None
         """
         raise NotImplementedError
