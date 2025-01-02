@@ -73,23 +73,10 @@ class GoogleDriveIndexer(Indexer):
     def __init__(self) -> None:
         logging.debug("GoogleDriveIndexer initialized")
 
-    def index_user(
-        self,
-        indexing_run: IndexingRunSchema,
-        user_auths: list[UserAuthSchema],
-    ) -> None:
-        """Process the Google Drive documents for a user and index them in Pinecone.
+    def __validate_input(self, indexing_run: IndexingRunSchema) -> IndexingRun:
+        """Validate input parameters and get the database model.
 
-        Arguments
-        ---------
-        indexing_run: IndexingRunSchema
-            The indexing run to process.
-        user_auths: list[UserAuthSchema]
-            The user auth rows for the user.
-
-        Returns
-        -------
-        None
+        Returns the database model instance for the indexing run.
         """
         if not isinstance(indexing_run, IndexingRunSchema):
             raise TypeError(f"Expected IndexingRunSchema but got {type(indexing_run)}")
@@ -98,50 +85,75 @@ class GoogleDriveIndexer(Indexer):
             f"Indexing user: {indexing_run.user.email} from org: {indexing_run.organisation.name}"
         )
 
-        # 1. Get the Google Drive access token, refresh token, and expiry
-        access_token, refresh_token, expires_at = self.__get_token_details(user_auths)
-
-        # 2. Get the Google Drive document IDs
-        logging.debug(f"Getting Google Drive document IDs for user: {indexing_run.user.email}")
-
-        # Get the actual model instance from the database
         indexing_run_model = IndexingRun.query.get(indexing_run.id)
         if not indexing_run_model:
             raise ValueError(f"Could not find IndexingRun with id {indexing_run.id}")
 
-        drive_items = GoogleDriveItem.query.filter_by(user_id=indexing_run.user.id)
+        return indexing_run_model
+
+    def __create_indexing_item(
+        self, indexing_run_id: int, drive_item: GoogleDriveItemSchema
+    ) -> IndexingRunItem:
+        """Create an indexing run item for a drive item."""
+        indexing_run_item = IndexingRunItem(
+            indexing_run_id=indexing_run_id,
+            item_id=drive_item.google_drive_id,
+            item_type=drive_item.item_type,
+            item_name=drive_item.item_name,
+            item_url=drive_item.item_url if drive_item.item_url else "Original item has no URL",
+            item_status="pending",
+        )
+        db.session.add(indexing_run_item)
+        db.session.commit()
+        return indexing_run_item
+
+    def __create_credentials(
+        self, access_token: str, refresh_token: str
+    ) -> credentials.Credentials:
+        """Create and validate Google credentials object."""
+        credentials_object = credentials.Credentials(
+            token=access_token,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=current_app.config["GOOGLE_CLIENT_ID"],
+            client_secret=current_app.config["GOOGLE_CLIENT_SECRET"],
+        )
+
+        if credentials_object.token_state == TokenState.INVALID:
+            raise ValueError("Credentials object is invalid")
+
+        return credentials_object
+
+    def __validate_credentials(
+        self, credentials_object: credentials.Credentials, user_email: str
+    ) -> None:
+        """Test if the credentials are working by making a simple API call."""
+        try:
+            drive_service = build("drive", "v3", credentials=credentials_object)
+            drive_service.files().list(pageSize=1).execute()
+            logging.info(f"Google Drive credentials are valid and working for user: {user_email}")
+        except Exception as e:
+            raise ValueError(f"Failed to validate Google Drive credentials: {str(e)}") from e
+
+    def __process_drive_items(self, user_id: int, indexing_run_model: IndexingRun) -> list[dict]:
+        """Process Google Drive items and create indexing run items."""
+        drive_items = GoogleDriveItem.query.filter_by(user_id=user_id)
         user_data = [GoogleDriveItemSchema.from_orm(data) for data in drive_items]
 
-        # 3. Check if there are any Google Drive documents for the user
         documents = []
         for drive_item in user_data:
-            indexing_run_item = None
             try:
-                # Create indexing run item
-                indexing_run_item = IndexingRunItem(
-                    indexing_run_id=indexing_run_model.id,
-                    item_id=drive_item.google_drive_id,
-                    item_type=drive_item.item_type,
-                    item_name=drive_item.item_name,
-                    item_url=drive_item.item_url
-                    if drive_item.item_url
-                    else "Original item has no URL",
-                    item_status="pending",
-                )
-                db.session.add(indexing_run_item)
-                db.session.commit()
+                indexing_run_item = self.__create_indexing_item(indexing_run_model.id, drive_item)
 
-                # Process the item...
                 if drive_item.item_type not in ALLOWED_ITEM_TYPES:
                     indexing_run_item.item_status = "skipped"
                     indexing_run_item.item_error = f"Invalid item type: {drive_item.item_type}"
                     db.session.commit()
                     continue
 
-                # Add to documents list for processing
                 documents.append(
                     {
-                        "user_id": indexing_run.user.id,
+                        "user_id": user_id,
                         "google_drive_id": drive_item.google_drive_id,
                         "item_type": drive_item.item_type,
                         "item_name": drive_item.item_name,
@@ -151,82 +163,71 @@ class GoogleDriveIndexer(Indexer):
                 )
 
             except Exception as e:
-                if indexing_run_item:
+                logging.error(f"Error processing item {drive_item.item_name}: {str(e)}")
+                if "indexing_run_item" in locals():
                     indexing_run_item.item_status = "failed"
                     indexing_run_item.item_error = str(e)
                     db.session.commit()
-                logging.error(f"Error processing item {drive_item.item_name}: {str(e)}")
-                continue
 
-        if not documents or len(documents) == 0:
+        return documents
+
+    def __process_documents(
+        self,
+        documents: list[dict],
+        credentials_object: credentials.Credentials,
+        indexing_run: IndexingRunSchema,
+    ) -> None:
+        """Process documents and store them in Pinecone."""
+        if not documents:
             logging.warn(f"No Google Drive documents found for user: {indexing_run.user.email}")
-            return True
+            return
 
-        # 5. Process the Google Drive documents and index them in Pinecone
         logging.info(
             f"Processing {len(documents)} Google documents for user: {indexing_run.user.email}"
         )
 
+        # Convert documents to Langchain format and add metadata
+        langchain_docs = self.google_docs_to_langchain_docs(
+            documents=documents,
+            credentials_object=credentials_object,
+            indexing_run=indexing_run,
+        )
+        self.add_user_to_docs_metadata(langchain_docs, indexing_run)
+
+        # Store in Pinecone
+        pinecone_processor = Processor()
+        pinecone_processor.store_docs_in_pinecone(langchain_docs, indexing_run=indexing_run)
+
+        # Update indexing timestamps
+        self.update_last_indexed_for_docs(documents, indexing_run)
+        logging.info(f"Indexing Google Drive complete for user: {indexing_run.user.email}")
+
+    def index_user(
+        self,
+        indexing_run: IndexingRunSchema,
+        user_auths: list[UserAuthSchema],
+    ) -> None:
+        """Process the Google Drive documents for a user and index them in Pinecone."""
         try:
-            # create a credentials object
-            credentials_object = credentials.Credentials(
-                token=access_token,
-                refresh_token=refresh_token,
-                token_uri="https://oauth2.googleapis.com/token",
-                client_id=current_app.config["GOOGLE_CLIENT_ID"],
-                client_secret=current_app.config["GOOGLE_CLIENT_SECRET"],
-            )
+            # Validate input and get database model
+            indexing_run_model = self.__validate_input(indexing_run)
 
-            # test the credentials object
-            if credentials_object.token_state == TokenState.INVALID:
-                logging.error("Credentials object is invalid")
-                return False
-            else:
-                logging.info("Credentials object state: %s", credentials_object.token_state)
+            # Get authentication tokens
+            access_token, refresh_token, expires_at = self.__get_token_details(user_auths)
 
-                # Perform a simple API operation to ensure the credentials are working
-                try:
-                    drive_service = build("drive", "v3", credentials=credentials_object)
-                    drive_service.files().list(pageSize=1).execute()
-                    logging.info(
-                        f"Google Drive credentials are valid and working for user: \
-{indexing_run.user.email}"
-                    )
-                except Exception as e:
-                    logging.error(
-                        f"Failed to validate Google Drive credentials for user: \
-{indexing_run.user.email} with a simple API call: {e}"
-                    )
-                    return False
+            # Create and validate credentials
+            credentials_object = self.__create_credentials(access_token, refresh_token)
+            self.__validate_credentials(credentials_object, indexing_run.user.email)
 
-            # convert the documents to langchain documents
-            langchain_docs = self.google_docs_to_langchain_docs(
-                documents=documents,
-                credentials_object=credentials_object,
-                indexing_run=indexing_run,
-            )
+            # Process drive items
+            documents = self.__process_drive_items(indexing_run.user.id, indexing_run_model)
 
-            # add the user for whom were indexing the docs to the documents' metadata
-            self.add_user_to_docs_metadata(langchain_docs, indexing_run)
-
-            pinecone_processor = Processor()
-
-            # store the documents in Pinecone
-            pinecone_processor.store_docs_in_pinecone(
-                langchain_docs,
-                indexing_run=indexing_run,
-            )
-
-            self.update_last_indexed_for_docs(documents, indexing_run)
-            logging.info(f"Indexing Google Drive complete for user: {indexing_run.user.email}")
-
-            return True
+            # Process and store documents
+            self.__process_documents(documents, credentials_object, indexing_run)
 
         except Exception as e:
             logging.error(f"Error processing Google Drive documents: {str(e)}")
             return
-
-        return
 
     def add_user_to_docs_metadata(
         self: None, langchain_docs: list[Document], indexing_run: IndexingRunSchema
