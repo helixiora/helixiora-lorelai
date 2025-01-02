@@ -55,14 +55,17 @@ class Processor:
                 2. (number of documents tagged with current user)
                 3. (number of document already exist and tagged by current user)
         """
-        documents = formatted_documents.copy()
+        # Create a new list from the iterable to avoid modifying it while iterating
+        documents = list(formatted_documents)
         logging.info(
             f"Checking {len(documents)} docs for dupes in Pinecone for: {indexing_run.user.email}"
         )
         tagged_existing_doc_with_user = 0
         already_exist_and_tagged = 0
         # Check if docs exist in pinecone.
-        for doc in documents[:]:
+        # Create a list to store documents to remove to avoid modifying list during iteration
+        docs_to_remove = []
+        for doc in documents:
             # doc["metadata"]["users"]=["newuser.com"]
             result = pc_index.query(
                 vector=doc["values"],
@@ -83,8 +86,8 @@ class Processor:
                             f"Document {doc['metadata']['title']} already exists in Pinecone and \
 tagged by {indexing_run.user.email}, removing from list"
                         )
-                        # if so then we remove doc form the document list
-                        documents.remove(doc)
+                        # Mark document for removal
+                        docs_to_remove.append(doc)
                         already_exist_and_tagged += 1
 
                     # if doc is not tagged for user, then we update the meta data
@@ -98,8 +101,13 @@ tagged by {indexing_run.user.email}, removing from list"
                             id=result["matches"][0]["id"],
                             set_metadata={"users": users_list},
                         )
-                        documents.remove(doc)
+                        docs_to_remove.append(doc)
                         tagged_existing_doc_with_user += 1
+
+        # Remove documents after iteration is complete
+        for doc in docs_to_remove:
+            documents.remove(doc)
+
         logging.info("Completed Deduplication")
         return documents, tagged_existing_doc_with_user, already_exist_and_tagged
 
@@ -310,7 +318,7 @@ run: {indexing_run.id}"
 
         # get the pinecone index
         pc_index, index_name = self.pinecone_helper.get_index(
-            org_name=indexing_run.organisation.organisation_name,
+            org_name=indexing_run.organisation.name,
             datasource=indexing_run.datasource.datasource_name,
             environment=current_app.config["LORELAI_ENVIRONMENT"],
             env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],

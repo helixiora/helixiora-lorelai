@@ -115,8 +115,15 @@ class Indexer:
                     if user_auth_row.user_id == user.id
                 ]
 
-                # Convert the model to a schema, including the user relationship
-                db.session.refresh(indexing_run)  # Refresh to ensure relationships are loaded
+                # Refresh to ensure relationships are loaded
+                db.session.refresh(indexing_run)
+
+                # Explicitly load the relationships
+                _ = indexing_run.user
+                _ = indexing_run.organisation
+                _ = indexing_run.datasource
+
+                # Convert the model to a schema
                 indexing_run_schema = IndexingRunSchema.from_orm(indexing_run)
 
                 # index the user

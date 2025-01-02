@@ -228,18 +228,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     addMessage('Error: Unable to send the message. Please try again later.', false, false);
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
+                return;
+            }
 
+            const data = await response.json();
+
+            if (data && data.job) {
+                // Handle cases where the server response includes a job ID
+                await pollForResponse(data.job, data.conversation_id);
             } else {
                 // Handle cases where the server response might not include a job ID
-                console.error('Server response did not include a job_id. Data received: ', data.job);
+                console.error('Server response did not include a job_id. Data received:', data);
                 hideLoadingIndicator();
                 addMessage('Error: The message could not be processed at this time. Please try again later.', false, false);
             }
         } catch (error) {
             console.error('Fetch error:', error);
-            hideLoadingIndicator();
-            addMessage('Error: Unable to send the message. Please try again later.', false, false);
-            console.error('Send message error:', error);
             hideLoadingIndicator();
 
             if (error.message === 'Unauthorized') {
@@ -249,6 +253,8 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 addMessage('Error: Unable to send the message. Please try again later.', false, false);
             }
+            console.error('Send message error:', error);
+            hideLoadingIndicator();
         }
     }
 
