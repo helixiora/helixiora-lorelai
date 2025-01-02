@@ -187,10 +187,14 @@ class OrganisationSchema(BaseModel):
 class GoogleDriveItemSchema(BaseModel):
     """Schema for a Google Drive item."""
 
+    id: int
+    user_id: int
     google_drive_id: str
     item_name: str
     item_type: str
     mime_type: str
+    item_url: str
+    icon_url: str
     created_at: datetime
     last_indexed_at: datetime | None
 
@@ -206,6 +210,7 @@ class DatasourceSchema(BaseModel):
     datasource_id: int
     datasource_name: str
     datasource_type: str
+    description: str | None = None
 
     class Config:
         """Config for the datasource schema."""
@@ -223,5 +228,48 @@ class UserLoginSchema(BaseModel):
 
     class Config:
         """Config for the user login schema."""
+
+        from_attributes = True
+
+
+class IndexingRunItemSchema(BaseModel):
+    """Schema for an indexing run item."""
+
+    id: int
+    indexing_run_id: int
+    item_id: str
+    item_type: str
+    item_name: str
+    item_url: str
+    item_status: str
+    item_error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        """Config for the indexing run item schema."""
+
+        from_attributes = True
+
+
+class IndexingRunSchema(BaseModel):
+    """Schema for an indexing run."""
+
+    id: int
+    rq_job_id: str
+    created_at: datetime
+    updated_at: datetime
+    status: str
+    user_id: int
+    organisation_id: int
+    datasource_id: int
+    error: str | None = None
+    items: list[IndexingRunItemSchema] = []
+    user: UserSchema
+    organisation: OrganisationSchema
+    datasource: DatasourceSchema
+
+    class Config:
+        """Config for the indexing run schema."""
 
         from_attributes = True

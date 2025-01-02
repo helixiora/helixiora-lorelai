@@ -20,6 +20,7 @@ from app.cli import init_db_command, seed_db_command
 import sentry_sdk
 from sentry_sdk.integrations.rq import RqIntegration
 from sentry_sdk.integrations.flask import FlaskIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 
 # models
@@ -42,6 +43,7 @@ from app.routes.chat import chat_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
 from app.routes.api_keys import api_keys_bp
+from app.routes.indexing import bp as indexing_bp
 
 from app.swagger import authorizations
 
@@ -102,16 +104,21 @@ def create_app(config_name: str = "default") -> Flask:
     jwt = JWTManager(app)
 
     # Set up Sentry
-    if app.config["SENTRY_DSN"]:
+    if app.config["FLASK_ENV"] != "development":  # Only initialize Sentry in non-dev environments
         sentry_sdk.init(
             dsn=app.config["SENTRY_DSN"],
-            environment=app.config["SENTRY_ENVIRONMENT"],
-            traces_sample_rate=1.0,
-            profiles_sample_rate=1.0,
-            integrations=[FlaskIntegration(), RqIntegration()],
-            debug=False,
+            environment=app.config["FLASK_ENV"],
+            debug=False,  # Disable debug logging
+            integrations=[
+                FlaskIntegration(),
+                RqIntegration(),
+                LoggingIntegration(
+                    level=logging.INFO,  # Capture info and above as breadcrumbs
+                    event_level=logging.ERROR,  # Send errors as events
+                ),
+            ],
         )
-        logging.info("Sentry initialized in environment %s", app.config["SENTRY_ENVIRONMENT"])
+        logging.info("Sentry initialized in environment %s", app.config["FLASK_ENV"])
 
     # Apply ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
@@ -165,6 +172,7 @@ def create_app(config_name: str = "default") -> Flask:
     app.register_blueprint(chat_bp)
     app.register_blueprint(slack_bp)
     app.register_blueprint(api_keys_bp)
+    app.register_blueprint(indexing_bp)
 
     # Set up user loader
     @login_manager.user_loader
@@ -342,7 +350,10 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
     @jwt.expired_token_loader
     def custom_expired_token_response(jwt_header, jwt_payload):
         """Handle expired token."""
-        logging.error("Expired token for user: %s", jwt_payload.get("sub", "unknown"))
+        token = jwt_header.get("Authorization")
+        logging.error(
+            "Expired token for user: %s, token: %s", jwt_payload.get("sub", "unknown"), token
+        )
         return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
 
     @jwt.needs_fresh_token_loader

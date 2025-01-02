@@ -25,7 +25,9 @@ from sqlalchemy.exc import SQLAlchemyError
 def get_google_drive_access_token() -> str:
     """Get the user's Google access token from the database if it's not in the session."""
     google_drive_access_token = ""
-    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+    datasource_id = (
+        Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+    )
 
     if session.get("google_drive.access_token") is None:
         result = UserAuth.query.filter_by(
@@ -66,7 +68,9 @@ def refresh_google_token_if_needed(access_token):
     str
         The refreshed access token or None if refresh failed.
     """
-    datasource_id = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+    datasource_id = (
+        Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
+    )
     # Check if the token is still valid
     token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
     response = lib_requests.get(token_info_url)

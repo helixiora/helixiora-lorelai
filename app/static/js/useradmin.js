@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
             "order": [[0, "asc"]]
         });
     } else {
-        console.error('jQuery is not loaded');
+        console.error('jQuery is not loaded')
     }
 });
 

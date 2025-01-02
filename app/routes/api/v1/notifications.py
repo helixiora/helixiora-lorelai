@@ -28,6 +28,8 @@ class GetNotificationsResource(Resource):
     @jwt_required(locations=["headers"])
     def get(self):
         """Get notifications for the current user."""
+        logging.info("Getting notifications")
+
         try:
             user_id = session.get("user.id")
             if not user_id:
@@ -35,6 +37,7 @@ class GetNotificationsResource(Resource):
 
             # Get all notifications first
             notifications = get_notifications(user_id=user_id)
+            logging.debug(f"Notification count: {len(notifications)}")
 
             # Then filter based on parameters
             show_read = parse_boolean_param(request.args.get("show_read"), default=True)
@@ -88,6 +91,8 @@ class GetNotificationsResource(Resource):
                     "total": len(filtered_notifications),
                 },
             }
+
+            logging.debug(f"Response data[counts]: {response_data['counts']}")
 
             # Serialize the response data to handle Decimal objects
             return serialize_notification_response(response_data), 200

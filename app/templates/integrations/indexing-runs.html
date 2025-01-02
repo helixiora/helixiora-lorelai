@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{{ datasource_name }} Indexing History</h5>
+            <a href="{{ url_for('auth.profile') }}" class="btn btn-outline-secondary btn-sm">Back to Profile</a>
+        </div>
+        <div class="card-body">
+            {% if indexing_runs %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Started At</th>
+                                <th>Status</th>
+                                <th>Items</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for run in indexing_runs %}
+                                <tr>
+                                    <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <span class="badge {% if run.status == 'completed' %}bg-success{% elif run.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                                            {{ run.status }}
+                                        </span>
+                                    </td>
+                                    <td>{{ run.items|length }} items</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#run-{{ run.id }}" aria-expanded="false">
+                                            Show Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="4" class="p-0">
+                                        <div class="collapse" id="run-{{ run.id }}">
+                                            <div class="card card-body m-2">
+                                                {% if run.error %}
+                                                    <div class="alert alert-danger">{{ run.error }}</div>
+                                                {% endif %}
+                                                <h6>Indexed Items:</h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Name</th>
+                                                                <th>Type</th>
+                                                                <th>Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for item in run.items %}
+                                                                <tr>
+                                                                    <td>
+                                                                        {% if item.item_url %}
+                                                                            <a href="{{ item.item_url }}" target="_blank">{{ item.item_name }}</a>
+                                                                        {% else %}
+                                                                            {{ item.item_name }}
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td>{{ item.item_type }}</td>
+                                                                    <td>
+                                                                        <span class="badge {% if item.item_status == 'completed' %}bg-success{% elif item.item_status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                                                                            {{ item.item_status }}
+                                                                        </span>
+                                                                        {% if item.item_error %}
+                                                                            <i class="bi bi-info-circle text-danger" data-bs-toggle="tooltip" title="{{ item.item_error }}"></i>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    No indexing runs found for {{ datasource_name }}.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
