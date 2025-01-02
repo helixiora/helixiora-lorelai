@@ -82,7 +82,7 @@ class Processor:
                 ):
                     # Check if doc already tag for this users
                     if indexing_run.user.email in result["matches"][0]["metadata"]["users"]:
-                        logging.info(
+                        logging.debug(
                             f"Document {doc['metadata']['title']} already exists in Pinecone and \
 tagged by {indexing_run.user.email}, removing from list"
                         )
@@ -104,6 +104,7 @@ tagged by {indexing_run.user.email}, removing from list"
                         docs_to_remove.append(doc)
                         tagged_existing_doc_with_user += 1
 
+        logging.debug(f"Number of docs to remove because they already exist: {len(docs_to_remove)}")
         # Remove documents after iteration is complete
         for doc in docs_to_remove:
             documents.remove(doc)

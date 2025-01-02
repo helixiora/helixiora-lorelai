@@ -150,6 +150,14 @@ class Indexer:
                 continue
 
             finally:
+                total_items = IndexingRunItem.query.filter_by(
+                    indexing_run_id=indexing_run.id
+                ).count()
+                logging.info(
+                    f"Total items for indexing run {indexing_run.id} for user {user.email} for \
+datasource {datasource.datasource_name}: {total_items}"
+                )
+
                 # Update run status based on items
                 failed_items = IndexingRunItem.query.filter_by(
                     indexing_run_id=indexing_run.id, item_status="failed"
@@ -157,10 +165,10 @@ class Indexer:
 
                 if failed_items > 0:
                     indexing_run.status = "completed_with_errors"
-                    indexing_run.error = f"Failed items: {failed_items}"
+                    indexing_run.error = f"Failed items: {failed_items}; Total items: {total_items}"
                 else:
                     indexing_run.status = "completed"
-                    indexing_run.error = "No errors"
+                    indexing_run.error = f"No errors; Total items: {total_items}"
 
                 db.session.commit()
 

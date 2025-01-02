@@ -608,7 +608,7 @@ class GoogleDriveIndexer(Indexer):
                             case _:
                                 raise ValueError(f"Invalid item type: {doc_item_type}")
 
-                if docs_loaded and len(docs_loaded) > 0:
+                if docs_loaded:
                     docs.extend(docs_loaded)
                     for loaded_doc in docs_loaded:
                         logging.info(

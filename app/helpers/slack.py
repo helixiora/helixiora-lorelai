@@ -37,9 +37,14 @@ class SlackHelper:
         self.redirect_uri = current_app.config["SLACK_REDIRECT_URI"]
 
         self.datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
+        if not self.datasource:
+            raise ValueError(f"{DATASOURCE_SLACK} is missing from datasource table in db")
 
         # Config for slack api
         self.access_token = self.retrieve_access_token(email=user.email)
+        if not self.access_token:
+            raise ValueError(f"No Slack access token found for user {user.email}")
+
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
@@ -582,7 +587,8 @@ class SlackHelper:
         if auth_value:
             return auth_value[0]
         else:
-            raise ValueError(f"Slack Token not found for user {email}")
+            logging.info(f"No Slack Token found for user {email}")
+            return None
 
     def replace_userid_with_name(self, conversation_text: str) -> str:
         """

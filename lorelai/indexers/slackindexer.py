@@ -133,10 +133,22 @@ class SlackIndexer(Indexer):
             channel_id (str, optional): The ID of a specific Slack channel to process.
             Defaults to None.
         """
-        slack = SlackHelper(indexing_run.user, indexing_run.organisation, user_auths)
+        if not user_auths or len(user_auths) == 0:
+            logging.error(f"No Slack user auths found for user {indexing_run.user.email}")
+            return
+
+        try:
+            slack = SlackHelper(indexing_run.user, indexing_run.organisation, user_auths)
+        except ValueError as e:
+            logging.error(f"Skipping Slack indexing for user {indexing_run.user.email} - {str(e)}")
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error initializing Slack helper: {str(e)}")
+            return
+
         if not slack.test_slack_token:
             logging.critical("Slack token is invalid")
-            return
+            raise ValueError("Slack token is invalid")
 
         # get the list of channels
         channel_ids_dict = slack.get_accessible_channels(only_joined=True)
