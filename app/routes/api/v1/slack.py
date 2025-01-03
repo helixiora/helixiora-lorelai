@@ -6,7 +6,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel
 import logging
 
-from app.models import db, UserAuth, Datasource, User
+from app.database import db
+from app.models import UserAuth, Datasource, User
 from app.helpers.datasources import DATASOURCE_SLACK
 from lorelai.pinecone import delete_user_datasource_vectors
 

@@ -9,11 +9,15 @@ class UserAPIKey(db.Model):
 
     __tablename__ = "user_api_keys"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True, name="user_api_key_id")
+    id = db.Column(
+        db.Integer, primary_key=True, autoincrement=True, name="user_api_key_id"
+    )
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
     api_key = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     expires_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships

@@ -1,6 +1,6 @@
 """Models package initialization."""
 
-from .database import db
+from app.database import db
 
 # Import all models here
 from .user import User

@@ -13,26 +13,6 @@ from itertools import chain
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
-from app.models import User
-
-
-def get_user_id_by_email(email: str) -> int:
-    """
-    Get the user ID by email.
-
-    Parameters
-    ----------
-    email : str
-        The email of the user.
-
-    Returns
-    -------
-    int
-        The user ID.
-    """
-    user = User.query.filter_by(email=email).first()
-    return user.id if user else None
-
 
 def get_embedding_dimension(model_name) -> int:
     """
@@ -161,8 +141,10 @@ def send_templated_email(
     try:
         sg = SendGridAPIClient(sendgridapikey)
         response = sg.send(message)
-        logging.debug(f"Email sent successfully. Status code: {response.status_code}, \
-body: {response.body}, headers: {response.headers}")
+        logging.debug(
+            f"Email sent successfully. Status code: {response.status_code}, \
+body: {response.body}, headers: {response.headers}"
+        )
 
         return True
     except Exception as e:

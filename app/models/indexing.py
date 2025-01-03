@@ -12,12 +12,18 @@ class IndexingRun(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     rq_job_id = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     status = db.Column(db.String(255), nullable=False)
     error = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
-    organisation_id = db.Column(db.Integer, db.ForeignKey("organisation.id"), nullable=False)
-    datasource_id = db.Column(db.Integer, db.ForeignKey("datasource.datasource_id"), nullable=False)
+    organisation_id = db.Column(
+        db.Integer, db.ForeignKey("organisation.id"), nullable=False
+    )
+    datasource_id = db.Column(
+        db.Integer, db.ForeignKey("datasource.datasource_id"), nullable=False
+    )
 
     # Relationships
     items = db.relationship("IndexingRunItem", back_populates="indexing_run")
@@ -40,7 +46,9 @@ class IndexingRunItem(db.Model):
     __tablename__ = "indexing_run_items"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    indexing_run_id = db.Column(db.Integer, db.ForeignKey("indexing_runs.id"), nullable=False)
+    indexing_run_id = db.Column(
+        db.Integer, db.ForeignKey("indexing_runs.id"), nullable=False
+    )
     item_id = db.Column(db.String(255), nullable=False)
     item_type = db.Column(db.String(255), nullable=False)
     item_name = db.Column(db.String(255), nullable=False)
@@ -48,14 +56,20 @@ class IndexingRunItem(db.Model):
     item_status = db.Column(db.String(255), nullable=False)
     item_error = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    parent_item_id = db.Column(db.Integer, db.ForeignKey("indexing_run_items.id"), nullable=True)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    parent_item_id = db.Column(
+        db.Integer, db.ForeignKey("indexing_run_items.id"), nullable=True
+    )
 
     # Relationships
     indexing_run = db.relationship("IndexingRun", back_populates="items")
     # Self-referential relationship for parent/child items
     parent_item = db.relationship(
-        "IndexingRunItem", remote_side=[id], backref=db.backref("child_items", lazy="dynamic")
+        "IndexingRunItem",
+        remote_side=[id],
+        backref=db.backref("child_items", lazy="dynamic"),
     )
 
     def __repr__(self):

@@ -2,7 +2,8 @@
 
 import click
 from flask.cli import with_appcontext
-from app.models import db, Datasource
+from app.models.datasource import Datasource
+from app.database import db
 
 
 @click.command("init-db")

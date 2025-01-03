@@ -16,11 +16,10 @@ import logging
 import pydantic
 from datetime import datetime
 
-from app.models import db
+from app.database import db
 from app.models.user import User
 from app.models.user_auth import UserAuth
 from app.models.datasource import Datasource
-from app.models import db, User, UserAuth, Datasource
 import requests as lib_requests
 from flask import session
 from flask_login import current_user

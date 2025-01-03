@@ -29,7 +29,7 @@ from app.schemas import (
 )
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from app.helpers.googledrive import get_token_details
-from app.models import Datasource
+from app.models.datasource import Datasource
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 

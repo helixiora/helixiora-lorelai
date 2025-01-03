@@ -9,9 +9,10 @@ from flask_login import LoginManager
 from flask_restx import Api
 from flask_migrate import Migrate
 
-from flask_sqlalchemy import SQLAlchemy
+from app.database import db
 from config import config
 
+from sqlalchemy import SQLAlchemy
 from sqlalchemy_utils import database_exists, create_database
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -22,9 +23,8 @@ from sentry_sdk.integrations.rq import RqIntegration
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
-
 # models
-from app.models import db
+from app.database import db
 from app.models.user import User
 
 # namespaces
@@ -115,7 +115,9 @@ def create_app(config_name: str = "default") -> Flask:
     jwt = JWTManager(app)
 
     # Set up Sentry
-    if app.config["FLASK_ENV"] != "development":  # Only initialize Sentry in non-dev environments
+    if (
+        app.config["FLASK_ENV"] != "development"
+    ):  # Only initialize Sentry in non-dev environments
         sentry_sdk.init(
             dsn=app.config["SENTRY_DSN"],
             environment=app.config["FLASK_ENV"],
@@ -132,7 +134,9 @@ def create_app(config_name: str = "default") -> Flask:
         logging.info("Sentry initialized in environment %s", app.config["FLASK_ENV"])
 
     # Apply ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1
+    )
 
     api_description = """API documentation for Lorelai.
 
@@ -373,11 +377,17 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
     @jwt.needs_fresh_token_loader
     def custom_needs_fresh_token_response(jwt_header, jwt_payload):
         """Handle needs fresh token."""
-        logging.error("Fresh token required for user: %s", jwt_payload.get("sub", "unknown"))
-        return jsonify({"msg": "Fresh token required", "error": "fresh_token_required"}), 401
+        logging.error(
+            "Fresh token required for user: %s", jwt_payload.get("sub", "unknown")
+        )
+        return jsonify(
+            {"msg": "Fresh token required", "error": "fresh_token_required"}
+        ), 401
 
     @jwt.revoked_token_loader
     def custom_revoked_token_response(jwt_header, jwt_payload):
         """Handle revoked token."""
-        logging.error("Revoked token used for user: %s", jwt_payload.get("sub", "unknown"))
+        logging.error(
+            "Revoked token used for user: %s", jwt_payload.get("sub", "unknown")
+        )
         return jsonify({"msg": "Token has been revoked", "error": "token_revoked"}), 401
