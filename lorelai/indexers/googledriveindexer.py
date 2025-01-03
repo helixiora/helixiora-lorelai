@@ -135,7 +135,12 @@ class GoogleDriveIndexer(Indexer):
         except Exception as e:
             raise ValueError(f"Failed to validate Google Drive credentials: {str(e)}") from e
 
-    def __process_drive_items(self, user_id: int, indexing_run_model: IndexingRun) -> list[dict]:
+    def __process_drive_items(
+        self,
+        user_id: int,
+        indexing_run_model: IndexingRun,
+        credentials_object: credentials.Credentials,
+    ) -> list[dict]:
         """Process Google Drive items and create indexing run items."""
         drive_items = GoogleDriveItem.query.filter_by(user_id=user_id)
         user_data = [GoogleDriveItemSchema.from_orm(data) for data in drive_items]
@@ -144,6 +149,9 @@ class GoogleDriveIndexer(Indexer):
         for drive_item in user_data:
             try:
                 indexing_run_item = self.__create_indexing_item(indexing_run_model.id, drive_item)
+                # This is a root item (directly added by user), so parent_item_id is None
+                indexing_run_item.parent_item_id = None
+                db.session.commit()
 
                 if drive_item.item_type not in ALLOWED_ITEM_TYPES:
                     indexing_run_item.item_status = "skipped"
@@ -151,16 +159,36 @@ class GoogleDriveIndexer(Indexer):
                     db.session.commit()
                     continue
 
-                documents.append(
-                    {
-                        "user_id": user_id,
-                        "google_drive_id": drive_item.google_drive_id,
-                        "item_type": drive_item.item_type,
-                        "item_name": drive_item.item_name,
-                        "mime_type": drive_item.mime_type,
-                        "indexing_run_item_id": indexing_run_item.id,
-                    }
-                )
+                if drive_item.item_type == "folder":
+                    documents_from_folder = self.__list_files_in_folder(
+                        folder_id=drive_item.google_drive_id,
+                        credentials_object=credentials_object,
+                        indexing_run_model=indexing_run_model,
+                        indexing_run_item_id=indexing_run_item.id,
+                    )
+                    logging.info(
+                        f"Found folder {drive_item.item_name}, recursively loaded \
+{len(documents_from_folder)} items"
+                    )
+                    documents.extend(documents_from_folder)
+
+                    # Update folder status
+                    indexing_run_item.item_status = "completed"
+                    indexing_run_item.item_error = (
+                        f"Successfully processed folder with {len(documents_from_folder)} items"
+                    )
+                    db.session.commit()
+                else:
+                    documents.append(
+                        {
+                            "user_id": user_id,
+                            "google_drive_id": drive_item.google_drive_id,
+                            "item_type": drive_item.item_type,
+                            "item_name": drive_item.item_name,
+                            "mime_type": drive_item.mime_type,
+                            "indexing_run_item_id": indexing_run_item.id,
+                        }
+                    )
 
             except Exception as e:
                 logging.error(f"Error processing item {drive_item.item_name}: {str(e)}")
@@ -210,20 +238,35 @@ class GoogleDriveIndexer(Indexer):
         """Process the Google Drive documents for a user and index them in Pinecone."""
         try:
             # Validate input and get database model
-            indexing_run_model = self.__validate_input(indexing_run)
+            indexing_run_model = self.__validate_input(indexing_run=indexing_run)
 
             # Get authentication tokens
-            access_token, refresh_token, expires_at = self.__get_token_details(user_auths)
+            access_token, refresh_token, expires_at = self.__get_token_details(
+                user_auths=user_auths
+            )
 
             # Create and validate credentials
-            credentials_object = self.__create_credentials(access_token, refresh_token)
-            self.__validate_credentials(credentials_object, indexing_run.user.email)
+            credentials_object = self.__create_credentials(
+                access_token=access_token, refresh_token=refresh_token
+            )
+            self.__validate_credentials(
+                credentials_object=credentials_object,
+                user_email=indexing_run.user.email,
+            )
 
             # Process drive items
-            documents = self.__process_drive_items(indexing_run.user.id, indexing_run_model)
+            documents = self.__process_drive_items(
+                user_id=indexing_run.user.id,
+                indexing_run_model=indexing_run_model,
+                credentials_object=credentials_object,
+            )
 
             # Process and store documents
-            self.__process_documents(documents, credentials_object, indexing_run)
+            self.__process_documents(
+                documents=documents,
+                credentials_object=credentials_object,
+                indexing_run=indexing_run,
+            )
 
         except Exception as e:
             logging.error(f"Error processing Google Drive documents: {str(e)}")
@@ -299,32 +342,124 @@ class GoogleDriveIndexer(Indexer):
         logging.info(f"Loaded {len(docs_loaded)} docs from document: {doc_google_drive_id}")
         return docs_loaded
 
-    def load_google_doc_from_folder_id(
+    def __list_files_in_folder(
         self,
-        doc_google_drive_id: str,
+        folder_id: str,
         credentials_object: credentials.Credentials,
-        indexing_run: IndexingRunSchema,
-    ) -> list[Document]:
-        """Load a Google Drive folder from a folder ID.
+        indexing_run_model: IndexingRun,
+        indexing_run_item_id: int,
+        processed_folders: set[str] = None,
+    ) -> list[dict]:
+        """Recursively list all files in a Google Drive folder.
 
-        :param doc_google_drive_id: the Google Drive folder ID
-        :param credentials_object: the credentials object to use for Google Drive API
-        :param indexing_run: the indexing run to add the users to
+        :param folder_id: The ID of the folder to list files from
+        :param credentials_object: Google Drive credentials
+        :param indexing_run_model: The indexing run model instance
+        :param indexing_run_item_id: ID of the indexing run item for the folder
+        :param processed_folders: Set of folder IDs that have already been processed (to avoid
+                cycles)
 
-        :return: the list of documents loaded from Google Drive
+        :return: List of dictionaries containing file information
         """
-        logging.info(f"Loading Google Drive folder ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            folder_id=doc_google_drive_id,
-            recursive=True,
-            include_folders=True,
-            includeItemsFromAllDrives=True,
-            corpora="allDrives",
-            credentials=credentials_object,
-        )
-        docs_loaded = loader.load()
-        logging.info(f"Loaded {len(docs_loaded)} docs from folder: {doc_google_drive_id}")
-        return docs_loaded
+        if processed_folders is None:
+            processed_folders = set()
+
+        if folder_id in processed_folders:
+            logging.warning(
+                f"Folder {folder_id} has already been processed, skipping to avoid cycles"
+            )
+            return []
+
+        processed_folders.add(folder_id)
+
+        try:
+            service = build("drive", "v3", credentials=credentials_object)
+            results = []
+            page_token = None
+
+            while True:
+                # List all files and folders in the current folder
+                query = f"'{folder_id}' in parents and trashed = false"
+                response = (
+                    service.files()
+                    .list(
+                        q=query,
+                        spaces="drive",
+                        fields="nextPageToken, files(id, name, mimeType, parents)",
+                        pageToken=page_token,
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True,
+                    )
+                    .execute()
+                )
+
+                items = response.get("files", [])
+
+                for item in items:
+                    if item["mimeType"] == "application/vnd.google-apps.folder":
+                        # Create indexing run item for subfolder
+                        subfolder_item = IndexingRunItem(
+                            indexing_run_id=indexing_run_model.id,
+                            item_id=item["id"],
+                            item_type="folder",
+                            item_name=item["name"],
+                            item_url=f"https://drive.google.com/drive/folders/{item['id']}",
+                            item_status="pending",
+                            parent_item_id=indexing_run_item_id,  # Track parent folder
+                        )
+                        db.session.add(subfolder_item)
+                        db.session.commit()
+
+                        # Recursively process subfolders
+                        subfolder_items = self.__list_files_in_folder(
+                            folder_id=item["id"],
+                            credentials_object=credentials_object,
+                            indexing_run_model=indexing_run_model,
+                            indexing_run_item_id=subfolder_item.id,
+                            processed_folders=processed_folders,
+                        )
+                        results.extend(subfolder_items)
+
+                        # Update subfolder status
+                        subfolder_item.item_status = "completed"
+                        subfolder_item.item_error = (
+                            f"Successfully processed subfolder with {len(subfolder_items)} items"
+                        )
+                        db.session.commit()
+                    else:
+                        # Create indexing run item for file
+                        file_item = IndexingRunItem(
+                            indexing_run_id=indexing_run_model.id,
+                            item_id=item["id"],
+                            item_type="file",
+                            item_name=item["name"],
+                            item_url=f"https://drive.google.com/file/d/{item['id']}/view",
+                            item_status="pending",
+                            parent_item_id=indexing_run_item_id,  # Track parent folder
+                        )
+                        db.session.add(file_item)
+                        db.session.commit()
+
+                        # Add non-folder items to results
+                        file = {
+                            "user_id": indexing_run_model.user_id,
+                            "google_drive_id": item["id"],
+                            "item_type": "file",
+                            "item_name": item["name"],
+                            "mime_type": item["mimeType"],
+                            "indexing_run_item_id": file_item.id,
+                        }
+                        results.append(file)
+
+                page_token = response.get("nextPageToken")
+                if not page_token:
+                    break
+
+            return results
+
+        except Exception as e:
+            logging.error(f"Error listing files in folder {folder_id}: {str(e)}")
+            raise
 
     def load_google_doc_from_slides_id(
         self,
@@ -595,15 +730,15 @@ class GoogleDriveIndexer(Indexer):
                         match doc_item_type:
                             case "document":
                                 docs_loaded = self.load_google_doc_from_file_id(
-                                    doc_google_drive_id, credentials_object, indexing_run
-                                )
-                            case "folder":
-                                docs_loaded = self.load_google_doc_from_folder_id(
-                                    doc_google_drive_id, credentials_object, indexing_run
+                                    doc_google_drive_id,
+                                    credentials_object,
+                                    indexing_run,
                                 )
                             case "file":
                                 docs_loaded = self.load_google_doc_from_file_id(
-                                    doc_google_drive_id, credentials_object, indexing_run
+                                    doc_google_drive_id,
+                                    credentials_object,
+                                    indexing_run,
                                 )
                             case _:
                                 raise ValueError(f"Invalid item type: {doc_item_type}")
