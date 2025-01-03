@@ -22,6 +22,8 @@ from lorelai.context_retriever import (
 )
 from lorelai.pinecone import PineconeHelper
 
+from app.helpers.datasources import DATASOURCE_GOOGLEDRIVE
+
 
 class GoogleDriveContextRetriever(ContextRetriever):
     """Context retriever which retrieves context ie vectors stored in Google drive index."""
@@ -63,7 +65,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
         try:
             name = PineconeHelper.get_index_name(
                 org_name=self.org_name,
-                datasource="googledrive",
+                datasource=DATASOURCE_GOOGLEDRIVE,
                 environment=self.environment,
                 env_name=self.environment_slug,
                 version="v1",
