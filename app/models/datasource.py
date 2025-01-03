@@ -1,6 +1,6 @@
 """Datasource model."""
 
-from . import db
+from .database import db
 
 
 class Datasource(db.Model):

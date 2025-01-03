@@ -1,6 +1,6 @@
 """User auth model."""
 
-from . import db
+from .database import db
 
 
 class UserAuth(db.Model):

@@ -1,7 +1,7 @@
 """Indexing models."""
 
 from datetime import datetime
-from . import db
+from .database import db
 
 
 class IndexingRun(db.Model):

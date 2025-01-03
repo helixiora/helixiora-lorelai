@@ -1,6 +1,6 @@
 """Role models."""
 
-from . import db
+from .database import db
 from .user import VALID_ROLES
 
 

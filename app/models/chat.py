@@ -1,7 +1,7 @@
 """Chat models."""
 
 from datetime import datetime
-from . import db
+from .database import db
 
 
 class ChatMessage(db.Model):

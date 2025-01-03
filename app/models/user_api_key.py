@@ -1,7 +1,7 @@
 """User API key model."""
 
 from datetime import datetime
-from . import db
+from .database import db
 
 
 class UserAPIKey(db.Model):

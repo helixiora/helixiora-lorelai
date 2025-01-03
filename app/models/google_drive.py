@@ -1,7 +1,7 @@
 """Google Drive model."""
 
 from datetime import datetime
-from . import db
+from .database import db
 
 
 class GoogleDriveItem(db.Model):

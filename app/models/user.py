@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from flask_login import UserMixin
-from . import db
+from .database import db
 
 VALID_ROLES = {"super_admin", "org_admin", "user"}
 

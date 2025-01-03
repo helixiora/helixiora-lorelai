@@ -1,6 +1,6 @@
 """Profile model."""
 
-from . import db
+from .database import db
 
 
 class Profile(db.Model):

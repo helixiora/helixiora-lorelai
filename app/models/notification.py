@@ -1,7 +1,7 @@
 """Notification model."""
 
 from datetime import datetime
-from . import db
+from .database import db
 
 
 class Notification(db.Model):

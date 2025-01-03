@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from sqlalchemy.dialects.mysql import INTEGER
-from . import db
+from .database import db
 
 
 class Plan(db.Model):

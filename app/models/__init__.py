@@ -1,6 +1,6 @@
 """Models package initialization."""
 
-from flask_sqlalchemy import SQLAlchemy
+from .database import db
 
 # Import all models here
 from .user import User
@@ -17,8 +17,6 @@ from .extra_messages import ExtraMessages
 from .user_auth import UserAuth
 from .user_api_key import UserAPIKey
 from .user_login import UserLogin
-
-db = SQLAlchemy()
 
 # List all models for easy access
 __all__ = [
