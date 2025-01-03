@@ -24,7 +24,8 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 
 
 # models
-from app.models import db, User
+from app.models import db
+from app.models.user import User
 
 # namespaces
 from app.routes.api.v1.chat import chat_ns

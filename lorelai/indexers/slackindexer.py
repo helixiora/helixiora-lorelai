@@ -24,7 +24,9 @@ from app.schemas import (
 
 from app.helpers.datasources import DATASOURCE_SLACK
 from app.helpers.slack import SlackHelper
-from app.models import IndexingRunItem, db, Datasource
+from app.models import db
+from app.models.indexing import IndexingRunItem
+from app.models.datasource import Datasource
 
 
 class SlackIndexer(Indexer):

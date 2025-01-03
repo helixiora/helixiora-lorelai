@@ -3,7 +3,8 @@
 import logging
 import secrets
 from flask import Blueprint, request, redirect, url_for, flash
-from app.models import UserAPIKey, db
+from app.models import db
+from app.models.user_api_key import UserAPIKey
 from flask_login import current_user, login_required
 import bleach
 from datetime import datetime

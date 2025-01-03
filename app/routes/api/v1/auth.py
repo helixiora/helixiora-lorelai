@@ -7,7 +7,7 @@ import logging
 import secrets
 
 from app.helpers.auth import validate_email, validate_api_key
-from app.models import User
+from app.models.user import User
 
 
 auth_ns = Namespace("auth", description="Authentication operations")

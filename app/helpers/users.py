@@ -7,7 +7,12 @@ from functools import wraps
 
 from flask import redirect, session, url_for
 
-from app.models import User, Organisation, Profile, Role, UserRole, db, UserPlan, Plan
+from app.models import db
+from app.models.user import User
+from app.models.organisation import Organisation
+from app.models.profile import Profile
+from app.models.role import Role, UserRole
+from app.models.plan import UserPlan, Plan
 
 from sqlalchemy.exc import SQLAlchemyError
 

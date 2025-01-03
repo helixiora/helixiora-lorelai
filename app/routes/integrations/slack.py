@@ -5,7 +5,9 @@ import requests
 import logging
 
 from app.helpers.slack import SlackHelper
-from app.models import UserAuth, db, Datasource
+from app.models import db
+from app.models.user_auth import UserAuth
+from app.models.datasource import Datasource
 from sqlalchemy.exc import SQLAlchemyError
 from flask_login import login_required, current_user
 

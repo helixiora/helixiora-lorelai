@@ -5,7 +5,10 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func, desc
 from app.helpers.users import is_admin
-from app.models import db, ChatConversation, ChatMessage, UserPlan, Plan, ExtraMessages
+from app.models import db
+from app.models.chat import ChatConversation, ChatMessage
+from app.models.plan import UserPlan, Plan
+from app.models.extra_messages import ExtraMessages
 from flask import current_app
 
 

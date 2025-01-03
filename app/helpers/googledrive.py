@@ -14,7 +14,10 @@ from oauthlib.oauth2.rfc6749.errors import (
 )
 import logging
 
-from app.models import db, User, UserAuth, Datasource
+from app.models import db
+from app.models.user import User
+from app.models.user_auth import UserAuth
+from app.models.datasource import Datasource
 import requests as lib_requests
 from flask import session
 from flask_login import current_user

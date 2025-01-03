@@ -43,14 +43,13 @@ from app.helpers.auth import login_user_function, validate_id_token
 from app.helpers.googledrive import get_google_drive_access_token
 from flask import current_app
 
-from app.models import (
-    User,
-    UserAuth,
-    GoogleDriveItem,
-    Organisation,
-    Datasource,
-    Profile,
-)
+from app.models.user import User
+from app.models.organisation import Organisation
+from app.models.profile import Profile
+from app.models.google_drive import GoogleDriveItem
+from app.models.datasource import Datasource
+from app.models.user_auth import UserAuth
+
 from app.helpers.slack import SlackHelper
 from app.helpers.datasources import DATASOURCE_SLACK
 from app.helpers.users import is_admin, validate_form, register_user_to_org, update_user_profile

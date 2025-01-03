@@ -5,7 +5,10 @@ from flask import session, request
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
-from app.models import db, UserAuth, Datasource, GoogleDriveItem
+from app.models import db
+from app.models.user_auth import UserAuth
+from app.models.datasource import Datasource
+from app.models.google_drive import GoogleDriveItem
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from flask_jwt_extended import jwt_required
 

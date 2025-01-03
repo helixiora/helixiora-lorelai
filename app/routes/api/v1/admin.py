@@ -8,7 +8,11 @@ from sqlalchemy.exc import SQLAlchemyError
 import mysql
 from pydantic import ValidationError
 
-from app.models import User, db, Organisation, Datasource, UserAuth
+from app.models import db
+from app.models.user import User
+from app.models.organisation import Organisation
+from app.models.datasource import Datasource
+from app.models.user_auth import UserAuth
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 from app.helpers.users import create_user, is_org_admin, is_super_admin
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
