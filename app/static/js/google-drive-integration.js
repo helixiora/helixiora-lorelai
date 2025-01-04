@@ -5,9 +5,7 @@ let authorizationCode = null;
 let pickerInited = false;
 let gisInited = false;
 
-// Global variables
-let accessToken = null;
-
+// Note: window.accessToken is set by the template and contains the Google Drive access token
 document.getElementById('authorize_button').disabled = true;
 
 // Check button state when DOM is loaded
@@ -45,7 +43,11 @@ async function maybeEnableButtons() {
     if (pickerInited && gisInited) {
         document.getElementById('authorize_button').disabled = false;
         // Check if we have an access token in the page data
-        const hasGoogleDriveAccess = typeof accessToken !== 'undefined' && accessToken !== 'null' && accessToken !== null;
+        console.log('Google Drive access token:', window.accessToken);
+        const hasGoogleDriveAccess = window.accessToken &&
+            window.accessToken !== 'null' &&
+            window.accessToken !== 'None' &&
+            window.accessToken !== '';
 
         if (hasGoogleDriveAccess) {
             document.getElementById('authorize_button').innerText = 'Refresh';
@@ -61,16 +63,17 @@ async function maybeEnableButtons() {
 
 // Function to handle sign-out
 async function handleSignoutClick() {
-    if (window.accessToken) {
+    // Check if we have a Google Drive access token
+    if (window.accessToken && window.accessToken !== 'null') {
         try {
-            // Use JWT token for API request, not the Google Drive access token
+            // Backend API call uses JWT token (handled by makeAuthenticatedRequest)
             const response = await makeAuthenticatedRequest('/api/v1/googledrive/revoke', 'POST');
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.msg || 'Revoke failed');
             }
             try {
-                // Use the Google Drive access token for Google's revocation
+                // Google API call uses Google Drive access token
                 await google.accounts.oauth2.revoke(window.accessToken);
             } catch (e) {
                 console.warn('Could not revoke token with Google:', e);
@@ -88,30 +91,33 @@ async function handleSignoutClick() {
             alert('Failed to sign out: ' + error.message);
         }
     } else {
-        console.warn('No access token available for sign out');
+        console.warn('No Google Drive access token available for sign out');
     }
 }
 
 async function createPicker() {
+    // Verify we have a valid Google Drive access token
+    if (!window.accessToken || window.accessToken === 'null') {
+        console.error('No valid Google Drive access token available');
+        return;
+    }
+
     const shareddrivesview = new google.picker.DocsView(google.picker.ViewId.DOCS)
         .setEnableDrives(true)
-        // .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder', 'application/vnd.google-apps.spreadsheet', 'application/vnd.google-apps.presentation')
         .setSelectFolderEnabled(true)
         .setOwnedByMe(false)
-        .setIncludeFolders(true); // creates just the shared drives view
+        .setIncludeFolders(true);
 
     const sharedwithmeview = new google.picker.DocsView(google.picker.ViewId.DOCS)
-        // .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder', 'application/vnd.google-apps.spreadsheet', 'application/vnd.google-apps.presentation')
         .setSelectFolderEnabled(true)
         .setIncludeFolders(true)
-        .setOwnedByMe(false); // creates just the shared with me view
+        .setOwnedByMe(false);
 
     const mydriveview = new google.picker.DocsView(google.picker.ViewId.DOCS)
-        // .setMimeTypes('application/vnd.google-apps.document', 'application/vnd.google-apps.folder', 'application/vnd.google-apps.spreadsheet', 'application/vnd.google-apps.presentation')
         .setSelectFolderEnabled(true)
         .setOwnedByMe(true)
         .setParent('root')
-        .setIncludeFolders(true); // creates just the my drive view
+        .setIncludeFolders(true);
 
     const picker = new google.picker.PickerBuilder()
         .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
@@ -119,7 +125,7 @@ async function createPicker() {
         .disableFeature(google.picker.Feature.MINE_ONLY)
         .setDeveloperKey(API_KEY)
         .setAppId(APP_ID)
-        .setOAuthToken(accessToken)
+        .setOAuthToken(window.accessToken)  // Use Google Drive access token for picker
         .addView(shareddrivesview)
         .addView(sharedwithmeview)
         .addView(mydriveview)
@@ -143,6 +149,7 @@ async function pickerCallback(data) {
         }));
 
         try {
+            // Backend API call uses JWT token (handled by makeAuthenticatedRequest)
             const response = await makeAuthenticatedRequest(
                 '/api/v1/googledrive/processfilepicker',
                 'POST',
