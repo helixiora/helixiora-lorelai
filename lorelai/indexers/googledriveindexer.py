@@ -25,6 +25,7 @@ from app.schemas import (
     GoogleDriveItemSchema,
 )
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
+from app.helpers.googledrive import get_token_details
 from app.models import Datasource
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
@@ -33,45 +34,13 @@ ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 class GoogleDriveIndexer(Indexer):
     """Used to process the Google Drive documents and index them in Pinecone."""
 
-    def get_datasource(self) -> Datasource:
+    def __get_datasource(self) -> Datasource:
         """Get the datasource for this indexer."""
         return Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
 
-    def __get_token_details(self, user_auths: list[UserAuthSchema]) -> tuple[str, str, str]:
-        access_token = next(
-            (
-                user_auth.auth_value
-                for user_auth in user_auths
-                if user_auth.auth_key == "access_token"
-            ),
-            None,
-        )
-
-        refresh_token = next(
-            (
-                user_auth.auth_value
-                for user_auth in user_auths
-                if user_auth.auth_key == "refresh_token"
-            ),
-            None,
-        )
-
-        expires_at = next(
-            (
-                user_auth.auth_value
-                for user_auth in user_auths
-                if user_auth.auth_key == "expires_at"
-            ),
-            None,
-        )
-
-        if not access_token or not refresh_token:
-            raise ValueError("Missing Google Drive authentication tokens for user")
-
-        return access_token, refresh_token, expires_at
-
     def __init__(self) -> None:
         logging.debug("GoogleDriveIndexer initialized")
+        self.datasource = self.__get_datasource()
 
     def __validate_input(self, indexing_run: IndexingRunSchema) -> IndexingRun:
         """Validate input parameters and get the database model.
@@ -85,6 +54,10 @@ class GoogleDriveIndexer(Indexer):
             f"Indexing user: {indexing_run.user.email} from org: {indexing_run.organisation.name}"
         )
 
+        # 2. Get the Google Drive document IDs
+        logging.debug(f"Getting Google Drive document IDs for user: {indexing_run.user.email}")
+
+        # Get the actual model instance from the database
         indexing_run_model = IndexingRun.query.get(indexing_run.id)
         if not indexing_run_model:
             raise ValueError(f"Could not find IndexingRun with id {indexing_run.id}")
@@ -241,9 +214,9 @@ class GoogleDriveIndexer(Indexer):
             indexing_run_model = self.__validate_input(indexing_run=indexing_run)
 
             # Get authentication tokens
-            access_token, refresh_token, expires_at = self.__get_token_details(
-                user_auths=user_auths
-            )
+            google_drive_tokens = get_token_details(indexing_run.user.id)
+            access_token = google_drive_tokens.access_token
+            refresh_token = google_drive_tokens.refresh_token
 
             # Create and validate credentials
             credentials_object = self.__create_credentials(

@@ -90,12 +90,12 @@
 <script src="{{ url_for('static', filename='js/tour-index.js') }}"></script>
 <script src="{{ url_for('static', filename='js/chatui.js') }}"></script>
 <script>
-    const accessToken = "{{ session['lorelai_jwt.access_token'] }}";
-    const refreshToken = "{{ session['lorelai_jwt.refresh_token'] }}";
+    const initialAccessToken = "{{ session['lorelai_jwt.access_token'] }}";
+    const initialRefreshToken = "{{ session['lorelai_jwt.refresh_token'] }}";
 
-    if (accessToken && refreshToken) {
-        localStorage.setItem('lorelai_jwt_access_token', accessToken);
-        localStorage.setItem('lorelai_jwt_refresh_token', refreshToken);
+    if (initialAccessToken && initialRefreshToken) {
+        localStorage.setItem('lorelai_jwt_access_token', initialAccessToken);
+        localStorage.setItem('lorelai_jwt_refresh_token', initialRefreshToken);
         console.log('Tokens set in localStorage');
     }
 </script>

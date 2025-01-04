@@ -20,6 +20,40 @@ function resetSession() {
 }
 
 /**
+ * Refreshes the JWT access token using the refresh token
+ * @returns {Promise<string>} - The new access token
+ */
+async function refreshToken() {
+    if (!tokenRefreshPromise) {
+        tokenRefreshPromise = (async () => {
+            const storedRefreshToken = localStorage.getItem('lorelai_jwt_refresh_token');
+            if (!storedRefreshToken) {
+                throw new Error('No refresh token available');
+            }
+
+            const refreshResponse = await fetch('/api/v1/token/refresh', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${storedRefreshToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!refreshResponse.ok) {
+                throw new Error('Token refresh failed');
+            }
+
+            const data = await refreshResponse.json();
+            localStorage.setItem('lorelai_jwt_access_token', data.access_token);
+            localStorage.setItem('lorelai_jwt_refresh_token', data.refresh_token);
+            tokenRefreshPromise = null;
+            return data.access_token;
+        })();
+    }
+    return tokenRefreshPromise;
+}
+
+/**
  * Makes an authenticated request with automatic token refresh handling
  * @param {string} url - The URL to make the request to
  * @param {string} method - The HTTP method to use
@@ -32,9 +66,9 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
     const RETRY_DELAY = 500; // 500ms
 
     const waitForTokens = async (retries = 0) => {
-        const accessToken = localStorage.getItem('lorelai_jwt_access_token');
-        if (accessToken) {
-            return accessToken;
+        const storedAccessToken = localStorage.getItem('lorelai_jwt_access_token');
+        if (storedAccessToken) {
+            return storedAccessToken;
         }
         if (retries >= MAX_RETRIES) {
             throw new Error('No access token available after retries');
@@ -55,46 +89,6 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
             headers: headers,
             ...(body && { body: JSON.stringify(body) })
         });
-    };
-
-    const refreshToken = async () => {
-        if (!tokenRefreshPromise) {
-            tokenRefreshPromise = (async () => {
-                const refreshToken = localStorage.getItem('lorelai_jwt_refresh_token');
-                if (!refreshToken) {
-                    throw new Error('No refresh token available');
-                }
-
-                const refreshResponse = await fetch('/api/v1/token/refresh', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${refreshToken}`
-                    }
-                });
-
-                if (!refreshResponse.ok) {
-                    throw new Error('Failed to refresh token');
-                }
-
-                const newTokens = await refreshResponse.json();
-                console.log('Token refresh successful');
-
-                // Update stored tokens
-                localStorage.setItem('lorelai_jwt_access_token', newTokens.access_token);
-                if (newTokens.refresh_token) {
-                    localStorage.setItem('lorelai_jwt_refresh_token', newTokens.refresh_token);
-                }
-
-                return newTokens.access_token;
-            })();
-        }
-
-        try {
-            const newToken = await tokenRefreshPromise;
-            return newToken;
-        } finally {
-            tokenRefreshPromise = null;
-        }
     };
 
     const handleTokenError = async () => {
@@ -177,15 +171,15 @@ async function makeAuthenticatedRequest(url, method, body = null, additionalHead
  * @returns {Promise<boolean>} - Returns true if token is valid or was refreshed successfully
  */
 async function checkAndRefreshToken() {
-    const accessToken = localStorage.getItem('lorelai_jwt_access_token');
-    if (!accessToken) {
+    const currentAccessToken = localStorage.getItem('lorelai_jwt_access_token');
+    if (!currentAccessToken) {
         console.warn('No access token found.');
         return false;
     }
 
     try {
         // Decode the token to check its expiration
-        const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
+        const tokenPayload = JSON.parse(atob(currentAccessToken.split('.')[1]));
         const isExpired = tokenPayload.exp * 1000 < Date.now();
 
         if (isExpired) {

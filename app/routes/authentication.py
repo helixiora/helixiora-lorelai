@@ -40,7 +40,8 @@ from flask_login import login_required, logout_user, current_user
 
 from app.helpers import email_validator, url_validator
 from app.helpers.auth import login_user_function, validate_id_token
-from app.helpers.googledrive import get_google_drive_access_token
+from app.helpers.googledrive import get_token_details
+
 from flask import current_app
 
 from app.models import (
@@ -120,7 +121,8 @@ def profile():
         profile = Profile.query.filter_by(user_id=current_user.id).first()
 
         if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
-            google_drive_access_token = get_google_drive_access_token()
+            google_drive_tokens = get_token_details(current_user.id)
+            google_drive_access_token = google_drive_tokens.access_token
             google_docs_to_index = GoogleDriveItem.query.filter_by(user_id=current_user.id).all()
             logging.info(
                 "Google Drive feature is enabled. Found %s items to index.",
@@ -129,8 +131,8 @@ def profile():
         else:
             logging.warning("Google Drive feature is disabled.")
             google_docs_to_index = None
+            google_drive_tokens = None
             google_drive_access_token = None
-
         slack_channels = None
         if int(current_app.config["FEATURE_SLACK"]) == 1:
             logging.info("Slack feature is enabled.")
