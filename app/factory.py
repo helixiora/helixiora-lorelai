@@ -35,6 +35,7 @@ from app.routes.api.v1.auth import auth_ns
 from app.routes.api.v1.api_keys import api_keys_ns
 from app.routes.api.v1.admin import admin_ns
 from app.routes.api.v1.googledrive import googledrive_ns
+from app.routes.api.v1.slack import slack_ns
 
 # blueprints
 from app.routes.admin import admin_bp
@@ -164,6 +165,7 @@ def create_app(config_name: str = "default") -> Flask:
     api.add_namespace(api_keys_ns)
     api.add_namespace(admin_ns)
     api.add_namespace(googledrive_ns)
+    api.add_namespace(slack_ns)
 
     # Register blueprints
     app.register_blueprint(admin_bp)

@@ -65,7 +65,7 @@ class PineconeHelper:
 
         Returns
         -------
-            str: The name of the pinecone index.
+            tuple[pinecone.Index, str]: The pinecone index and the name of the pinecone index.
 
         """
         name = self.get_index_name(
@@ -230,3 +230,66 @@ class PineconeHelper:
             raise ValueError(f"Failed to fetch index details: {e}") from e
 
         return result
+
+    def delete_user_datasource_vectors(
+        self, user_id: int, datasource_name: str, user_email: str, org_name: str
+    ) -> None:
+        """Delete all vectors for a specific user and datasource from Pinecone.
+
+        Args:
+            user_id (int): The ID of the user whose vectors should be deleted
+            datasource_name (str): The name of the datasource whose vectors should be deleted
+            user_email (str): The email address of the user whose vectors should be deleted
+            org_name (str): The name of the organization to determine the index name
+        """
+        try:
+            # Get the index using the dynamic index name
+            index, _ = self.get_index(
+                org_name=org_name,
+                datasource=datasource_name,
+                environment=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+                env_name=current_app.config["LORELAI_ENVIRONMENT"],
+                version="v1",
+            )
+
+            # Delete vectors where the user's email is in the users list
+            index.delete(
+                filter={
+                    "users": {"$in": [user_email]},
+                }
+            )
+
+            logging.info(
+                f"Successfully deleted vectors for user {user_email} (ID: {user_id}) and \
+datasource {datasource_name} in org {org_name}"
+            )
+
+        except Exception as e:
+            logging.error(
+                f"Error deleting vectors for user {user_email} (ID: {user_id}) and datasource \
+{datasource_name} in org {org_name}: {str(e)}"
+            )
+            raise
+
+
+def delete_user_datasource_vectors(
+    user_id: int, datasource_name: str, user_email: str, org_name: str
+) -> None:
+    """Delete all vectors for a specific user and datasource from Pinecone.
+
+    This is a convenience function that creates a PineconeHelper instance and calls
+    delete_user_datasource_vectors on it.
+
+    Args:
+        user_id (int): The ID of the user whose vectors should be deleted
+        datasource_name (str): The name of the datasource whose vectors should be deleted
+        user_email (str): The email address of the user whose vectors should be deleted
+        org_name (str): The name of the organization to determine the index name
+    """
+    helper = PineconeHelper()
+    helper.delete_user_datasource_vectors(
+        user_id=user_id,
+        datasource_name=datasource_name,
+        user_email=user_email,
+        org_name=org_name,
+    )

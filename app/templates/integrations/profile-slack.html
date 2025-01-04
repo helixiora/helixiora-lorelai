@@ -11,11 +11,9 @@
 
                 {% if slack_auth %}
                     {# Show revoke button if we have an auth record, regardless of channel access #}
-                    <form action="{{ url_for('slack_auth.revoke') }}" method="POST" class="d-inline">
-                        <button type="submit" class="btn btn-danger">
-                            Revoke Slack Access
-                        </button>
-                    </form>
+                    <button type="button" class="btn btn-danger" onclick="revokeSlackAccess()">
+                        Revoke Slack Access
+                    </button>
                     <a href="{{ url_for('indexing.indexing_runs', datasource_type='slack') }}" class="btn btn-info">View Indexing History</a>
 
                     {% if slack_channels %}
@@ -48,3 +46,38 @@
         </div>
     </div>
 </div>
+
+<script>
+async function revokeSlackAccess() {
+    try {
+        const response = await makeAuthenticatedRequest('/api/v1/slack/revoke', 'POST');
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            // Show success message and refresh
+            const flashMessage = document.createElement('div');
+            flashMessage.className = 'alert alert-success';
+            flashMessage.textContent = data.message;
+            document.querySelector('.card-body').insertBefore(flashMessage, document.querySelector('.card-body').firstChild);
+
+            // Refresh the page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Show error message
+            const errorMessage = data.message || data.error || 'Failed to revoke Slack access';
+            const flashMessage = document.createElement('div');
+            flashMessage.className = 'alert alert-danger';
+            flashMessage.textContent = errorMessage;
+            document.querySelector('.card-body').insertBefore(flashMessage, document.querySelector('.card-body').firstChild);
+        }
+    } catch (error) {
+        console.error('Error revoking Slack access:', error);
+        const flashMessage = document.createElement('div');
+        flashMessage.className = 'alert alert-danger';
+        flashMessage.textContent = 'Failed to revoke Slack access: Network error';
+        document.querySelector('.card-body').insertBefore(flashMessage, document.querySelector('.card-body').firstChild);
+    }
+}
+</script>

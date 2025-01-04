@@ -7,7 +7,7 @@ import logging
 from app.helpers.slack import SlackHelper
 from app.models import UserAuth, db, Datasource
 from sqlalchemy.exc import SQLAlchemyError
-from flask_login import login_required, current_user
+from flask_login import login_required
 
 from app.helpers.datasources import DATASOURCE_SLACK
 
@@ -97,27 +97,5 @@ def slack_callback():
     except Exception as e:
         logging.error(f"Error handling callback: {e}")
         flash("An error occurred while authorizing your Slack account. Please try again.", "error")
-
-    return redirect(url_for("auth.profile"))
-
-
-@slack_bp.route("/slack/revoke", methods=["POST"])
-@login_required
-def revoke():
-    """Revoke Slack access and remove auth records."""
-    try:
-        slack_datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
-        if slack_datasource:
-            UserAuth.query.filter_by(
-                user_id=current_user.id, datasource_id=slack_datasource.datasource_id
-            ).delete()
-            db.session.commit()
-            flash("Slack integration has been revoked.", "success")
-        else:
-            flash("Slack integration not found.", "error")
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logging.error(f"Database error while revoking Slack access: {e}")
-        flash("An error occurred while revoking Slack access.", "error")
 
     return redirect(url_for("auth.profile"))
