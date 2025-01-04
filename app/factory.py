@@ -71,6 +71,15 @@ def create_app(config_name: str = "default") -> Flask:
     # (among possible others the unstructured library uses to track usage)
     os.environ["SCARF_NO_ANALYTICS"] = "true"
 
+    # Configure logging
+    log_level = os.environ.get("LOG_LEVEL", "INFO")
+    print(f"Setting log level to: {log_level}")  # Temporary debug print
+    logging.basicConfig(
+        level=getattr(logging, log_level),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logging.getLogger().setLevel(getattr(logging, log_level))
+
     # this is a print on purpose (not a logger statement) to show that the app is loading
     # get the git commit hash, branch name and first line of the commit message and print it out
     print("Loading the app...")

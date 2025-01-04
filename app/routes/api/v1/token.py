@@ -8,7 +8,7 @@ from flask_jwt_extended import (
     create_refresh_token,
 )
 from flask_restx import Namespace, Resource
-from flask import request, session
+from flask import session
 
 token_ns = Namespace("token", description="Token operations")
 
@@ -33,7 +33,6 @@ class TokenRefresh(Resource):
         try:
             current_user = get_jwt_identity()
             logging.info("[Token Refresh] Refreshing tokens for user %s", current_user)
-            logging.debug("[Token Refresh] Request headers: %s", request.headers)
 
             new_access_token = create_access_token(identity=str(current_user))
             new_refresh_token = create_refresh_token(identity=str(current_user))
