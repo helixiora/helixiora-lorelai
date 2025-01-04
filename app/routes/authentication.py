@@ -121,13 +121,21 @@ def profile():
         profile = Profile.query.filter_by(user_id=current_user.id).first()
 
         if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
-            google_drive_tokens = get_token_details(current_user.id)
-            google_drive_access_token = google_drive_tokens.access_token
-            google_docs_to_index = GoogleDriveItem.query.filter_by(user_id=current_user.id).all()
-            logging.info(
-                "Google Drive feature is enabled. Found %s items to index.",
-                len(google_docs_to_index),
-            )
+            try:
+                google_drive_tokens = get_token_details(current_user.id)
+                google_drive_access_token = google_drive_tokens.access_token
+                google_docs_to_index = GoogleDriveItem.query.filter_by(
+                    user_id=current_user.id
+                ).all()
+                logging.info(
+                    "Google Drive feature is enabled. Found %s items to index.",
+                    len(google_docs_to_index),
+                )
+            except ValueError:
+                logging.info("User %s has not connected Google Drive yet", current_user.id)
+                google_docs_to_index = None
+                google_drive_tokens = None
+                google_drive_access_token = None
         else:
             logging.warning("Google Drive feature is disabled.")
             google_docs_to_index = None

@@ -48,27 +48,19 @@ def get_token_details(user_id: int) -> TokenDetailsResponse:
         Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
     )
 
-    access_token = (
-        UserAuth.query.filter_by(
-            user_id=user_id, datasource_id=datasource_id, auth_key="access_token"
-        )
-        .first()
-        .auth_value
-    )
-    refresh_token = (
-        UserAuth.query.filter_by(
-            user_id=user_id, datasource_id=datasource_id, auth_key="refresh_token"
-        )
-        .first()
-        .auth_value
-    )
-    expires_at = (
-        UserAuth.query.filter_by(
-            user_id=user_id, datasource_id=datasource_id, auth_key="expires_at"
-        )
-        .first()
-        .auth_value
-    )
+    access_token_auth = UserAuth.query.filter_by(
+        user_id=user_id, datasource_id=datasource_id, auth_key="access_token"
+    ).first()
+    refresh_token_auth = UserAuth.query.filter_by(
+        user_id=user_id, datasource_id=datasource_id, auth_key="refresh_token"
+    ).first()
+    expires_at_auth = UserAuth.query.filter_by(
+        user_id=user_id, datasource_id=datasource_id, auth_key="expires_at"
+    ).first()
+
+    access_token = access_token_auth.auth_value if access_token_auth else None
+    refresh_token = refresh_token_auth.auth_value if refresh_token_auth else None
+    expires_at = expires_at_auth.auth_value if expires_at_auth else None
 
     if not access_token or not refresh_token:
         raise ValueError("Missing required Google Drive authentication tokens")

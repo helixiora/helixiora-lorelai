@@ -6,8 +6,6 @@ let pickerInited = false;
 let gisInited = false;
 
 document.getElementById('authorize_button').disabled = true;
-document.getElementById('signout_button').disabled = true;
-document.getElementById('select_button').disabled = true;
 
 async function gapiLoaded() {
     gapi.load('client:picker', initializePicker);
@@ -38,14 +36,17 @@ async function gisLoaded() {
 async function maybeEnableButtons() {
     if (pickerInited && gisInited) {
         document.getElementById('authorize_button').disabled = false;
-        if (accessToken) {
+        // Check if we have a google_drive_access_token in the page data
+        const hasGoogleDriveAccess = typeof google_drive_access_token !== 'undefined' && google_drive_access_token !== null;
+
+        if (hasGoogleDriveAccess) {
             document.getElementById('authorize_button').innerText = 'Refresh';
-            document.getElementById('signout_button').disabled = false;
-            document.getElementById('select_button').disabled = false;
+            document.getElementById('signout_button').classList.remove('d-none');
+            document.getElementById('select_button').classList.remove('d-none');
         } else {
             document.getElementById('authorize_button').innerText = 'Authorize';
-            document.getElementById('signout_button').disabled = true;
-            document.getElementById('select_button').disabled = true;
+            document.getElementById('signout_button').classList.add('d-none');
+            document.getElementById('select_button').classList.add('d-none');
         }
     }
 }
@@ -60,6 +61,7 @@ function handleSignoutClick() {
                 }
                 google.accounts.oauth2.revoke(accessToken);
                 accessToken = null;
+                google_drive_access_token = null;
                 maybeEnableButtons();
             })
             .catch(error => {

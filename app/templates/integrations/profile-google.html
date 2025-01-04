@@ -2,6 +2,12 @@
 <div id="card-integration-google-drive" class="card mb-2 mt-2">
     <h5 class="card-header h5">Google Drive</h5>
     <div class="card-body">
+        <script>
+            var google_drive_access_token = "{{ google_drive_access_token if google_drive_access_token else 'null' }}";
+            if (google_drive_access_token === "null") {
+                google_drive_access_token = null;
+            }
+        </script>
         <div class="row">
             <div id="google-drive-integration" class="col-md-4">
                 <img src="{{ url_for('static', filename='img/google_drive.png') }}" alt="Google Drive Integration" class="img-fluid mb-3">
@@ -12,8 +18,8 @@
                 <h5 class="card-title h5">Actions:</h5>
                 <p>Use the following buttons to authorize Lorelai to index specific Google Drive files and folders:</p>
                 <button class="btn btn-primary" id="authorize_button" onclick="codeClient.requestCode()">Authorize</button>
-                <button class="btn btn-secondary" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
-                <button class="btn btn-secondary" id="select_button" onclick="createPicker()">Select Folders/Documents</button>
+                <button class="btn btn-secondary d-none" id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
+                <button class="btn btn-secondary d-none" id="select_button" onclick="createPicker()">Select Folders/Documents</button>
                 <a href="{{ url_for('indexing.indexing_runs', datasource_type='google_drive') }}" class="btn btn-info">View Indexing History</a>
 
                 <h5 class="card-title h5 mt-4">Documents Indexed:</h5>
