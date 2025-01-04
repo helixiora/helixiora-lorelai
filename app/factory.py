@@ -350,9 +350,11 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
     @jwt.expired_token_loader
     def custom_expired_token_response(jwt_header, jwt_payload):
         """Handle expired token."""
-        token = jwt_header.get("Authorization")
         logging.error(
-            "Expired token for user: %s, token: %s", jwt_payload.get("sub", "unknown"), token
+            "Expired token for user: %s, jwt_payload: %s, jwt_header: %s",
+            jwt_payload.get("sub", "unknown"),
+            jwt_payload,
+            jwt_header,
         )
         return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
 

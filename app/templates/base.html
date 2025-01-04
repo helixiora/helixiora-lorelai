@@ -75,6 +75,29 @@
     <!-- DataTables JS needs to be loaded after jQuery -->
     <script src="https://cdn.datatables.net/2.1.3/js/dataTables.min.js"></script>
 
+    <!-- Token setup needs to happen before any authenticated requests -->
+    <script>
+        const initialAccessToken = "{{ session['lorelai_jwt.access_token'] }}";
+        const initialRefreshToken = "{{ session['lorelai_jwt.refresh_token'] }}";
+
+        if (initialAccessToken && initialRefreshToken) {
+            // Check if access token is expired before storing
+            try {
+                const payload = JSON.parse(atob(initialAccessToken.split('.')[1]));
+                const currentTime = Math.floor(Date.now() / 1000);
+                const isExpired = currentTime >= payload.exp;
+
+                if (!isExpired) {
+                    localStorage.setItem('lorelai_jwt_access_token', initialAccessToken);
+                    localStorage.setItem('lorelai_jwt_refresh_token', initialRefreshToken);
+                }
+            } catch (error) {
+                console.error('[Token Setup] Error checking token expiration:', error);
+            }
+        }
+
+    </script>
+
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
