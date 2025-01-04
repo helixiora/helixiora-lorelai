@@ -3,10 +3,10 @@
     <h5 class="card-header h5">Google Drive</h5>
     <div class="card-body">
         <script>
-            var google_drive_access_token = "{{ google_drive_access_token if google_drive_access_token else 'null' }}";
-            if (google_drive_access_token === "null") {
-                google_drive_access_token = null;
-            }
+            const CLIENT_ID = '{{ config["GOOGLE_CLIENT_ID"] }}';
+            const API_KEY = '{{ config["GOOGLE_API_KEY"] }}';
+            const APP_ID = '{{ config["GOOGLE_APP_ID"] }}';
+            window.accessToken = '{{ google_drive_access_token }}' || null;
         </script>
         <div class="row">
             <div id="google-drive-integration" class="col-md-4">
@@ -31,6 +31,7 @@
                                 <th scope="col" class="align-middle">Name</th>
                                 <th scope="col" class="align-middle">Type</th>
                                 <th scope="col" class="align-middle">Last Indexed</th>
+                                <th scope="col" class="align-middle text-center" style="width: 50px;">Info</th>
                                 <th scope="col" class="align-middle">Actions</th>
                             </tr>
                         </thead>
@@ -41,13 +42,19 @@
                                     <div class="d-flex align-items-center">
                                         <img src="{{ doc.icon_url }}" alt="Google Drive Icon" class="me-2" style="width: 20px; height: 20px; object-fit: contain;">
                                         <span>{{ doc.item_name }}</span>
-                                        <span class="info-icon" data-bs-toggle="tooltip" title="Google Docs ID: {{ doc.google_drive_id }}">
-                                            &nbsp;<i class="bi bi-info-circle"></i>
-                                        </span>
+                                        {% if doc.parent_item_id %}
+                                            <span class="ms-2 badge bg-info">From folder</span>
+                                        {% endif %}
                                     </div>
                                 </td>
                                 <td class="align-middle">{{ doc.item_type }}</td>
                                 <td class="align-middle">{{ doc.last_indexed_at }}</td>
+                                <td class="align-middle text-center">
+                                    <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="left"
+                                          title="{% if doc.parent_item_id %}Included from parent folder. {% endif %}Google Docs ID: {{ doc.google_drive_id }}">
+                                        <i class="bi bi-info-circle-fill text-primary fs-5"></i>
+                                    </span>
+                                </td>
                                 <td class="align-middle">
                                     <div class="btn-group" role="group">
                                         <button class="btn btn-outline-danger btn-sm" onclick="removeDocument('{{ doc.google_drive_id }}')">Remove</button>
@@ -65,11 +72,23 @@
     </div>
 </div>
 
-<script>
-    const CLIENT_ID = '{{ config["GOOGLE_CLIENT_ID"] }}';
-    const API_KEY = '{{ config["GOOGLE_API_KEY"] }}';
-    const APP_ID = '{{ config["GOOGLE_APP_ID"] }}';
-    let accessToken = '{{ google_drive_access_token if google_drive_access_token else null }}';
+<script type="text/javascript">
+    window.google_drive_access_token = '{{ google_drive_access_token|default("null")|safe }}';
+</script>
+<script type="text/javascript">
+    function initTooltips() {
+        var tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(function(el) {
+            new bootstrap.Tooltip(el);
+        });
+    }
+    function init() {
+        if (typeof maybeEnableButtons === 'function') {
+            maybeEnableButtons();
+        }
+        initTooltips();
+    }
+    window.addEventListener('DOMContentLoaded', init);
 </script>
 <script src="{{ url_for('static', filename='js/google-drive-integration.js') }}"></script>
 <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>

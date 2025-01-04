@@ -227,7 +227,7 @@ def save_tokens_to_db(flow, user_id):
     logging.debug(f"Expires at: {expires_at}")
 
     try:
-        datasource = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first()
+        datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
         if not datasource:
             raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db")
 

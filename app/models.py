@@ -149,8 +149,10 @@ class IndexingRunItem(db.Model):
     item_error = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    parent_item_id = db.Column(db.Integer, db.ForeignKey("indexing_run_items.id"), nullable=True)
 
     indexing_run = db.relationship("IndexingRun", back_populates="items")
+    parent_item = db.relationship("IndexingRunItem", remote_side=[id], backref="child_items")
 
     def __repr__(self):
         """Return a string representation of the indexing run item."""

@@ -30,7 +30,7 @@ from app.models import IndexingRunItem, db, Datasource
 class SlackIndexer(Indexer):
     """Retrieves, processes, and loads Slack messages into Pinecone."""
 
-    def get_datasource(self) -> Datasource:
+    def _get_datasource(self) -> Datasource:
         """Get the datasource for this indexer."""
         return Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
 
@@ -42,6 +42,9 @@ class SlackIndexer(Indexer):
             email (str): The user's email.
             org_name (str): The organisation name.
         """
+        # Initialize base class first
+        super().__init__()
+
         # load API keys
         os.environ["OPENAI_API_KEY"] = current_app.config["OPENAI_API_KEY"]
 
@@ -55,6 +58,9 @@ class SlackIndexer(Indexer):
             raise ValueError(
                 f"Could not find embedding dimension for model '{self.embedding_model_name}'"
             )
+
+        # Initialize datasource after base class initialization
+        self.datasource = self._get_datasource()
 
     def add_embedding(
         self, embedding_model_name: str, messages_dict_list: list[dict]

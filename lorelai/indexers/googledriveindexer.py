@@ -34,13 +34,14 @@ ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 class GoogleDriveIndexer(Indexer):
     """Used to process the Google Drive documents and index them in Pinecone."""
 
-    def __get_datasource(self) -> Datasource:
+    def _get_datasource(self) -> Datasource:
         """Get the datasource for this indexer."""
         return Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
 
     def __init__(self) -> None:
         logging.debug("GoogleDriveIndexer initialized")
-        self.datasource = self.__get_datasource()
+        super().__init__()
+        self.datasource = self._get_datasource()
 
     def __validate_input(self, indexing_run: IndexingRunSchema) -> IndexingRun:
         """Validate input parameters and get the database model.
@@ -115,6 +116,7 @@ class GoogleDriveIndexer(Indexer):
         credentials_object: credentials.Credentials,
     ) -> list[dict]:
         """Process Google Drive items and create indexing run items."""
+        # Get root items (directly selected by user)
         drive_items = GoogleDriveItem.query.filter_by(user_id=user_id)
         user_data = [GoogleDriveItemSchema.from_orm(data) for data in drive_items]
 
@@ -143,6 +145,18 @@ class GoogleDriveIndexer(Indexer):
                         f"Found folder {drive_item.item_name}, recursively loaded \
 {len(documents_from_folder)} items"
                     )
+                    # Add folder itself to documents list
+                    documents.append(
+                        {
+                            "user_id": user_id,
+                            "google_drive_id": drive_item.google_drive_id,
+                            "item_type": "folder",
+                            "item_name": drive_item.item_name,
+                            "mime_type": "application/vnd.google-apps.folder",
+                            "indexing_run_item_id": indexing_run_item.id,
+                        }
+                    )
+                    # Add all files from folder to documents list
                     documents.extend(documents_from_folder)
 
                     # Update folder status
@@ -336,6 +350,7 @@ class GoogleDriveIndexer(Indexer):
         """
         if processed_folders is None:
             processed_folders = set()
+            logging.info(f"Starting recursive folder traversal from root folder: {folder_id}")
 
         if folder_id in processed_folders:
             logging.warning(
@@ -344,6 +359,7 @@ class GoogleDriveIndexer(Indexer):
             return []
 
         processed_folders.add(folder_id)
+        logging.info(f"Processing folder {folder_id}")
 
         try:
             service = build("drive", "v3", credentials=credentials_object)
@@ -353,6 +369,9 @@ class GoogleDriveIndexer(Indexer):
             while True:
                 # List all files and folders in the current folder
                 query = f"'{folder_id}' in parents and trashed = false"
+                logging.debug(f"Querying Google Drive with: {query}")
+
+                # Now do the regular query for all items
                 response = (
                     service.files()
                     .list(
@@ -367,9 +386,15 @@ class GoogleDriveIndexer(Indexer):
                 )
 
                 items = response.get("files", [])
-
+                logging.info(f"Found {len(items)} items in folder {folder_id}")
+                logging.info(f"Raw response from Google Drive API: {response}")
                 for item in items:
+                    logging.info(
+                        f"Item details - Name: {item['name']}, Type: {item['mimeType']}, ID: \
+{item['id']}"
+                    )
                     if item["mimeType"] == "application/vnd.google-apps.folder":
+                        logging.info(f"Found subfolder: {item['name']} ({item['id']})")
                         # Create indexing run item for subfolder
                         subfolder_item = IndexingRunItem(
                             indexing_run_id=indexing_run_model.id,
@@ -383,13 +408,32 @@ class GoogleDriveIndexer(Indexer):
                         db.session.add(subfolder_item)
                         db.session.commit()
 
+                        # Add the subfolder itself to results
+                        folder = {
+                            "user_id": indexing_run_model.user_id,
+                            "google_drive_id": item["id"],
+                            "item_type": "folder",
+                            "item_name": item["name"],
+                            "mime_type": item["mimeType"],
+                            "indexing_run_item_id": subfolder_item.id,
+                        }
+                        results.append(folder)
+
                         # Recursively process subfolders
+                        logging.info(
+                            f"Starting recursive processing of subfolder: {item['name']} \
+({item['id']})"
+                        )
                         subfolder_items = self.__list_files_in_folder(
                             folder_id=item["id"],
                             credentials_object=credentials_object,
                             indexing_run_model=indexing_run_model,
                             indexing_run_item_id=subfolder_item.id,
                             processed_folders=processed_folders,
+                        )
+                        logging.info(
+                            f"Finished processing subfolder {item['name']}, found \
+{len(subfolder_items)} items"
                         )
                         results.extend(subfolder_items)
 
@@ -400,6 +444,7 @@ class GoogleDriveIndexer(Indexer):
                         )
                         db.session.commit()
                     else:
+                        logging.info(f"Found file: {item['name']} ({item['id']})")
                         # Create indexing run item for file
                         file_item = IndexingRunItem(
                             indexing_run_id=indexing_run_model.id,
@@ -428,6 +473,9 @@ class GoogleDriveIndexer(Indexer):
                 if not page_token:
                     break
 
+            logging.info(
+                f"Completed processing folder {folder_id}, total items found: {len(results)}"
+            )
             return results
 
         except Exception as e:
@@ -624,9 +672,19 @@ class GoogleDriveIndexer(Indexer):
                             doc_google_drive_id, credentials_object, indexing_run
                         )
                     case "application/vnd.google-apps.folder":
-                        docs_loaded = self.load_google_doc_from_folder_id(
-                            doc_google_drive_id, credentials_object, indexing_run
+                        # Skip folders as they are already processed by __list_files_in_folder
+                        logging.info(
+                            f"Skipping folder {doc_google_drive_id} as its contents are already \
+processed"
                         )
+                        docs_loaded = []
+                        # Mark the folder item as completed
+                        indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
+                        if indexing_run_item:
+                            indexing_run_item.item_status = "completed"
+                            indexing_run_item.item_error = "Folder contents already processed"
+                            db.session.commit()
+                        continue
 
                     # Microsoft Office files
                     case mime if mime in [

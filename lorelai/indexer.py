@@ -50,8 +50,8 @@ class Indexer:
         """Retrieve the name of the indexer."""
         return self.__class__.__name__
 
-    def get_datasource(self) -> Datasource:
-        """Get the datasource for this indexer."""
+    def _get_datasource(self) -> Datasource:
+        """Get the datasource for this indexer. Must be implemented by derived classes."""
         raise NotImplementedError
 
     def index_org(
@@ -91,7 +91,7 @@ class Indexer:
 
         for user in users:
             # Get the datasource ID based on the indexer type
-            datasource = self.get_datasource()
+            datasource = self._get_datasource()
             if not datasource:
                 logging.error("Could not find datasource for this Indexer class")
                 continue
@@ -109,16 +109,11 @@ class Indexer:
 
             try:
                 # get the user auth rows for this user
-                logging.debug(f"Filtering auth rows for user {user.email} (id: {user.id})")
-                logging.debug(f"Available auth rows before filtering: {len(user_auths)}")
                 user_auth_rows_filtered = [
                     user_auth_row
                     for user_auth_row in user_auths
                     if str(user_auth_row.user_id) == str(user.id)
                 ]
-                logging.debug(f"Auth rows after filtering: {len(user_auth_rows_filtered)}")
-                logging.debug(f"Auth row user_ids: {[ua.user_id for ua in user_auths]}")
-
                 if not user_auth_rows_filtered or len(user_auth_rows_filtered) == 0:
                     logging.error(f"No auth rows found for user {user.email} (id: {user.id})")
                     indexing_run.status = "completed"

@@ -5,7 +5,15 @@ let authorizationCode = null;
 let pickerInited = false;
 let gisInited = false;
 
+// Global variables
+let accessToken = null;
+
 document.getElementById('authorize_button').disabled = true;
+
+// Check button state when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    maybeEnableButtons();
+});
 
 async function gapiLoaded() {
     gapi.load('client:picker', initializePicker);
@@ -36,8 +44,8 @@ async function gisLoaded() {
 async function maybeEnableButtons() {
     if (pickerInited && gisInited) {
         document.getElementById('authorize_button').disabled = false;
-        // Check if we have a google_drive_access_token in the page data
-        const hasGoogleDriveAccess = typeof google_drive_access_token !== 'undefined' && google_drive_access_token !== null;
+        // Check if we have an access token in the page data
+        const hasGoogleDriveAccess = typeof accessToken !== 'undefined' && accessToken !== 'null' && accessToken !== null;
 
         if (hasGoogleDriveAccess) {
             document.getElementById('authorize_button').innerText = 'Refresh';
@@ -51,22 +59,36 @@ async function maybeEnableButtons() {
     }
 }
 
-function handleSignoutClick() {
-    if (accessToken) {
-        makeAuthenticatedRequest('/api/v1/googledrive/revoke', 'POST')
-            .then(async response => {
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.msg || 'Revoke failed');
-                }
-                google.accounts.oauth2.revoke(accessToken);
-                accessToken = null;
-                google_drive_access_token = null;
-                maybeEnableButtons();
-            })
-            .catch(error => {
-                console.error('Signout error:', error);
-            });
+// Function to handle sign-out
+async function handleSignoutClick() {
+    if (window.accessToken) {
+        try {
+            // Use JWT token for API request, not the Google Drive access token
+            const response = await makeAuthenticatedRequest('/api/v1/googledrive/revoke', 'POST');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.msg || 'Revoke failed');
+            }
+            try {
+                // Use the Google Drive access token for Google's revocation
+                await google.accounts.oauth2.revoke(window.accessToken);
+            } catch (e) {
+                console.warn('Could not revoke token with Google:', e);
+            }
+            // Reset the Google Drive access token
+            window.accessToken = null;
+            // Update UI
+            document.getElementById('authorize_button').innerText = 'Authorize';
+            document.getElementById('signout_button').classList.add('d-none');
+            document.getElementById('select_button').classList.add('d-none');
+            // Reload page to reset state
+            location.reload();
+        } catch (error) {
+            console.error('Signout error:', error);
+            alert('Failed to sign out: ' + error.message);
+        }
+    } else {
+        console.warn('No access token available for sign out');
     }
 }
 
