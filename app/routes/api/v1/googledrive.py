@@ -5,9 +5,10 @@ from flask import session, request
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
-from app.models import db, UserAuth, Datasource, GoogleDriveItem
+from app.models import db, UserAuth, Datasource, GoogleDriveItem, User
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from flask_jwt_extended import jwt_required
+from lorelai.pinecone import delete_user_datasource_vectors
 
 googledrive_ns = Namespace("googledrive", description="Google Drive operations")
 
@@ -39,14 +40,28 @@ class RevokeAccess(Resource):
             return {"error": "User not logged in or session expired"}, 401
 
         try:
+            # Get user and organization info
+            user = User.query.get(user_id)
+            if not user:
+                return {"error": "User not found"}, 404
+
             datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
             if not datasource:
                 raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} missing from datasource table")
 
+            # Delete database records
             UserAuth.query.filter_by(
                 user_id=user_id, datasource_id=datasource.datasource_id
             ).delete()
             GoogleDriveItem.query.filter_by(user_id=user_id).delete()
+
+            # Delete vectors from Pinecone
+            delete_user_datasource_vectors(
+                user_id=user_id,
+                datasource_name=DATASOURCE_GOOGLE_DRIVE,
+                user_email=user.email,
+                org_name=user.organisation.name,
+            )
 
             db.session.commit()
             return {"status": "success", "message": "User deauthorized from Google Drive"}
@@ -54,6 +69,9 @@ class RevokeAccess(Resource):
         except SQLAlchemyError as e:
             db.session.rollback()
             return {"error": f"Database error: {str(e)}"}, 500
+        except Exception as e:
+            db.session.rollback()
+            return {"error": f"Error during revocation: {str(e)}"}, 500
 
 
 @googledrive_ns.route("/processfilepicker", doc=False)

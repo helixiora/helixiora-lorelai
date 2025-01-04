@@ -234,12 +234,16 @@ class PineconeHelper:
     def delete_user_datasource_vectors(
         self, user_id: int, datasource_name: str, user_email: str, org_name: str
     ) -> None:
-        """Delete all vectors for a specific user and datasource from Pinecone.
+        """Delete or update vectors for a specific user and datasource from Pinecone.
+
+        If the user is the only one in the users list, the vector is deleted.
+        If there are other users, the user is removed from the users list.
 
         Args:
-            user_id (int): The ID of the user whose vectors should be deleted
-            datasource_name (str): The name of the datasource whose vectors should be deleted
-            user_email (str): The email address of the user whose vectors should be deleted
+            user_id (int): The ID of the user whose vectors should be deleted/updated
+            datasource_name (str): The name of the datasource whose vectors should be
+            deleted/updated
+            user_email (str): The email address of the user whose vectors should be deleted/updated
             org_name (str): The name of the organization to determine the index name
         """
         try:
@@ -252,21 +256,42 @@ class PineconeHelper:
                 version="v1",
             )
 
-            # Delete vectors where the user's email is in the users list
-            index.delete(
-                filter={
-                    "users": {"$in": [user_email]},
-                }
+            # First, find all vectors where this user's email is in the users list
+            vector_query = index.query(
+                vector=[0.0]
+                * int(
+                    current_app.config["PINECONE_DIMENSION"]
+                ),  # dummy vector for metadata filtering
+                filter={"users": {"$in": [user_email]}},
+                top_k=10000,  # adjust if needed
+                include_metadata=True,
             )
 
+            vectors_to_delete = []
+            for match in vector_query.matches:
+                users = match.metadata.get("users", [])
+                if len(users) == 1 and users[0] == user_email:
+                    # This is the only user, delete the vector
+                    vectors_to_delete.append(match.id)
+                else:
+                    # Remove the user from the users list
+                    users.remove(user_email)
+                    index.update(id=match.id, set_metadata={"users": users})
+
+            # Delete vectors where this was the only user
+            if vectors_to_delete:
+                index.delete(ids=vectors_to_delete)
+
             logging.info(
-                f"Successfully deleted vectors for user {user_email} (ID: {user_id}) and \
-datasource {datasource_name} in org {org_name}"
+                f"Successfully processed vectors for user {user_email} (ID: {user_id}) and \
+datasource {datasource_name} in org {org_name}. "
+                f"Deleted {len(vectors_to_delete)} vectors and updated users list in remaining \
+vectors."
             )
 
         except Exception as e:
             logging.error(
-                f"Error deleting vectors for user {user_email} (ID: {user_id}) and datasource \
+                f"Error processing vectors for user {user_email} (ID: {user_id}) and datasource \
 {datasource_name} in org {org_name}: {str(e)}"
             )
             raise
