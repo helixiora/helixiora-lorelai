@@ -35,14 +35,8 @@ class SlackIndexer(Indexer):
         return Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
 
     def __init__(self) -> None:
-        """
-        Initialize the SlackIndexer class with required parameters and API keys.
-
-        Args:
-            email (str): The user's email.
-            org_name (str): The organisation name.
-        """
-        # Initialize base class first
+        """Initialize the SlackIndexer class."""
+        logging.debug("SlackIndexer initialized")
         super().__init__()
 
         # load API keys
@@ -132,13 +126,7 @@ class SlackIndexer(Indexer):
         indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
     ) -> None:
-        """
-        Process Slack messages, generate embeddings, and load them into Pinecone.
-
-        Args:
-            channel_id (str, optional): The ID of a specific Slack channel to process.
-            Defaults to None.
-        """
+        """Process Slack messages, generate embeddings, and load them into Pinecone."""
         if not user_auths or len(user_auths) == 0:
             logging.error(f"No Slack user auths found for user {indexing_run.user.email}")
             return
@@ -157,21 +145,22 @@ class SlackIndexer(Indexer):
             raise ValueError("Slack token is invalid")
 
         # get the list of channels
-        channel_ids_dict = slack.get_accessible_channels(only_joined=True)
+        channels_dict = slack.get_accessible_channels(only_joined=True)
 
-        if not channel_ids_dict:
+        if not channels_dict:
             logging.info("No channels found for the user")
             return
 
         # Process each channel
-        for channel_id, channel_name in channel_ids_dict.items():
+        for channel_id, channel_info in channels_dict.items():
+            indexing_run_item = None  # Initialize outside try block
             try:
                 indexing_run_item = IndexingRunItem(
                     indexing_run_id=indexing_run.id,
                     item_id=channel_id,
                     item_type="channel",
-                    item_name=channel_name,
-                    item_url=f"https://app.slack.com/client/{slack.get_workspace_id()}/{channel_id}",
+                    item_name=channel_info["name"],
+                    item_url=channel_info["link"],
                     item_status="pending",
                 )
                 db.session.add(indexing_run_item)
@@ -180,39 +169,37 @@ class SlackIndexer(Indexer):
                 # 1. get all messages from the channel
                 channel_chat_history = slack.get_messages_from_channel(
                     channel_id=channel_id,
-                    channel_name=channel_name,
+                    channel_name=channel_info["name"],
                     user_email=indexing_run.user.email,
                 )
 
                 if not channel_chat_history:
-                    logging.info(f"No messages found for channel {channel_id} {channel_name}")
+                    logging.info(
+                        f"No messages found for channel {channel_id} {channel_info['name']}"
+                    )
                     indexing_run_item.item_status = "completed"  # Mark as completed even if empty
                     indexing_run_item.item_error = "No messages found in channel"
                     db.session.commit()
                     continue
 
                 # 2. divide the messages into chunks with overlap
-                # TODO: check the size in bytes of the channel_chat_history
                 messages = slack.chunk_and_merge_metadata(
                     lst=channel_chat_history,
                     word_limit=1500,
                     word_overlap=600,
                     channel_id=channel_id,
-                    channel_name=channel_name,
+                    channel_name=channel_info["name"],
                 )
 
                 # 3. Process in Batch to adhere to pinecone and OpenAI api size limit
                 total_items = len(messages)
-                # Process in Batch
                 batch_size = 1
-                total_items = len(messages)
                 logging.info(
                     f"Getting Embeds and Inserting to DB for {total_items} messages in batches \
 batch_size: {batch_size}, total messages: {total_items}"
                 )
 
-                # now doing without size as just batch with 1 element
-                # TODO find accurate size then do size
+                # Process each batch
                 for start_idx in range(0, total_items, batch_size):
                     end_idx = min(start_idx + batch_size, total_items)
                     batch = messages[start_idx:end_idx]
@@ -220,7 +207,6 @@ batch_size: {batch_size}, total messages: {total_items}"
                     if batch:  # Only process if the batch is not empty
                         logging.info(f"processing batch {start_idx} to {end_idx} of {total_items} ")
                         logging.info("Creating embeds for batch for current batch")
-                        # TODO: parameters ??!!
                         batch = self.add_embedding(self.embedding_model_name, batch)
 
                         logging.info("Loading to pinecone for current batch")
@@ -231,7 +217,8 @@ batch_size: {batch_size}, total messages: {total_items}"
 
                         logging.info(f"Completed batch {start_idx} to {end_idx} of {total_items}")
                 logging.info(
-                    f"Completed indexing for channel {channel_name} with channel_id {channel_id}"
+                    f"Completed indexing for channel {channel_info['name']} with channel_id \
+{channel_id}"
                 )
 
                 # Update status after successful processing of THIS channel
@@ -239,14 +226,17 @@ batch_size: {batch_size}, total messages: {total_items}"
                 db.session.commit()
 
             except Exception as e:
-                indexing_run_item.item_status = "failed"
-                indexing_run_item.item_error = str(e)
-                db.session.commit()
-                logging.error(f"Error processing channel {channel_name}: {str(e)}")
+                logging.error(
+                    f"Error processing channel \
+{channel_info['name'] if channel_info else channel_id}: {str(e)}"
+                )
+                if indexing_run_item:  # Only update if it was created
+                    indexing_run_item.item_status = "failed"
+                    indexing_run_item.item_error = str(e)
+                    db.session.commit()
                 continue  # Continue with next channel instead of raising
 
         logging.info(
             f"Slack Indexer ran successfully for org {indexing_run.organisation.name}, by user \
 {indexing_run.user.email}"
         )
-        return

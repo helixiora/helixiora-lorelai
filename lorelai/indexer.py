@@ -83,19 +83,21 @@ class Indexer:
         """
         logging.debug(f"Indexing org: {organisation.name}")
         logging.debug(f"Users: {[user.email for user in users]}")
-        logging.debug(f"User auths: {user_auths}")
+        logging.debug(
+            f"User auths for datasource {self._get_datasource().datasource_name}: {user_auths}"
+        )
 
         if job:
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
             logging.info("Indexing %s: %s", self.get_indexer_name(), job.id)
 
-        for user in users:
-            # Get the datasource ID based on the indexer type
-            datasource = self._get_datasource()
-            if not datasource:
-                logging.error("Could not find datasource for this Indexer class")
-                continue
+        # Get the datasource ID based on the indexer type
+        datasource = self._get_datasource()
+        if not datasource:
+            logging.error("Could not find datasource for this Indexer class")
+            return
 
+        for user in users:
             # create a new indexing run in the database, this is used for logging and tracking
             indexing_run = IndexingRun(
                 rq_job_id=job.id,
@@ -108,16 +110,22 @@ class Indexer:
             db.session.commit()
 
             try:
-                # get the user auth rows for this user
+                # get the user auth rows for this user and datasource
                 user_auth_rows_filtered = [
                     user_auth_row
                     for user_auth_row in user_auths
                     if str(user_auth_row.user_id) == str(user.id)
+                    and str(user_auth_row.datasource_id) == str(datasource.datasource_id)
                 ]
                 if not user_auth_rows_filtered or len(user_auth_rows_filtered) == 0:
-                    logging.error(f"No auth rows found for user {user.email} (id: {user.id})")
+                    logging.info(
+                        f"No auth rows found for user {user.email} (id: {user.id}) for datasource \
+{datasource.datasource_name}"
+                    )
                     indexing_run.status = "completed"
-                    indexing_run.error = "No auth rows found for user"
+                    indexing_run.error = (
+                        f"No auth rows found for user for datasource {datasource.datasource_name}"
+                    )
                     db.session.commit()
                     continue
 

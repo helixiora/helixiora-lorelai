@@ -53,7 +53,17 @@ def slack_callback():
             flash("Error: Failed to get authorization from Slack.", "error")
             return redirect(url_for("auth.profile"))
 
-        access_token = auth_data["access_token"]
+        # Log full auth data for debugging (excluding sensitive info)
+        debug_data = {k: v for k, v in auth_data.items() if k not in ["access_token"]}
+        logging.info(f"Auth response data: {debug_data}")
+
+        # Use bot token if available, otherwise use user token
+        access_token = auth_data.get("bot_token") or auth_data.get("access_token")
+        if auth_data.get("bot_token"):
+            logging.info("Using bot token for authentication")
+        else:
+            logging.info("Using user token for authentication (bot token not found)")
+
         logging.info(f"Access token: {len(access_token)} characters")
         team_name = auth_data["team_name"]
         team_id = auth_data["team_id"]

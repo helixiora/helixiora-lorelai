@@ -55,10 +55,75 @@ class SlackHelper:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
+        # Get workspace info from auth.test
+        auth_test_url = "https://slack.com/api/auth.test"
+        auth_data = SlackHelper.slack_api_call(url=auth_test_url, session=self.session, params={})
+        if not auth_data or not auth_data.get("ok"):
+            logging.error("Failed to get team info from auth.test")
+            raise ValueError("Failed to get team info from Slack")
+
+        self.team_domain = auth_data.get("team")
+        self.team_id = auth_data.get("team_id")
+
         self.userid_name_dict = self.get_userid_name()
 
         if not self.datasource:
             raise ValueError(f"{DATASOURCE_SLACK} is missing from datasource table in db")
+
+    def get_workspace_id(self) -> str:
+        """Get the Slack workspace ID."""
+        return self.team_id
+
+    def get_accessible_channels(self, only_joined: bool = True) -> dict[str, dict]:
+        """
+        Retrieve and return a dictionary mapping channel IDs to channel info from Slack.
+
+        Since there is one bot per Slack workspace, this shows all channels that any user
+        has added the bot to.
+
+        Args:
+            only_joined (bool): If True, only return channels the bot has been invited to.
+                              If False, return all visible channels. Defaults to True.
+
+        Returns
+        -------
+            dict: A dictionary mapping channel IDs to channel info containing:
+                - name: The channel name
+                - link: The link to the channel in Slack
+        """
+        url = "https://slack.com/api/conversations.list"
+
+        params = {
+            "types": "public_channel,private_channel",
+            "limit": 1000,
+        }
+
+        channels_dict = {}
+        while True:
+            data = SlackHelper.slack_api_call(url=url, session=self.session, params=params)
+            if data:
+                if data.get("ok"):
+                    for channel in data["channels"]:
+                        # Only include channels where we're a member
+                        if channel.get("is_member", False):
+                            channels_dict[channel["id"]] = {
+                                "name": channel["name"],
+                                "link": f"https://{self.team_domain}.slack.com/archives/{channel['id']}",
+                            }
+
+                    if data.get("response_metadata", {}).get("next_cursor"):
+                        params["cursor"] = data["response_metadata"]["next_cursor"]
+                    else:
+                        break
+                else:
+                    logging.error(f"Error in response: {data}")
+                    return None
+            else:
+                logging.error(f"Failed to list channels. Error: {data.text}")
+                return None
+
+        logging.info(f"Found {len(channels_dict)} accessible channels")
+        return channels_dict
 
     def chunk_and_merge_metadata(
         self,
@@ -213,10 +278,11 @@ class SlackHelper:
                     return False
 
                 if "messages" in data:
+                    start_date = self.timestamp_to_date(data["messages"][0]["ts"])
+                    end_date = self.timestamp_to_date(data["messages"][-1]["ts"])
                     logging.info(
-                        f"Processing messages for channel: {channel_name} Start: \
-{data['messages'][0]['ts']} End: {data['messages'][-1]['ts']}. First msg: \
-{data['messages'][0]['text']}"
+                        f"Processing messages for channel: {channel_name} from {start_date} to \
+{end_date}. First msg: {data['messages'][0]['text']}"
                     )
                     for msg in data["messages"]:
                         try:
@@ -304,50 +370,6 @@ class SlackHelper:
                 else:
                     break
         return complete_conversation
-
-    def get_accessible_channels(self, only_joined: bool = False) -> dict[str, str]:
-        """
-        Retrieve and return a dictionary mapping channel IDs to channel names from Slack.
-
-        Args:
-            only_joined (bool): If True, only return channels the bot has been invited to.
-                              If False, return all visible channels. Defaults to True.
-
-        Returns
-        -------
-            dict: A dictionary mapping channel IDs to channel names.
-        """
-        url = "https://slack.com/api/conversations.list"
-
-        params = {
-            "types": "public_channel,private_channel",
-            "limit": 1000,
-        }
-
-        channels_dict = {}
-        while True:
-            data = SlackHelper.slack_api_call(url=url, session=self.session, params=params)
-            if data:
-                if data.get("ok"):
-                    for channel in data["channels"]:
-                        # For joined-only channels, we only include if we're a member
-                        if only_joined and not channel.get("is_member", False):
-                            continue
-                        channels_dict[channel["id"]] = channel["name"]
-
-                    if data.get("response_metadata", {}).get("next_cursor"):
-                        params["cursor"] = data["response_metadata"]["next_cursor"]
-                    else:
-                        break
-                else:
-                    logging.error(f"Error in response: {data}")
-                    return None
-            else:
-                logging.error(f"Failed to list channels. Error: {data.text}")
-                return None
-
-        logging.info(f"Found {len(channels_dict)} accessible channels")
-        return channels_dict
 
     def timestamp_to_date(self, timestamp: str) -> str:
         """
@@ -446,12 +468,16 @@ class SlackHelper:
         if response.status_code == 200:
             data = response.json()
             if "ok" in data and data["ok"]:
-                if "access_token" in data:
-                    return {
-                        "access_token": data["access_token"],
-                        "team_name": data.get("team", {}).get("name"),
-                        "team_id": data.get("team", {}).get("id"),
-                    }
+                # Log the token type we received
+                logging.info(f"Received token types: {[k for k in data.keys() if 'token' in k]}")
+
+                return {
+                    "access_token": data.get("access_token"),
+                    # In v2 OAuth, the bot token is directly in the response
+                    "bot_token": data.get("access_token"),  # This is the bot token in v2 OAuth
+                    "team_name": data.get("team", {}).get("name"),
+                    "team_id": data.get("team", {}).get("id"),
+                }
             else:
                 raise Exception(f"Error retrieving access token (ok == False): {data['error']}")
         else:

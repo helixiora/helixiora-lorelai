@@ -180,7 +180,10 @@ def profile():
                             try:
                                 channels = slack.get_accessible_channels(only_joined=True)
                                 if channels:
-                                    slack_channels = [f"#{name}" for name in channels.values()]
+                                    slack_channels = [
+                                        {"name": info["name"], "link": info["link"]}
+                                        for info in channels.values()
+                                    ]
                                 else:
                                     logging.warning("No accessible Slack channels found")
                                     slack_channels = None

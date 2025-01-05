@@ -295,11 +295,14 @@ class PineconeHelper:
             if vectors_to_delete:
                 index.delete(ids=vectors_to_delete)
 
+            # Keep track of updated vectors
+            updated_vectors_count = len(vector_query.matches) - len(vectors_to_delete)
+
             logging.info(
                 f"Successfully processed vectors for user {user_email} (ID: {user_id}) and \
 datasource {datasource_name} in org {org_name}. "
-                f"Deleted {len(vectors_to_delete)} vectors and updated users list in remaining \
-vectors."
+                f"Deleted {len(vectors_to_delete)} vectors and updated users list in \
+{updated_vectors_count} vectors."
             )
 
         except Exception as e:
