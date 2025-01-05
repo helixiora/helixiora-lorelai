@@ -6,15 +6,13 @@ Create Date: 2024-11-10 15:57:49.745425
 
 """
 
-from collections.abc import Sequence
-
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "2ba475b5b68b"
-down_revision: str | None = "d0ddd680748b"
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+revision = "00004"
+down_revision = "00003"
+branch_labels = None
+depends_on = None
 
 
 def upgrade() -> None:
