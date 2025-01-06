@@ -7,7 +7,7 @@ import logging
 from app.helpers.slack import SlackHelper
 from app.models import UserAuth, db, Datasource
 from sqlalchemy.exc import SQLAlchemyError
-from flask_login import login_required, current_user
+from flask_login import login_required
 
 from app.helpers.datasources import DATASOURCE_SLACK
 
@@ -53,7 +53,17 @@ def slack_callback():
             flash("Error: Failed to get authorization from Slack.", "error")
             return redirect(url_for("auth.profile"))
 
-        access_token = auth_data["access_token"]
+        # Log full auth data for debugging (excluding sensitive info)
+        debug_data = {k: v for k, v in auth_data.items() if k not in ["access_token"]}
+        logging.info(f"Auth response data: {debug_data}")
+
+        # Use bot token if available, otherwise use user token
+        access_token = auth_data.get("bot_token") or auth_data.get("access_token")
+        if auth_data.get("bot_token"):
+            logging.info("Using bot token for authentication")
+        else:
+            logging.info("Using user token for authentication (bot token not found)")
+
         logging.info(f"Access token: {len(access_token)} characters")
         team_name = auth_data["team_name"]
         team_id = auth_data["team_id"]
@@ -97,27 +107,5 @@ def slack_callback():
     except Exception as e:
         logging.error(f"Error handling callback: {e}")
         flash("An error occurred while authorizing your Slack account. Please try again.", "error")
-
-    return redirect(url_for("auth.profile"))
-
-
-@slack_bp.route("/slack/revoke", methods=["POST"])
-@login_required
-def revoke():
-    """Revoke Slack access and remove auth records."""
-    try:
-        slack_datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_SLACK).first()
-        if slack_datasource:
-            UserAuth.query.filter_by(
-                user_id=current_user.id, datasource_id=slack_datasource.datasource_id
-            ).delete()
-            db.session.commit()
-            flash("Slack integration has been revoked.", "success")
-        else:
-            flash("Slack integration not found.", "error")
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logging.error(f"Database error while revoking Slack access: {e}")
-        flash("An error occurred while revoking Slack access.", "error")
 
     return redirect(url_for("auth.profile"))

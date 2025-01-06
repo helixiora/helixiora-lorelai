@@ -1,50 +1,115 @@
-<div id="card-integration-slack" class="card mb-3">
-    <h5 class="h5 card-header">Slack Integration</h5>
-    <div class="card-body bg-light">
+<!-- Slack Integration -->
+<div id="card-integration-slack" class="card mb-2 mt-2">
+    <h5 class="card-header h5">Slack</h5>
+    <div class="card-body">
         <div class="row">
-            <div class="col-md-4">
-                <img src="{{ url_for('static', filename='img/slack.png') }}" alt="Slack Integration" class="img-fluid">
+            <div id="slack-integration" class="col-md-4">
+                <img src="{{ url_for('static', filename='img/slack.png') }}" alt="Slack Integration" class="img-fluid mb-3">
+                <p class="card-text">Integrate your Slack workspace with Lorelai to index your messages. The bot will be able to read messages in channels it's invited to.</p>
             </div>
-            <div class="col-md-8">
-                <h5 class="card-title font-weight-bold">Slack Integration</h5>
-                <p class="card-text">Enhance your experience by integrating Slack with our platform.</p>
+            <div id="slack-integration-actions" class="col-md-8">
+                <h5 class="card-title h5">Actions:</h5>
+                <p>Use the following buttons to manage your Slack integration:</p>
 
                 {% if slack_auth %}
-                    {# Show revoke button if we have an auth record, regardless of channel access #}
-                    <form action="{{ url_for('slack_auth.revoke') }}" method="POST" class="d-inline">
-                        <button type="submit" class="btn btn-danger">
-                            Revoke Slack Access
+                    <div class="mb-4">
+                        <button type="button" class="btn btn-danger" onclick="revokeSlackAccess()">
+                            <i class="fas fa-unlink me-1"></i> Revoke Access
                         </button>
-                    </form>
-                    <a href="{{ url_for('indexing.indexing_runs', datasource_type='slack') }}" class="btn btn-info">View Indexing History</a>
+                        <a href="{{ url_for('indexing.indexing_runs', datasource_type='slack') }}" class="btn btn-info">
+                            <i class="fas fa-history me-1"></i> View Indexing History
+                        </a>
+                    </div>
 
                     {% if slack_channels %}
-                        <div class="mt-3">
-                            <h6 class="font-weight-bold">Connected Channels</h6>
-                            <p class="card-text">Channels you have access to:</p>
-                            <ul>
-                                {% for channel in slack_channels %}
-                                    <li>{{ channel }}</li>
-                                {% endfor %}
-                            </ul>
+                        <h5 class="card-title h5 mt-4">Connected Channels:</h5>
+                        <div class="alert alert-info mb-3">
+                            <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="left"
+                            title="">
+                          <i class="bi bi-info-circle-fill text-primary fs-5"></i>
+                            </span>
+                            Since there is one bot per Slack workspace, this shows all channels that any user has added the bot to.
+                        </div>
+                        <div class="list-group mt-3">
+                            <table class="table table-hover table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col" class="align-middle">Channel</th>
+                                        <th scope="col" class="align-middle text-center" style="width: 100px;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for channel in slack_channels %}
+                                        <tr>
+                                            <td class="align-middle">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-hashtag me-2 text-muted"></i>
+                                                    <span>{{ channel.name }}</span>
+                                                </div>
+                                            </td>
+                                            <td class="align-middle text-center">
+                                                <a href="{{ channel.link }}" target="_blank" rel="noopener noreferrer"
+                                                   class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-external-link-alt me-1"></i> View
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
                     {% else %}
-                        <div class="mt-3">
-                            <p class="text-warning">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                Unable to fetch channels. This might be due to permission issues or an invalid token.
-                            </p>
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Unable to fetch channels. This might be due to permission issues or an invalid token.
                         </div>
                     {% endif %}
                 {% else %}
-                    <a href="{{ url_for('slack_auth.slack_auth') }}" class="btn">
-                        <img alt="Add to Slack" height="40" width="139"
-                            src="https://platform.slack-edge.com/img/add_to_slack.png"
-                            srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x"
-                        />
-                    </a>
+                    <div class="text-center text-md-start">
+                        <a href="{{ url_for('slack_auth.slack_auth') }}" class="btn">
+                            <img alt="Add to Slack" height="40" width="139"
+                                src="https://platform.slack-edge.com/img/add_to_slack.png"
+                                srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x"
+                            />
+                        </a>
+                    </div>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+<script>
+async function revokeSlackAccess() {
+    try {
+        const response = await makeAuthenticatedRequest('/api/v1/slack/revoke', 'POST');
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            // Show success message and refresh
+            const flashMessage = document.createElement('div');
+            flashMessage.className = 'alert alert-success';
+            flashMessage.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+            document.querySelector('.card-body').insertBefore(flashMessage, document.querySelector('.card-body').firstChild);
+
+            // Refresh the page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Show error message
+            const errorMessage = data.message || data.error || 'Failed to revoke Slack access';
+            const flashMessage = document.createElement('div');
+            flashMessage.className = 'alert alert-danger';
+            flashMessage.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + errorMessage;
+            document.querySelector('.card-body').insertBefore(flashMessage, document.querySelector('.card-body').firstChild);
+        }
+    } catch (error) {
+        console.error('Error revoking Slack access:', error);
+        const flashMessage = document.createElement('div');
+        flashMessage.className = 'alert alert-danger';
+        flashMessage.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Failed to revoke Slack access: Network error';
+        document.querySelector('.card-body').insertBefore(flashMessage, document.querySelector('.card-body').firstChild);
+    }
+}
+</script>

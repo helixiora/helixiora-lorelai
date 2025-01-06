@@ -8,10 +8,9 @@ from sqlalchemy.exc import SQLAlchemyError
 import mysql
 from pydantic import ValidationError
 
-from app.models import User, db, Organisation, Datasource, UserAuth
+from app.models import User, db, Organisation, UserAuth
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 from app.helpers.users import create_user, is_org_admin, is_super_admin
-from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 
 from redis import Redis
 from rq import Queue
@@ -129,11 +128,6 @@ class StartIndexing(Resource):
                 redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
                 queue = Queue(current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn)
 
-                datasource_id = (
-                    Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE)
-                    .first()
-                    .datasource_id
-                )
                 user_id = session["user.id"]
                 org_id = session.get("user.org_id")
                 if not org_id and type != "all":
@@ -160,24 +154,23 @@ class StartIndexing(Resource):
                     # Ensure all required fields are present
                     user_rows = [UserSchema.from_orm(user) for user in user_rows]
 
-                    user_auth_rows = []
                     for user_row in user_rows:
-                        user_auth_rows_for_user = UserAuth.query.filter_by(
-                            user_id=user_row.id, datasource_id=datasource_id
-                        )
-                        user_auth_rows.extend(
-                            [UserAuthSchema.from_orm(auth) for auth in user_auth_rows_for_user]
-                        )
+                        # Get auth rows only for this specific user
+                        user_auth_rows_for_user = UserAuth.query.filter_by(user_id=user_row.id)
+                        user_auth_rows = [
+                            UserAuthSchema.from_orm(auth) for auth in user_auth_rows_for_user
+                        ]
 
+                        # Create a job per user
                         job = queue.enqueue(
                             run_indexer,
                             organisation=org_row,
-                            users=user_rows,
-                            user_auths=user_auth_rows,
+                            users=[user_row],  # Pass single user
+                            user_auths=user_auth_rows,  # Pass only this user's auths
                             started_by_user_id=user_id,
                             job_timeout=3600,
-                            description=f"Indexing started by {user_id}: {len(user_rows)} users in \
-        {org_row.name} - Start time: {datetime.now()}",
+                            description=f"Indexing started by {user_id} for user {user_row.email} \
+in {org_row.name} - Start time: {datetime.now()}",
                         )
 
                         job_id = job.get_id()

@@ -72,4 +72,5 @@ def google_auth_redirect():
 
     save_tokens_to_db(flow, user_id)
 
+    flash("Google Drive authorization successful! You can now select files to index.", "success")
     return redirect(url_for("auth.profile"))

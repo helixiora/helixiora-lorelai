@@ -13,7 +13,8 @@ from oauthlib.oauth2.rfc6749.errors import (
     OAuth2Error,
 )
 import logging
-
+import pydantic
+from datetime import datetime
 from app.models import db, User, UserAuth, Datasource
 import requests as lib_requests
 from flask import session
@@ -22,36 +23,51 @@ from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from sqlalchemy.exc import SQLAlchemyError
 
 
-def get_google_drive_access_token() -> str:
-    """Get the user's Google access token from the database if it's not in the session."""
-    google_drive_access_token = ""
+class TokenDetailsResponse(pydantic.BaseModel):
+    """The response from the get_token_details function."""
+
+    access_token: str
+    refresh_token: str
+    expires_at: datetime
+
+
+def get_token_details(user_id: int) -> TokenDetailsResponse:
+    """Get the token details from the user auths.
+
+    Parameters
+    ----------
+    user_auths: list[UserAuthSchema]
+        The user auths to get the token details from.
+
+    Returns
+    -------
+    tuple[str, str, str]
+        The access token, refresh token, and expires at.
+    """
     datasource_id = (
         Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
     )
 
-    if session.get("google_drive.access_token") is None:
-        result = UserAuth.query.filter_by(
-            user_id=current_user.id,
-            auth_key="access_token",
-            datasource_id=datasource_id,
-        ).first()
+    access_token_auth = UserAuth.query.filter_by(
+        user_id=user_id, datasource_id=datasource_id, auth_key="access_token"
+    ).first()
+    refresh_token_auth = UserAuth.query.filter_by(
+        user_id=user_id, datasource_id=datasource_id, auth_key="refresh_token"
+    ).first()
+    expires_at_auth = UserAuth.query.filter_by(
+        user_id=user_id, datasource_id=datasource_id, auth_key="expires_at"
+    ).first()
 
-        # if there is no result, the user has not authenticated with Google (yet)
-        if result:
-            logging.info("Access token found in user_auth for user %s", current_user.id)
-            google_drive_access_token = result.auth_value
-        else:
-            logging.info("No access token found in user_auth for user %s", current_user.id)
-            google_drive_access_token = ""
-    else:
-        logging.info("Access token found in session for user %s", current_user.id)
-        google_drive_access_token = session.get("google_drive.access_token")
+    access_token = access_token_auth.auth_value if access_token_auth else None
+    refresh_token = refresh_token_auth.auth_value if refresh_token_auth else None
+    expires_at = expires_at_auth.auth_value if expires_at_auth else None
 
-    if google_drive_access_token:
-        # Check if the token is still valid and refresh if necessary
-        google_drive_access_token = refresh_google_token_if_needed(google_drive_access_token)
+    if not access_token or not refresh_token:
+        raise ValueError("Missing required Google Drive authentication tokens")
 
-    return google_drive_access_token
+    return TokenDetailsResponse(
+        access_token=access_token, refresh_token=refresh_token, expires_at=expires_at
+    )
 
 
 def refresh_google_token_if_needed(access_token):
@@ -80,13 +96,26 @@ def refresh_google_token_if_needed(access_token):
     # If we're still here, the token is invalid or expired, refresh it
     refresh_token = session.get("google_drive.refresh_token")
     if not refresh_token:
+        # Get the refresh token corresponding to this access token
         result = UserAuth.query.filter_by(
             user_id=current_user.id,
             auth_key="refresh_token",
             datasource_id=datasource_id,
+            created_at=UserAuth.query.filter_by(
+                user_id=current_user.id,
+                auth_key="access_token",
+                auth_value=access_token,
+                datasource_id=datasource_id,
+            )
+            .first()
+            .created_at,
         ).first()
         if not result:
-            logging.error("No refresh token found for user %s", current_user.id)
+            logging.error(
+                "No refresh token found for user %s and access token %s",
+                current_user.id,
+                access_token,
+            )
             return None
         refresh_token = result.auth_value
 
@@ -198,7 +227,7 @@ def save_tokens_to_db(flow, user_id):
     logging.debug(f"Expires at: {expires_at}")
 
     try:
-        datasource = Datasource.query.filter_by(name=DATASOURCE_GOOGLE_DRIVE).first()
+        datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
         if not datasource:
             raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db")
 

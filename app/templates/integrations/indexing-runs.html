@@ -24,7 +24,7 @@
                                 <tr>
                                     <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                                     <td>
-                                        <span class="badge {% if run.status == 'completed' %}bg-success{% elif run.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                                        <span class="badge {% if run.status == 'completed' %}bg-success{% elif run.status == 'failed' %}bg-danger{% elif run.status == 'completed_with_errors' %}bg-warning{% else %}bg-info{% endif %}">
                                             {{ run.status }}
                                         </span>
                                     </td>
@@ -50,25 +50,38 @@
                                                                 <th>Name</th>
                                                                 <th>Type</th>
                                                                 <th>Status</th>
+                                                                <th class="text-center" style="width: 50px;">Info</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
                                                             {% for item in run.items %}
                                                                 <tr>
                                                                     <td>
-                                                                        {% if item.item_url %}
-                                                                            <a href="{{ item.item_url }}" target="_blank">{{ item.item_name }}</a>
-                                                                        {% else %}
-                                                                            {{ item.item_name }}
-                                                                        {% endif %}
+                                                                        <div class="d-flex align-items-center">
+                                                                            {% if item.item_url %}
+                                                                                <a href="{{ item.item_url }}" target="_blank" class="text-decoration-none">
+                                                                                    {{ item.item_name }}
+                                                                                </a>
+                                                                            {% else %}
+                                                                                {{ item.item_name }}
+                                                                            {% endif %}
+                                                                            {% if item.parent_item_id %}
+                                                                                <span class="ms-2 badge bg-info">From folder</span>
+                                                                            {% endif %}
+                                                                        </div>
                                                                     </td>
                                                                     <td>{{ item.item_type }}</td>
                                                                     <td>
-                                                                        <span class="badge {% if item.item_status == 'completed' %}bg-success{% elif item.item_status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                                                                        <span class="badge {% if item.item_status == 'completed' %}bg-success{% elif item.item_status == 'failed' %}bg-danger{% elif item.item_status == 'skipped' %}bg-warning{% else %}bg-info{% endif %}">
                                                                             {{ item.item_status }}
                                                                         </span>
-                                                                        {% if item.item_error %}
-                                                                            <i class="bi bi-info-circle text-danger" data-bs-toggle="tooltip" title="{{ item.item_error }}"></i>
+                                                                    </td>
+                                                                    <td class="text-center">
+                                                                        {% if item.item_error or item.parent_item_id %}
+                                                                            <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="left"
+                                                                                  title="{% if item.parent_item_id %}Included from parent folder.{% endif %}{% if item.item_error %} {{ item.item_error }}{% endif %}">
+                                                                                <i class="bi bi-info-circle-fill {% if item.item_error %}text-danger{% else %}text-primary{% endif %} fs-5"></i>
+                                                                            </span>
                                                                         {% endif %}
                                                                     </td>
                                                                 </tr>
@@ -92,4 +105,16 @@
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    'use strict';
+    window.addEventListener('DOMContentLoaded', function() {
+        var tooltipElements = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltipElements.forEach(function(element) {
+            new bootstrap.Tooltip(element);
+        });
+    });
+})();
+</script>
 {% endblock %}

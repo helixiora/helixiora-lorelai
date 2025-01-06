@@ -6,57 +6,48 @@
     <table id="metadataTable" class="display">
         <thead>
             <tr>
-                <th>Title</th>
-                <th>Source</th>
-                <th>Users</th>
-                <th>Text</th>
-                <th>When</th>
-                <th>ID</th>
+                {% for item in metadata[:1] %}
+                    {% for key in item.keys() %}
+                        <th>{{ key|title }}</th>
+                    {% endfor %}
+                {% else %}
+                    <th>No data available</th>
+                {% endfor %}
             </tr>
         </thead>
         <tbody>
             {% for item in metadata %}
-                {% if item.title %}
-                    <tr>
-                        <td>{{ item.title }}</td>
-                        <td>{{ item.source }}</td>
-                        <td>{{ item.users }}</td>
-                        <td>{{ item.text }}</td>
-                        <td>{{ item.when }}</td>
-                        <td>{{ item.id }}</td>
-                    </tr>
-                {% elif item.msg_ts %}
-                    <tr>
-                        <td>{{ item.channel_name }}</td>
-                        <td>{{ item.source }}</td>
-                        <td>{{ item.users }}</td>
-                        <td>{{ item.text }}</td>
-                        <td>{{ item.msg_ts }}</td>
-                        <td>{{ item.id }}</td>
-                    </tr>
-                {% endif %}
+                <tr>
+                    {% for key in item.keys() %}
+                        <td>{{ item[key] }}</td>
+                    {% endfor %}
+                </tr>
             {% endfor %}
         </tbody>
     </table>
-    <a href="/admin/pinecone">Back to Index List</a>
+    <a href="/admin/pinecone" class="btn btn-primary mt-3">Back to Index List</a>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        $(document).ready(function() {
-            $('#metadataTable').DataTable({
-                "pagingType": "simple_numbers", // Enables simple pagination
-                "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]], // Sets the number of rows per page
-                "order": [[0, "asc"]], // Sorts the table by the first column in ascending order
-                "columnDefs": [
-                    { "targets": 3, "render": function(data, type, row) {
-                        return type === 'display' && data.length > 100 ?
-                        '<span title="' + data + '">' + data.substr(0, 100) + '...</span>' :
-                        data;
-                    } }
-                ]
-            });
+document.addEventListener('DOMContentLoaded', function() {
+    $(document).ready(function() {
+        $('#metadataTable').DataTable({
+            "pagingType": "simple_numbers",
+            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
+            "order": [[0, "asc"]],
+            "columnDefs": [
+                {
+                    "targets": "_all",
+                    "render": function(data, type, row) {
+                        if (type === 'display' && data && data.length > 100) {
+                            return '<span title="' + data + '">' + data.substr(0, 100) + '...</span>';
+                        }
+                        return data;
+                    }
+                }
+            ]
         });
     });
+});
 </script>
 {% endblock %}

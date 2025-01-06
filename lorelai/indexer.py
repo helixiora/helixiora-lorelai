@@ -50,8 +50,8 @@ class Indexer:
         """Retrieve the name of the indexer."""
         return self.__class__.__name__
 
-    def get_datasource(self) -> Datasource:
-        """Get the datasource for this indexer."""
+    def _get_datasource(self) -> Datasource:
+        """Get the datasource for this indexer. Must be implemented by derived classes."""
         raise NotImplementedError
 
     def index_org(
@@ -83,19 +83,21 @@ class Indexer:
         """
         logging.debug(f"Indexing org: {organisation.name}")
         logging.debug(f"Users: {[user.email for user in users]}")
-        logging.debug(f"User auths: {user_auths}")
+        logging.debug(
+            f"User auths for datasource {self._get_datasource().datasource_name}: {user_auths}"
+        )
 
         if job:
             logging.info("Task ID: %s, Message: %s", job.id, job.meta["status"])
             logging.info("Indexing %s: %s", self.get_indexer_name(), job.id)
 
-        for user in users:
-            # Get the datasource ID based on the indexer type
-            datasource = self.get_datasource()
-            if not datasource:
-                logging.error("Could not find datasource for this Indexer class")
-                continue
+        # Get the datasource ID based on the indexer type
+        datasource = self._get_datasource()
+        if not datasource:
+            logging.error("Could not find datasource for this Indexer class")
+            return
 
+        for user in users:
             # create a new indexing run in the database, this is used for logging and tracking
             indexing_run = IndexingRun(
                 rq_job_id=job.id,
@@ -108,12 +110,24 @@ class Indexer:
             db.session.commit()
 
             try:
-                # get the user auth rows for this user
+                # get the user auth rows for this user and datasource
                 user_auth_rows_filtered = [
                     user_auth_row
                     for user_auth_row in user_auths
-                    if user_auth_row.user_id == user.id
+                    if str(user_auth_row.user_id) == str(user.id)
+                    and str(user_auth_row.datasource_id) == str(datasource.datasource_id)
                 ]
+                if not user_auth_rows_filtered or len(user_auth_rows_filtered) == 0:
+                    logging.info(
+                        f"No auth rows found for user {user.email} (id: {user.id}) for datasource \
+{datasource.datasource_name}"
+                    )
+                    indexing_run.status = "completed"
+                    indexing_run.error = (
+                        f"No auth rows found for user for datasource {datasource.datasource_name}"
+                    )
+                    db.session.commit()
+                    continue
 
                 # Refresh to ensure relationships are loaded
                 db.session.refresh(indexing_run)
@@ -131,6 +145,21 @@ class Indexer:
                     indexing_run=indexing_run_schema,
                     user_auths=user_auth_rows_filtered,
                 )
+            except Exception as e:
+                logging.error(f"Error indexing user {user.email}: {e}")
+                indexing_run.status = "failed"
+                indexing_run.error = str(e)
+                db.session.commit()
+                continue
+
+            finally:
+                total_items = IndexingRunItem.query.filter_by(
+                    indexing_run_id=indexing_run.id
+                ).count()
+                logging.info(
+                    f"Total items for indexing run {indexing_run.id} for user {user.email} for \
+datasource {datasource.datasource_name}: {total_items}"
+                )
 
                 # Update run status based on items
                 failed_items = IndexingRunItem.query.filter_by(
@@ -139,15 +168,11 @@ class Indexer:
 
                 if failed_items > 0:
                     indexing_run.status = "completed_with_errors"
+                    indexing_run.error = f"Failed items: {failed_items}; Total items: {total_items}"
                 else:
                     indexing_run.status = "completed"
+                    indexing_run.error = f"No errors; Total items: {total_items}"
 
-                db.session.commit()
-
-            except Exception as e:
-                logging.error(f"Error indexing user {user.email}: {e}")
-                indexing_run.status = "failed"
-                indexing_run.error = str(e)
                 db.session.commit()
 
         logging.debug(f"Indexing complete for org: {organisation.name}")
@@ -156,7 +181,7 @@ class Indexer:
         self,
         indexing_run: IndexingRunSchema,
         user_auths: list[UserAuthSchema],
-    ) -> tuple[bool, str]:
+    ) -> None:
         """Process the Google Drive documents for a user and index them in Pinecone.
 
         Arguments
@@ -172,7 +197,6 @@ class Indexer:
 
         Returns
         -------
-        Tuple[bool, str]
-            A tuple containing a success flag and a message.
+        None
         """
         raise NotImplementedError
