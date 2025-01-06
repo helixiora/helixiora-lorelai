@@ -4,7 +4,7 @@ import pinecone
 import logging
 import os
 from flask import current_app
-from pinecone import ServerlessSpec
+from pinecone import ServerlessSpec, FetchResponse
 
 
 class PineconeHelper:
@@ -65,7 +65,7 @@ class PineconeHelper:
 
         Returns
         -------
-            str: The name of the pinecone index.
+            tuple[pinecone.Index, str]: The pinecone index and the name of the pinecone index.
 
         """
         name = self.get_index_name(
@@ -195,38 +195,142 @@ class PineconeHelper:
             raise ValueError(f"Index {index_host} not found.")
 
         result = []
+        all_keys = set()
 
+        logging.debug(f"Starting to fetch details for index: {index_host}")
+
+        # First pass: collect all possible metadata keys
         try:
-            for ident in index.list():
-                vectors: FetchResponse = index.fetch(ids=ident)  # noqa: F821
+            vector_ids = index.list()
+            logging.debug(f"Found {len(vector_ids)} vectors in index")
+
+            for ident in vector_ids:
+                vectors: FetchResponse = index.fetch(ids=ident)
+                logging.debug(f"Fetched vector {ident}, got {len(vectors.vectors)} results")
 
                 for vector_id, vector_data in vectors.vectors.items():
                     if isinstance(vector_data.metadata, dict):
                         metadata = vector_data.metadata
                         if isinstance(metadata, dict):
-                            if "title" in metadata:
-                                result.append(
-                                    {  # google driv
-                                        "id": vector_id,
-                                        "title": metadata["title"],
-                                        "source": metadata["source"],
-                                        "users": metadata["users"],
-                                        "text": metadata["text"],
-                                        "when": metadata["when"],
-                                    }
-                                )
-                            if "msg_ts" in metadata:
-                                result.append(
-                                    {  # slack
-                                        "id": vector_id,
-                                        "text": metadata["text"],
-                                        "source": metadata["source"],
-                                        "msg_ts": metadata["msg_ts"],
-                                        "channel_name": metadata["channel_name"],
-                                        "users": metadata["users"],
-                                    }
-                                )
+                            logging.debug(f"Vector {vector_id} metadata keys: {metadata.keys()}")
+                            all_keys.update(metadata.keys())
+                            all_keys.add("id")  # Ensure id is always included
+
+            logging.debug(f"All metadata keys found: {all_keys}")
         except Exception as e:
             raise ValueError(f"Failed to fetch index details: {e}") from e
 
+        # Second pass: create normalized metadata dictionaries
+        try:
+            for ident in index.list():
+                vectors: FetchResponse = index.fetch(ids=ident)
+                for vector_id, vector_data in vectors.vectors.items():
+                    if isinstance(vector_data.metadata, dict):
+                        metadata = vector_data.metadata
+                        if isinstance(metadata, dict):
+                            # Create a dictionary with all keys initialized to None
+                            normalized_metadata = {key: None for key in all_keys}
+                            # Update with actual values from metadata
+                            normalized_metadata.update(metadata)
+                            # Add the ID
+                            normalized_metadata["id"] = vector_id
+                            logging.debug(
+                                f"Normalized metadata for vector {vector_id}: {normalized_metadata}"
+                            )
+                            result.append(normalized_metadata)
+        except Exception as e:
+            raise ValueError(f"Failed to fetch index details: {e}") from e
+
+        logging.debug(f"Total vectors processed: {len(result)}")
         return result
+
+    def delete_user_datasource_vectors(
+        self, user_id: int, datasource_name: str, user_email: str, org_name: str
+    ) -> None:
+        """Delete or update vectors for a specific user and datasource from Pinecone.
+
+        If the user is the only one in the users list, the vector is deleted.
+        If there are other users, the user is removed from the users list.
+
+        Args:
+            user_id (int): The ID of the user whose vectors should be deleted/updated
+            datasource_name (str): The name of the datasource whose vectors should be
+            deleted/updated
+            user_email (str): The email address of the user whose vectors should be deleted/updated
+            org_name (str): The name of the organization to determine the index name
+        """
+        try:
+            # Get the index using the dynamic index name
+            index, _ = self.get_index(
+                org_name=org_name,
+                datasource=datasource_name,
+                environment=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+                env_name=current_app.config["LORELAI_ENVIRONMENT"],
+                version="v1",
+            )
+
+            # First, find all vectors where this user's email is in the users list
+            vector_query = index.query(
+                vector=[0.0]
+                * int(
+                    current_app.config["PINECONE_DIMENSION"]
+                ),  # dummy vector for metadata filtering
+                filter={"users": {"$in": [user_email]}},
+                top_k=10000,  # adjust if needed
+                include_metadata=True,
+            )
+
+            vectors_to_delete = []
+            for match in vector_query.matches:
+                users = match.metadata.get("users", [])
+                if len(users) == 1 and users[0] == user_email:
+                    # This is the only user, delete the vector
+                    vectors_to_delete.append(match.id)
+                else:
+                    # Remove the user from the users list
+                    users.remove(user_email)
+                    index.update(id=match.id, set_metadata={"users": users})
+
+            # Delete vectors where this was the only user
+            if vectors_to_delete:
+                index.delete(ids=vectors_to_delete)
+
+            # Keep track of updated vectors
+            updated_vectors_count = len(vector_query.matches) - len(vectors_to_delete)
+
+            logging.info(
+                f"Successfully processed vectors for user {user_email} (ID: {user_id}) and \
+datasource {datasource_name} in org {org_name}. "
+                f"Deleted {len(vectors_to_delete)} vectors and updated users list in \
+{updated_vectors_count} vectors."
+            )
+
+        except Exception as e:
+            logging.error(
+                f"Error processing vectors for user {user_email} (ID: {user_id}) and datasource \
+{datasource_name} in org {org_name}: {str(e)}"
+            )
+            raise
+
+
+def delete_user_datasource_vectors(
+    user_id: int, datasource_name: str, user_email: str, org_name: str
+) -> None:
+    """Delete all vectors for a specific user and datasource from Pinecone.
+
+    This is a convenience function that creates a PineconeHelper instance and calls
+    delete_user_datasource_vectors on it.
+
+    Args:
+        user_id (int): The ID of the user whose vectors should be deleted
+        datasource_name (str): The name of the datasource whose vectors should be deleted
+        user_email (str): The email address of the user whose vectors should be deleted
+        org_name (str): The name of the organization to determine the index name
+    """
+    helper = PineconeHelper()
+    helper.delete_user_datasource_vectors(
+        user_id=user_id,
+        datasource_name=datasource_name,
+        user_email=user_email,
+        org_name=org_name,
+    )

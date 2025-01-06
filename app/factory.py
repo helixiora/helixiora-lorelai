@@ -36,6 +36,7 @@ from app.routes.api.v1.auth import auth_ns
 from app.routes.api.v1.api_keys import api_keys_ns
 from app.routes.api.v1.admin import admin_ns
 from app.routes.api.v1.googledrive import googledrive_ns
+from app.routes.api.v1.slack import slack_ns
 
 # blueprints
 from app.routes.admin import admin_bp
@@ -70,6 +71,15 @@ def create_app(config_name: str = "default") -> Flask:
     # set the SCARF_NO_ANALYTICS environment variable to true to disable analytics
     # (among possible others the unstructured library uses to track usage)
     os.environ["SCARF_NO_ANALYTICS"] = "true"
+
+    # Configure logging
+    log_level = os.environ.get("LOG_LEVEL", "INFO")
+    print(f"Setting log level to: {log_level}")  # Temporary debug print
+    logging.basicConfig(
+        level=getattr(logging, log_level),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logging.getLogger().setLevel(getattr(logging, log_level))
 
     # this is a print on purpose (not a logger statement) to show that the app is loading
     # get the git commit hash, branch name and first line of the commit message and print it out
@@ -165,6 +175,7 @@ def create_app(config_name: str = "default") -> Flask:
     api.add_namespace(api_keys_ns)
     api.add_namespace(admin_ns)
     api.add_namespace(googledrive_ns)
+    api.add_namespace(slack_ns)
 
     # Register blueprints
     app.register_blueprint(admin_bp)
@@ -351,9 +362,11 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
     @jwt.expired_token_loader
     def custom_expired_token_response(jwt_header, jwt_payload):
         """Handle expired token."""
-        token = jwt_header.get("Authorization")
         logging.error(
-            "Expired token for user: %s, token: %s", jwt_payload.get("sub", "unknown"), token
+            "Expired token for user: %s, jwt_payload: %s, jwt_header: %s",
+            jwt_payload.get("sub", "unknown"),
+            jwt_payload,
+            jwt_header,
         )
         return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
 

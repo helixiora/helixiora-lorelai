@@ -5,12 +5,14 @@ from flask import session, request
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
-from app.models import db
+from app.database import db
 from app.models.user_auth import UserAuth
 from app.models.datasource import Datasource
 from app.models.google_drive import GoogleDriveItem
+from app.models.user import User
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from flask_jwt_extended import jwt_required
+from lorelai.pinecone import delete_user_datasource_vectors
 
 googledrive_ns = Namespace("googledrive", description="Google Drive operations")
 
@@ -42,21 +44,45 @@ class RevokeAccess(Resource):
             return {"error": "User not logged in or session expired"}, 401
 
         try:
-            datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
-            if not datasource:
-                raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} missing from datasource table")
+            # Get user and organization info
+            user = User.query.get(user_id)
+            if not user:
+                return {"error": "User not found"}, 404
 
+            datasource = Datasource.query.filter_by(
+                datasource_name=DATASOURCE_GOOGLE_DRIVE
+            ).first()
+            if not datasource:
+                raise ValueError(
+                    f"{DATASOURCE_GOOGLE_DRIVE} missing from datasource table"
+                )
+
+            # Delete database records
             UserAuth.query.filter_by(
                 user_id=user_id, datasource_id=datasource.datasource_id
             ).delete()
             GoogleDriveItem.query.filter_by(user_id=user_id).delete()
 
+            # Delete vectors from Pinecone
+            delete_user_datasource_vectors(
+                user_id=user_id,
+                datasource_name=DATASOURCE_GOOGLE_DRIVE,
+                user_email=user.email,
+                org_name=user.organisation.name,
+            )
+
             db.session.commit()
-            return {"status": "success", "message": "User deauthorized from Google Drive"}
+            return {
+                "status": "success",
+                "message": "User deauthorized from Google Drive",
+            }
 
         except SQLAlchemyError as e:
             db.session.rollback()
             return {"error": f"Database error: {str(e)}"}, 500
+        except Exception as e:
+            db.session.rollback()
+            return {"error": f"Error during revocation: {str(e)}"}, 500
 
 
 @googledrive_ns.route("/processfilepicker", doc=False)
@@ -88,7 +114,9 @@ class ProcessFilePicker(Resource):
                     icon_url=doc["iconUrl"],
                 )
                 db.session.add(new_item)
-                logging.info(f"Inserted google doc id: {doc['id']} for user id: {user_id}")
+                logging.info(
+                    f"Inserted google doc id: {doc['id']} for user id: {user_id}"
+                )
             db.session.commit()
             return {"message": "Success"}
         except SQLAlchemyError as e:
@@ -104,7 +132,11 @@ class RemoveFile(Resource):
     @googledrive_ns.expect(
         googledrive_ns.model(
             "RemoveFile",
-            {"google_drive_id": fields.String(required=True, description="Google Drive file ID")},
+            {
+                "google_drive_id": fields.String(
+                    required=True, description="Google Drive file ID"
+                )
+            },
         )
     )
     @googledrive_ns.response(200, "File removed successfully")
@@ -123,7 +155,9 @@ class RemoveFile(Resource):
             return {"message": "OK"}
         except SQLAlchemyError as e:
             db.session.rollback()
-            logging.error(f"Error deleting google doc id: {google_drive_id}, Error: {str(e)}")
+            logging.error(
+                f"Error deleting google doc id: {google_drive_id}, Error: {str(e)}"
+            )
             return {
                 "error": f"Error deleting google doc id: {google_drive_id}, Error: {str(e)}"
             }, 500

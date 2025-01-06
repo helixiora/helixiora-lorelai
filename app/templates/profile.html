@@ -1,16 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<script>
-    const sessionAccessToken = "{{ session['lorelai_jwt.access_token'] }}";
-    const sessionRefreshToken = "{{ session['lorelai_jwt.refresh_token'] }}";
-
-    if (sessionAccessToken && sessionRefreshToken) {
-        localStorage.setItem('lorelai_jwt_access_token', sessionAccessToken);
-        localStorage.setItem('lorelai_jwt_refresh_token', sessionRefreshToken);
-        console.log('Tokens set in localStorage');
-    }
-</script>
 <div id="profile-container" class="container mt-5">
     {% if user is none %}
         <div class="alert alert-danger" role="alert">
