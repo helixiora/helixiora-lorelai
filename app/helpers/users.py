@@ -399,7 +399,11 @@ def create_user(
     """Create a user."""
     session = db.session
     try:
-        user = User(email=email, full_name=full_name)
+        user = User(
+            email=email,
+            full_name=full_name,
+            created_at=datetime.utcnow(),  # Set the created_at field
+        )
         if org_name:
             org = Organisation.query.filter_by(name=org_name).first()
             if not org:
@@ -407,11 +411,17 @@ def create_user(
                 session.add(org)
             user.organisation = org
 
-        if roles:
-            for role_name in roles:
-                role = Role.query.filter_by(name=role_name).first()
-                if role:
-                    user.roles.append(role)
+        # If no roles specified, assign default 'user' role
+        if not roles:
+            roles = ["user"]
+
+        for role_name in roles:
+            role = Role.query.filter_by(name=role_name).first()
+            if not role:
+                # Create the role if it doesn't exist
+                role = Role(name=role_name)
+                session.add(role)
+            user.roles.append(role)
 
         session.add(user)
         session.commit()
