@@ -52,7 +52,7 @@ class CreateUser(Resource):
     @admin_ns.response(201, "User created successfully")
     @admin_ns.response(400, "Validation error")
     @admin_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self):
         """Post method to create a new user."""
         if not current_user.is_admin:
@@ -80,7 +80,7 @@ class JobStatus(Resource):
     @admin_ns.doc("get_job_status", security="Bearer Auth")
     @admin_ns.response(200, "Success", job_status_model)
     @admin_ns.response(404, "Job not found")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def get(self, job_id):
         """Get the status of an indexing job."""
         redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
@@ -106,7 +106,7 @@ class StartIndexing(Resource):
     @admin_ns.response(200, "Indexing started")
     @admin_ns.response(403, "Unauthorized")
     @admin_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self, type):
         """Post method to start indexing data for the organization."""
         if type == "organisation" and not is_org_admin(session["user.id"]):
@@ -197,7 +197,7 @@ class TestConnection(Resource):
     @admin_ns.hide
     @admin_ns.response(200, "Connection successful")
     @admin_ns.response(500, "Connection failed")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self):
         """Post method to test database connection."""
         try:

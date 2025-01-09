@@ -30,7 +30,7 @@ class RevokeAccess(Resource):
     @slack_ns.response(200, "Access revoked successfully")
     @slack_ns.response(401, "Unauthorized")
     @slack_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self):
         """Post method to revoke Slack access."""
         try:

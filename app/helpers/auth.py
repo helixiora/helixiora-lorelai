@@ -7,11 +7,33 @@ from flask import session
 from flask_login import login_user
 from google.auth import exceptions
 import re
+from pydantic import BaseModel, ConfigDict
 
 from app.models import User, UserLogin, db
 from app.schemas import UserSchema
 from flask_jwt_extended import create_access_token, create_refresh_token
 from app.helpers.users import assign_free_plan_if_no_active
+
+
+class LoginInput(BaseModel):
+    """Input model for login function."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    user: User
+    user_email: str
+    google_id: str
+    username: str
+    full_name: str
+
+
+class LoginResponse(BaseModel):
+    """Response model for login function."""
+
+    success: bool
+    access_token: str | None = None
+    refresh_token: str | None = None
+    error_message: str | None = None
 
 
 def login_user_function(
@@ -20,11 +42,11 @@ def login_user_function(
     google_id: str,
     username: str,
     full_name: str,
-):
+) -> LoginResponse:
     """
     Create a session for the user, update the user's Google ID in the database.
 
-    also create access and refresh tokens.
+    Also create access and refresh tokens.
 
     Parameters
     ----------
@@ -41,63 +63,84 @@ def login_user_function(
 
     Returns
     -------
-    bool
-        True if login was successful, False otherwise.
+    LoginResponse
+        A Pydantic model containing:
+        - success: True if login was successful, False otherwise
+        - access_token: The access token if successful, None otherwise
+        - refresh_token: The refresh token if successful, None otherwise
+        - error_message: Error message if login failed, None otherwise
     """
-    # Ensure all details are provided
-    if not all(
-        [
-            user,
-            user_email,
-            google_id,
-            username,
-            full_name,
-            user.organisation.id,
-            user.organisation.name,
-        ]
-    ):
-        logging.error("Missing user or organisation details")
-        return False
-
     try:
-        user.google_id = google_id
-        user.user_name = username
-        user.full_name = full_name
-        db.session.commit()
-
-        # Create access and refresh tokens
-        # duration is determined by the JWT_ACCESS_TOKEN_EXPIRES and JWT_REFRESH_TOKEN_EXPIRES
-        access_token = create_access_token(identity=str(user.id))
-        refresh_token = create_refresh_token(identity=str(user.id))
-
-        # login_type, it is not necessary now but in future when we add multiple login method
-        user_login = UserLogin(
-            user_id=user.id, login_type="google-oauth", login_time=datetime.utcnow()
+        # Validate input using Pydantic
+        login_input = LoginInput(
+            user=user,
+            user_email=user_email,
+            google_id=google_id,
+            username=username,
+            full_name=full_name,
         )
-        db.session.add(user_login)
-        db.session.commit()
 
-        # login_user is a Flask-Login function that sets the current user to the user object
-        login_user(user)
+        # Ensure all details are provided
+        if not all(
+            [
+                login_input.user,
+                login_input.user_email,
+                login_input.google_id,
+                login_input.username,
+                login_input.full_name,
+                login_input.user.organisation.id,
+                login_input.user.organisation.name,
+            ]
+        ):
+            logging.error("Missing user or organisation details")
+            return LoginResponse(
+                success=False, error_message="Missing user or organisation details"
+            )
 
-        # store the user's roles in the session
-        session["user.user_roles"] = [role.name for role in user.roles]
-        session["user.org_name"] = user.organisation.name
-        # store the access and refresh tokens in the session
-        session["lorelai_jwt.access_token"] = access_token
-        session["lorelai_jwt.refresh_token"] = refresh_token
-        user_schema = UserSchema.model_validate(user).model_dump()
-        assign_free_plan_if_no_active(user_id=user.id)
-        for key, value in user_schema.items():
-            logging.debug(f"user.{key} : {value}")
-            session[f"user.{key}"] = value
+        try:
+            user.google_id = login_input.google_id
+            user.user_name = login_input.username
+            user.full_name = login_input.full_name
+            db.session.commit()
 
-        return True
+            # Create access and refresh tokens
+            # duration is determined by the JWT_ACCESS_TOKEN_EXPIRES and JWT_REFRESH_TOKEN_EXPIRES
+            access_token = create_access_token(identity=str(user.id))
+            refresh_token = create_refresh_token(identity=str(user.id))
+
+            # login_type, it is not necessary now but in future when we add multiple login method
+            user_login = UserLogin(
+                user_id=user.id, login_type="google-oauth", login_time=datetime.utcnow()
+            )
+            db.session.add(user_login)
+            db.session.commit()
+
+            # login_user is a Flask-Login function that sets the current user to the user object
+            login_user(user)
+
+            # store the user's roles in the session
+            session["user.user_roles"] = [role.name for role in user.roles]
+            session["user.org_name"] = user.organisation.name
+            user_schema = UserSchema.model_validate(user).model_dump()
+
+            # assign a free plan if the user has no active plan
+            assign_free_plan_if_no_active(user_id=user.id)
+
+            for key, value in user_schema.items():
+                logging.debug(f"user.{key} : {value}")
+                session[f"user.{key}"] = value
+
+            return LoginResponse(
+                success=True, access_token=access_token, refresh_token=refresh_token
+            )
+
+        except Exception as e:
+            logging.error(f"Error during login: {e}")
+            return LoginResponse(success=False, error_message=str(e))
 
     except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error during login: {str(e)}")
-        return False
+        logging.error(f"Error validating login input: {e}")
+        return LoginResponse(success=False, error_message=f"Invalid login input: {str(e)}")
 
 
 def is_username_available(username: str) -> bool:

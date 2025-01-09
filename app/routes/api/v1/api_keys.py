@@ -18,7 +18,7 @@ class APIKeys(Resource):
     @api_keys_ns.response(200, "API key deleted successfully")
     @api_keys_ns.response(404, "API key not found")
     @api_keys_ns.response(500, "Error deleting API key")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def delete(self, api_key_id):
         """Delete an API key by ID.
 

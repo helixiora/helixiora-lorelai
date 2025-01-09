@@ -280,6 +280,25 @@ class User(UserMixin, db.Model):
         """Check if the user is an admin."""
         return self.has_role("org_admin") or self.has_role("super_admin")
 
+    def get_id(self):
+        """Return the user ID as a string."""
+        return str(self.id)
+
+    @property
+    def is_authenticated(self):
+        """Return True if the user is authenticated."""
+        return True
+
+    @property
+    def is_active(self):
+        """Return True if this is an active user."""
+        return True
+
+    @property
+    def is_anonymous(self):
+        """Return True if this is an anonymous user."""
+        return False
+
 
 class UserAuth(db.Model):
     """Model for a user auth."""

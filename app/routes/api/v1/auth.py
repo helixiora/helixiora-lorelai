@@ -26,18 +26,18 @@ login_model = auth_ns.model(
     },
 )
 
-token_model = auth_ns.model(
-    "Token",
+auth_response_model = auth_ns.model(
+    "AuthResponse",
     {
+        "status": fields.String(required=True, description="Response status (success/error)"),
+        "message": fields.String(required=True, description="Response message"),
         "access_token": fields.String(description="JWT access token"),
-        "message": fields.String(description="Success message"),
         "expiration": fields.DateTime(description="Token expiration time"),
     },
 )
 
-error_model = auth_ns.model("Error", {"message": fields.String(description="Error message")})
 
-
+# To try this out:
 # curl -X POST http://localhost:5000/api/v1/auth/login \
 #   -H "Content-Type: application/json" \
 #   -d '{
@@ -49,8 +49,8 @@ class LoginResource(Resource):
     """Resource for user login."""
 
     @auth_ns.expect(login_model)
-    @auth_ns.response(200, "Success", token_model)
-    @auth_ns.response(401, "Authentication failed", error_model)
+    @auth_ns.response(200, "Success", auth_response_model)
+    @auth_ns.response(401, "Authentication failed", auth_response_model)
     def post(self) -> dict[str, str] | tuple[dict[str, str], int]:
         """Authenticate a user and generate a JWT access token.
 
@@ -65,17 +65,20 @@ class LoginResource(Resource):
         Returns
         -------
         200:
-            [Token model](#model-Token) containing:
-            - access_token (str): JWT access token for authentication
+            [AuthResponse model](#model-AuthResponse) containing:
+            - status (str): "success"
             - message (str): Success confirmation message
+            - access_token (str): JWT access token for authentication
             - expiration (datetime): Token expiration timestamp
 
         401:
-            Error model containing:
+            [AuthResponse model](#model-AuthResponse) containing:
+            - status (str): "error"
             - message (str): Authentication error details
 
         500:
-            Error model containing:
+            [AuthResponse model](#model-AuthResponse) containing:
+            - status (str): "error"
             - message (str): Unexpected error details
 
         Raises
@@ -104,7 +107,7 @@ class LoginResource(Resource):
                 api_key = validate_api_key(data.get("apikey"))
             except ValueError as e:
                 logging.warning(f"Login validation failed: {str(e)}")
-                return {"message": str(e)}, 401
+                return {"status": "error", "message": str(e)}, 401
 
             # Find and authenticate user
             user = User.query.filter_by(email=email).first()
@@ -127,22 +130,26 @@ class LoginResource(Resource):
             access_token = create_access_token(identity=str(user.id))
             logging.info(f"Successful login for user: {email}")
 
-            return {"access_token": access_token, "message": "Login successful"}, 200
+            return {
+                "status": "success",
+                "message": "Login successful",
+                "access_token": access_token,
+            }, 200
 
         except PermissionError as e:
-            return {"message": str(e)}, 401
+            return {"status": "error", "message": str(e)}, 401
         except Exception as e:
             logging.error(f"Login error: {str(e)}")
-            return {"message": "An unexpected error occurred"}, 500
+            return {"status": "error", "message": "An unexpected error occurred"}, 500
 
 
 @auth_ns.route("/logout")
 class LogoutResource(Resource):
-    """Resource for user logout."""
+    """Resource for user logout from the API."""
 
     @jwt_required()
-    @auth_ns.response(200, "Success")
-    @auth_ns.response(401, "Invalid token")
+    @auth_ns.response(200, "Success", auth_response_model)
+    @auth_ns.response(401, "Invalid token", auth_response_model)
     def post(self) -> tuple[dict[str, str], int]:
         """Invalidate the current user's JWT token.
 
@@ -156,15 +163,18 @@ class LogoutResource(Resource):
         Returns
         -------
         200:
-            Success response containing:
+            [AuthResponse model](#model-AuthResponse) containing:
+            - status (str): "success"
             - message (str): Logout confirmation
 
         401:
-            Error model containing:
+            [AuthResponse model](#model-AuthResponse) containing:
+            - status (str): "error"
             - message (str): Invalid or missing token error
 
         500:
-            Error model containing:
+            [AuthResponse model](#model-AuthResponse) containing:
+            - status (str): "error"
             - message (str): Unexpected error details
 
         Example
@@ -177,7 +187,7 @@ class LogoutResource(Resource):
         try:
             # Note: You might want to add token to a blacklist here
             # if you implement token invalidation
-            return {"message": "Logout successful"}, 200
+            return {"status": "success", "message": "Logout successful"}, 200
 
         except Exception as e:
-            return {"message": f"An unexpected error occurred: {e}"}, 500
+            return {"status": "error", "message": f"An unexpected error occurred: {e}"}, 500
