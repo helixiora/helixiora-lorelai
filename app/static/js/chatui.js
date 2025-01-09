@@ -34,11 +34,7 @@ async function deleteConversation(conversationId) {
             'DELETE'
         );
 
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        const data = await response.json();
-        console.log('Conversation deleted successfully:', data);
+        console.log('Conversation deleted successfully');
         // Remove the conversation from the list
         const conversationItem = document.querySelector(`.conversation-item[data-conversation-id="${conversationId}"]`);
         if (conversationItem) {
@@ -51,7 +47,12 @@ async function deleteConversation(conversationId) {
         }
     } catch (error) {
         console.error('Error deleting conversation:', error);
-        alert('Failed to delete conversation. Please try again.');
+        if (error.message === '401') {
+            // Token refresh failed, redirect to login
+            window.location.href = '/logout';
+        } else {
+            alert('Failed to delete conversation. Please try again.');
+        }
     }
 }
 
