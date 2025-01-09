@@ -91,96 +91,118 @@ def refresh_google_token_if_needed(access_token):
     str
         The refreshed access token or None if refresh failed.
     """
-    datasource_id = (
-        Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE)
-        .first()
-        .datasource_id
-    )
-    # Check if the token is still valid
-    token_info_url = (
-        f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
-    )
-    response = lib_requests.get(token_info_url)
-    if response.status_code == 200 and "error" not in response.json():
-        return access_token  # Token is still valid
-
-    # If we're still here, the token is invalid or expired, refresh it
-    refresh_token = session.get("google_drive.refresh_token")
-    if not refresh_token:
-        # Get the refresh token corresponding to this access token
-        result = UserAuth.query.filter_by(
-            user_id=current_user.id,
-            auth_key="refresh_token",
-            datasource_id=datasource_id,
-            created_at=UserAuth.query.filter_by(
-                user_id=current_user.id,
-                auth_key="access_token",
-                auth_value=access_token,
-                datasource_id=datasource_id,
-            )
+    try:
+        datasource_id = (
+            Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE)
             .first()
-            .created_at,
-        ).first()
-        if not result:
-            logging.error(
-                "No refresh token found for user %s and access token %s",
-                current_user.id,
-                access_token,
-            )
-            return None
-        refresh_token = result.auth_value
+            .datasource_id
+        )
+        # Check if the token is still valid
+        token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+        response = lib_requests.get(token_info_url)
+        if response.status_code == 200 and "error" not in response.json():
+            return access_token  # Token is still valid
 
-    logging.info("Refreshing token for user %s", current_user.email)
+        # If we're still here, the token is invalid or expired, refresh it
+        # First try to get refresh token from session
+        refresh_token = session.get("google_drive.refresh_token")
 
-    token_url = "https://oauth2.googleapis.com/token"
-    payload = {
-        "client_id": current_app.config["GOOGLE_CLIENT_ID"],
-        "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    }
-    token_response = lib_requests.post(token_url, data=payload)
-    if token_response.status_code != 200:
-        error_data = token_response.json()
-        if error_data.get("error") == "invalid_grant":
-            logging.error(
-                "Invalid grant error. Refresh token may be expired or revoked."
-            )
-            # Clear the invalid refresh token
-            UserAuth.query.filter_by(
+        # If not in session, try to get from database
+        if not refresh_token:
+            refresh_auth = UserAuth.query.filter_by(
                 user_id=current_user.id,
                 auth_key="refresh_token",
                 datasource_id=datasource_id,
-            ).delete()
-            UserAuth.query.filter_by(
+            ).first()
+
+            if not refresh_auth:
+                logging.error("No refresh token found for user %s", current_user.id)
+                return None
+            refresh_token = refresh_auth.auth_value
+            # Store in session for future use
+            session["google_drive.refresh_token"] = refresh_token
+
+        logging.info("Refreshing token for user %s", current_user.email)
+
+        token_url = "https://oauth2.googleapis.com/token"
+        payload = {
+            "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+            "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+        token_response = lib_requests.post(token_url, data=payload)
+
+        if token_response.status_code != 200:
+            error_data = token_response.json()
+            error_msg = error_data.get("error", "unknown_error")
+
+            if error_msg == "invalid_grant":
+                logging.error(
+                    "Invalid grant error. Refresh token may be expired or revoked."
+                )
+                # Clear the invalid tokens
+                UserAuth.query.filter_by(
+                    user_id=current_user.id, datasource_id=datasource_id
+                ).delete()
+                db.session.commit()
+                # Clear session
+                session.pop("google_drive.refresh_token", None)
+                return None
+
+            logging.error("Failed to refresh token: %s", token_response.text)
+            return None
+
+        new_tokens = token_response.json()
+        new_access_token = new_tokens["access_token"]
+
+        # Update the access token in the database
+        access_auth = UserAuth.query.filter_by(
+            user_id=current_user.id,
+            auth_key="access_token",
+            datasource_id=datasource_id,
+        ).first()
+
+        if access_auth:
+            access_auth.auth_value = new_access_token
+        else:
+            access_auth = UserAuth(
                 user_id=current_user.id,
                 auth_key="access_token",
+                auth_value=new_access_token,
                 datasource_id=datasource_id,
-            ).delete()
-            db.session.commit()
-            # You may want to redirect the user to re-authenticate here
-            return None
-        logging.error("Failed to refresh token: %s", token_response.text)
+            )
+            db.session.add(access_auth)
+
+        # Update the refresh token if a new one was provided
+        if "refresh_token" in new_tokens:
+            refresh_auth = UserAuth.query.filter_by(
+                user_id=current_user.id,
+                auth_key="refresh_token",
+                datasource_id=datasource_id,
+            ).first()
+
+            if refresh_auth:
+                refresh_auth.auth_value = new_tokens["refresh_token"]
+            else:
+                refresh_auth = UserAuth(
+                    user_id=current_user.id,
+                    auth_key="refresh_token",
+                    auth_value=new_tokens["refresh_token"],
+                    datasource_id=datasource_id,
+                )
+                db.session.add(refresh_auth)
+
+            # Update session
+            session["google_drive.refresh_token"] = new_tokens["refresh_token"]
+
+        db.session.commit()
+        return new_access_token
+
+    except Exception as e:
+        logging.error("Error during token refresh: %s", str(e))
+        db.session.rollback()
         return None
-
-    new_tokens = token_response.json()
-    new_access_token = new_tokens["access_token"]
-
-    # Update the access token in the database
-    UserAuth.query.filter_by(
-        user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
-    ).update({"auth_value": new_access_token})
-
-    # Update the refresh token if a new one was provided
-    if "refresh_token" in new_tokens:
-        UserAuth.query.filter_by(
-            user_id=current_user.id,
-            auth_key="refresh_token",
-            datasource_id=datasource_id,
-        ).update({"auth_value": new_tokens["refresh_token"]})
-
-    db.session.commit()
-    return new_access_token
 
 
 def initialize_oauth_flow():
