@@ -103,7 +103,7 @@ class PineconeHelper:
         -------
             list[str]: The list of index names.
         """
-        return self.pinecone_client.list_indexes()
+        return list(self.pinecone_client.list_indexes())
 
     def create_index(
         self, index_name: str, dimension: int, metric: str = "cosine", spec: ServerlessSpec = None
@@ -201,7 +201,7 @@ class PineconeHelper:
 
         # First pass: collect all possible metadata keys
         try:
-            vector_ids = index.list()
+            vector_ids = list(index.list())  # Convert generator to list
             logging.debug(f"Found {len(vector_ids)} vectors in index")
 
             for ident in vector_ids:
@@ -222,7 +222,7 @@ class PineconeHelper:
 
         # Second pass: create normalized metadata dictionaries
         try:
-            for ident in index.list():
+            for ident in list(index.list()):  # Convert generator to list
                 vectors: FetchResponse = index.fetch(ids=ident)
                 for vector_id, vector_data in vectors.vectors.items():
                     if isinstance(vector_data.metadata, dict):
