@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from sqlalchemy.dialects.mysql import INTEGER
-from .database import db
+from app.database import db
 
 
 class Plan(db.Model):
@@ -17,9 +17,7 @@ class Plan(db.Model):
     duration_months = db.Column(INTEGER(unsigned=True), nullable=False)
     message_limit_daily = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     user_plans = db.relationship("UserPlan", backref="plan", lazy=True)
@@ -37,9 +35,7 @@ class UserPlan(db.Model):
     end_date = db.Column(db.Date, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Indexes
     __table_args__ = (

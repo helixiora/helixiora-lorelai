@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from sqlalchemy.dialects.mysql import INTEGER
-from .database import db
+from app.database import db
 
 
 class ExtraMessages(db.Model):

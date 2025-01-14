@@ -1,7 +1,7 @@
 """Notification model."""
 
 from datetime import datetime
-from .database import db
+from app.database import db
 
 
 class Notification(db.Model):
@@ -21,6 +21,4 @@ class Notification(db.Model):
     dismissed = db.Column(db.Boolean, default=False)
     dismissed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

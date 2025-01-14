@@ -9,10 +9,8 @@ from flask_login import LoginManager
 from flask_restx import Api
 from flask_migrate import Migrate
 
-from app.database import db
 from config import config
 
-from sqlalchemy import SQLAlchemy
 from sqlalchemy_utils import database_exists, create_database
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -50,7 +48,7 @@ from app.routes.indexing import bp as indexing_bp
 from app.swagger import authorizations
 
 
-def prepare_database(app: Flask, migrate: Migrate, db: SQLAlchemy):
+def prepare_database(app: Flask, migrate: Migrate, db):
     """Prepare the database."""
     with app.app_context():
         # Create the database if it doesn't exist
@@ -97,13 +95,17 @@ def create_app(config_name: str = "default") -> Flask:
     app.config.from_object(config[config_name])
     config[config_name].init_app(app)
 
-    # Initialize db
+    # Apply ProxyFix early
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
+    # Initialize database first
     db.init_app(app)
 
-    # Initialize Flask-Migrate
+    # Initialize Flask-Migrate after db
     migrate = Migrate(app, db)
     migrate.init_app(app, db)
 
+    # Prepare database
     prepare_database(app, migrate, db)
 
     # Initialize LoginManager
@@ -115,9 +117,7 @@ def create_app(config_name: str = "default") -> Flask:
     jwt = JWTManager(app)
 
     # Set up Sentry
-    if (
-        app.config["FLASK_ENV"] != "development"
-    ):  # Only initialize Sentry in non-dev environments
+    if app.config["FLASK_ENV"] != "development":  # Only initialize Sentry in non-dev environments
         sentry_sdk.init(
             dsn=app.config["SENTRY_DSN"],
             environment=app.config["FLASK_ENV"],
@@ -132,11 +132,6 @@ def create_app(config_name: str = "default") -> Flask:
             ],
         )
         logging.info("Sentry initialized in environment %s", app.config["FLASK_ENV"])
-
-    # Apply ProxyFix
-    app.wsgi_app = ProxyFix(
-        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1
-    )
 
     api_description = """API documentation for Lorelai.
 
@@ -181,7 +176,7 @@ def create_app(config_name: str = "default") -> Flask:
     api.add_namespace(googledrive_ns)
     api.add_namespace(slack_ns)
 
-    # Register blueprints
+    # Register blueprints after all initializations
     app.register_blueprint(admin_bp)
     app.register_blueprint(googledrive_bp)
     app.register_blueprint(auth_bp)
@@ -377,17 +372,11 @@ def setup_jwt_handlers(jwt: JWTManager) -> None:
     @jwt.needs_fresh_token_loader
     def custom_needs_fresh_token_response(jwt_header, jwt_payload):
         """Handle needs fresh token."""
-        logging.error(
-            "Fresh token required for user: %s", jwt_payload.get("sub", "unknown")
-        )
-        return jsonify(
-            {"msg": "Fresh token required", "error": "fresh_token_required"}
-        ), 401
+        logging.error("Fresh token required for user: %s", jwt_payload.get("sub", "unknown"))
+        return jsonify({"msg": "Fresh token required", "error": "fresh_token_required"}), 401
 
     @jwt.revoked_token_loader
     def custom_revoked_token_response(jwt_header, jwt_payload):
         """Handle revoked token."""
-        logging.error(
-            "Revoked token used for user: %s", jwt_payload.get("sub", "unknown")
-        )
+        logging.error("Revoked token used for user: %s", jwt_payload.get("sub", "unknown"))
         return jsonify({"msg": "Token has been revoked", "error": "token_revoked"}), 401
