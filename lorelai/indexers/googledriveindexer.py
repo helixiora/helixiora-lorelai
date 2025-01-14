@@ -18,7 +18,10 @@ from lorelai.processor import Processor
 from sqlalchemy.exc import SQLAlchemyError
 from langchain_googledrive.document_loaders import GoogleDriveLoader
 from langchain_core.documents import Document
-from app.models import db, GoogleDriveItem, IndexingRunItem, IndexingRun
+from app.models import db
+from app.models.google_drive import GoogleDriveItem
+from app.models.indexing import IndexingRunItem, IndexingRun
+from app.models.datasource import Datasource
 from app.schemas import (
     IndexingRunSchema,
     UserAuthSchema,
@@ -26,7 +29,6 @@ from app.schemas import (
 )
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from app.helpers.googledrive import get_token_details
-from app.models import Datasource
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 

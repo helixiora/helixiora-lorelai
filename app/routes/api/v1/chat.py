@@ -15,7 +15,7 @@ import uuid
 
 from flask_restx import Namespace, Resource, fields
 
-from app.models import User
+from app.models.user import User
 from app.tasks import get_answer_from_rag
 from app.helpers.chat import can_send_message
 
