@@ -36,7 +36,7 @@ class DeleteConversationResource(Resource):
             401: "Unauthorized access",
         },
     )
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def delete(self, conversation_id):
         """Delete a conversation and all its messages."""
         try:
@@ -61,7 +61,7 @@ class GetConversationResource(Resource):
         },
     )
     @conversation_ns.marshal_with(message_model, as_list=True)
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def get(self, conversation_id):
         """Get all messages for a given conversation."""
         try:

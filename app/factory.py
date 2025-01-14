@@ -1,240 +1,62 @@
-"""Application factory for the Flask app."""
+"""Flask application factory."""
 
 import logging
 import os
-import sys
-from flask import Flask, jsonify, render_template
-from flask_jwt_extended import JWTManager
+from flask import Flask, jsonify
+from flask_cors import CORS
 from flask_login import LoginManager
-from flask_restx import Api
 from flask_migrate import Migrate
+from flask_restx import Api
+from flask_jwt_extended import JWTManager
+from datetime import timedelta
 
-from config import config
-
-from sqlalchemy_utils import database_exists, create_database
-from werkzeug.middleware.proxy_fix import ProxyFix
-
-from app.cli import init_db_command, seed_db_command
-
-import sentry_sdk
-from sentry_sdk.integrations.rq import RqIntegration
-from sentry_sdk.integrations.flask import FlaskIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
-
-# models
-from app.database import db
-from app.models.user import User
-
-# namespaces
-from app.routes.api.v1.chat import chat_ns
-from app.routes.api.v1.conversation import conversation_ns
-from app.routes.api.v1.notifications import notifications_ns
-from app.routes.api.v1.token import token_ns
+from app.models import User, db
 from app.routes.api.v1.auth import auth_ns
-from app.routes.api.v1.api_keys import api_keys_ns
+from app.routes.api.v1.chat import chat_ns
+from app.routes.api.v1.token import token_ns
+from app.routes.api.v1.notifications import notifications_ns
 from app.routes.api.v1.admin import admin_ns
-from app.routes.api.v1.googledrive import googledrive_ns
+from app.routes.api.v1.api_keys import api_keys_ns
 from app.routes.api.v1.slack import slack_ns
+from app.routes.api.v1.googledrive import googledrive_ns
+from app.routes.api.v1.conversation import conversation_ns
 
-# blueprints
-from app.routes.admin import admin_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
-from app.routes.api_keys import api_keys_bp
+from app.routes.admin import admin_bp
 from app.routes.indexing import bp as indexing_bp
 
-from app.swagger import authorizations
+# Get git details
+try:
+    git_hash = os.popen("git rev-parse HEAD").read().strip()
+    git_branch = os.popen("git rev-parse --abbrev-ref HEAD").read().strip()
+    git_details = f"{git_hash}  {git_branch}"
+except Exception as e:
+    git_details = f"Error getting git details: {e}"
+logging.info("Git details: %s", git_details)
 
 
-def prepare_database(app: Flask, migrate: Migrate, db):
-    """Prepare the database."""
-    with app.app_context():
-        # Create the database if it doesn't exist
-        if not database_exists(app.config["SQLALCHEMY_DATABASE_URI"]):
-            create_database(app.config["SQLALCHEMY_DATABASE_URI"])
-
-        # Create the tables if they don't exist
-        inspector = db.inspect(db.engine)
-        if "user" not in inspector.get_table_names():
-            db.create_all()
-
-        # Run migrations if they haven't been run yet
-        # upgrade()
-
-
-def create_app(config_name: str = "default") -> Flask:
-    """Create and configure the Flask application."""
-    # set the SCARF_NO_ANALYTICS environment variable to true to disable analytics
-    # (among possible others the unstructured library uses to track usage)
-    os.environ["SCARF_NO_ANALYTICS"] = "true"
-
-    # Configure logging
-    log_level = os.environ.get("LOG_LEVEL", "INFO")
-    print(f"Setting log level to: {log_level}")  # Temporary debug print
-    logging.basicConfig(
-        level=getattr(logging, log_level),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-    logging.getLogger().setLevel(getattr(logging, log_level))
-
-    # this is a print on purpose (not a logger statement) to show that the app is loading
-    # get the git commit hash, branch name and first line of the commit message and print it out
-    print("Loading the app...")
-    logging.debug("Loading the app...")
-
-    git_details = os.popen("git log --pretty=format:'%H %d %s' -n 1").read()
-    print(f"Git details: {git_details}")
-    logging.info(f"Git details: {git_details}")
-
+def create_app(config=None):
+    """Create Flask application."""
     app = Flask(__name__)
-    app.name = "lorelai"
 
     # Load configuration
-    app.config.from_object(config[config_name])
-    config[config_name].init_app(app)
+    if config is None:
+        app.config.from_object("config.Config")
+    else:
+        app.config.update(config)
 
-    # Apply ProxyFix early
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
-
-    # Initialize database first
+    # Initialize extensions
+    CORS(app)
     db.init_app(app)
+    Migrate(app, db)
 
-    # Initialize Flask-Migrate after db
-    migrate = Migrate(app, db)
-    migrate.init_app(app, db)
-
-    # Prepare database
-    prepare_database(app, migrate, db)
-
-    # Initialize LoginManager
-    login_manager = LoginManager()
-    login_manager.init_app(app)
-    login_manager.login_view = "chat.index"
-
-    # Initialize JWT
-    jwt = JWTManager(app)
-
-    # Set up Sentry
-    if app.config["FLASK_ENV"] != "development":  # Only initialize Sentry in non-dev environments
-        sentry_sdk.init(
-            dsn=app.config["SENTRY_DSN"],
-            environment=app.config["FLASK_ENV"],
-            debug=False,  # Disable debug logging
-            integrations=[
-                FlaskIntegration(),
-                RqIntegration(),
-                LoggingIntegration(
-                    level=logging.INFO,  # Capture info and above as breadcrumbs
-                    event_level=logging.ERROR,  # Send errors as events
-                ),
-            ],
-        )
-        logging.info("Sentry initialized in environment %s", app.config["FLASK_ENV"])
-
-    api_description = """API documentation for Lorelai.
-
-    Getting started
-    --------------
-    To get started, create an API key in the Lorelai dashboard and use it to authenticate using the
-    `/auth/login` endpoint. This will return a JWT token that you can use to authenticate your
-    requests.
-
-    To authenticate your requests, pass the JWT token in the `Authorization` header as a Bearer
-    token.
-
-    The JWT token will be valid for 15 minutes by default. You can change this by passing an
-    `expires` value in the login request. Pass 0 to disable the expiration.
-
-    For more information on how to use the API, see the individual endpoints in the documentation.
-
-    If you find any issues, please report them to [Support](mailto:support@helixiora.com).
-    """
-
-    # Initialize Flask-RestX
-    api = Api(
-        app,
-        version="1.0",
-        title="Lorelai API",
-        contact="support@helixiora.com",
-        description=api_description,
-        # security="Bearer Auth",
-        doc="/swagger",
-        prefix="/api/v1",
-        authorizations=authorizations,
-    )
-
-    # Register namespaces
-    api.add_namespace(chat_ns)
-    api.add_namespace(conversation_ns)
-    api.add_namespace(notifications_ns)
-    api.add_namespace(token_ns)
-    api.add_namespace(auth_ns)
-    api.add_namespace(api_keys_ns)
-    api.add_namespace(admin_ns)
-    api.add_namespace(googledrive_ns)
-    api.add_namespace(slack_ns)
-
-    # Register blueprints after all initializations
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(googledrive_bp)
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(chat_bp)
-    app.register_blueprint(slack_bp)
-    app.register_blueprint(api_keys_bp)
-    app.register_blueprint(indexing_bp)
-
-    # Set up user loader
-    @login_manager.user_loader
-    def load_user(user_id: str) -> User:
-        return User.query.get(int(user_id))
-
-    # Set up error handlers and other app-wide functions
-    setup_error_handlers(app)
-    setup_after_request(app)
-    setup_jwt_handlers(jwt)
-
-    setup_cli(app)
-
-    return app
-
-
-def setup_cli(app: Flask) -> None:
-    """Set up the CLI for the Flask app."""
-    app.cli.add_command(init_db_command)
-    app.cli.add_command(seed_db_command)
-
-
-def setup_error_handlers(app: Flask) -> None:
-    """Set up error handlers for the Flask app."""
-
-    # Error handler for 404
-    @app.errorhandler(404)
-    def page_not_found(e):
-        """Handle 404 errors."""
-        return render_template("404.html", e=e), 404
-
-    # Error handler for 500
-    @app.errorhandler(500)
-    def internal_server_error(e):
-        """Handle 500 errors."""
-        error_info = sys.exc_info()
-        if error_info:
-            error_message = str(error_info[1])  # Get the exception message
-        else:
-            error_message = f"An unknown error occurred. {e}"
-
-        # Pass the error message to the template
-        return render_template("500.html", error_message=error_message), 500
-
-
-def setup_after_request(app: Flask) -> None:
-    """Set up after request handlers for the Flask app."""
-
+    # Security headers
     @app.after_request
-    def set_security_headers(response):
-        """Set the security headers for the response."""
+    def add_security_headers(response):
+        """Add security headers to all responses."""
         cross_origin_opener_policy = "same-origin"
 
         connect_src = [
@@ -328,55 +150,166 @@ def setup_after_request(app: Flask) -> None:
         )
 
         response.headers["Cross-Origin-Opener-Policy"] = cross_origin_opener_policy
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Content-Security-Policy"] = content_security_policy
 
         return response
 
+    # Initialize JWT
+    jwt = JWTManager(app)
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+    app.config["JWT_TOKEN_LOCATION"] = ["headers", "cookies"]
+    app.config["JWT_COOKIE_SECURE"] = True
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = True
+    app.config["JWT_COOKIE_SAMESITE"] = "Strict"
 
-def setup_jwt_handlers(jwt: JWTManager) -> None:
-    """Set up JWT handlers for the Flask app."""
+    # Initialize Login Manager
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = "chat.index"
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        """Load user by ID."""
+        return User.query.get(int(user_id))
+
+    # Register blueprints
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(chat_bp)
+    app.register_blueprint(googledrive_bp)
+    app.register_blueprint(slack_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(indexing_bp)
+
+    # Initialize API
+    authorizations = {
+        "Bearer Auth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "Authorization",
+            "description": "Add a JWT with ** Bearer &lt;JWT&gt; ** to authorize",
+        },
+    }
+
+    api = Api(
+        app,
+        version="1.0",
+        title="Lorelai API",
+        description="Lorelai API",
+        authorizations=authorizations,
+        security="Bearer Auth",
+        prefix="/api/v1",
+    )
+
+    # Add namespaces
+    api.add_namespace(auth_ns)
+    api.add_namespace(chat_ns)
+    api.add_namespace(token_ns)
+    api.add_namespace(notifications_ns)
+    api.add_namespace(admin_ns)
+    api.add_namespace(api_keys_ns)
+    api.add_namespace(slack_ns)
+    api.add_namespace(googledrive_ns)
+    api.add_namespace(conversation_ns)
+
+    # Error handlers
+    @app.errorhandler(401)
+    def unauthorized(error):
+        """Handle unauthorized access."""
+        logging.error("Unauthorized access attempt - %s", error)
+        return jsonify({"message": "Unauthorized access"}), 401
+
+    @app.errorhandler(403)
+    def forbidden(error):
+        """Handle forbidden access."""
+        logging.error("Forbidden access attempt - %s", error)
+        return jsonify({"message": "Forbidden"}), 403
+
+    @app.errorhandler(404)
+    def not_found(error):
+        """Handle not found error."""
+        logging.error("Resource not found - %s", error)
+        return jsonify({"message": "Resource not found"}), 404
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        """Handle internal server error."""
+        logging.error("Internal server error - %s", error)
+        return jsonify({"message": "Internal server error"}), 500
 
     @jwt.unauthorized_loader
-    def custom_unauthorized_response(_err):
-        """Handle unauthorized access."""
-        logging.error("Unauthorized access attempt - %s", _err)
-        return jsonify(
-            {
-                "msg": "Authentication required",
-                "error": "missing_authorization",
-            }
-        ), 401
+    def unauthorized_callback(callback):
+        """Handle unauthorized JWT access."""
+        logging.error("Unauthorized access attempt - %s", callback)
+        return jsonify({"message": "Unauthorized access"}), 401
 
     @jwt.invalid_token_loader
-    def custom_invalid_token_response(error_string):
-        """Handle invalid token."""
-        logging.error("Invalid token provided - %s", error_string)
-        return jsonify(
-            {
-                "msg": "Invalid authentication token",
-                "error": "invalid_token",
-            }
-        ), 401
+    def invalid_token_callback(callback):
+        """Handle invalid JWT token."""
+        logging.error("Invalid token - %s", callback)
+        return jsonify({"message": "Invalid token"}), 401
 
     @jwt.expired_token_loader
-    def custom_expired_token_response(jwt_header, jwt_payload):
-        """Handle expired token."""
-        logging.error(
-            "Expired token for user: %s, jwt_payload: %s, jwt_header: %s",
-            jwt_payload.get("sub", "unknown"),
-            jwt_payload,
-            jwt_header,
-        )
-        return jsonify({"msg": "Token has expired", "error": "token_expired"}), 401
+    def expired_token_callback(jwt_header, jwt_data):
+        """Handle expired JWT token."""
+        logging.error("Token expired - %s", jwt_data)
+        return jsonify({"message": "Token has expired"}), 401
 
     @jwt.needs_fresh_token_loader
-    def custom_needs_fresh_token_response(jwt_header, jwt_payload):
-        """Handle needs fresh token."""
-        logging.error("Fresh token required for user: %s", jwt_payload.get("sub", "unknown"))
-        return jsonify({"msg": "Fresh token required", "error": "fresh_token_required"}), 401
+    def token_not_fresh_callback(jwt_header, jwt_data):
+        """Handle non-fresh JWT token."""
+        logging.error("Token is not fresh - %s", jwt_data)
+        return jsonify({"message": "Fresh token required"}), 401
 
     @jwt.revoked_token_loader
-    def custom_revoked_token_response(jwt_header, jwt_payload):
-        """Handle revoked token."""
-        logging.error("Revoked token used for user: %s", jwt_payload.get("sub", "unknown"))
-        return jsonify({"msg": "Token has been revoked", "error": "token_revoked"}), 401
+    def revoked_token_callback(jwt_header, jwt_data):
+        """Handle revoked JWT token."""
+        logging.error("Token has been revoked - %s", jwt_data)
+        return jsonify({"message": "Token has been revoked"}), 401
+
+    @jwt.user_lookup_error_loader
+    def user_lookup_error_callback(jwt_header, jwt_data):
+        """Handle JWT user lookup error."""
+        logging.error("Error loading user - %s", jwt_data)
+        return jsonify({"message": "Error loading user"}), 401
+
+    @jwt.token_verification_failed_loader
+    def token_verification_failed_callback(jwt_header, jwt_data):
+        """Handle JWT token verification failure."""
+        logging.error("Token verification failed - %s", jwt_data)
+        return jsonify({"message": "Token verification failed"}), 401
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_in_blocklist(jwt_header, jwt_data):
+        """Check if JWT token is in blocklist."""
+        # TODO: Implement actual blocklist check if needed
+        return False
+
+    @jwt.additional_claims_loader
+    def add_claims_to_access_token(identity):
+        """Add claims to JWT access token."""
+        user = User.query.get(identity)
+        if user:
+            return {
+                "roles": [role.name for role in user.roles],
+                "org_id": user.org_id,
+                "org_name": user.organisation.name,
+            }
+        return {}
+
+    @jwt.user_identity_loader
+    def user_identity_lookup(user):
+        """Get user identity for JWT."""
+        return user.id if isinstance(user, User) else user
+
+    @jwt.user_lookup_loader
+    def user_lookup_callback(_jwt_header, jwt_data):
+        """Look up user from JWT data."""
+        identity = jwt_data["sub"]
+        return User.query.get(identity)
+
+    return app

@@ -21,7 +21,7 @@ References
 """
 
 import logging
-
+import bleach
 from flask import (
     Blueprint,
     flash,
@@ -37,11 +37,13 @@ from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
 from flask_login import login_required, logout_user, current_user
+from flask_jwt_extended import set_access_cookies, set_refresh_cookies, unset_jwt_cookies
+from pydantic import BaseModel, ValidationError
+from typing import Literal
 
 from app.helpers import email_validator, url_validator
 from app.helpers.auth import login_user_function, validate_id_token
 from app.helpers.googledrive import get_token_details
-
 from flask import current_app
 
 from app.models.user import User
@@ -57,10 +59,27 @@ from app.helpers.users import is_admin, validate_form, register_user_to_org, upd
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 
 
-import bleach
-from pydantic import ValidationError
-
 auth_bp = Blueprint("auth", __name__)
+
+
+class BaseResponse(BaseModel):
+    """Base response model for all API responses."""
+
+    status: Literal["success", "error"]
+    message: str
+
+
+class LoginResponse(BaseResponse):
+    """Response model for login operations."""
+
+    access_token: str | None = None
+    refresh_token: str | None = None
+
+
+class LogoutResponse(BaseResponse):
+    """Response model for logout operations."""
+
+    pass
 
 
 @auth_bp.route("/profile", methods=["POST"])
@@ -304,69 +323,86 @@ def register_post():
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    """
-    Login route.
-
-    This route is used to authenticate a user using Google's Identity Verification API.
-    The user sends a POST request with the ID token received from Google.
-    The ID token is verified using Google's Identity Verification API and the user is authenticated.
-    If the user is not registered, they are redirected to the registration page.
-    If authentication is successful, the user is redirected to the profile page.
-    If authentication fails, the user is redirected to the index page with an error message.
-
-    Returns
-    -------
-        redirect: Redirects to the appropriate page based on the authentication result.
-    """
+    """Login route."""
     # Get and validate ID token
     id_token_received = request.form.get("credential", "").strip()
     if not id_token_received or not isinstance(id_token_received, str):
-        raise ValidationError("Invalid or missing ID token")
+        flash("Invalid or missing ID token", "error")
+        return redirect(url_for("chat.index"))
 
     # Get Google's CSRF token
     g_csrf_token = request.form.get("g_csrf_token", "").strip()
+    g_csrf_token_cookie = request.cookies.get("g_csrf_token")
+
+    # Log detailed token information for debugging
+    logging.debug(
+        "Login attempt - CSRF token in form: %s, in cookie: %s",
+        bool(g_csrf_token),
+        bool(g_csrf_token_cookie),
+    )
 
     # Validate Google's CSRF token
-    if not g_csrf_token:
-        raise exceptions.GoogleAuthError("No CSRF token in post body.")
-
-    g_csrf_token_cookie = request.cookies.get("g_csrf_token")
-    if not g_csrf_token_cookie:
-        raise exceptions.GoogleAuthError("No CSRF token in cookie.")
+    if not g_csrf_token or not g_csrf_token_cookie:
+        error_msg = "Missing CSRF token"
+        logging.error(
+            "Login failed: %s (form: %s, cookie: %s)",
+            error_msg,
+            bool(g_csrf_token),
+            bool(g_csrf_token_cookie),
+        )
+        flash(error_msg, "error")
+        return redirect(url_for("chat.index"))
 
     if g_csrf_token != g_csrf_token_cookie:
-        raise exceptions.GoogleAuthError("CSRF token mismatch.")
+        error_msg = "CSRF token mismatch"
+        logging.error("Login failed: %s", error_msg)
+        flash(error_msg, "error")
+        return redirect(url_for("chat.index"))
 
     try:
+        # Log the token verification attempt
+        logging.debug("Attempting to verify Google ID token")
         idinfo = id_token.verify_oauth2_token(id_token_received, requests.Request())
 
         if not idinfo:
-            raise exceptions.GoogleAuthError("Invalid token")
+            raise exceptions.GoogleAuthError("Invalid token - no token info returned")
 
+        # Log successful token verification
+        logging.debug("Successfully verified Google ID token")
+
+        # Validate additional token claims
         validate_id_token(idinfo)
+        logging.debug("Successfully validated token claims")
 
     except (ValueError, exceptions.GoogleAuthError) as e:
-        logging.error("Authentication error: %s", str(e))
-        flash("Authentication failed: " + str(e), "error")
-        return redirect(url_for("chat.index"))
-    except Exception as e:
-        logging.exception("An unexpected error occurred: %s", e)
-        flash("An unexpected error occurred. Please try again later.", "error")
+        error_msg = f"Authentication failed: {str(e)}"
+        logging.error("Login error: %s", error_msg, exc_info=True)
+        flash(error_msg, "error")
         return redirect(url_for("chat.index"))
 
-    # get some values from the info we got from google
-    logging.debug("Info from token: %s", idinfo)
-    user_email = idinfo["email"]
-    username = idinfo["name"]
-    user_full_name = idinfo["name"]
-    google_id = idinfo["sub"]
+    except Exception:
+        error_msg = "An unexpected error occurred during authentication"
+        logging.exception("Login error: %s", error_msg)
+        flash(error_msg, "error")
+        return redirect(url_for("chat.index"))
 
-    # check if the user is already registered
+    # Extract user information from the verified token
+    try:
+        user_email = idinfo["email"]
+        username = idinfo["name"]
+        user_full_name = idinfo["name"]
+        google_id = idinfo["sub"]
+        logging.info("Successfully extracted user info from token for: %s", user_email)
+    except KeyError as e:
+        error_msg = f"Missing required field in ID token: {str(e)}"
+        logging.error("Login error: %s", error_msg)
+        flash(error_msg, "error")
+        return redirect(url_for("chat.index"))
+
+    # Check if user exists
     user = User.query.filter_by(email=user_email).first()
-
     if not user:
-        # if we can't find the user, it means they are not registered
-        # redirect them to the registration page
+        logging.info("New user attempting to login: %s", user_email)
         return redirect(
             url_for(
                 "auth.register_get",
@@ -376,8 +412,8 @@ def login():
             )
         )
 
-    logging.info("User logging in: %s", user_email)
-    login_success = login_user_function(
+    logging.info("Existing user logging in: %s", user_email)
+    login_result = login_user_function(
         user=user,
         user_email=user_email,
         google_id=google_id,
@@ -385,30 +421,43 @@ def login():
         full_name=user_full_name,
     )
 
-    if login_success:
-        # Create response with redirect
-        response = make_response(redirect(url_for("auth.profile")))
-        return response
+    if not login_result.success:
+        error_msg = login_result.error_message or "Login failed - could not create session"
+        logging.error("Login error: %s for user %s", error_msg, user_email)
+        flash(error_msg, "error")
+        return redirect(url_for("chat.index"))
 
-    flash("Login failed", "error")
-    return redirect(url_for("chat.index"))
+    # Set cookies and redirect
+    response = make_response(redirect(url_for("auth.profile")))
+    set_access_cookies(response, login_result.access_token)
+    set_refresh_cookies(response, login_result.refresh_token)
+    return response
 
 
 @auth_bp.route("/logout", methods=["GET"])
 @login_required
 def logout():
-    """
-    Logout route.
-
-    Clears the session and access tokens, then redirects to the index page.
-
-    Returns
-    -------
-    str
-        Redirects to the index page.
-    """
+    """Logout route."""
     session.clear()
     logout_user()
-    flash("You have been logged out.")
 
-    return redirect(url_for("chat.index"))
+    # Check if this is an API request
+    wants_json = request.headers.get("Accept") == "application/json"
+    if wants_json:
+        response = make_response(
+            LogoutResponse(status="success", message="Successfully logged out").model_dump()
+        )
+    else:
+        response = make_response(redirect(url_for("chat.index")))
+        flash("You have been logged out.")
+
+    # Clear JWT cookies
+    unset_jwt_cookies(response)
+
+    # Ensure cookies are cleared with matching path and domain
+    response.delete_cookie("access_token_cookie")
+    response.delete_cookie("refresh_token_cookie")
+    response.delete_cookie("csrf_access_token")
+    response.delete_cookie("csrf_refresh_token")
+
+    return response
