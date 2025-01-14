@@ -46,9 +46,7 @@ class Indexer:
 
     def __init__(self):
         if not self._allowed:
-            raise Exception(
-                "This class should be instantiated through a create() factory method."
-            )
+            raise Exception("This class should be instantiated through a create() factory method.")
 
     def get_indexer_name(self) -> str:
         """Retrieve the name of the indexer."""
@@ -119,8 +117,7 @@ class Indexer:
                     user_auth_row
                     for user_auth_row in user_auths
                     if str(user_auth_row.user_id) == str(user.id)
-                    and str(user_auth_row.datasource_id)
-                    == str(datasource.datasource_id)
+                    and str(user_auth_row.datasource_id) == str(datasource.datasource_id)
                 ]
                 if not user_auth_rows_filtered or len(user_auth_rows_filtered) == 0:
                     logging.info(
@@ -128,7 +125,9 @@ class Indexer:
 {datasource.datasource_name}"
                     )
                     indexing_run.status = "completed"
-                    indexing_run.error = f"No auth rows found for user for datasource {datasource.datasource_name}"
+                    indexing_run.error = (
+                        f"No auth rows found for user for datasource {datasource.datasource_name}"
+                    )
                     db.session.commit()
                     continue
 
@@ -171,9 +170,7 @@ datasource {datasource.datasource_name}: {total_items}"
 
                 if failed_items > 0:
                     indexing_run.status = "completed_with_errors"
-                    indexing_run.error = (
-                        f"Failed items: {failed_items}; Total items: {total_items}"
-                    )
+                    indexing_run.error = f"Failed items: {failed_items}; Total items: {total_items}"
                 else:
                     indexing_run.status = "completed"
                     indexing_run.error = f"No errors; Total items: {total_items}"

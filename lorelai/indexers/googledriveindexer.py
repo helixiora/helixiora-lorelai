@@ -29,7 +29,6 @@ from app.schemas import (
 )
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from app.helpers.googledrive import get_token_details
-from app.models.datasource import Datasource
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 
@@ -39,9 +38,7 @@ class GoogleDriveIndexer(Indexer):
 
     def _get_datasource(self) -> Datasource:
         """Get the datasource for this indexer."""
-        return Datasource.query.filter_by(
-            datasource_name=DATASOURCE_GOOGLE_DRIVE
-        ).first()
+        return Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
 
     def __init__(self) -> None:
         logging.debug("GoogleDriveIndexer initialized")
@@ -61,9 +58,7 @@ class GoogleDriveIndexer(Indexer):
         )
 
         # 2. Get the Google Drive document IDs
-        logging.debug(
-            f"Getting Google Drive document IDs for user: {indexing_run.user.email}"
-        )
+        logging.debug(f"Getting Google Drive document IDs for user: {indexing_run.user.email}")
 
         # Get the actual model instance from the database
         indexing_run_model = IndexingRun.query.get(indexing_run.id)
@@ -81,9 +76,7 @@ class GoogleDriveIndexer(Indexer):
             item_id=drive_item.google_drive_id,
             item_type=drive_item.item_type,
             item_name=drive_item.item_name,
-            item_url=drive_item.item_url
-            if drive_item.item_url
-            else "Original item has no URL",
+            item_url=drive_item.item_url if drive_item.item_url else "Original item has no URL",
             item_status="pending",
         )
         db.session.add(indexing_run_item)
@@ -114,13 +107,9 @@ class GoogleDriveIndexer(Indexer):
         try:
             drive_service = build("drive", "v3", credentials=credentials_object)
             drive_service.files().list(pageSize=1).execute()
-            logging.info(
-                f"Google Drive credentials are valid and working for user: {user_email}"
-            )
+            logging.info(f"Google Drive credentials are valid and working for user: {user_email}")
         except Exception as e:
-            raise ValueError(
-                f"Failed to validate Google Drive credentials: {str(e)}"
-            ) from e
+            raise ValueError(f"Failed to validate Google Drive credentials: {str(e)}") from e
 
     def __process_drive_items(
         self,
@@ -136,18 +125,14 @@ class GoogleDriveIndexer(Indexer):
         documents = []
         for drive_item in user_data:
             try:
-                indexing_run_item = self.__create_indexing_item(
-                    indexing_run_model.id, drive_item
-                )
+                indexing_run_item = self.__create_indexing_item(indexing_run_model.id, drive_item)
                 # This is a root item (directly added by user), so parent_item_id is None
                 indexing_run_item.parent_item_id = None
                 db.session.commit()
 
                 if drive_item.item_type not in ALLOWED_ITEM_TYPES:
                     indexing_run_item.item_status = "skipped"
-                    indexing_run_item.item_error = (
-                        f"Invalid item type: {drive_item.item_type}"
-                    )
+                    indexing_run_item.item_error = f"Invalid item type: {drive_item.item_type}"
                     db.session.commit()
                     continue
 
@@ -178,7 +163,9 @@ class GoogleDriveIndexer(Indexer):
 
                     # Update folder status
                     indexing_run_item.item_status = "completed"
-                    indexing_run_item.item_error = f"Successfully processed folder with {len(documents_from_folder)} items"
+                    indexing_run_item.item_error = (
+                        f"Successfully processed folder with {len(documents_from_folder)} items"
+                    )
                     db.session.commit()
                 else:
                     documents.append(
@@ -209,9 +196,7 @@ class GoogleDriveIndexer(Indexer):
     ) -> None:
         """Process documents and store them in Pinecone."""
         if not documents:
-            logging.warn(
-                f"No Google Drive documents found for user: {indexing_run.user.email}"
-            )
+            logging.warn(f"No Google Drive documents found for user: {indexing_run.user.email}")
             return
 
         logging.info(
@@ -228,15 +213,11 @@ class GoogleDriveIndexer(Indexer):
 
         # Store in Pinecone
         pinecone_processor = Processor()
-        pinecone_processor.store_docs_in_pinecone(
-            langchain_docs, indexing_run=indexing_run
-        )
+        pinecone_processor.store_docs_in_pinecone(langchain_docs, indexing_run=indexing_run)
 
         # Update indexing timestamps
         self.update_last_indexed_for_docs(documents, indexing_run)
-        logging.info(
-            f"Indexing Google Drive complete for user: {indexing_run.user.email}"
-        )
+        logging.info(f"Indexing Google Drive complete for user: {indexing_run.user.email}")
 
     def index_user(
         self,
@@ -294,9 +275,7 @@ class GoogleDriveIndexer(Indexer):
         # go through all docs. For each doc, see if the user is already in the metadata. If not,
         # add the user to the metadata
         for loaded_doc in langchain_docs:
-            logging.info(
-                f"Checking metadata users for Google doc: {loaded_doc.metadata['title']}"
-            )
+            logging.info(f"Checking metadata users for Google doc: {loaded_doc.metadata['title']}")
 
             # check if the user key is in the metadata
             if "users" not in loaded_doc.metadata:
@@ -325,9 +304,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive file ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load()
         logging.info(f"Loaded {len(docs_loaded)} docs from file: {doc_google_drive_id}")
         return docs_loaded
@@ -351,9 +328,7 @@ class GoogleDriveIndexer(Indexer):
             document_ids=[doc_google_drive_id], credentials=credentials_object
         )
         docs_loaded = loader.load()
-        logging.info(
-            f"Loaded {len(docs_loaded)} docs from document: {doc_google_drive_id}"
-        )
+        logging.info(f"Loaded {len(docs_loaded)} docs from document: {doc_google_drive_id}")
         return docs_loaded
 
     def __list_files_in_folder(
@@ -377,9 +352,7 @@ class GoogleDriveIndexer(Indexer):
         """
         if processed_folders is None:
             processed_folders = set()
-            logging.info(
-                f"Starting recursive folder traversal from root folder: {folder_id}"
-            )
+            logging.info(f"Starting recursive folder traversal from root folder: {folder_id}")
 
         if folder_id in processed_folders:
             logging.warning(
@@ -468,7 +441,9 @@ class GoogleDriveIndexer(Indexer):
 
                         # Update subfolder status
                         subfolder_item.item_status = "completed"
-                        subfolder_item.item_error = f"Successfully processed subfolder with {len(subfolder_items)} items"
+                        subfolder_item.item_error = (
+                            f"Successfully processed subfolder with {len(subfolder_items)} items"
+                        )
                         db.session.commit()
                     else:
                         logging.info(f"Found file: {item['name']} ({item['id']})")
@@ -523,13 +498,9 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive slides ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load_slides_from_id(doc_google_drive_id)
-        logging.info(
-            f"Loaded {len(docs_loaded)} slides from file: {doc_google_drive_id}"
-        )
+        logging.info(f"Loaded {len(docs_loaded)} slides from file: {doc_google_drive_id}")
         return docs_loaded
 
     def load_google_doc_from_sheets_id(
@@ -546,13 +517,9 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive sheets ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load_sheets_from_id(doc_google_drive_id)
-        logging.info(
-            f"Loaded {len(docs_loaded)} sheets from file: {doc_google_drive_id}"
-        )
+        logging.info(f"Loaded {len(docs_loaded)} sheets from file: {doc_google_drive_id}")
         return docs_loaded
 
     def load_google_doc_from_pdf_id(
@@ -569,9 +536,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive PDF ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load()
         logging.info(f"Loaded {len(docs_loaded)} pages from PDF: {doc_google_drive_id}")
         return docs_loaded
@@ -589,9 +554,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive text file ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load()
         logging.info(f"Loaded text content from file: {doc_google_drive_id}")
         return docs_loaded
@@ -609,9 +572,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive MS Office file ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load()
         logging.info(f"Loaded content from MS Office file: {doc_google_drive_id}")
         return docs_loaded
@@ -631,9 +592,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive image file ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load()
         logging.info(f"Loaded content from image file: {doc_google_drive_id}")
         return docs_loaded
@@ -653,9 +612,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive media file ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load()
         logging.info(f"Loaded content from media file: {doc_google_drive_id}")
         return docs_loaded
@@ -675,9 +632,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive archive file ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(
-            file_ids=[doc_google_drive_id], credentials=credentials_object
-        )
+        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
         docs_loaded = loader.load()
         logging.info(f"Loaded content from archive file: {doc_google_drive_id}")
         return docs_loaded
@@ -726,14 +681,10 @@ processed"
                         )
                         docs_loaded = []
                         # Mark the folder item as completed
-                        indexing_run_item = IndexingRunItem.query.get(
-                            indexing_run_item_id
-                        )
+                        indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
                         if indexing_run_item:
                             indexing_run_item.item_status = "completed"
-                            indexing_run_item.item_error = (
-                                "Folder contents already processed"
-                            )
+                            indexing_run_item.item_error = "Folder contents already processed"
                             db.session.commit()
                         continue
 
@@ -841,12 +792,7 @@ processed"
                         # we want: the number of langchain documents loaded
                         # plus the unique list of titles of the documents loaded
                         titles = list(
-                            set(
-                                [
-                                    doc.metadata.get("title", "Untitled")
-                                    for doc in docs_loaded
-                                ]
-                            )
+                            set([doc.metadata.get("title", "Untitled") for doc in docs_loaded])
                         )
                         # limit the titles to 20
                         if len(titles) > 20:
@@ -867,15 +813,11 @@ processed"
                     indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
                     if indexing_run_item:
                         indexing_run_item.item_status = "failed"
-                        indexing_run_item.item_error = (
-                            "No documents loaded from Google Drive"
-                        )
+                        indexing_run_item.item_error = "No documents loaded from Google Drive"
                         db.session.commit()
 
             except Exception as e:
-                logging.error(
-                    f"Error processing document {doc_google_drive_id}: {str(e)}"
-                )
+                logging.error(f"Error processing document {doc_google_drive_id}: {str(e)}")
                 # Update status to failed on exception
                 indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
                 if indexing_run_item:
@@ -883,14 +825,10 @@ processed"
                     indexing_run_item.item_error = str(e)
                     db.session.commit()
 
-        logging.debug(
-            f"Total {len(docs)} Google docs loaded from Google Drive using langchain"
-        )
+        logging.debug(f"Total {len(docs)} Google docs loaded from Google Drive using langchain")
         return docs
 
-    def update_last_indexed_for_docs(
-        self, documents, indexing_run: IndexingRunSchema
-    ) -> None:
+    def update_last_indexed_for_docs(self, documents, indexing_run: IndexingRunSchema) -> None:
         """Update the last indexed timestamp for the documents in the database.
 
         :param documents: the documents to update
@@ -900,21 +838,15 @@ processed"
             logging.info(f"Updating last indexed timestamp for document: {doc_id}")
 
             try:
-                google_drive_item = GoogleDriveItem.query.filter_by(
-                    google_drive_id=doc_id
-                ).first()
+                google_drive_item = GoogleDriveItem.query.filter_by(google_drive_id=doc_id).first()
                 if google_drive_item:
                     google_drive_item.last_indexed_at = db.func.now()
                     db.session.commit()
                 else:
-                    logging.warning(
-                        f"Document with ID {doc_id} not found in the database"
-                    )
+                    logging.warning(f"Document with ID {doc_id} not found in the database")
             except SQLAlchemyError as e:
                 db.session.rollback()
-                logging.error(
-                    f"Error updating last indexed timestamp for document {doc_id}: {e}"
-                )
+                logging.error(f"Error updating last indexed timestamp for document {doc_id}: {e}")
             except Exception as e:
                 logging.error(
                     f"Unexpected error updating last indexed timestamp for document {doc_id}: {e}"

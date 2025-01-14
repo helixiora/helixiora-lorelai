@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from app.database import db
 from app.models.user import User
 from app.models.organisation import Organisation
-from app.models.datasource import Datasource
 from app.models.user_auth import UserAuth
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 from app.helpers.users import create_user, is_org_admin, is_super_admin
@@ -114,18 +113,14 @@ class StartIndexing(Resource):
     def post(self, type):
         """Post method to start indexing data for the organization."""
         if type == "organisation" and not is_org_admin(session["user.id"]):
-            return {
-                "error": "Only organisation admins can index their organisation"
-            }, 403
+            return {"error": "Only organisation admins can index their organisation"}, 403
         if type == "all" and not is_super_admin(session["user.id"]):
             return {"error": "Only super admins can index all organisations"}, 403
 
         try:
             logging.info("Started indexing (type: %s)", type)
             if type == "organisation" and not is_org_admin(session["user.id"]):
-                return {
-                    "error": "Only organisation admins can index their organisation"
-                }, 403
+                return {"error": "Only organisation admins can index their organisation"}, 403
             if type == "all" and not is_super_admin(session["user.id"]):
                 return {"error": "Only super admins can index all organisations"}, 403
 
@@ -134,9 +129,7 @@ class StartIndexing(Resource):
 
             try:
                 redis_conn = Redis.from_url(current_app.config["REDIS_URL"])
-                queue = Queue(
-                    current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn
-                )
+                queue = Queue(current_app.config["REDIS_QUEUE_INDEXER"], connection=redis_conn)
 
                 user_id = session["user.id"]
                 org_id = session.get("user.org_id")
@@ -166,12 +159,9 @@ class StartIndexing(Resource):
 
                     for user_row in user_rows:
                         # Get auth rows only for this specific user
-                        user_auth_rows_for_user = UserAuth.query.filter_by(
-                            user_id=user_row.id
-                        )
+                        user_auth_rows_for_user = UserAuth.query.filter_by(user_id=user_row.id)
                         user_auth_rows = [
-                            UserAuthSchema.from_orm(auth)
-                            for auth in user_auth_rows_for_user
+                            UserAuthSchema.from_orm(auth) for auth in user_auth_rows_for_user
                         ]
 
                         # Create a job per user

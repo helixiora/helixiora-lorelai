@@ -49,9 +49,7 @@ def get_token_details(user_id: int) -> TokenDetailsResponse:
         The access token, refresh token, and expires at.
     """
     datasource_id = (
-        Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE)
-        .first()
-        .datasource_id
+        Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first().datasource_id
     )
 
     access_token_auth = UserAuth.query.filter_by(
@@ -97,7 +95,9 @@ def refresh_google_token_if_needed(access_token):
             .datasource_id
         )
         # Check if the token is still valid
-        token_info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+        token_info_url = (
+            f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+        )
         response = lib_requests.get(token_info_url)
         if response.status_code == 200 and "error" not in response.json():
             return access_token  # Token is still valid
@@ -137,9 +137,7 @@ def refresh_google_token_if_needed(access_token):
             error_msg = error_data.get("error", "unknown_error")
 
             if error_msg == "invalid_grant":
-                logging.error(
-                    "Invalid grant error. Refresh token may be expired or revoked."
-                )
+                logging.error("Invalid grant error. Refresh token may be expired or revoked.")
                 # Clear the invalid tokens
                 UserAuth.query.filter_by(
                     user_id=current_user.id, datasource_id=datasource_id
@@ -244,14 +242,10 @@ def handle_oauth_error(error):
         OAuth2Error: ("OAuth2 error", 400),
     }
     error_type = type(error)
-    error_message, status_code = error_map.get(
-        error_type, ("Generic OAuth2 error", 400)
-    )
+    error_message, status_code = error_map.get(error_type, ("Generic OAuth2 error", 400))
 
     logging.error(f"{error_message}: {error}")
-    return jsonify(
-        {"status": "error", "message": f"{error_message}: {str(error)}"}
-    ), status_code
+    return jsonify({"status": "error", "message": f"{error_message}: {str(error)}"}), status_code
 
 
 def save_tokens_to_db(flow, user_id):
@@ -265,13 +259,9 @@ def save_tokens_to_db(flow, user_id):
     logging.debug(f"Expires at: {expires_at}")
 
     try:
-        datasource = Datasource.query.filter_by(
-            datasource_name=DATASOURCE_GOOGLE_DRIVE
-        ).first()
+        datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
         if not datasource:
-            raise ValueError(
-                f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db"
-            )
+            raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} is missing from datasource table in db")
 
         user = User.query.get(user_id)
         if not user:

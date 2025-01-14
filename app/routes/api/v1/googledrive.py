@@ -49,13 +49,9 @@ class RevokeAccess(Resource):
             if not user:
                 return {"error": "User not found"}, 404
 
-            datasource = Datasource.query.filter_by(
-                datasource_name=DATASOURCE_GOOGLE_DRIVE
-            ).first()
+            datasource = Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
             if not datasource:
-                raise ValueError(
-                    f"{DATASOURCE_GOOGLE_DRIVE} missing from datasource table"
-                )
+                raise ValueError(f"{DATASOURCE_GOOGLE_DRIVE} missing from datasource table")
 
             # Delete database records
             UserAuth.query.filter_by(
@@ -114,9 +110,7 @@ class ProcessFilePicker(Resource):
                     icon_url=doc["iconUrl"],
                 )
                 db.session.add(new_item)
-                logging.info(
-                    f"Inserted google doc id: {doc['id']} for user id: {user_id}"
-                )
+                logging.info(f"Inserted google doc id: {doc['id']} for user id: {user_id}")
             db.session.commit()
             return {"message": "Success"}
         except SQLAlchemyError as e:
@@ -132,11 +126,7 @@ class RemoveFile(Resource):
     @googledrive_ns.expect(
         googledrive_ns.model(
             "RemoveFile",
-            {
-                "google_drive_id": fields.String(
-                    required=True, description="Google Drive file ID"
-                )
-            },
+            {"google_drive_id": fields.String(required=True, description="Google Drive file ID")},
         )
     )
     @googledrive_ns.response(200, "File removed successfully")
@@ -155,9 +145,7 @@ class RemoveFile(Resource):
             return {"message": "OK"}
         except SQLAlchemyError as e:
             db.session.rollback()
-            logging.error(
-                f"Error deleting google doc id: {google_drive_id}, Error: {str(e)}"
-            )
+            logging.error(f"Error deleting google doc id: {google_drive_id}, Error: {str(e)}")
             return {
                 "error": f"Error deleting google doc id: {google_drive_id}, Error: {str(e)}"
             }, 500
