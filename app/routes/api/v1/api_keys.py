@@ -3,9 +3,8 @@
 from flask_restx import Namespace, Resource
 from flask_jwt_extended import jwt_required
 from app.models import db
+from app.models.user_api_key import UserAPIKey
 import logging
-
-from app.models import UserAPIKey
 
 api_keys_ns = Namespace("api_keys", description="API keys operations")
 

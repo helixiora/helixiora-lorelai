@@ -2,7 +2,8 @@
 
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
-from app.models import IndexingRun, Datasource
+from app.models.indexing import IndexingRun
+from app.models.datasource import Datasource
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE, DATASOURCE_SLACK
 
 bp = Blueprint("indexing", __name__)

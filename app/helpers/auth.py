@@ -9,7 +9,9 @@ from google.auth import exceptions
 import re
 from pydantic import BaseModel, ConfigDict
 
-from app.models import User, UserLogin, db
+from app.models import db
+from app.models.user import User
+from app.models.user_login import UserLogin
 from app.schemas import UserSchema
 from flask_jwt_extended import create_access_token, create_refresh_token
 from app.helpers.users import assign_free_plan_if_no_active

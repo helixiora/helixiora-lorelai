@@ -5,7 +5,10 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func, desc
 from app.helpers.users import is_admin
-from app.models import db, ChatConversation, ChatMessage, UserPlan, Plan, ExtraMessages
+from app.database import db
+from app.models.chat import ChatConversation, ChatMessage
+from app.models.plan import UserPlan, Plan
+from app.models.extra_messages import ExtraMessages
 from flask import current_app
 
 
@@ -79,7 +82,12 @@ def insert_conversation_ignore(
     -------
         bool: True if the insertion was successful or ignored, False otherwise.
     """
-    logging.info("Inserting conversation: %s, %s, %s", conversation_id, user_id, conversation_name)
+    logging.info(
+        "Inserting conversation: %s, %s, %s",
+        conversation_id,
+        user_id,
+        conversation_name,
+    )
 
     try:
         with current_app.app_context():
@@ -287,7 +295,9 @@ def delete_conversation(conversation_id: str) -> bool:
         Exception: If there is an error during the database query.
     """
     try:
-        conversation = ChatConversation.query.filter_by(conversation_id=conversation_id).first()
+        conversation = ChatConversation.query.filter_by(
+            conversation_id=conversation_id
+        ).first()
         if conversation:
             conversation.marked_deleted = True
             db.session.commit()
@@ -355,7 +365,9 @@ def deduct_extra_message_if_available(user_id: int):
     try:
         # Check the current quantity of extra messages
         extra_message_entry = (
-            db.session.query(ExtraMessages).filter_by(user_id=user_id, is_active=True).first()
+            db.session.query(ExtraMessages)
+            .filter_by(user_id=user_id, is_active=True)
+            .first()
         )
 
         if extra_message_entry is None:
