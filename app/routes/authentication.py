@@ -347,7 +347,7 @@ def login():
         validate_id_token(idinfo)
 
     except (ValueError, exceptions.GoogleAuthError) as e:
-        logging.error("Authentication error: %s", str(e))
+        logging.error("Authentication error: %s", str(e), exc_info=True)
         flash("Authentication failed: " + str(e), "error")
         return redirect(url_for("chat.index"))
     except Exception as e:
