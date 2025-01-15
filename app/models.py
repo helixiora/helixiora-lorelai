@@ -1,8 +1,9 @@
 """Models for the app."""
 
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
 from datetime import datetime
+
+from flask_login import UserMixin
+from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.mysql import INTEGER
 
 db = SQLAlchemy()
@@ -150,6 +151,7 @@ class IndexingRunItem(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     parent_item_id = db.Column(db.Integer, db.ForeignKey("indexing_run_items.id"), nullable=True)
+    item_extractedtext = db.Column(db.Text, nullable=True)
 
     indexing_run = db.relationship("IndexingRun", back_populates="items")
     parent_item = db.relationship("IndexingRunItem", remote_side=[id], backref="child_items")

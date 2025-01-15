@@ -7,26 +7,27 @@ Classes:
     GoogleDriveIndexer: Handles Google Drive document indexing using Pinecone and OpenAI.
 """
 
+import io
 import logging
-from flask import current_app
 
+from flask import current_app
+from google.auth.credentials import TokenState
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
-from google.auth.credentials import TokenState
-from lorelai.indexer import Indexer
-from lorelai.processor import Processor
-from sqlalchemy.exc import SQLAlchemyError
-from langchain_googledrive.document_loaders import GoogleDriveLoader
 from langchain_core.documents import Document
-from app.models import db, GoogleDriveItem, IndexingRunItem, IndexingRun
-from app.schemas import (
-    IndexingRunSchema,
-    UserAuthSchema,
-    GoogleDriveItemSchema,
-)
+from langchain_googledrive.document_loaders import GoogleDriveLoader
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from app.helpers.googledrive import get_token_details
-from app.models import Datasource
+from app.models import Datasource, GoogleDriveItem, IndexingRun, IndexingRunItem, db
+from app.schemas import (
+    GoogleDriveItemSchema,
+    IndexingRunSchema,
+    UserAuthSchema,
+)
+from lorelai.indexer import Indexer
+from lorelai.processor import Processor
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 
@@ -39,9 +40,32 @@ class GoogleDriveIndexer(Indexer):
         return Datasource.query.filter_by(datasource_name=DATASOURCE_GOOGLE_DRIVE).first()
 
     def __init__(self) -> None:
+        """Initialize the Google Drive indexer."""
+        # Create string IO to capture log messages
+        self.log_capture = io.StringIO()
+
+        # Create custom handler that writes to our string buffer
+        string_handler = logging.StreamHandler(self.log_capture)
+        string_handler.setLevel(logging.WARNING)
+        # formatter = logging.Formatter("%(levelname)s - %(message)s")
+        # string_handler.setFormatter(formatter)
+
+        # Capture warnings from google_drive module
+        self.logger = logging.getLogger("langchain_googledrive.utilities.google_drive")
+        self.logger.addHandler(string_handler)
+        self.logger.setLevel(logging.WARNING)
+
         logging.debug("GoogleDriveIndexer initialized")
         super().__init__()
         self.datasource = self._get_datasource()
+
+    def get_captured_warnings(self) -> str:
+        """Get any captured warning messages and clear the buffer."""
+        warnings = self.log_capture.getvalue()
+        # Clear the buffer
+        self.log_capture.truncate(0)
+        self.log_capture.seek(0)
+        return warnings
 
     def __validate_input(self, indexing_run: IndexingRunSchema) -> IndexingRun:
         """Validate input parameters and get the database model.
@@ -217,6 +241,15 @@ class GoogleDriveIndexer(Indexer):
         self.update_last_indexed_for_docs(documents, indexing_run)
         logging.info(f"Indexing Google Drive complete for user: {indexing_run.user.email}")
 
+        """# Check for any warnings after processing
+        warnings = self.get_captured_warnings()
+        if warnings:
+            # Update the indexing run item with any warnings
+            indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
+            if indexing_run_item:
+                indexing_run_item.item_error = warnings
+                db.session.commit()"""
+
     def index_user(
         self,
         indexing_run: IndexingRunSchema,
@@ -257,6 +290,8 @@ class GoogleDriveIndexer(Indexer):
 
         except Exception as e:
             logging.error(f"Error processing Google Drive documents: {str(e)}")
+            # Also capture any warnings that occurred during the error
+
             return
 
     def add_user_to_docs_metadata(
@@ -801,6 +836,9 @@ processed"
                         indexing_run_item.item_error = (
                             f"Successfully loaded {len(titles)} files; {text}"
                         )
+                        # Store the extracted text
+                        page_contents = [doc.page_content for doc in docs_loaded]
+                        indexing_run_item.item_extractedtext = "\n\n".join(page_contents)
                         db.session.commit()
                 else:
                     logging.error(
@@ -810,8 +848,14 @@ processed"
                     # Update status to failed if no documents were loaded
                     indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
                     if indexing_run_item:
-                        indexing_run_item.item_status = "failed"
-                        indexing_run_item.item_error = "No documents loaded from Google Drive"
+                        warnings = self.get_captured_warnings()
+                        if warnings:
+                            logging.error(f"Warnings during processing: {warnings}")
+                            indexing_run_item.item_status = "failed"
+                            indexing_run_item.item_error = warnings
+                        else:
+                            indexing_run_item.item_status = "failed"
+                            indexing_run_item.item_error = "[invalid type]: Document not skipped"
                         db.session.commit()
 
             except Exception as e:

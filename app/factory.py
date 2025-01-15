@@ -3,50 +3,46 @@
 import logging
 import os
 import sys
+
+import sentry_sdk
 from flask import Flask, jsonify, render_template
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
-from flask_restx import Api
 from flask_migrate import Migrate
-
+from flask_restx import Api
 from flask_sqlalchemy import SQLAlchemy
-from config import config
-
-from sqlalchemy_utils import database_exists, create_database
+from sentry_sdk.integrations.flask import FlaskIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.rq import RqIntegration
+from sqlalchemy_utils import create_database, database_exists
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.cli import init_db_command, seed_db_command
 
-import sentry_sdk
-from sentry_sdk.integrations.rq import RqIntegration
-from sentry_sdk.integrations.flask import FlaskIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
-
-
 # models
-from app.models import db, User
+from app.models import User, db
+
+# blueprints
+from app.routes.admin import admin_bp
+from app.routes.api.v1.admin import admin_ns
+from app.routes.api.v1.api_keys import api_keys_ns
+from app.routes.api.v1.auth import auth_ns
 
 # namespaces
 from app.routes.api.v1.chat import chat_ns
 from app.routes.api.v1.conversation import conversation_ns
-from app.routes.api.v1.notifications import notifications_ns
-from app.routes.api.v1.token import token_ns
-from app.routes.api.v1.auth import auth_ns
-from app.routes.api.v1.api_keys import api_keys_ns
-from app.routes.api.v1.admin import admin_ns
 from app.routes.api.v1.googledrive import googledrive_ns
+from app.routes.api.v1.notifications import notifications_ns
 from app.routes.api.v1.slack import slack_ns
-
-# blueprints
-from app.routes.admin import admin_bp
+from app.routes.api.v1.token import token_ns
+from app.routes.api_keys import api_keys_bp
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
+from app.routes.indexing import bp as indexing_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
-from app.routes.api_keys import api_keys_bp
-from app.routes.indexing import bp as indexing_bp
-
 from app.swagger import authorizations
+from config import config
 
 
 def prepare_database(app: Flask, migrate: Migrate, db: SQLAlchemy):
