@@ -46,26 +46,26 @@ class GoogleDriveIndexer(Indexer):
 
         # Create custom handler that writes to our string buffer
         string_handler = logging.StreamHandler(self.log_capture)
-        string_handler.setLevel(logging.WARNING)
-        # formatter = logging.Formatter("%(levelname)s - %(message)s")
+        string_handler.setLevel(logging.INFO)  # Changed to INFO to capture all logs
+        # formatter = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
         # string_handler.setFormatter(formatter)
 
-        # Capture warnings from google_drive module
-        self.logger = logging.getLogger("langchain_googledrive.utilities.google_drive")
+        # Capture all logs
+        self.logger = logging.getLogger()
         self.logger.addHandler(string_handler)
-        self.logger.setLevel(logging.WARNING)
+        self.logger.setLevel(logging.INFO)
 
         logging.debug("GoogleDriveIndexer initialized")
         super().__init__()
         self.datasource = self._get_datasource()
 
-    def get_captured_warnings(self) -> str:
-        """Get any captured warning messages and clear the buffer."""
-        warnings = self.log_capture.getvalue()
+    def get_captured_logs(self) -> str:
+        """Get captured logs and clear the buffer."""
+        logs = self.log_capture.getvalue()
         # Clear the buffer
         self.log_capture.truncate(0)
         self.log_capture.seek(0)
-        return warnings
+        return logs
 
     def __validate_input(self, indexing_run: IndexingRunSchema) -> IndexingRun:
         """Validate input parameters and get the database model.
@@ -710,7 +710,7 @@ class GoogleDriveIndexer(Indexer):
                         # Skip folders as they are already processed by __list_files_in_folder
                         logging.info(
                             f"Skipping folder {doc_google_drive_id} as its contents are already \
-processed"
+                                processed"
                         )
                         docs_loaded = []
                         # Mark the folder item as completed
@@ -814,7 +814,7 @@ processed"
                     for loaded_doc in docs_loaded:
                         logging.info(
                             f"Loaded Google doc: {loaded_doc.metadata['title']} with ID: \
-{doc_google_drive_id}"
+                                    {doc_google_drive_id}"
                         )
                     # Update status to completed after successful processing
                     indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
@@ -839,23 +839,18 @@ processed"
                         # Store the extracted text
                         page_contents = [doc.page_content for doc in docs_loaded]
                         indexing_run_item.item_extractedtext = "\n\n".join(page_contents)
+
                         db.session.commit()
                 else:
                     logging.error(
-                        f"No documents loaded from Google Drive {doc_item_type} with ID: \
-{doc_google_drive_id}"
+                        f"Unable to load {doc_item_type} with ID: \
+                            {doc_google_drive_id}"
                     )
                     # Update status to failed if no documents were loaded
                     indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
                     if indexing_run_item:
-                        warnings = self.get_captured_warnings()
-                        if warnings:
-                            logging.error(f"Warnings during processing: {warnings}")
-                            indexing_run_item.item_status = "failed"
-                            indexing_run_item.item_error = warnings
-                        else:
-                            indexing_run_item.item_status = "failed"
-                            indexing_run_item.item_error = "[invalid type]: Document not skipped"
+                        indexing_run_item.item_status = "failed"
+                        indexing_run_item.item_error = "[invalid type]: Document not skipped"
                         db.session.commit()
 
             except Exception as e:
@@ -866,7 +861,14 @@ processed"
                     indexing_run_item.item_status = "failed"
                     indexing_run_item.item_error = str(e)
                     db.session.commit()
-
+            # Add logs
+            logs = self.get_captured_logs()
+            if logs:
+                if indexing_run_item.item_log:
+                    indexing_run_item.item_log += "\n" + logs
+                else:
+                    indexing_run_item.item_log = logs
+                db.session.commit()
         logging.debug(f"Total {len(docs)} Google docs loaded from Google Drive using langchain")
         return docs
 
