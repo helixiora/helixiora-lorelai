@@ -714,8 +714,7 @@ class GoogleDriveIndexer(Indexer):
                     case "application/vnd.google-apps.folder":
                         # Skip folders as they are already processed by __list_files_in_folder
                         logging.info(
-                            f"Skipping folder {doc_google_drive_id} as its contents are already \
-                                processed"
+                            f"Skipping folder {doc_google_drive_id} as its contents are already processed"  # noqa: E501
                         )
                         docs_loaded = []
                         # Mark the folder item as completed
