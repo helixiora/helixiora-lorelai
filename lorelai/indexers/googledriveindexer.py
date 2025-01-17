@@ -18,6 +18,13 @@ from langchain_core.documents import Document
 from langchain_googledrive.document_loaders import GoogleDriveLoader
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
+from app.helpers.googledrive import get_token_details
+from app.models import db
+from app.models.datasource import Datasource
+from app.models.google_drive import GoogleDriveItem
+from app.models.indexing import IndexingRun, IndexingRunItem
+
 # from app.models import Datasource, GoogleDriveItem, IndexingRun, IndexingRunItem, db
 from app.schemas import (
     GoogleDriveItemSchema,
@@ -26,12 +33,6 @@ from app.schemas import (
 )
 from lorelai.indexer import Indexer
 from lorelai.processor import Processor
-from app.models import db
-from app.models.google_drive import GoogleDriveItem
-from app.models.indexing import IndexingRunItem, IndexingRun
-from app.models.datasource import Datasource
-from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
-from app.helpers.googledrive import get_token_details
 
 ALLOWED_ITEM_TYPES = ["document", "folder", "file"]
 
