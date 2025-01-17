@@ -50,6 +50,8 @@ class IndexingRunItem(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     parent_item_id = db.Column(db.Integer, db.ForeignKey("indexing_run_items.id"), nullable=True)
+    item_extractedtext = db.Column(db.Text, nullable=True)
+    item_log = db.Column(db.Text, nullable=True)
 
     # Relationships
     indexing_run = db.relationship("IndexingRun", back_populates="items")

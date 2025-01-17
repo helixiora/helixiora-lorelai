@@ -27,7 +27,7 @@ target_metadata = db.metadata  # noqa: F405
 
 def get_url():
     """Get the SQLAlchemy database URI."""
-    logging.info("SQLALCHEMY_DATABASE_URI", flask_app.config["SQLALCHEMY_DATABASE_URI"])
+    logging.info(f"SQLALCHEMY_DATABASE_URI {flask_app.config['SQLALCHEMY_DATABASE_URI']}")
     return flask_app.config["SQLALCHEMY_DATABASE_URI"]
 
 

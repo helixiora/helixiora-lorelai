@@ -227,3 +227,66 @@ In `.vscode/tasks.json`:
     ]
 }
 ```
+
+### Database Setup
+
+1. Create a new MySQL database:
+
+   ```sql
+   CREATE DATABASE lorelai;
+   ```
+
+1. Update your `.env` file with the correct database URI:
+
+   ```sql
+   SQLALCHEMY_DATABASE_URI=mysql+mysqlconnector://username:password@localhost:3306/lorelai
+   ```
+
+   Replace `username`, `password` with your MySQL credentials.
+
+1. Initialize the database:
+
+   ```bash
+   flask init-db
+   ```
+
+1. Seed the database with initial data:
+
+   ```bash
+   flask seed-db
+   ```
+
+### Database Migrations
+
+When you pull new code that includes database changes, you'll need to apply the migrations:
+
+1. Check current migration status:
+
+   ```bash
+   flask db current
+   ```
+
+1. View pending migrations:
+
+   ```bash
+   flask db history
+   ```
+
+1. Apply new migrations:
+
+   ```bash
+   flask db upgrade
+   ```
+
+1. If you encounter multiple heads error:
+
+   ```bash
+   # First, check the heads
+   flask db heads
+
+   # Then merge the heads
+   flask db merge heads
+
+   # Finally, upgrade again
+   flask db upgrade
+   ```

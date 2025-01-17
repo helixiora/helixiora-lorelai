@@ -23,10 +23,10 @@ from app.routes.api.v1.conversation import conversation_ns
 
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
+from app.routes.indexing import bp as indexing_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
 from app.routes.admin import admin_bp
-from app.routes.indexing import bp as indexing_bp
 
 # Get git details
 try:
