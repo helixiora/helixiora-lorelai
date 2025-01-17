@@ -2,9 +2,12 @@
 
 import click
 from flask.cli import with_appcontext
-from sqlalchemy import text
+from app.models.datasource import Datasource
+from app.models.plan import Plan
+from app.models.role import Role
+from app.database import db
 
-from app.models import Datasource, Plan, Role, db
+from sqlalchemy import text
 
 
 @click.command("init-db")
@@ -42,17 +45,11 @@ def seed_db_command():
     db.session.commit()
 
     click.echo("Creating roles...")
-    role = Role(
-        name="org_admin",
-    )
+    role = Role(role_name="org_admin")
     db.session.add(role)
-    role = Role(
-        name="super_admin",
-    )
+    role = Role(role_name="super_admin")
     db.session.add(role)
-    role = Role(
-        name="user",
-    )
+    role = Role(role_name="user")
     db.session.add(role)
     db.session.commit()
 

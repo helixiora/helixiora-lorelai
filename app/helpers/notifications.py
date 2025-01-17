@@ -3,7 +3,8 @@
 import logging
 from datetime import datetime
 
-from app.models import Notification, db
+from app.models import db
+from app.models.notification import Notification
 from app.schemas import NotificationSchema
 from sqlalchemy.exc import SQLAlchemyError
 import bleach

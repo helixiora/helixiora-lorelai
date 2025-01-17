@@ -17,7 +17,8 @@ from flask import (
     current_app,
 )
 from flask_login import login_required, current_user
-from app.models import User, Role, VALID_ROLES
+from app.models.user import User, VALID_ROLES
+from app.models.role import Role
 from app.schemas import UserSchema
 from app.helpers.users import (
     is_admin,

@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="g_csrf_token" content="" id="g_csrf_token">
     <title>{% block title %}LorelAI product demo{% endblock title %}</title>
-    <!-- Add the following line to include the favicon -->
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
     <script src="https://js-de.sentry-cdn.com/e796bbb91f31b46ccc5eb2eb32dbd0f8.min.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.1.3/css/dataTables.dataTables.min.css">
     <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
@@ -13,6 +12,8 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/minified/introjs.min.css" integrity="sha256-8blGASrO7QhbrzFwb0rDrMICadeyaaNRQp6VCRNKekA=" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+    <script src="https://accounts.google.com/gsi/client" async></script>
     {% block head %}
     {% endblock head%}
 </head>
@@ -52,12 +53,11 @@
                 </a>
             {% endif %}
             <!-- Logout link -->
-            <a href="/logout" class="d-flex flex-column align-items-center text-white text-decoration-none nav-link">
+            <a href="#" onclick="handleLogout(event)" class="d-flex flex-column align-items-center text-white text-decoration-none nav-link">
                 <i class="bi bi-box-arrow-right" style="font-size: 2rem"></i>
                 <span class="nav-text mx-2">Logout</span>
             </a>
         </div>
-
 
     </nav>
 
@@ -77,25 +77,8 @@
 
     <!-- Token setup needs to happen before any authenticated requests -->
     <script>
-        const initialAccessToken = "{{ session['lorelai_jwt.access_token'] }}";
-        const initialRefreshToken = "{{ session['lorelai_jwt.refresh_token'] }}";
-
-        if (initialAccessToken && initialRefreshToken) {
-            // Check if access token is expired before storing
-            try {
-                const payload = JSON.parse(atob(initialAccessToken.split('.')[1]));
-                const currentTime = Math.floor(Date.now() / 1000);
-                const isExpired = currentTime >= payload.exp;
-
-                if (!isExpired) {
-                    localStorage.setItem('lorelai_jwt_access_token', initialAccessToken);
-                    localStorage.setItem('lorelai_jwt_refresh_token', initialRefreshToken);
-                }
-            } catch (error) {
-                console.error('[Token Setup] Error checking token expiration:', error);
-            }
-        }
-
+        window.SENTRY_DSN = "{{ config['SENTRY_DSN'] }}"
+        window.SENTRY_ENVIRONMENT = "{{ config['FLASK_ENV'] }}"
     </script>
 
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
@@ -105,8 +88,11 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <script>
-        window.SENTRY_DSN = "{{ config['SENTRY_DSN'] }}"
-        window.SENTRY_ENVIRONMENT = "{{ config['FLASK_ENV'] }}"
+        function handleLogout(event) {
+            event.preventDefault();
+            // Redirect to logout endpoint to clear session
+            window.location.href = '/logout';
+        }
     </script>
 
     {% block scripts %}

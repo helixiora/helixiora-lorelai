@@ -25,7 +25,7 @@ class GetNotificationsResource(Resource):
     @notifications_ns.response(200, "Notifications retrieved successfully")
     @notifications_ns.response(401, "Unauthorized")
     @notifications_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def get(self):
         """Get notifications for the current user."""
         logging.info("Getting notifications")
@@ -110,7 +110,7 @@ class MarkNotificationAsReadResource(Resource):
     @notifications_ns.response(200, "Notification marked as read")
     @notifications_ns.response(401, "Unauthorized")
     @notifications_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self, notification_id):
         """Mark a notification as read."""
         try:
@@ -139,7 +139,7 @@ class MarkNotificationAsDismissedResource(Resource):
     @notifications_ns.response(200, "Notification marked as dismissed")
     @notifications_ns.response(401, "Unauthorized")
     @notifications_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self, notification_id):
         """Mark a notification as dismissed."""
         try:

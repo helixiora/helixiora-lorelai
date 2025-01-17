@@ -15,7 +15,10 @@ from datetime import datetime
 from flask import current_app
 
 from app.helpers.datasources import DATASOURCE_SLACK
-from app.models import db, Datasource, User, UserAuth
+from app.models import db
+from app.models.datasource import Datasource
+from app.models.user import User
+from app.models.user_auth import UserAuth
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 
 

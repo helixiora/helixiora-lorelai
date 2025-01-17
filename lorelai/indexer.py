@@ -3,10 +3,13 @@
 import logging
 from rq import job
 import importlib
-from app.schemas import OrganisationSchema, UserSchema, UserAuthSchema
-from app.models import db, IndexingRun, IndexingRunItem
-from app.schemas import IndexingRunSchema
-from app.models import Datasource
+from app.schemas.organisation import OrganisationSchema
+from app.schemas.user import UserSchema
+from app.schemas.user_auth import UserAuthSchema
+from app.schemas.indexing import IndexingRunSchema
+from app.models.indexing import IndexingRun, IndexingRunItem
+from app.models.datasource import Datasource
+from app.database import db
 
 # The scopes needed to read documents in Google Drive
 # (see: https://developers.google.com/drive/api/guides/api-specific-auth)

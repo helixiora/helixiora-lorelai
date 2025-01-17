@@ -15,7 +15,11 @@ from oauthlib.oauth2.rfc6749.errors import (
 import logging
 import pydantic
 from datetime import datetime
-from app.models import db, User, UserAuth, Datasource
+
+from app.database import db
+from app.models.user import User
+from app.models.user_auth import UserAuth
+from app.models.datasource import Datasource
 import requests as lib_requests
 from flask import session
 from flask_login import current_user
@@ -105,7 +109,9 @@ def refresh_google_token_if_needed(access_token):
         # If not in session, try to get from database
         if not refresh_token:
             refresh_auth = UserAuth.query.filter_by(
-                user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+                user_id=current_user.id,
+                auth_key="refresh_token",
+                datasource_id=datasource_id,
             ).first()
 
             if not refresh_auth:
@@ -149,7 +155,9 @@ def refresh_google_token_if_needed(access_token):
 
         # Update the access token in the database
         access_auth = UserAuth.query.filter_by(
-            user_id=current_user.id, auth_key="access_token", datasource_id=datasource_id
+            user_id=current_user.id,
+            auth_key="access_token",
+            datasource_id=datasource_id,
         ).first()
 
         if access_auth:
@@ -166,7 +174,9 @@ def refresh_google_token_if_needed(access_token):
         # Update the refresh token if a new one was provided
         if "refresh_token" in new_tokens:
             refresh_auth = UserAuth.query.filter_by(
-                user_id=current_user.id, auth_key="refresh_token", datasource_id=datasource_id
+                user_id=current_user.id,
+                auth_key="refresh_token",
+                datasource_id=datasource_id,
             ).first()
 
             if refresh_auth:

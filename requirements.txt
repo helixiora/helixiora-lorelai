@@ -1,6 +1,7 @@
 bleach==6.2.0
 FlashRank==0.2.10
 Flask==3.1.0
+Flask-Cors==5.0.0
 flask-jwt-extended==4.7.1
 flask-login==0.6.3
 Flask-Migrate==4.1.0

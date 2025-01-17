@@ -6,7 +6,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel
 import logging
 
-from app.models import db, UserAuth, Datasource, User
+from app.database import db
+from app.models import UserAuth, Datasource, User
 from app.helpers.datasources import DATASOURCE_SLACK
 from lorelai.pinecone import delete_user_datasource_vectors
 
@@ -30,7 +31,7 @@ class RevokeAccess(Resource):
     @slack_ns.response(200, "Access revoked successfully")
     @slack_ns.response(401, "Unauthorized")
     @slack_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self):
         """Post method to revoke Slack access."""
         try:

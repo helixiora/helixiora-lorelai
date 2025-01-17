@@ -5,7 +5,11 @@ from flask import session, request
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
-from app.models import db, UserAuth, Datasource, GoogleDriveItem, User
+from app.database import db
+from app.models.user_auth import UserAuth
+from app.models.datasource import Datasource
+from app.models.google_drive import GoogleDriveItem
+from app.models.user import User
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from flask_jwt_extended import jwt_required
 from lorelai.pinecone import delete_user_datasource_vectors
@@ -32,7 +36,7 @@ class RevokeAccess(Resource):
     @googledrive_ns.response(200, "Access revoked successfully")
     @googledrive_ns.response(401, "Unauthorized")
     @googledrive_ns.response(500, "Internal server error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self):
         """Post method to revoke Google Drive access."""
         user_id = session.get("user.id")
@@ -64,7 +68,10 @@ class RevokeAccess(Resource):
             )
 
             db.session.commit()
-            return {"status": "success", "message": "User deauthorized from Google Drive"}
+            return {
+                "status": "success",
+                "message": "User deauthorized from Google Drive",
+            }
 
         except SQLAlchemyError as e:
             db.session.rollback()
@@ -124,7 +131,7 @@ class RemoveFile(Resource):
     )
     @googledrive_ns.response(200, "File removed successfully")
     @googledrive_ns.response(500, "Removal error")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self):
         """Post method to remove a Google Drive file from the database."""
         user_id = session["user.id"]

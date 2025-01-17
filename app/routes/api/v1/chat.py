@@ -15,7 +15,7 @@ import uuid
 
 from flask_restx import Namespace, Resource, fields
 
-from app.models import User
+from app.models.user import User
 from app.tasks import get_answer_from_rag
 from app.helpers.chat import can_send_message
 
@@ -60,7 +60,7 @@ class ChatResource(Resource):
     @chat_ns.response(429, "Message Limit Exceeded")
     @chat_ns.response(500, "Internal Server Error")
     @chat_ns.doc(security="Bearer Auth")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def post(self):
         """
         Submit a new chat message for processing.
@@ -138,7 +138,7 @@ class ChatResource(Resource):
     @chat_ns.response(404, "Job Not Found")
     @chat_ns.response(500, "Processing Failed")
     @chat_ns.doc(security="Bearer Auth")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def get(self):
         """
         Fetch the result of a chat processing job.

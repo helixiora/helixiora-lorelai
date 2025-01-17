@@ -3,9 +3,8 @@
 from flask_restx import Namespace, Resource
 from flask_jwt_extended import jwt_required
 from app.models import db
+from app.models.user_api_key import UserAPIKey
 import logging
-
-from app.models import UserAPIKey
 
 api_keys_ns = Namespace("api_keys", description="API keys operations")
 
@@ -18,7 +17,7 @@ class APIKeys(Resource):
     @api_keys_ns.response(200, "API key deleted successfully")
     @api_keys_ns.response(404, "API key not found")
     @api_keys_ns.response(500, "Error deleting API key")
-    @jwt_required(locations=["headers"])
+    @jwt_required(locations=["headers", "cookies"])
     def delete(self, api_key_id):
         """Delete an API key by ID.
 
