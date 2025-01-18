@@ -3,6 +3,7 @@
 import logging
 
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import distinct
 import mysql
 
 from flask import (
@@ -20,6 +21,10 @@ from flask_login import login_required, current_user
 from app.models.user import User, VALID_ROLES
 from app.models.role import Role
 from app.schemas import UserSchema
+from app.models.indexing import IndexingRun
+from app.models.datasource import Datasource
+from app.models.organisation import Organisation
+from app.database import db
 from app.helpers.users import (
     role_required,
     create_invited_user_in_db,
@@ -287,3 +292,44 @@ def manage_user_roles(user_id):
         all_roles=all_roles,
         user_roles=user_roles,
     )
+
+
+@admin_bp.route("/admin/indexing-runs")
+@role_required(["super_admin"])
+@login_required
+def indexing_runs():
+    """Return the indexing runs page.
+
+    This page is only accessible to super admin users.
+    """
+    try:
+        # Get all indexing runs with eager loading of relationships
+        indexing_runs = (
+            IndexingRun.query.options(
+                db.joinedload(IndexingRun.user),
+                db.joinedload(IndexingRun.organisation),
+                db.joinedload(IndexingRun.datasource),
+            )
+            .order_by(IndexingRun.created_at.desc())
+            .all()
+        )
+
+        # Get unique values for filters
+        users = User.query.all()
+        organizations = Organisation.query.all()
+        datasources = Datasource.query.all()
+        statuses = db.session.query(distinct(IndexingRun.status)).all()
+        statuses = [status[0] for status in statuses]  # Flatten the result
+
+        return render_template(
+            "admin/indexing_runs.html",
+            indexing_runs=indexing_runs,
+            users=users,
+            organizations=organizations,
+            datasources=datasources,
+            statuses=statuses,
+        )
+    except SQLAlchemyError as e:
+        logging.error(f"Database error: {e}")
+        flash("Failed to retrieve indexing runs.", "error")
+        return render_template("admin/indexing_runs.html", indexing_runs=[])

@@ -31,3 +31,18 @@
                 </div>
             </div>
         </div>
+
+        {% if current_user.has_role('super_admin') %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="h4 mb-0">Indexing Administration</h2>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-3">
+                    <a href="{{ url_for('admin.indexing_runs') }}" class="btn btn-primary">
+                        View All Indexing Runs
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}

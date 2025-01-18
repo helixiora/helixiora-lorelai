@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>Indexing Runs</h1>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="userFilter" class="form-label">User</label>
+                    <select id="userFilter" class="form-select">
+                        <option value="">All Users</option>
+                        {% for user in users %}
+                            <option value="{{ user.id }}">{{ user.email }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="orgFilter" class="form-label">Organization</label>
+                    <select id="orgFilter" class="form-select">
+                        <option value="">All Organizations</option>
+                        {% for org in organizations %}
+                            <option value="{{ org.id }}">{{ org.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="datasourceFilter" class="form-label">Datasource</label>
+                    <select id="datasourceFilter" class="form-select">
+                        <option value="">All Datasources</option>
+                        {% for ds in datasources %}
+                            <option value="{{ ds.datasource_id }}">{{ ds.datasource_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="statusFilter" class="form-label">Status</label>
+                    <select id="statusFilter" class="form-select">
+                        <option value="">All Statuses</option>
+                        {% for status in statuses %}
+                            <option value="{{ status }}">{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="quickDateFilter" class="form-label">Quick Date Filter</label>
+                    <select id="quickDateFilter" class="form-select">
+                        <option value="">Custom Range</option>
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="last7days">Last 7 Days</option>
+                        <option value="last30days">Last 30 Days</option>
+                        <option value="thisMonth">This Month</option>
+                        <option value="lastMonth">Last Month</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="dateRange" class="form-label">Custom Date Range</label>
+                    <div class="input-group" id="dateRange">
+                        <input type="date" id="startDate" class="form-control" aria-label="Start date">
+                        <span class="input-group-text">to</span>
+                        <input type="date" id="endDate" class="form-control" aria-label="End date">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indexing Runs Table -->
+    <div class="table-responsive">
+        <table id="indexingRunsTable" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Created At</th>
+                    <th>User</th>
+                    <th>Organization</th>
+                    <th>Datasource</th>
+                    <th>Status</th>
+                    <th>Items</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in indexing_runs %}
+                    <tr data-run-id="{{ run.id }}">
+                        <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>{{ run.user.email }}</td>
+                        <td>{{ run.organisation.name }}</td>
+                        <td>{{ run.datasource.datasource_name }}</td>
+                        <td>
+                            <span class="badge {% if run.status == 'completed' %}bg-success{% elif run.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                                {{ run.status }}
+                            </span>
+                        </td>
+                        <td>{{ run.items|length }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary view-items"
+                                    data-run-id="{{ run.id }}"
+                                    aria-label="View items for run {{ run.id }}">
+                                View Items
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Items Modal -->
+    <div class="modal fade" id="itemsModal" tabindex="-1" aria-labelledby="itemsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="itemsModalLabel">Indexing Run Items</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="itemsLoadingSpinner" class="text-center d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading items...</span>
+                        </div>
+                    </div>
+                    <div id="itemsError" class="alert alert-danger d-none" role="alert"></div>
+                    <table id="itemsTable" class="display" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>Created At</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>URL</th>
+                                <th>Error</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Details Modal -->
+    <div class="modal fade" id="itemDetailsModal" tabindex="-1" aria-labelledby="itemDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="itemDetailsModalLabel">Item Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="detailsLoadingSpinner" class="text-center d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading details...</span>
+                        </div>
+                    </div>
+                    <div id="detailsError" class="alert alert-danger d-none" role="alert"></div>
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="extracted-tab" data-bs-toggle="tab" data-bs-target="#extracted"
+                                    type="button" role="tab" aria-controls="extracted" aria-selected="true">
+                                Extracted Text
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="log-tab" data-bs-toggle="tab" data-bs-target="#log"
+                                    type="button" role="tab" aria-controls="log" aria-selected="false">
+                                Processing Log
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="error-tab" data-bs-toggle="tab" data-bs-target="#error"
+                                    type="button" role="tab" aria-controls="error" aria-selected="false">
+                                Errors
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content mt-3">
+                        <div class="tab-pane fade show active" id="extracted" role="tabpanel" aria-labelledby="extracted-tab">
+                            <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"></pre>
+                        </div>
+                        <div class="tab-pane fade" id="log" role="tabpanel" aria-labelledby="log-tab">
+                            <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"></pre>
+                        </div>
+                        <div class="tab-pane fade" id="error" role="tabpanel" aria-labelledby="error-tab">
+                            <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize main DataTable
+    const indexingRunsTable = $('#indexingRunsTable').DataTable({
+        order: [[0, 'desc']], // Sort by created_at by default
+        pageLength: 25,
+        columnDefs: [
+            {
+                targets: 0, // Created At column
+                width: '160px', // Fixed width to prevent line breaks
+                className: 'text-nowrap' // Prevent text wrapping
+            }
+        ]
+    });
+
+    // Function to update URL with current filter values
+    function updateURLWithFilters() {
+        const filters = {
+            user: $('#userFilter option:selected').text(),
+            org: $('#orgFilter option:selected').text(),
+            datasource: $('#datasourceFilter option:selected').text(),
+            status: $('#statusFilter').val(),
+            dateRange: $('#quickDateFilter').val(),
+            startDate: $('#startDate').val(),
+            endDate: $('#endDate').val()
+        };
+
+        const newUrl = new URL(window.location);
+
+        // Update or remove each parameter based on filter values
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value && value !== 'All Users' && value !== 'All Organizations' && value !== 'All Datasources' && value !== 'All Statuses') {
+                newUrl.searchParams.set(key, value);
+            } else {
+                newUrl.searchParams.delete(key);
+            }
+        });
+
+        // Update URL without reloading the page
+        window.history.pushState({}, '', newUrl);
+    }
+
+    // Function to read and apply filters from URL parameters
+    function applyFiltersFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Set filter values from URL parameters
+        const userEmail = urlParams.get('user');
+        if (userEmail) {
+            $('#userFilter option').each(function() {
+                if ($(this).text() === userEmail) {
+                    $(this).prop('selected', true);
+                }
+            });
+        }
+
+        const orgName = urlParams.get('org');
+        if (orgName) {
+            $('#orgFilter option').each(function() {
+                if ($(this).text() === orgName) {
+                    $(this).prop('selected', true);
+                }
+            });
+        }
+
+        const datasourceName = urlParams.get('datasource');
+        if (datasourceName) {
+            $('#datasourceFilter option').each(function() {
+                if ($(this).text() === datasourceName) {
+                    $(this).prop('selected', true);
+                }
+            });
+        }
+
+        $('#statusFilter').val(urlParams.get('status') || '');
+        $('#quickDateFilter').val(urlParams.get('dateRange') || '');
+        $('#startDate').val(urlParams.get('startDate') || '');
+        $('#endDate').val(urlParams.get('endDate') || '');
+
+        // Apply the filters
+        applyFilters();
+    }
+
+    // Apply filters
+    function applyFilters() {
+        // Get the text values for filtering
+        const userFilter = $('#userFilter option:selected').text();
+        const orgFilter = $('#orgFilter option:selected').text();
+        const datasourceFilter = $('#datasourceFilter option:selected').text();
+        const statusFilter = $('#statusFilter').val();
+
+        // Clear all existing filters
+        $.fn.dataTable.ext.search = [];
+
+        // Apply text-based filters
+        indexingRunsTable.column(1).search(userFilter === 'All Users' ? '' : userFilter); // User
+        indexingRunsTable.column(2).search(orgFilter === 'All Organizations' ? '' : orgFilter); // Organization
+        indexingRunsTable.column(3).search(datasourceFilter === 'All Datasources' ? '' : datasourceFilter); // Datasource
+
+        // Add status filter
+        if (statusFilter && statusFilter !== 'All Statuses') {
+            $.fn.dataTable.ext.search.push(function(settings, data) {
+                const statusCell = data[4]; // Status column
+                // Create a temporary div to parse the HTML and get the text content
+                const div = document.createElement('div');
+                div.innerHTML = statusCell;
+                const statusText = div.textContent.trim();
+                return statusText === statusFilter;
+            });
+        }
+
+        // Add date range filter
+        const startDate = $('#startDate').val();
+        const endDate = $('#endDate').val();
+
+        if (startDate || endDate) {
+            $.fn.dataTable.ext.search.push(function(settings, data) {
+                const date = new Date(data[0]); // Created At column
+                const start = startDate ? new Date(startDate) : null;
+                const end = endDate ? new Date(endDate + 'T23:59:59') : null;
+
+                if (start && date < start) return false;
+                if (end && date > end) return false;
+                return true;
+            });
+        }
+
+        indexingRunsTable.draw();
+
+        // Update URL with current filter values
+        updateURLWithFilters();
+    }
+
+    // Bind filter events
+    $('#userFilter, #orgFilter, #datasourceFilter, #statusFilter, #startDate, #endDate').on('change', applyFilters);
+    $('#quickDateFilter').on('change', function() {
+        setQuickDateFilter($(this).val());
+        applyFilters();
+    });
+
+    // Apply filters from URL on page load
+    applyFiltersFromURL();
+
+    // Check URL parameters on load
+    const urlParams = new URLSearchParams(window.location.search);
+    const runId = urlParams.get('run');
+    if (runId) {
+        loadItems(runId);
+    }
+
+    // Initialize items DataTable
+    const itemsTable = $('#itemsTable').DataTable({
+        pageLength: 10,
+        columns: [
+            {
+                data: 'created_at',
+                render: function(data) {
+                    return new Date(data).toLocaleString();
+                }
+            },
+            { data: 'item_name' },
+            {
+                data: 'item_type',
+                render: function(data) {
+                    return `<span class="badge bg-secondary">${data}</span>`;
+                }
+            },
+            {
+                data: 'item_status',
+                render: function(data) {
+                    const statusClasses = {
+                        'completed': 'bg-success',
+                        'failed': 'bg-danger',
+                        'processing': 'bg-warning',
+                        'pending': 'bg-info'
+                    };
+                    return `<span class="badge ${statusClasses[data] || 'bg-secondary'}">${data}</span>`;
+                }
+            },
+            {
+                data: 'item_url',
+                render: function(data) {
+                    return data ? `<a href="${data}" target="_blank" class="btn btn-sm btn-outline-primary">View Document</a>` : '';
+                }
+            },
+            {
+                data: 'item_error',
+                render: function(data) {
+                    return data ? `<span class="text-danger">${data}</span>` : '';
+                }
+            },
+            {
+                data: null,
+                render: function(data) {
+                    return `<button class="btn btn-sm btn-info view-details" data-item-id="${data.id}" aria-label="View details for ${data.item_name}">Details</button>`;
+                }
+            }
+        ],
+        order: [[0, 'desc']]
+    });
+
+    // Quick date filter function
+    function setQuickDateFilter(value) {
+        const now = new Date();
+        let start = null;
+        let end = null;
+
+        switch(value) {
+            case 'today':
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                break;
+            case 'yesterday':
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+                break;
+            case 'last7days':
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                break;
+            case 'last30days':
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                break;
+            case 'thisMonth':
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                break;
+            case 'lastMonth':
+                start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+                break;
+            case 'thisYear':
+                start = new Date(now.getFullYear(), 0, 1);
+                end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+                break;
+        }
+
+        if (start && end) {
+            $('#startDate').val(start.toISOString().split('T')[0]);
+            $('#endDate').val(end.toISOString().split('T')[0]);
+        } else {
+            $('#startDate').val('');
+            $('#endDate').val('');
+        }
+    }
+
+    // Handle viewing items for a run
+    $(document).on('click', '.view-items', async function(e) {
+        e.preventDefault();
+        const runId = $(this).data('run-id');
+        // Update URL without reloading the page
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('run', runId);
+        window.history.pushState({}, '', newUrl);
+
+        await loadItems(runId);
+    });
+
+    async function loadItems(runId) {
+        const loadingSpinner = $('#itemsLoadingSpinner');
+        const errorAlert = $('#itemsError');
+
+        try {
+            loadingSpinner.removeClass('d-none');
+            errorAlert.addClass('d-none');
+            itemsTable.clear();
+
+            const response = await makeAuthenticatedRequest(`/api/v1/indexing/runs/${runId}/items`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch items');
+            }
+
+            itemsTable.rows.add(data.items).draw();
+            $('#itemsModal').modal('show');
+        } catch (error) {
+            console.error('Error fetching items:', error);
+            errorAlert.text(error.message).removeClass('d-none');
+        } finally {
+            loadingSpinner.addClass('d-none');
+        }
+    }
+
+    // Handle modal close
+    $('#itemsModal').on('hidden.bs.modal', function () {
+        // Remove the run parameter from URL when modal is closed
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.delete('run');
+        window.history.pushState({}, '', newUrl);
+    });
+
+    // Handle viewing item details
+    $(document).on('click', '.view-details', async function() {
+        const itemId = $(this).data('item-id');
+        const loadingSpinner = $('#detailsLoadingSpinner');
+        const errorAlert = $('#detailsError');
+
+        try {
+            loadingSpinner.removeClass('d-none');
+            errorAlert.addClass('d-none');
+
+            const response = await makeAuthenticatedRequest(`/api/v1/indexing/items/${itemId}/details`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch item details');
+            }
+
+            // Update modal content
+            $('#extracted pre').text(data.item_extractedtext || 'No extracted text available');
+            $('#log pre').text(data.item_log || 'No log available');
+            $('#error pre').text(data.item_error || 'No errors');
+
+            // Show the modal
+            $('#itemDetailsModal').modal('show');
+        } catch (error) {
+            console.error('Error fetching item details:', error);
+            errorAlert.text(error.message).removeClass('d-none');
+        } finally {
+            loadingSpinner.addClass('d-none');
+        }
+    });
+});
+</script>
+{% endblock %}

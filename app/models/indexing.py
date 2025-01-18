@@ -20,7 +20,9 @@ class IndexingRun(db.Model):
     datasource_id = db.Column(db.Integer, db.ForeignKey("datasource.datasource_id"), nullable=False)
 
     # Relationships
-    items = db.relationship("IndexingRunItem", back_populates="indexing_run")
+    items = db.relationship(
+        "IndexingRunItem", back_populates="indexing_run", cascade="all, delete-orphan"
+    )
     user = db.relationship("User", back_populates="indexing_runs")
     organisation = db.relationship("Organisation", back_populates="indexing_runs")
     datasource = db.relationship("Datasource", back_populates="indexing_runs")

@@ -20,6 +20,7 @@ from app.routes.api.v1.api_keys import api_keys_ns
 from app.routes.api.v1.slack import slack_ns
 from app.routes.api.v1.googledrive import googledrive_ns
 from app.routes.api.v1.conversation import conversation_ns
+from app.routes.api.v1.indexing import indexing_ns
 
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
@@ -215,6 +216,7 @@ def create_app(config=None):
     api.add_namespace(slack_ns)
     api.add_namespace(googledrive_ns)
     api.add_namespace(conversation_ns)
+    api.add_namespace(indexing_ns)
 
     # Error handlers
     @app.errorhandler(401)
