@@ -40,7 +40,8 @@ project_root/
 ## 2. Code Organization
 
 - Use blueprints for feature-based code organization
-- routes that don't return a page or reroute the user should be in the api/v1/ folder
+- routes that don't return a page or reroute the user should be in the api/v1/ folder and use flask_restx to define the routes
+- routes that return a page should be in the routes/ folder and use flask_login to define the routes
 - Implement clear configuration management
 - Follow PEP 8 style guidelines
 
@@ -79,3 +80,12 @@ project_root/
 - Maintain requirements.txt
 - Include setup instructions
 - Document configuration options
+
+## 8. Frontend-backend communication
+
+- Use cookies for authentication
+- Use CSRF tokens for security
+- Use JWT for authentication
+- When the frontend needs to make a request to the backend, it should use the makeAuthenticatedRequest function in the utils.js file.
+- The makeAuthenticatedRequest function will add the access token to the request headers and include the CSRF token in the request headers if the request is not a GET request.
+- The makeAuthenticatedRequest function will include the cookies in the request if the request is not a GET request.
