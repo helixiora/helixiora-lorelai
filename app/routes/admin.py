@@ -21,7 +21,6 @@ from app.models.user import User, VALID_ROLES
 from app.models.role import Role
 from app.schemas import UserSchema
 from app.helpers.users import (
-    is_admin,
     role_required,
     create_invited_user_in_db,
     get_user_roles,
@@ -43,13 +42,13 @@ def admin_dashboard():
     This page is only accessible to users who are admins.
     """
     UserSchema.model_validate(current_user)  # it does modify the current_user object in place
-    if not current_user.is_admin:
-        return redirect(url_for("index"))
+    if not current_user.is_admin():
+        return redirect(url_for("unauthorized"))
 
     try:
-        if current_user.has_role("super_admin"):
+        if current_user.is_super_admin():
             users = User.query.all()
-        elif current_user.has_role("org_admin"):
+        elif current_user.is_org_admin():
             users = User.query.filter_by(org_id=current_user.org_id).all()
         else:
             users = []
@@ -62,10 +61,10 @@ def admin_dashboard():
             }
             for user in users
         ]
-        return render_template("admin.html", is_admin=True, users=users_schema)
+        return render_template("admin.html", is_admin=current_user.is_admin(), users=users_schema)
     except SQLAlchemyError:
         flash("Failed to retrieve users.", "error")
-        return render_template("admin.html", is_admin=True, users=[])
+        return render_template("admin.html", is_admin=current_user.is_admin(), users=[])
 
 
 @admin_bp.route("/admin/pinecone")
@@ -82,7 +81,7 @@ def list_indexes() -> str:
     pinecone_helper = PineconeHelper()
     indexes = pinecone_helper.list_indexes()
 
-    return render_template("admin/pinecone.html", indexes=indexes, is_admin=session["user.id"])
+    return render_template("admin/pinecone.html", indexes=indexes, is_admin=current_user.is_admin())
 
 
 @admin_bp.route("/admin/pinecone/<host_name>")
@@ -98,7 +97,7 @@ def index_details(host_name: str) -> str:
         "admin/index_details.html",
         index_host=host_name,
         metadata=index_metadata,
-        is_admin=is_admin(session["user.id"]),
+        is_admin=current_user.is_admin(),
     )
 
 

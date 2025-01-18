@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.organisation import Organisation
 from app.models.user_auth import UserAuth
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
-from app.helpers.users import create_user, is_org_admin, is_super_admin
+from app.helpers.users import create_user
 
 from redis import Redis
 from rq import Queue
@@ -112,18 +112,13 @@ class StartIndexing(Resource):
     @jwt_required(locations=["headers", "cookies"])
     def post(self, type):
         """Post method to start indexing data for the organization."""
-        if type == "organisation" and not is_org_admin(session["user.id"]):
+        if type == "organisation" and not current_user.is_org_admin():
             return {"error": "Only organisation admins can index their organisation"}, 403
-        if type == "all" and not is_super_admin(session["user.id"]):
+        if type == "all" and not current_user.is_super_admin():
             return {"error": "Only super admins can index all organisations"}, 403
 
         try:
             logging.info("Started indexing (type: %s)", type)
-            if type == "organisation" and not is_org_admin(session["user.id"]):
-                return {"error": "Only organisation admins can index their organisation"}, 403
-            if type == "all" and not is_super_admin(session["user.id"]):
-                return {"error": "Only super admins can index all organisations"}, 403
-
             if type not in ["user", "organisation", "all"]:
                 return {"error": "Invalid type"}, 400
 

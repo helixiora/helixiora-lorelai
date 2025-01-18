@@ -42,3 +42,11 @@ class User(UserMixin, db.Model):
     def is_admin(self) -> bool:
         """Check if the user is an admin."""
         return self.has_role("org_admin") or self.has_role("super_admin")
+
+    def is_org_admin(self) -> bool:
+        """Check if the user is an organization admin."""
+        return self.has_role("org_admin")
+
+    def is_super_admin(self) -> bool:
+        """Check if the user is a super admin."""
+        return self.has_role("super_admin")
