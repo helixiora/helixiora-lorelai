@@ -6,7 +6,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
-from flask_restx import Api
+from flask_restx import Api, fields
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
 
@@ -28,6 +28,7 @@ from app.routes.indexing import bp as indexing_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
 from app.routes.admin import admin_bp
+from app.routes.notifications import notifications_bp
 
 # Get git details
 try:
@@ -183,12 +184,14 @@ def create_app(config=None):
     def inject_is_admin():
         """Inject is_admin variable into all templates."""
         return {"is_admin": current_user.is_admin() if current_user.is_authenticated else False}
+
     # Register blueprints
+    app.register_blueprint(notifications_bp)
+    app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(googledrive_bp)
     app.register_blueprint(slack_bp)
-    app.register_blueprint(admin_bp)
     app.register_blueprint(indexing_bp)
 
     # Initialize API
@@ -205,10 +208,92 @@ def create_app(config=None):
         app,
         version="1.0",
         title="Lorelai API",
-        description="Lorelai API",
+        description="""
+        The Lorelai API provides programmatic access to Lorelai's features and data.
+
+        ## Authentication
+        All API endpoints require authentication using either:
+        - JWT tokens in the Authorization header
+        - API keys for programmatic access
+
+        ## Rate Limiting
+        API calls are rate limited based on your subscription tier.
+
+        ## Errors
+        The API uses standard HTTP response codes:
+        - 2xx: Success
+        - 4xx: Client errors (invalid input, unauthorized)
+        - 5xx: Server errors
+
+        Error responses include a message field with details.
+        """,
+        doc="/swagger",
         authorizations=authorizations,
         security="Bearer Auth",
         prefix="/api/v1",
+        validate=True,  # Enable request validation
+        ordered=True,  # Keep the order of fields in models
+        default_mediatype="application/json",
+        default="Lorelai API",
+        license="Proprietary",
+        contact="contact@helixiora.com",
+        contact_url="https://lorelai.app",
+        terms_url="https://lorelai.app/terms-of-service-for-lorelai/",
+    )
+
+    # Add global response definitions
+    api.response(
+        400,
+        "Validation Error",
+        api.model(
+            "Error",
+            {
+                "message": fields.String(description="Error message"),
+                "errors": fields.Raw(description="Detailed validation errors"),
+            },
+        ),
+    )
+    api.response(
+        401,
+        "Unauthorized",
+        api.model("Error", {"message": fields.String(description="Authentication required")}),
+    )
+    api.response(
+        403,
+        "Forbidden",
+        api.model("Error", {"message": fields.String(description="Insufficient permissions")}),
+    )
+    api.response(
+        404,
+        "Not Found",
+        api.model("Error", {"message": fields.String(description="Resource not found")}),
+    )
+    api.response(
+        429,
+        "Too Many Requests",
+        api.model(
+            "Error",
+            {
+                "message": fields.String(description="Rate limit exceeded"),
+                "retry_after": fields.Integer(description="Retry after seconds"),
+            },
+        ),
+    )
+    api.response(
+        500,
+        "Server Error",
+        api.model("Error", {"message": fields.String(description="Internal server error")}),
+    )
+
+    # Add global request parsers
+    pagination_parser = api.parser()
+    pagination_parser.add_argument("page", type=int, location="args", default=1, help="Page number")
+    pagination_parser.add_argument(
+        "per_page", type=int, location="args", default=20, help="Items per page"
+    )
+    pagination_parser.add_argument("sort", type=str, location="args", help="Sort field")
+    pagination_parser.add_argument(
+        "order", type=str, location="args", choices=("asc", "desc"), help="Sort order"
     )
 
     # Add namespaces

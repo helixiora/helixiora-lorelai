@@ -46,14 +46,51 @@ def add_notification(
         return False
 
 
-def get_notifications(user_id: int) -> list[NotificationSchema]:
-    """Get the notifications for a user."""
+def get_notifications(
+    user_id: int,
+    show_read: bool | None = None,
+    show_dismissed: bool | None = None,
+    limit: int | None = None,
+) -> list[NotificationSchema]:
+    """Get the notifications for a user.
+
+    Parameters
+    ----------
+    user_id : int
+        The ID of the user to get notifications for
+    show_read : Optional[bool]
+        If True, include read notifications. If False, exclude them.
+        If None, include both read and unread notifications.
+    show_dismissed : Optional[bool]
+        If True, include dismissed notifications. If False, exclude them.
+        If None, include both dismissed and undismissed notifications.
+    limit : Optional[int]
+        Maximum number of notifications to return
+
+    Returns
+    -------
+    List[NotificationSchema]
+        List of notifications matching the criteria
+    """
     try:
-        notifications = (
-            Notification.query.filter_by(user_id=user_id)
-            .order_by(Notification.created_at.desc())
-            .all()
-        )
+        query = Notification.query.filter_by(user_id=user_id)
+
+        # Apply read/unread filter if specified
+        if show_read is not None:
+            query = query.filter(Notification.read == show_read)
+
+        # Apply dismissed/undismissed filter if specified
+        if show_dismissed is not None:
+            query = query.filter(Notification.dismissed == show_dismissed)
+
+        # Always sort by creation date, newest first
+        query = query.order_by(Notification.created_at.desc())
+
+        # Apply limit if specified
+        if limit is not None:
+            query = query.limit(limit)
+
+        notifications = query.all()
         return [NotificationSchema.from_orm(notification) for notification in notifications]
     except SQLAlchemyError as e:
         logging.error(f"Failed to get notifications: {e}")
@@ -243,3 +280,28 @@ def sanitize_notification(notification: dict[str, Any]) -> dict[str, Any]:
         if notification.get("url")
         else None,
     }
+
+
+def get_notification(notification_id: int, user_id: int) -> NotificationSchema | None:
+    """Get a specific notification by ID.
+
+    Parameters
+    ----------
+    notification_id : int
+        The ID of the notification to retrieve
+    user_id : int
+        The ID of the user who owns the notification
+
+    Returns
+    -------
+    Optional[NotificationSchema]
+        The notification if found, None otherwise
+    """
+    try:
+        notification = Notification.query.filter_by(id=notification_id, user_id=user_id).first()
+        if notification:
+            return NotificationSchema.from_orm(notification)
+        return None
+    except SQLAlchemyError as e:
+        logging.error(f"Failed to get notification {notification_id}: {e}")
+        return None
