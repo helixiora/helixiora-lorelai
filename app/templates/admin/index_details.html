@@ -2,52 +2,167 @@
 
 {% block content %}
 <div class="container">
-    <h1>Details for Index: {{ index_host }}</h1>
-    <table id="metadataTable" class="display">
-        <thead>
-            <tr>
-                {% for item in metadata[:1] %}
-                    {% for key in item.keys() %}
-                        <th>{{ key|title }}</th>
-                    {% endfor %}
-                {% else %}
-                    <th>No data available</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in metadata %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h1">Index Details: {{ index_host }}</h1>
+        <div>
+            <a href="/admin/pinecone" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Indexes
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="typeFilter" class="form-label">Type</label>
+                    <select id="typeFilter" class="form-select">
+                        <option value="">All Types</option>
+                        {% for item in metadata %}
+                            <option value="{{ item.type }}">{{ item.type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="statusFilter" class="form-label">Status</label>
+                    <select id="statusFilter" class="form-select">
+                        <option value="">All Statuses</option>
+                        {% for item in metadata %}
+                            <option value="{{ item.status }}">{{ item.status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metadata Table -->
+    <div class="table-responsive">
+        <table id="metadataTable" class="display table table-striped" style="width:100%">
+            <thead>
                 <tr>
-                    {% for key in item.keys() %}
-                        <td>{{ item[key] }}</td>
+                    {% for item in metadata[:1] %}
+                        {# Define the order of important columns first #}
+                        {% set important_columns = ['id', 'name', 'type', 'status', 'created_at', 'updated_at', 'url', 'source'] %}
+                        {# Get all columns #}
+                        {% set all_columns = item.keys()|list %}
+                        {# Sort columns: important ones first, then rest alphabetically #}
+                        {% set ordered_columns = (important_columns|select('in', all_columns)|list) +
+                                               (all_columns|reject('in', important_columns)|sort|list) %}
+                        {% for key in ordered_columns %}
+                            <th class="text-nowrap">{{ key|title }}</th>
+                        {% endfor %}
+                    {% else %}
+                        <th>No data available</th>
                     {% endfor %}
                 </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <a href="/admin/pinecone" class="btn btn-primary mt-3">Back to Index List</a>
+            </thead>
+            <tbody>
+                {% for item in metadata %}
+                    <tr>
+                        {% for item in metadata[:1] %}
+                            {% set important_columns = ['id', 'name', 'type', 'status', 'created_at', 'updated_at', 'url', 'source'] %}
+                            {% set all_columns = item.keys()|list %}
+                            {% set ordered_columns = (important_columns|select('in', all_columns)|list) +
+                                                   (all_columns|reject('in', important_columns)|sort|list) %}
+                        {% endfor %}
+                        {% for key in ordered_columns %}
+                            <td>{{ item[key] }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    $(document).ready(function() {
-        $('#metadataTable').DataTable({
-            "pagingType": "simple_numbers",
-            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
-            "order": [[0, "asc"]],
-            "columnDefs": [
-                {
-                    "targets": "_all",
-                    "render": function(data, type, row) {
-                        if (type === 'display' && data && data.length > 100) {
-                            return '<span title="' + data + '">' + data.substr(0, 100) + '...</span>';
-                        }
-                        return data;
+    // Initialize DataTable
+    const metadataTable = $('#metadataTable').DataTable({
+        order: [[0, 'asc']],
+        pageLength: 25,
+        autoWidth: true,
+        responsive: true,
+        scrollX: true,
+        columnDefs: [
+            {
+                targets: '_all',
+                className: 'align-middle',
+                render: function(data, type, row) {
+                    if (type === 'display' && data && data.length > 100) {
+                        return '<span title="' + data + '">' + data.substr(0, 100) + '...</span>';
                     }
+                    return data;
                 }
-            ]
-        });
+            },
+            {
+                targets: [0, 1, 2, 3], // ID, Name, Type, Status columns
+                className: 'text-nowrap font-weight-bold'
+            },
+            {
+                targets: [4, 5], // Created At, Updated At columns
+                className: 'text-nowrap'
+            }
+        ],
+        dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+             '<"row"<"col-sm-12"tr>>' +
+             '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
     });
+
+    // Adjust columns on window resize
+    $(window).on('resize', function() {
+        metadataTable.columns.adjust();
+    });
+
+    // Apply filters
+    function applyFilters() {
+        const typeFilter = $('#typeFilter').val();
+        const statusFilter = $('#statusFilter').val();
+
+        // Clear existing filters
+        $.fn.dataTable.ext.search = [];
+
+        // Add combined filter function
+        $.fn.dataTable.ext.search.push(function(settings, data) {
+            const typeIndex = Array.from(document.querySelectorAll('#metadataTable th')).findIndex(th => th.textContent.toLowerCase() === 'type');
+            const statusIndex = Array.from(document.querySelectorAll('#metadataTable th')).findIndex(th => th.textContent.toLowerCase() === 'status');
+
+            const type = data[typeIndex];
+            const status = data[statusIndex];
+
+            if (typeFilter && type !== typeFilter) return false;
+            if (statusFilter && status !== statusFilter) return false;
+
+            return true;
+        });
+
+        metadataTable.draw();
+    }
+
+    // Bind filter events
+    $('#typeFilter, #statusFilter').on('change', applyFilters);
+
+    // Remove duplicate filter options
+    function removeDuplicateOptions(selectId) {
+        const seen = new Set();
+        $(`#${selectId} option`).each(function() {
+            const value = $(this).val();
+            if (seen.has(value)) {
+                $(this).remove();
+            } else {
+                seen.add(value);
+            }
+        });
+    }
+
+    // Remove duplicates from filter dropdowns
+    removeDuplicateOptions('typeFilter');
+    removeDuplicateOptions('statusFilter');
 });
 </script>
 {% endblock %}

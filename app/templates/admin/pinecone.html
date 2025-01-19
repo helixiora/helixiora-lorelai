@@ -2,42 +2,173 @@
 
 {% block content %}
 <div class="container">
-    <h1>Pinecone Indexes</h1>
-    <table id="indexesTable" class="display">
-        <thead>
-            <tr>
-                <th>Index Name</th>
-                <th>Dimension</th>
-                <th>Metric</th>
-                <th>Host</th>
-                <th>Status</th>
-                <th>Cloud Region</th>
-                <th>Details</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for index in indexes %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h1">Pinecone Indexes</h1>
+        <div>
+            <a href="/admin" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Admin
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="cloudFilter" class="form-label">Cloud Provider</label>
+                    <select id="cloudFilter" class="form-select">
+                        <option value="">All Providers</option>
+                        {% for index in indexes %}
+                            <option value="{{ index.spec.serverless.cloud }}">{{ index.spec.serverless.cloud }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="regionFilter" class="form-label">Region</label>
+                    <select id="regionFilter" class="form-select">
+                        <option value="">All Regions</option>
+                        {% for index in indexes %}
+                            <option value="{{ index.spec.serverless.region }}">{{ index.spec.serverless.region }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="statusFilter" class="form-label">Status</label>
+                    <select id="statusFilter" class="form-select">
+                        <option value="">All Statuses</option>
+                        {% for index in indexes %}
+                            <option value="{{ index.status.state }}">{{ index.status.state }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indexes Table -->
+    <div class="table-responsive">
+        <table id="indexesTable" class="display table table-striped" style="width:100%">
+            <thead>
                 <tr>
-                    <td>{{ index.name }}</td>
-                    <td>{{ index.dimension }}</td>
-                    <td>{{ index.metric }}</td>
-                    <td>{{ index.host }}</td>
-                    <td>{{ index.status.state }}</td>
-                    <td>{{ index.spec.serverless.cloud }} - {{ index.spec.serverless.region }}</td>
-                    <td><a href="/admin/pinecone/{{ index.host }}">View Details</a></td>
+                    <th class="w-15">Name</th>
+                    <th class="w-10">Status</th>
+                    <th class="w-10">Cloud</th>
+                    <th class="w-15">Region</th>
+                    <th class="w-15">Host</th>
+                    <th class="w-10">Dimension</th>
+                    <th class="w-10">Metric</th>
+                    <th class="w-15">Actions</th>
                 </tr>
-            {% else %}
-                <tr><td colspan="7">No indexes found.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for index in indexes %}
+                    <tr>
+                        <td>{{ index.name }}</td>
+                        <td>
+                            <span class="badge {% if index.status.state == 'Ready' %}bg-success{% else %}bg-warning{% endif %}">
+                                {{ index.status.state }}
+                            </span>
+                        </td>
+                        <td>{{ index.spec.serverless.cloud }}</td>
+                        <td>{{ index.spec.serverless.region }}</td>
+                        <td>{{ index.host }}</td>
+                        <td>{{ index.dimension }}</td>
+                        <td>{{ index.metric }}</td>
+                        <td>
+                            <a href="/admin/pinecone/{{ index.host }}"
+                               class="btn btn-sm btn-primary"
+                               aria-label="View details for {{ index.name }}">
+                                View Details
+                            </a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8" class="text-center">No indexes found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    $(document).ready(function() {
-        $('#indexesTable').DataTable();
-        });
+    // Initialize DataTable
+    const indexesTable = $('#indexesTable').DataTable({
+        order: [[0, 'asc']], // Sort by index name by default
+        pageLength: 25,
+        autoWidth: true,
+        responsive: true,
+        scrollX: true,
+        columnDefs: [
+            {
+                targets: [4, 5, 6], // Host, Dimension, Metric columns
+                className: 'text-nowrap' // Prevent text wrapping
+            },
+            {
+                targets: '_all',
+                className: 'align-middle'
+            }
+        ],
+        // Ensure columns fill the container
+        dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+             '<"row"<"col-sm-12"tr>>' +
+             '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
     });
+
+    // Adjust columns on window resize
+    $(window).on('resize', function() {
+        indexesTable.columns.adjust();
+    });
+
+    // Apply filters
+    function applyFilters() {
+        const cloudFilter = $('#cloudFilter').val();
+        const regionFilter = $('#regionFilter').val();
+        const statusFilter = $('#statusFilter').val();
+
+        // Clear existing filters
+        $.fn.dataTable.ext.search = [];
+
+        // Add combined filter function
+        $.fn.dataTable.ext.search.push(function(settings, data) {
+            const cloud = data[2]; // Cloud column
+            const region = data[3]; // Region column
+            const status = $(data[1]).text().trim(); // Status column (get text from badge)
+
+            if (cloudFilter && cloud !== cloudFilter) return false;
+            if (regionFilter && region !== regionFilter) return false;
+            if (statusFilter && status !== statusFilter) return false;
+
+            return true;
+        });
+
+        indexesTable.draw();
+    }
+
+    // Bind filter events
+    $('#cloudFilter, #regionFilter, #statusFilter').on('change', applyFilters);
+
+    // Remove duplicate filter options
+    function removeDuplicateOptions(selectId) {
+        const seen = new Set();
+        $(`#${selectId} option`).each(function() {
+            const value = $(this).val();
+            if (seen.has(value)) {
+                $(this).remove();
+            } else {
+                seen.add(value);
+            }
+        });
+    }
+
+    // Remove duplicates from filter dropdowns
+    removeDuplicateOptions('cloudFilter');
+    removeDuplicateOptions('regionFilter');
+    removeDuplicateOptions('statusFilter');
+});
 </script>
 {% endblock %}
