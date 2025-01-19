@@ -14,13 +14,22 @@ notifications_bp = Blueprint("notifications", __name__)
 def notifications():
     """Return the notifications page."""
     try:
-        # Get notifications, excluding dismissed ones by default
-        notifications = get_notifications(user_id=current_user.id, show_dismissed=False)
+        # Get all notifications for the page
+        result = get_notifications(user_id=current_user.id)
+        notifications = result["notifications"]
         notification_types = sorted(set(n.type for n in notifications))
         return render_template(
-            "notifications.html", notifications=notifications, notification_types=notification_types
+            "notifications.html",
+            notifications=notifications,
+            notification_types=notification_types,
+            counts=result["counts"],
         )
     except Exception as e:
         logging.error(f"Error fetching notifications: {e}")
         flash("Failed to retrieve notifications.", "error")
-        return render_template("notifications.html", notifications=[], notification_types=[])
+        return render_template(
+            "notifications.html",
+            notifications=[],
+            notification_types=[],
+            counts={"total": 0, "unread_active": 0, "read_active": 0, "dismissed": 0},
+        )

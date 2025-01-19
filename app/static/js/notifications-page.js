@@ -230,22 +230,32 @@ async function fetchNotifications() {
         const params = new URLSearchParams(filters);
 
         const response = await makeAuthenticatedRequest(`/api/v1/notifications/?${params.toString()}`, 'GET');
-
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-
         if (!data.notifications) {
             throw new Error('Invalid response format from server');
         }
 
+        // Calculate counts for different notification states
+        const counts = {
+            total: data.notifications.length,
+            active: data.notifications.filter(n => !n.dismissed).length,
+            unread: data.notifications.filter(n => !n.read && !n.dismissed).length,
+            dismissed: data.notifications.filter(n => n.dismissed).length
+        };
+
         // Update the table
         notificationsTable.clear().rows.add(data.notifications).draw();
 
-        // Update notification counts
-        window.NotificationActions.updateBadgeCount(data.counts.unread);
+        // Update counts display
+        updateCountsDisplay(counts);
+
+        // Update the badge in the navigation
+        window.NotificationActions?.updateBadgeCount(counts.unread);
+
     } catch (error) {
         console.error('Error fetching notifications:', error);
         showError('Failed to fetch notifications. Please try again.');
@@ -254,10 +264,47 @@ async function fetchNotifications() {
     }
 }
 
+// Function to update counts display
+function updateCountsDisplay(counts) {
+    const countDisplay = document.getElementById('notificationCounts');
+    if (countDisplay) {
+        countDisplay.innerHTML = `
+            <span class="me-3">Total: ${counts.total}</span>
+            <span class="me-3">Active: ${counts.active}</span>
+            <span class="me-3">Unread: ${counts.unread}</span>
+            <span>Dismissed: ${counts.dismissed}</span>
+        `;
+    }
+}
+
 // Function to get current filter values
 function getFilterValues() {
+    const status = $('#notificationStatusFilter').val();
+    let show_read = null;
+    let show_dismissed = null;
+
+    // Map status filter to API parameters
+    switch (status) {
+        case 'unread':
+            show_read = false;
+            show_dismissed = false;
+            break;
+        case 'read':
+            show_read = true;
+            show_dismissed = false;
+            break;
+        case 'dismissed':
+            show_dismissed = true;
+            break;
+        default:
+            // Show all notifications
+            break;
+    }
+
     return {
-        status: $('#notificationStatusFilter').val(),
+        show_read: show_read,
+        show_dismissed: show_dismissed,
+        show_unread: show_read === false ? true : null,  // Only set when specifically showing unread
         type: $('#notificationTypeFilter').val(),
         start_date: $('#notificationStartDate').val(),
         end_date: $('#notificationEndDate').val()
@@ -303,10 +350,21 @@ function setupBulkActions() {
         if (!ids.length) return;
 
         try {
-            await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
+            const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
                 ids: ids
             });
-            fetchNotifications();
+            const data = await response.json();
+
+            if (data.success) {
+                // Update counts display
+                updateCountsDisplay(data.counts);
+                // Update the badge in the navigation
+                window.NotificationActions?.updateBadgeCount(data.counts.unread_active);
+                // Refresh the table
+                fetchNotifications();
+            } else {
+                showError('Failed to mark notifications as read');
+            }
         } catch (error) {
             console.error('Error marking notifications as read:', error);
             showError('Failed to mark notifications as read');
@@ -319,10 +377,21 @@ function setupBulkActions() {
         if (!ids.length) return;
 
         try {
-            await makeAuthenticatedRequest('/api/v1/notifications/bulk/dismiss', 'POST', {
+            const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/dismiss', 'POST', {
                 ids: ids
             });
-            fetchNotifications();
+            const data = await response.json();
+
+            if (data.success) {
+                // Update counts display
+                updateCountsDisplay(data.counts);
+                // Update the badge in the navigation
+                window.NotificationActions?.updateBadgeCount(data.counts.unread_active);
+                // Refresh the table
+                fetchNotifications();
+            } else {
+                showError('Failed to dismiss notifications');
+            }
         } catch (error) {
             console.error('Error dismissing notifications:', error);
             showError('Failed to dismiss notifications');

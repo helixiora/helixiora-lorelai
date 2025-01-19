@@ -73,28 +73,62 @@ def get_notifications(
         List of notifications matching the criteria
     """
     try:
-        query = Notification.query.filter_by(user_id=user_id)
+        # Base query for all notifications for this user
+        base_query = Notification.query.filter_by(user_id=user_id)
+
+        # Get total counts for different states
+        counts = (
+            db.session.query(
+                db.func.count().label("total"),
+                db.func.sum(
+                    db.case((~Notification.dismissed & ~Notification.read, 1), else_=0)
+                ).label("unread_active"),
+                db.func.sum(
+                    db.case((~Notification.dismissed & Notification.read, 1), else_=0)
+                ).label("read_active"),
+                db.func.sum(db.case((Notification.dismissed, 1), else_=0)).label("dismissed"),
+            )
+            .filter(Notification.user_id == user_id)
+            .first()
+        )
 
         # Apply read/unread filter if specified
         if show_read is not None:
-            query = query.filter(Notification.read == show_read)
+            base_query = base_query.filter(Notification.read == show_read)
 
         # Apply dismissed/undismissed filter if specified
         if show_dismissed is not None:
-            query = query.filter(Notification.dismissed == show_dismissed)
+            base_query = base_query.filter(Notification.dismissed == show_dismissed)
 
         # Always sort by creation date, newest first
-        query = query.order_by(Notification.created_at.desc())
+        base_query = base_query.order_by(Notification.created_at.desc())
 
         # Apply limit if specified
         if limit is not None:
-            query = query.limit(limit)
+            base_query = base_query.limit(limit)
 
-        notifications = query.all()
-        return [NotificationSchema.from_orm(notification) for notification in notifications]
+        notifications = base_query.all()
+        notification_schemas = [
+            NotificationSchema.from_orm(notification) for notification in notifications
+        ]
+
+        # Return both notifications and counts
+        return {
+            "notifications": notification_schemas,
+            "counts": {
+                "total": int(counts.total or 0),
+                "unread_active": int(counts.unread_active or 0),
+                "read_active": int(counts.read_active or 0),
+                "dismissed": int(counts.dismissed or 0),
+            },
+        }
+
     except SQLAlchemyError as e:
         logging.error(f"Failed to get notifications: {e}")
-        return []
+        return {
+            "notifications": [],
+            "counts": {"total": 0, "unread_active": 0, "read_active": 0, "dismissed": 0},
+        }
 
 
 def get_unread_notifications(user_id: int) -> list[NotificationSchema]:
@@ -140,10 +174,10 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
 
         return {
             "success": True,
-            "remaining_unread": counts.remaining_unread or 0,
-            "read": counts.read or 0,
-            "dismissed": counts.dismissed or 0,
-            "undismissed": counts.undismissed or 0,
+            "remaining_unread": int(counts.remaining_unread or 0),
+            "read": int(counts.read or 0),
+            "dismissed": int(counts.dismissed or 0),
+            "undismissed": int(counts.undismissed or 0),
         }
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -190,10 +224,10 @@ def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
 
         return {
             "success": success,
-            "remaining_unread": counts.remaining_unread or 0,
-            "read": counts.read or 0,
-            "dismissed": counts.dismissed or 0,
-            "undismissed": counts.undismissed or 0,
+            "remaining_unread": int(counts.remaining_unread or 0),
+            "read": int(counts.read or 0),
+            "dismissed": int(counts.dismissed or 0),
+            "undismissed": int(counts.undismissed or 0),
         }
     except SQLAlchemyError as e:
         db.session.rollback()

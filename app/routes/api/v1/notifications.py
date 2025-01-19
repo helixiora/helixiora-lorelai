@@ -75,7 +75,10 @@ class GetNotificationsResource(Resource):
             # Get query parameters
             show_read = parse_boolean_param(request.args.get("show_read", None))
             show_unread = parse_boolean_param(request.args.get("show_unread", None))
-            show_dismissed = parse_boolean_param(request.args.get("show_dismissed", None))
+            # Default to not showing dismissed notifications unless explicitly requested
+            show_dismissed = parse_boolean_param(
+                request.args.get("show_dismissed", None), default=False
+            )
             limit = request.args.get("limit", type=int)
 
             # If both show_read and show_unread are specified, use their values
@@ -86,7 +89,12 @@ class GetNotificationsResource(Resource):
                 if not show_read and not show_unread:
                     return {
                         "notifications": [],
-                        "counts": {"read": 0, "unread": 0, "dismissed": 0, "total": 0},
+                        "counts": {
+                            "total": 0,
+                            "unread_active": 0,
+                            "read_active": 0,
+                            "dismissed": 0,
+                        },
                     }, 200
                 # If both are True or only one is True, pass None to show all
                 show_read = None if (show_read and show_unread) else show_read
@@ -101,21 +109,16 @@ class GetNotificationsResource(Resource):
                 show_read = None
 
             # Get notifications with filters
-            notifications = get_notifications(
+            result = get_notifications(
                 user_id=session["user.id"],
                 show_read=show_read,
                 show_dismissed=show_dismissed,
                 limit=limit,
             )
 
-            # Count notifications by status
-            read_count = sum(1 for n in notifications if n.read)
-            unread_count = sum(1 for n in notifications if not n.read)
-            dismissed_count = sum(1 for n in notifications if n.dismissed)
-
             # Convert Pydantic models to dictionaries and format datetime fields
             filtered_notifications = []
-            for n in notifications:
+            for n in result["notifications"]:
                 notification_dict = n.model_dump()
                 # Convert datetime objects to ISO format strings
                 for field in ["created_at", "read_at", "dismissed_at", "updated_at"]:
@@ -123,21 +126,17 @@ class GetNotificationsResource(Resource):
                         notification_dict[field] = notification_dict[field].isoformat()
                 filtered_notifications.append(sanitize_notification(notification_dict))
 
-            response_data = {
-                "notifications": filtered_notifications,
-                "counts": {
-                    "read": read_count,
-                    "unread": unread_count,
-                    "dismissed": dismissed_count,
-                    "total": len(filtered_notifications),
-                },
-            }
+            response_data = {"notifications": filtered_notifications, "counts": result["counts"]}
 
             return response_data, 200
 
         except Exception as e:
             logging.error(f"Error fetching notifications: {str(e)}")
-            return {"error": "Unable to fetch notifications"}, 500
+            return {
+                "error": "Unable to fetch notifications",
+                "notifications": [],
+                "counts": {"total": 0, "unread_active": 0, "read_active": 0, "dismissed": 0},
+            }, 500
 
 
 @notifications_ns.route("/<int:notification_id>")
@@ -219,12 +218,23 @@ class BulkMarkReadResource(Resource):
         """Mark multiple notifications as read."""
         try:
             notification_ids = request.json.get("ids", [])
+            success_count = 0
             for notification_id in notification_ids:
-                mark_notification_as_read(notification_id, session["user.id"])
-            return {"message": f"{len(notification_ids)} notifications marked as read"}, 200
+                result = mark_notification_as_read(notification_id, session["user.id"])
+                if result["success"]:
+                    success_count += 1
+
+            # Get updated counts
+            result = get_notifications(user_id=session["user.id"])
+
+            return {
+                "message": f"{success_count} notifications marked as read",
+                "success": True,
+                "counts": result["counts"],
+            }, 200
         except Exception as e:
             logging.error(f"Error marking notifications as read: {str(e)}")
-            return {"error": "Unable to mark notifications as read"}, 500
+            return {"error": "Unable to mark notifications as read", "success": False}, 500
 
 
 @notifications_ns.route("/bulk/dismiss")
@@ -239,9 +249,20 @@ class BulkDismissResource(Resource):
         """Dismiss multiple notifications."""
         try:
             notification_ids = request.json.get("ids", [])
+            success_count = 0
             for notification_id in notification_ids:
-                mark_notification_as_dismissed(notification_id, session["user.id"])
-            return {"message": f"{len(notification_ids)} notifications dismissed"}, 200
+                result = mark_notification_as_dismissed(notification_id, session["user.id"])
+                if result["success"]:
+                    success_count += 1
+
+            # Get updated counts
+            result = get_notifications(user_id=session["user.id"])
+
+            return {
+                "message": f"{success_count} notifications dismissed",
+                "success": True,
+                "counts": result["counts"],
+            }, 200
         except Exception as e:
             logging.error(f"Error dismissing notifications: {str(e)}")
-            return {"error": "Unable to dismiss notifications"}, 500
+            return {"error": "Unable to dismiss notifications", "success": False}, 500
