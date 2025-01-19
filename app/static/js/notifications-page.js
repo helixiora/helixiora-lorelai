@@ -12,16 +12,16 @@ async function markNotificationAsRead(notificationId, row) {
         // Update the row UI
         const $row = $(row);
 
-        // Update the title and message columns to remove bold
-        $row.find('td:nth-child(4), td:nth-child(5)').removeClass('fw-bold');
+        // Update the title and message cells
+        $row.find('.notification-title, .notification-message').removeClass('fw-bold');
 
         // Remove the mark as read button
-        $row.find('.mark-read').remove();
+        $row.find('.mark-read-btn').remove();
 
         // Update the status badge
-        $row.find('td:nth-child(6) .badge')
-            .removeClass('bg-primary')
-            .addClass('bg-success')
+        $row.find('.notification-status')
+            .removeClass('notification-status-unread')
+            .addClass('notification-status-read')
             .text('Read');
 
         // Refresh the table to ensure proper sorting/filtering
@@ -30,7 +30,6 @@ async function markNotificationAsRead(notificationId, row) {
         // Update notification counts
         updateNotificationCounts();
     } catch (error) {
-        console.error('Error marking notification as read:', error);
         showError('Failed to mark notification as read. Please try again.');
         throw error;
     }
@@ -45,12 +44,12 @@ async function dismissNotification(notificationId, row) {
         const $row = $(row);
 
         // Remove action buttons
-        $row.find('.btn-group').empty();
+        $row.find('.notification-actions').empty();
 
         // Update the status badge
-        $row.find('td:nth-child(6) .badge')
-            .removeClass('bg-primary bg-success')
-            .addClass('bg-secondary')
+        $row.find('.notification-status')
+            .removeClass('notification-status-unread notification-status-read')
+            .addClass('notification-status-dismissed')
             .text('Dismissed');
 
         // Refresh the table to ensure proper sorting/filtering
@@ -59,7 +58,6 @@ async function dismissNotification(notificationId, row) {
         // Update notification counts
         updateNotificationCounts();
     } catch (error) {
-        console.error('Error dismissing notification:', error);
         showError('Failed to dismiss notification. Please try again.');
         throw error;
     }
@@ -74,144 +72,314 @@ async function updateNotificationCounts() {
         const data = await response.json();
         window.NotificationActions.updateBadgeCount(data.unread);
     } catch (error) {
-        console.error('Error updating notification counts:', error);
+        showError('Failed to update notification counts');
     }
 }
 
-// Wait for DOM to be fully loaded
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize DataTable
-    notificationsTable = $('#notificationsTable').DataTable({
+// Initialize DataTable with common settings
+function initializeNotificationsTable() {
+    return $('#notificationsTable').DataTable({
         order: [[1, 'desc']], // Sort by created_at by default
+        columnDefs: [
+            {
+                targets: [
+                    { name: 'checkbox', index: 0 },
+                    { name: 'created_at', index: 1 },
+                    { name: 'type', index: 2 },
+                    { name: 'title', index: 3 },
+                    { name: 'message', index: 4 },
+                    { name: 'status', index: 5 },
+                    { name: 'actions', index: 6 }
+                ],
+                orderable: false,
+                className: 'no-sort'
+            }
+        ],
         pageLength: 25,
         responsive: true,
-        columns: [
-            {
-                data: null,
-                orderable: false,
-                render: function(data, type, row) {
-                    return `<input type="checkbox" class="form-check-input notification-checkbox"
-                            data-notification-id="${row.id}" aria-label="Select notification">`;
-                }
-            },
-            {
-                data: 'created_at',
-                render: function(data) {
-                    return new Date(data).toLocaleString();
-                }
-            },
-            { data: 'type' },
-            {
-                data: 'title',
-                render: function(data, type, row) {
-                    return `<span class="${!row.read_at ? 'fw-bold' : ''}">${data}</span>`;
-                }
-            },
-            {
-                data: 'message',
-                render: function(data, type, row) {
-                    return `<span class="${!row.read_at ? 'fw-bold' : ''}">${data}</span>`;
-                }
-            },
-            {
-                data: null,
-                render: function(data) {
-                    let badgeClass = 'bg-primary';
-                    let status = 'Unread';
+        createdRow: function(row, data, dataIndex) {
+            // Add data attributes for easier access
+            $(row).attr('data-notification-id', data.id);
+            $(row).addClass('notification-row');
+        }
+    });
+}
 
-                    if (data.dismissed_at) {
-                        badgeClass = 'bg-secondary';
-                        status = 'Dismissed';
-                    } else if (data.read_at) {
-                        badgeClass = 'bg-success';
-                        status = 'Read';
-                    }
+// Quick date filter helper
+function setQuickDateFilter(value) {
+    const now = new Date();
+    let start = null;
+    let end = null;
 
-                    return `<span class="badge ${badgeClass}">${status}</span>`;
-                }
-            },
-            {
-                data: null,
-                orderable: false,
-                render: function(data, type, row) {
-                    const buttons = [];
+    switch(value) {
+        case 'today':
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            break;
+        case 'yesterday':
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+            end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+            break;
+        case 'last7days':
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+            end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            break;
+        case 'last30days':
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+            end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            break;
+        case 'thisMonth':
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+            break;
+        case 'lastMonth':
+            start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+            break;
+    }
 
-                    if (!row.read_at) {
-                        buttons.push(`
-                            <button class="btn btn-sm btn-outline-success mark-read"
-                                    data-notification-id="${row.id}"
-                                    aria-label="Mark as read">
-                                <i class="bi bi-check2"></i>
-                            </button>
-                        `);
-                    }
+    if (start && end) {
+        $('#notificationStartDate').val(start.toISOString().split('T')[0]);
+        $('#notificationEndDate').val(end.toISOString().split('T')[0]);
+    } else {
+        $('#notificationStartDate').val('');
+        $('#notificationEndDate').val('');
+    }
+}
 
-                    if (!row.dismissed_at) {
-                        buttons.push(`
-                            <button class="btn btn-sm btn-outline-secondary dismiss-notification"
-                                    data-notification-id="${row.id}"
-                                    aria-label="Dismiss notification">
-                                <i class="bi bi-x"></i>
-                            </button>
-                        `);
-                    }
+// Function to get current filter values
+function getFilterValues() {
+    const filters = {};
 
-                    if (row.url) {
-                        buttons.push(`
-                            <a href="${row.url}" class="btn btn-sm btn-outline-primary"
-                               aria-label="View details">
-                                <i class="bi bi-box-arrow-up-right"></i>
-                            </a>
-                        `);
-                    }
+    // Get status filter value
+    const statusFilter = document.getElementById('notificationStatusFilter')?.value;
+    if (statusFilter === 'unread') {
+        filters.show_read = false;
+        filters.show_unread = true;
+    } else if (statusFilter === 'read') {
+        filters.show_read = true;
+        filters.show_unread = false;
+    }
 
-                    return `<div class="btn-group">${buttons.join('')}</div>`;
+    // Get type filter value
+    const typeFilter = document.getElementById('notificationTypeFilter')?.value;
+    if (typeFilter && typeFilter !== 'all') {
+        filters.type = typeFilter;
+    }
+
+    // Get date range values
+    const startDate = document.getElementById('notificationStartDate')?.value;
+    const endDate = document.getElementById('notificationEndDate')?.value;
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+
+    return filters;
+}
+
+// Apply DataTable filters
+function applyFilters(table) {
+    const statusFilter = $('#notificationStatusFilter').val();
+    const typeFilter = $('#notificationTypeFilter').val();
+    const startDate = $('#notificationStartDate').val();
+    const endDate = $('#notificationEndDate').val();
+    const showDismissed = $('#showDismissedCheckbox').is(':checked');
+
+    // Apply type filter
+    table.column('type:name').search(typeFilter);
+
+    // Custom filtering function for status and dismissed state
+    $.fn.dataTable.ext.search.push(function(settings, searchData, index, rowData) {
+        const $row = $(table.row(index).node());
+        const status = $row.find('.notification-status').text().toLowerCase();
+
+        // Filter out dismissed notifications unless explicitly shown
+        if (!showDismissed && status.includes('dismissed')) {
+            return false;
+        }
+
+        // Apply status filter if set
+        if (statusFilter) {
+            if (statusFilter === 'read' && !status.includes('read')) return false;
+            if (statusFilter === 'unread' && !status.includes('unread')) return false;
+        }
+
+        return true;
+    });
+
+    // Date range filter
+    if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59);
+
+        $.fn.dataTable.ext.search.push(function(settings, searchData, index, rowData) {
+            const date = new Date($(table.cell(index, 'created_at:name').node()).text());
+            return date >= start && date <= end;
+        });
+    }
+
+    table.draw();
+
+    // Clear custom filters after drawing
+    $.fn.dataTable.ext.search.pop();
+    if (startDate && endDate) {
+        $.fn.dataTable.ext.search.pop();
+    }
+}
+
+// Handle bulk actions
+function setupBulkActions() {
+    const $selectAll = $('#selectAll');
+    const $deselectAll = $('#deselectAll');
+    const $markSelectedRead = $('#markSelectedRead');
+    const $dismissSelected = $('#dismissSelected');
+
+    function updateBulkActionButtons() {
+        const selectedCount = $('.notification-checkbox:checked').length;
+        $markSelectedRead.prop('disabled', selectedCount === 0);
+        $dismissSelected.prop('disabled', selectedCount === 0);
+    }
+
+    $selectAll.on('click', () => {
+        $('.notification-checkbox').prop('checked', true);
+        updateBulkActionButtons();
+    });
+
+    $deselectAll.on('click', () => {
+        $('.notification-checkbox').prop('checked', false);
+        updateBulkActionButtons();
+    });
+
+    $(document).on('change', '.notification-checkbox', updateBulkActionButtons);
+
+    // Handle bulk mark as read
+    $markSelectedRead.on('click', async () => {
+        const selectedIds = $('.notification-checkbox:checked')
+            .closest('.notification-row')
+            .map((_, row) => $(row).data('notification-id'))
+            .get();
+
+        if (selectedIds.length === 0) return;
+
+        try {
+            const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
+                notification_ids: selectedIds
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to mark notifications as read');
+            }
+
+            // Update UI without page reload
+            for (const id of selectedIds) {
+                const $row = $(`.notification-row[data-notification-id="${id}"]`);
+                if ($row.length) {
+                    $row.find('.notification-title, .notification-message').removeClass('fw-bold');
+                    $row.find('.mark-read-btn').remove();
+                    $row.find('.notification-status')
+                        .removeClass('notification-status-unread')
+                        .addClass('notification-status-read')
+                        .text('Read');
                 }
             }
-        ]
-    });
 
-    // Handle mark as read
-    $('#notificationsTable').on('click', '.mark-read', async function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const button = this;
-        const notificationId = $(button).data('notification-id');
-        const row = $(button).closest('tr');
+            // Update notification counts
+            updateNotificationCounts();
 
-        try {
-            await markNotificationAsRead(notificationId, row);
+            // Refresh table display
+            notificationsTable.draw(false);
         } catch (error) {
-            // Error is already handled in markNotificationAsRead
+            showError(error.message || 'Failed to mark notifications as read');
         }
     });
 
-    // Handle dismiss
-    $('#notificationsTable').on('click', '.dismiss-notification', async function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const button = this;
-        const notificationId = $(button).data('notification-id');
-        const row = $(button).closest('tr');
+    // Handle bulk dismiss
+    $dismissSelected.on('click', async () => {
+        const selectedIds = $('.notification-checkbox:checked')
+            .closest('.notification-row')
+            .map((_, row) => $(row).data('notification-id'))
+            .get();
+
+        if (selectedIds.length === 0) return;
 
         try {
-            await dismissNotification(notificationId, row);
+            const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/dismiss', 'POST', {
+                notification_ids: selectedIds
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to dismiss notifications');
+            }
+
+            // Update UI without page reload
+            for (const id of selectedIds) {
+                const $row = $(`.notification-row[data-notification-id="${id}"]`);
+                if ($row.length) {
+                    $row.find('.notification-actions').empty();
+                    $row.find('.notification-status')
+                        .removeClass('notification-status-unread notification-status-read')
+                        .addClass('notification-status-dismissed')
+                        .text('Dismissed');
+                }
+            }
+
+            // Update notification counts
+            updateNotificationCounts();
+
+            // Refresh table display
+            notificationsTable.draw(false);
         } catch (error) {
-            // Error is already handled in dismissNotification
+            showError(error.message || 'Failed to dismiss notifications');
         }
     });
+}
 
-    // Initial fetch
+// Initialize everything when the DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure dismissed notifications are hidden by default
+    $('#showDismissedCheckbox').prop('checked', false);
+
+    const table = initializeNotificationsTable();
+    setupBulkActions();
+
+    // Initial fetch with default filters (hiding dismissed)
     fetchNotifications();
 
-    // Set up periodic refresh
-    fetchInterval = setInterval(fetchNotifications, 30000);
+    // Set up filter event handlers
+    $('#notificationQuickDateFilter').on('change', function() {
+        setQuickDateFilter($(this).val());
+        applyFilters(table);
+    });
 
-    // Set up filter handlers
-    setupFilters();
+    $('#notificationStatusFilter, #notificationTypeFilter, #notificationStartDate, #notificationEndDate, #showDismissedCheckbox')
+        .on('change', () => applyFilters(table));
 
-    // Set up bulk action handlers
-    setupBulkActions();
+    // Handle individual notification actions
+    $(document).on('click', '.mark-read', async function(e) {
+        e.preventDefault();
+        const notificationId = $(this).data('notification-id');
+        try {
+            await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/read`, 'POST');
+            window.location.reload();
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
+            alert('Failed to mark notification as read');
+        }
+    });
+
+    $(document).on('click', '.dismiss-notification', async function(e) {
+        e.preventDefault();
+        const notificationId = $(this).data('notification-id');
+        try {
+            await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/dismiss`, 'POST');
+            window.location.reload();
+        } catch (error) {
+            console.error('Failed to dismiss notification:', error);
+            alert('Failed to dismiss notification');
+        }
+    });
 });
 
 // Function to fetch notifications
@@ -231,12 +399,12 @@ async function fetchNotifications() {
 
         const response = await makeAuthenticatedRequest(`/api/v1/notifications/?${params.toString()}`, 'GET');
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error('Failed to fetch notifications');
         }
 
         const data = await response.json();
-        if (!data.notifications) {
-            throw new Error('Invalid response format from server');
+        if (!data || !data.notifications) {
+            throw new Error('Invalid response format');
         }
 
         // Calculate counts for different notification states
@@ -254,11 +422,12 @@ async function fetchNotifications() {
         updateCountsDisplay(counts);
 
         // Update the badge in the navigation
-        window.NotificationActions?.updateBadgeCount(counts.unread);
+        if (window.NotificationActions?.updateBadgeCount) {
+            window.NotificationActions.updateBadgeCount(counts.unread);
+        }
 
     } catch (error) {
-        console.error('Error fetching notifications:', error);
-        showError('Failed to fetch notifications. Please try again.');
+        showError('Failed to load notifications. Please try again.');
     } finally {
         isRefreshing = false;
     }
@@ -277,220 +446,9 @@ function updateCountsDisplay(counts) {
     }
 }
 
-// Function to get current filter values
-function getFilterValues() {
-    const status = $('#notificationStatusFilter').val();
-    let show_read = null;
-    let show_dismissed = null;
-
-    // Map status filter to API parameters
-    switch (status) {
-        case 'unread':
-            show_read = false;
-            show_dismissed = false;
-            break;
-        case 'read':
-            show_read = true;
-            show_dismissed = false;
-            break;
-        case 'dismissed':
-            show_dismissed = true;
-            break;
-        default:
-            // Show all notifications
-            break;
-    }
-
-    return {
-        show_read: show_read,
-        show_dismissed: show_dismissed,
-        show_unread: show_read === false ? true : null,  // Only set when specifically showing unread
-        type: $('#notificationTypeFilter').val(),
-        start_date: $('#notificationStartDate').val(),
-        end_date: $('#notificationEndDate').val()
-    };
-}
-
-// Function to set up filter handlers
-function setupFilters() {
-    // Handle filter changes
-    $('.form-select, #notificationStartDate, #notificationEndDate').on('change', function() {
-        fetchNotifications();
-    });
-
-    // Handle quick date filter
-    $('#notificationQuickDateFilter').on('change', function() {
-        const value = $(this).val();
-        const dates = getQuickFilterDates(value);
-        if (dates) {
-            $('#notificationStartDate').val(dates.start);
-            $('#notificationEndDate').val(dates.end);
-            fetchNotifications();
-        }
-    });
-}
-
-// Function to set up bulk action handlers
-function setupBulkActions() {
-    // Select all checkbox in header
-    $('#selectAllCheckbox').on('change', function() {
-        const isChecked = $(this).prop('checked');
-        $('.notification-checkbox').prop('checked', isChecked);
-        updateBulkActionButtons();
-    });
-
-    // Individual checkboxes
-    $(document).on('change', '.notification-checkbox', function() {
-        updateBulkActionButtons();
-    });
-
-    // Bulk mark as read
-    $('#markSelectedRead').on('click', async function() {
-        const ids = getSelectedNotificationIds();
-        if (!ids.length) return;
-
-        try {
-            const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
-                ids: ids
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                // Update counts display
-                updateCountsDisplay(data.counts);
-                // Update the badge in the navigation
-                window.NotificationActions?.updateBadgeCount(data.counts.unread_active);
-                // Refresh the table
-                fetchNotifications();
-            } else {
-                showError('Failed to mark notifications as read');
-            }
-        } catch (error) {
-            console.error('Error marking notifications as read:', error);
-            showError('Failed to mark notifications as read');
-        }
-    });
-
-    // Bulk dismiss
-    $('#dismissSelected').on('click', async function() {
-        const ids = getSelectedNotificationIds();
-        if (!ids.length) return;
-
-        try {
-            const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/dismiss', 'POST', {
-                ids: ids
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                // Update counts display
-                updateCountsDisplay(data.counts);
-                // Update the badge in the navigation
-                window.NotificationActions?.updateBadgeCount(data.counts.unread_active);
-                // Refresh the table
-                fetchNotifications();
-            } else {
-                showError('Failed to dismiss notifications');
-            }
-        } catch (error) {
-            console.error('Error dismissing notifications:', error);
-            showError('Failed to dismiss notifications');
-        }
-    });
-}
-
-// Function to get selected notification IDs
-function getSelectedNotificationIds() {
-    return $('.notification-checkbox:checked').map(function() {
-        return $(this).data('notification-id');
-    }).get();
-}
-
-// Function to update bulk action buttons
-function updateBulkActionButtons() {
-    const selectedCount = $('.notification-checkbox:checked').length;
-    $('#markSelectedRead, #dismissSelected').prop('disabled', !selectedCount);
-}
-
-// Function to attach event listeners to action buttons
-function attachEventListeners() {
-    // Mark as read
-    $('.mark-read').on('click', async function(e) {
-        e.preventDefault();
-        const id = $(this).data('notification-id');
-        try {
-            await makeAuthenticatedRequest(`/api/v1/notifications/${id}/read`, 'POST');
-            fetchNotifications();
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-            showError('Failed to mark notification as read');
-        }
-    });
-
-    // Dismiss
-    $('.dismiss-notification').on('click', async function(e) {
-        e.preventDefault();
-        const id = $(this).data('notification-id');
-        try {
-            await makeAuthenticatedRequest(`/api/v1/notifications/${id}/dismiss`, 'POST');
-            fetchNotifications();
-        } catch (error) {
-            console.error('Error dismissing notification:', error);
-            showError('Failed to dismiss notification');
-        }
-    });
-}
-
-// Helper function to show error messages
+// Function to show error messages
 function showError(message) {
-    // You can implement this based on your UI needs
-    alert(message);
-}
-
-// Helper function to get dates for quick filter
-function getQuickFilterDates(filter) {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    switch (filter) {
-        case 'today':
-            return {
-                start: today.toISOString().split('T')[0],
-                end: today.toISOString().split('T')[0]
-            };
-        case 'yesterday':
-            return {
-                start: yesterday.toISOString().split('T')[0],
-                end: yesterday.toISOString().split('T')[0]
-            };
-        case 'last7days':
-            const last7 = new Date(today);
-            last7.setDate(last7.getDate() - 7);
-            return {
-                start: last7.toISOString().split('T')[0],
-                end: today.toISOString().split('T')[0]
-            };
-        case 'last30days':
-            const last30 = new Date(today);
-            last30.setDate(last30.getDate() - 30);
-            return {
-                start: last30.toISOString().split('T')[0],
-                end: today.toISOString().split('T')[0]
-            };
-        case 'thisMonth':
-            return {
-                start: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0],
-                end: today.toISOString().split('T')[0]
-            };
-        case 'lastMonth':
-            const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-            return {
-                start: firstDayLastMonth.toISOString().split('T')[0],
-                end: lastDayLastMonth.toISOString().split('T')[0]
-            };
-        default:
-            return null;
-    }
+    const $errorAlert = $('#notificationErrorAlert');
+    $errorAlert.text(message).removeClass('d-none');
+    setTimeout(() => $errorAlert.addClass('d-none'), 5000);
 }

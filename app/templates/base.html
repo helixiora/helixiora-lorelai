@@ -12,6 +12,7 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/minified/introjs.min.css" integrity="sha256-8blGASrO7QhbrzFwb0rDrMICadeyaaNRQp6VCRNKekA=" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
     <script src="https://accounts.google.com/gsi/client" async></script>
     {% block head %}
@@ -22,45 +23,9 @@
     <nav class="bg-primary text-white p-2 fixed-top d-flex flex-column justify-content-between" id="sidebar"style="height: 100vh;">
 
         <div class="d-flex flex-column align-items-center">
-            <!-- Logo container with dropdown -->
-            <div class="dropdown">
-                <div class="logo-container my-2" id="logoContainer" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                    <img src="{{ url_for('static', filename='img/lorelai_inverted.png') }}" alt="Logo" style="width: 3.2rem;">
-                    <!-- Badge will be added by JavaScript -->
-                </div>
-                <div class="dropdown-menu dropdown-menu-end shadow" style="width: 400px;"
-                     aria-labelledby="logoContainer">
-                    <div class="card border-0">
-                        <div class="card-header d-flex justify-content-between align-items-center bg-light py-2">
-                            <h6 class="mb-0">Notifications</h6>
-                            <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-success"
-                                        id="markAllRead"
-                                        data-bs-toggle="tooltip"
-                                        title="Mark all as read">
-                                    <i class="bi bi-check2-all"></i>
-                                </button>
-                                <a href="{{ url_for('notifications.notifications') }}"
-                                   class="btn btn-outline-primary"
-                                   aria-label="View all notifications">
-                                    View All
-                                </a>
-                            </div>
-                        </div>
-                        <div class="card-body p-0 overflow-auto" style="max-height: 400px;">
-                            <!-- Dynamic content will be inserted here by JavaScript -->
-                            <div class="notifications-carousel" role="list">
-                                <!-- Loading state -->
-                                <div class="text-center py-4" role="alert">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading notifications...</span>
-                                    </div>
-                                    <p class="mb-0 mt-2">Loading notifications...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <!-- Logo container with popover -->
+            <div id="logoContainer" class="logo-container my-2 position-relative">
+                <img src="{{ url_for('static', filename='img/lorelai_inverted.png') }}" alt="Logo" style="width: 3.2rem;">
             </div>
             <!-- Navigation links -->
             <div class="d-flex flex-column align-items-center">
@@ -100,24 +65,22 @@
         {% endblock content %}
     </div>
 
+    <!-- Scripts at the end of body -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <script src="https://code.jquery.com/ui/1.14.0/jquery-ui.min.js" integrity="sha256-Fb0zP4jE3JHqu+IBB9YktLcSjI1Zc6J2b6gTjB0LpoM=" crossorigin="anonymous"></script>
-
-    <!-- DataTables JS needs to be loaded after jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.datatables.net/2.1.3/js/dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/minified/intro.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
     <!-- Token setup needs to happen before any authenticated requests -->
     <script>
         window.SENTRY_DSN = "{{ config['SENTRY_DSN'] }}"
         window.SENTRY_ENVIRONMENT = "{{ config['FLASK_ENV'] }}"
     </script>
-
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/minified/intro.min.js" integrity="sha256-xs3xwodZm2f3bAjax5+VIOR6YWkaDaiSTi4Gb94ws5s=" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <script>
         function handleLogout(event) {
@@ -128,6 +91,6 @@
     </script>
 
     {% block scripts %}
-    {% endblock scripts%}
+    {% endblock scripts %}
 </body>
 </html>

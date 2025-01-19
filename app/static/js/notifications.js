@@ -1,38 +1,73 @@
 // Initialize variables
 let lastNotificationCount = 0;
-let notificationsDropdown = null;
+let notificationsPopover = null;
 let logoContainer = null;
 let fetchPromise = null;
+let updateInterval = null;
+let abortController = null;
+let isUpdating = false;
+let lastUpdateTime = 0;
+const UPDATE_THROTTLE = 1000; // Minimum time between updates in milliseconds
 
 const NotificationActions = {
     markAsRead: async function(notificationId) {
         try {
             const response = await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/read`, 'POST');
             if (response.ok) {
-                console.log('Notification marked as read:', notificationId);
-                return await response.json();
+                await response.json();
+                // Don't trigger a new fetch, just update the UI
+                const notificationElement = document.getElementById(`notification-${notificationId}`);
+                if (notificationElement) {
+                    const title = notificationElement.querySelector('.notification-title');
+                    const message = notificationElement.querySelector('.notification-message');
+                    const markReadBtn = notificationElement.querySelector('.mark-read-btn');
+
+                    if (title) title.classList.remove('fw-bold');
+                    if (message) message.classList.add('text-muted');
+                    if (markReadBtn) markReadBtn.remove();
+                }
+                return true;
             }
             throw new Error('Failed to mark notification as read');
         } catch (error) {
-            console.error('Error marking notification as read:', error);
             throw error;
         }
     },
 
     markAllRead: async function() {
         try {
+            const notificationIds = Array.from(document.querySelectorAll('.notification-item'))
+                .filter(item => item.querySelector('.mark-read-btn'))
+                .map(item => item.dataset.notificationId)
+                .filter(id => id);
+
+            if (notificationIds.length === 0) {
+                return;
+            }
+
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
-                ids: document.querySelectorAll('.list-group-item').length > 0
-                    ? Array.from(document.querySelectorAll('.list-group-item')).map(item => item.dataset.notificationId)
-                    : []
+                notification_ids: notificationIds
             });
+
             if (response.ok) {
-                console.log('All notifications marked as read');
-                return await response.json();
+                await response.json();
+                // Update UI directly instead of fetching
+                notificationIds.forEach(id => {
+                    const notificationElement = document.getElementById(`notification-${id}`);
+                    if (notificationElement) {
+                        const title = notificationElement.querySelector('.notification-title');
+                        const message = notificationElement.querySelector('.notification-message');
+                        const markReadBtn = notificationElement.querySelector('.mark-read-btn');
+
+                        if (title) title.classList.remove('fw-bold');
+                        if (message) message.classList.add('text-muted');
+                        if (markReadBtn) markReadBtn.remove();
+                    }
+                });
+                return true;
             }
             throw new Error('Failed to mark all notifications as read');
         } catch (error) {
-            console.error('Error marking all notifications as read:', error);
             throw error;
         }
     },
@@ -41,25 +76,23 @@ const NotificationActions = {
         try {
             const response = await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/dismiss`, 'POST');
             if (response.ok) {
-                console.log('Notification dismissed:', notificationId);
-                return await response.json();
+                await response.json();
+                // Remove the notification from UI instead of fetching
+                const notificationElement = document.getElementById(`notification-${notificationId}`);
+                if (notificationElement) {
+                    notificationElement.remove();
+                }
+                return true;
             }
             throw new Error('Failed to dismiss notification');
         } catch (error) {
-            console.error('Error dismissing notification:', error);
             throw error;
         }
     },
 
     updateBadgeCount: function(count) {
-        console.log('Updating badge count:', {
-            newCount: count,
-            lastCount: lastNotificationCount
-        });
-
         const logoContainer = document.getElementById('logoContainer');
         if (!logoContainer) {
-            console.warn('Logo container not found for badge update');
             return;
         }
 
@@ -68,7 +101,6 @@ const NotificationActions = {
 
         if (count <= 0) {
             if (badge) {
-                console.log('Removing badge as count is zero');
                 badge.remove();
             }
             lastNotificationCount = 0;
@@ -76,17 +108,14 @@ const NotificationActions = {
         }
 
         if (!badge) {
-            console.log('Creating new badge element');
             badge = document.createElement('span');
             badge.className = 'notification-badge';
             logoContainer.appendChild(badge);
         }
 
-        console.log(`Badge count changing from ${lastNotificationCount} to ${count}`);
         badge.textContent = count;
         badge.setAttribute('aria-label', `${count} unread notifications`);
 
-        // Add pulse animation if count increased
         if (shouldPulse) {
             badge.classList.add('badge-pulse');
             setTimeout(() => badge.classList.remove('badge-pulse'), 1000);
@@ -96,304 +125,308 @@ const NotificationActions = {
     }
 };
 
-// Function to fetch notifications
-async function fetchNotifications() {
-    // If there's an ongoing fetch, return that promise
-    if (fetchPromise) {
-        console.log('Fetch already in progress, returning existing promise');
-        return fetchPromise;
-    }
+// Function to format timestamp
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
 
-    console.log('Starting fetchNotifications...');
-
-    try {
-        console.log('Making API request to /api/v1/notifications');
-        fetchPromise = makeAuthenticatedRequest('/api/v1/notifications?include_counts=true', 'GET');
-        const response = await fetchPromise;
-
-        // Parse the response body as JSON
-        const data = await response.json();
-        console.log('Received notifications data:', {
-            total: data.notifications?.length,
-            notifications: data.notifications?.slice(0, 2), // Show first 2 for brevity
-            hasMore: data.notifications?.length > 2 ? '...' : ''
-        });
-
-        if (!data || !data.notifications) {
-            console.error('Invalid response data:', data);
-            return;
-        }
-
-        // For the badge: unread and not dismissed notifications
-        const unreadActiveCount = data.notifications.filter(n => !n.read && !n.dismissed).length;
-
-        // For the popover: all not dismissed notifications, sorted by date
-        const activeNotifications = data.notifications
-            .filter(n => !n.dismissed)
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-        console.log('Notification counts:', {
-            total: data.notifications.length,
-            activeTotal: activeNotifications.length,
-            unreadActive: unreadActiveCount
-        });
-
-        // Update badge count with unread active notifications
-        console.log('Updating badge count to:', unreadActiveCount);
-        NotificationActions.updateBadgeCount(unreadActiveCount);
-
-        // Update notification list with all active notifications
-        console.log('Updating notification list with active notifications');
-        updateNotificationList(activeNotifications);
-
-    } catch (error) {
-        console.error('Error in fetchNotifications:', error);
-        handleFetchError();
-    } finally {
-        fetchPromise = null;
+    if (diffMins < 1) {
+        return 'Just now';
+    } else if (diffMins < 60) {
+        return `${diffMins}m ago`;
+    } else if (diffHours < 24) {
+        return `${diffHours}h ago`;
+    } else if (diffDays < 7) {
+        return `${diffDays}d ago`;
+    } else {
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${date.toLocaleDateString()} ${hours}:${minutes}`;
     }
 }
 
-// Wait for DOM to be fully loaded
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize logo container
-    logoContainer = document.getElementById('logoContainer');
-    if (!logoContainer) {
-        console.warn('Logo container not found');
-        return;
-    }
+// Function to create popover content
+function createPopoverContent(notifications) {
+    const content = document.createElement('div');
+    content.className = 'notifications-content';
 
-    // Create and set up the dropdown structure
-    setupNotificationsDropdown();
-
-    // Fetch notifications immediately for initial badge count
-    fetchNotifications();
-
-    // Set up periodic refresh every 30 seconds
-    setInterval(fetchNotifications, 30000);
-});
-
-function setupNotificationsDropdown() {
-    // Remove any existing dropdown menu
-    const existingDropdown = document.querySelector('.dropdown-menu');
-    if (existingDropdown) {
-        existingDropdown.remove();
-    }
-
-    // Create dropdown menu
-    const dropdownMenu = document.createElement('div');
-    dropdownMenu.className = 'dropdown-menu dropdown-menu-end shadow';
-    dropdownMenu.style.cssText = `
-        width: 400px;
-        background-color: white;
-        z-index: 1050;
-        opacity: 1 !important;
-        animation: none;
-    `;
-    dropdownMenu.setAttribute('aria-labelledby', 'logoContainer');
-
-    // Create card structure
-    dropdownMenu.innerHTML = `
-        <div class="card border-0" style="height: 100%; background-color: white;">
-            <div class="card-header d-flex justify-content-between align-items-center bg-light py-2" style="background-color: #f8f9fa !important;">
-                <h6 class="mb-0">Notifications</h6>
-                <div class="btn-group btn-group-sm">
-                    <button type="button" class="btn btn-outline-success" id="markAllRead" data-bs-toggle="tooltip" title="Mark all as read">
-                        <i class="bi bi-check2-all"></i>
-                    </button>
-                    <a href="/notifications" class="btn btn-outline-primary" aria-label="View all notifications">
-                        View All
-                    </a>
-                </div>
-            </div>
-            <div class="card-body p-0" style="height: 400px; overflow-y: auto; background-color: white;">
-                <!-- Notifications will be inserted here -->
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    header.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Notifications</h6>
+            <div class="btn-group">
+                <button type="button" class="btn" id="markAllAsRead">Mark all as read</button>
+                <button type="button" class="btn" onclick="window.location.href='/notifications'">View all</button>
             </div>
         </div>
     `;
 
-    // Add dropdown menu to logo container
-    logoContainer.appendChild(dropdownMenu);
+    const body = document.createElement('div');
+    body.className = 'card-body';
 
-    // Initialize Bootstrap dropdown
-    if (notificationsDropdown) {
-        notificationsDropdown.dispose();
-    }
-    notificationsDropdown = new bootstrap.Dropdown(logoContainer, {
-        autoClose: 'outside'
-    });
-
-    // Store the dropdown instance
-    logoContainer._dropdown = notificationsDropdown;
-
-    // Add event listeners
-    logoContainer.addEventListener('show.bs.dropdown', () => {
-        console.log('Dropdown opening, fetching notifications...');
-        fetchNotifications();
-    });
-
-    // Ensure dropdown stays opaque
-    logoContainer.addEventListener('shown.bs.dropdown', () => {
-        dropdownMenu.style.opacity = '1';
-        dropdownMenu.style.backgroundColor = 'white';
-    });
-
-    // Set up mark all read button
-    const markAllReadBtn = dropdownMenu.querySelector('#markAllRead');
-    if (markAllReadBtn) {
-        markAllReadBtn.addEventListener('click', async () => {
-            try {
-                await NotificationActions.markAllRead();
-                fetchNotifications();
-            } catch (error) {
-                console.error('Failed to mark all notifications as read:', error);
-            }
-        });
-    }
-}
-
-function updateNotificationList(notifications) {
-    console.log('Updating notification list with:', notifications?.length, 'notifications');
-
-    const cardBody = document.querySelector('.dropdown-menu .card-body');
-    if (!cardBody) {
-        console.error('Card body not found');
-        return;
-    }
+    const list = document.createElement('div');
+    list.className = 'list-group list-group-flush';
+    list.id = 'notificationsList';
 
     if (!notifications || notifications.length === 0) {
-        cardBody.innerHTML = `
-            <div class="text-center py-4">
-                <p class="text-muted mb-0">No notifications to display</p>
+        list.innerHTML = `
+            <div class="list-group-item text-center text-muted">
+                <p class="mb-0">No notifications</p>
             </div>
         `;
+    } else {
+        list.innerHTML = notifications.map(notification => `
+            <div class="list-group-item" id="notification-${notification.id}" data-notification-id="${notification.id}">
+                <div class="d-flex flex-column">
+                    <div class="notification-title ${notification.read ? '' : 'fw-bold'}">${notification.title}</div>
+                    <div class="notification-message ${notification.read ? 'text-muted' : ''}">${notification.message}</div>
+                    <div class="notification-time">${formatTimestamp(notification.created_at)}</div>
+                    <div class="notification-actions">
+                        ${!notification.read ? `
+                            <button type="button" class="btn mark-read-btn" id="markRead-${notification.id}">
+                                Mark as read
+                            </button>
+                        ` : ''}
+                        <button type="button" class="btn dismiss-btn" id="dismiss-${notification.id}">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    body.appendChild(list);5
+    content.appendChild(header);
+    content.appendChild(body);
+
+    return content;
+}
+
+// Function to update notifications
+async function updateNotifications(force = false) {
+    const now = Date.now();
+    // Prevent updates too close together unless forced
+    if (!force && now - lastUpdateTime < UPDATE_THROTTLE) {
         return;
     }
 
-    // Create notifications list
-    const notificationsList = document.createElement('div');
-    notificationsList.className = 'list-group list-group-flush';
-    notificationsList.style.height = '100%';
+    if (isUpdating && !force) {
+        return;
+    }
 
-    notifications.forEach((notification, index) => {
-        const notificationItem = document.createElement('div');
-        notificationItem.className = 'list-group-item border-bottom';
-        notificationItem.dataset.notificationId = notification.id;
+    isUpdating = true;
+    lastUpdateTime = now;
 
-        notificationItem.innerHTML = `
-            <div class="d-flex flex-column gap-2">
-                <div class="d-flex justify-content-between align-items-start">
-                    <h6 class="mb-0 ${!notification.read ? 'fw-bold' : ''}">${notification.title}</h6>
-                    <small class="text-muted">${new Date(notification.created_at).toLocaleString()}</small>
-                </div>
-                <p class="mb-2 ${!notification.read ? 'fw-bold' : ''}">${notification.message}</p>
-                ${notification.data ? `
-                    <div class="small text-muted mb-2">
-                        ${Object.entries(notification.data).map(([key, value]) =>
-                            `<div><strong>${key}:</strong> ${value}</div>`
-                        ).join('')}
-                    </div>
-                ` : ''}
-                <div class="d-flex gap-2">
-                    ${!notification.read ? `
-                        <button class="btn btn-sm btn-outline-success mark-read"
-                                data-notification-id="${notification.id}"
-                                data-bs-toggle="tooltip"
-                                title="Mark as read">
-                            <i class="bi bi-check2"></i>
-                            <span>Mark Read</span>
-                        </button>
-                    ` : ''}
-                    <button class="btn btn-sm btn-outline-secondary dismiss-notification"
-                            data-notification-id="${notification.id}"
-                            data-bs-toggle="tooltip"
-                            title="Dismiss">
-                        <i class="bi bi-x"></i>
-                        <span>Dismiss</span>
-                    </button>
-                    ${notification.url ? `
-                        <a href="${notification.url}"
-                           class="btn btn-sm btn-outline-primary"
-                           data-bs-toggle="tooltip"
-                           title="View details">
-                            <i class="bi bi-box-arrow-up-right"></i>
-                            <span>View</span>
-                        </a>
-                    ` : ''}
-                </div>
-            </div>
-        `;
+    try {
+        // If there's an ongoing fetch and it's not forced, return the existing promise
+        if (fetchPromise && !force) {
+            return fetchPromise;
+        }
 
-        notificationsList.appendChild(notificationItem);
-    });
+        // Cancel any ongoing fetch
+        if (abortController) {
+            abortController.abort();
+        }
 
-    // Clear and update card body
-    cardBody.innerHTML = '';
-    cardBody.appendChild(notificationsList);
+        // Create new abort controller
+        abortController = new AbortController();
 
-    // Set up action handlers
-    setupNotificationActions();
-}
+        fetchPromise = makeAuthenticatedRequest('/api/v1/notifications?include_counts=true', 'GET', null, {
+            signal: abortController.signal
+        });
 
-// Function to handle fetch errors
-function handleFetchError() {
-    const cardBody = document.querySelector('.dropdown-menu .card-body');
-    if (cardBody) {
-        cardBody.innerHTML = `
-            <div class="text-center py-4" role="alert">
-                <i class="bi bi-exclamation-circle text-danger" style="font-size: 2rem;" aria-hidden="true"></i>
-                <p class="mb-0 mt-2">Failed to load notifications</p>
-            </div>
-        `;
+        const response = await fetchPromise;
+        const data = await response.json();
+
+        if (!data || !data.notifications) {
+            return;
+        }
+
+        const unreadActiveCount = data.notifications.filter(n => !n.read && !n.dismissed).length;
+        const activeNotifications = data.notifications
+            .filter(n => !n.dismissed)
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        NotificationActions.updateBadgeCount(unreadActiveCount);
+
+        // Only update content if popover exists and is visible
+        const popoverElement = document.querySelector('.popover.notifications-popover.show');
+        if (notificationsPopover && popoverElement) {
+            const content = createPopoverContent(activeNotifications);
+            // Prevent unnecessary content updates if content hasn't changed
+            const currentContent = popoverElement.querySelector('.notifications-content');
+            if (!currentContent || currentContent.innerHTML !== content.innerHTML) {
+                notificationsPopover.setContent({ '.popover-body': content });
+                attachNotificationListeners(activeNotifications);
+            }
+        }
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            return; // Ignore aborted requests
+        }
+
+        const popoverElement = document.querySelector('.popover.notifications-popover.show');
+        if (notificationsPopover && popoverElement) {
+            const errorContent = document.createElement('div');
+            errorContent.className = 'text-center text-danger';
+            errorContent.innerHTML = `
+                <i class="fas fa-exclamation-circle"></i>
+                <p class="mb-0">Failed to load notifications</p>
+            `;
+            notificationsPopover.setContent({ '.popover-body': errorContent });
+        }
+    } finally {
+        fetchPromise = null;
+        abortController = null;
+        isUpdating = false;
     }
 }
 
-// Function to set up notification action handlers
-function setupNotificationActions() {
-    // Handle mark as read
-    document.querySelectorAll('.mark-read').forEach(button => {
-        button.addEventListener('click', async (e) => {
-            const notificationId = e.currentTarget.dataset.notificationId;
-            try {
-                await NotificationActions.markAsRead(notificationId);
-                // Handle list item
-                const listItem = e.currentTarget.closest('.list-group-item');
-                if (listItem) {
-                    const title = listItem.querySelector('h6');
-                    const message = listItem.querySelector('p');
-                    if (title) title.classList.remove('fw-bold');
-                    if (message) message.classList.remove('fw-bold');
-                    e.currentTarget.remove();
-                }
-                // Fetch notifications to update counts and UI
-                fetchNotifications();
-            } catch (error) {
-                console.error('Failed to mark notification as read:', error);
-            }
-        });
+// Function to attach notification listeners (modified to prevent duplicates)
+function attachNotificationListeners(notifications) {
+    // Remove existing listeners first
+    const existingButtons = document.querySelectorAll('.mark-read-btn, .dismiss-btn, #markAllAsRead');
+    existingButtons.forEach(button => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
     });
 
-    // Handle dismiss
-    document.querySelectorAll('.dismiss-notification').forEach(button => {
-        button.addEventListener('click', async (e) => {
-            const notificationId = e.currentTarget.dataset.notificationId;
-            try {
-                await NotificationActions.dismiss(notificationId);
-                // Handle list item
-                const listItem = e.currentTarget.closest('.list-group-item');
-                if (listItem) {
-                    if (document.querySelectorAll('.list-group-item').length === 1) {
-                        fetchNotifications();
-                    } else {
-                        listItem.remove();
-                    }
+    // Attach new listeners
+    notifications.forEach(notification => {
+        const markReadBtn = document.getElementById(`markRead-${notification.id}`);
+        if (markReadBtn) {
+            markReadBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                try {
+                    await NotificationActions.markAsRead(notification.id);
+                    // Update badge count
+                    const unreadCount = document.querySelectorAll('.notification-title.fw-bold').length - 1;
+                    NotificationActions.updateBadgeCount(unreadCount);
+                } catch (error) {
+                    // Error handling
                 }
+            });
+        }
+
+        const dismissBtn = document.getElementById(`dismiss-${notification.id}`);
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                try {
+                    await NotificationActions.dismiss(notification.id);
+                    // Update badge count if needed
+                    if (!notification.read) {
+                        const unreadCount = document.querySelectorAll('.notification-title.fw-bold').length - 1;
+                        NotificationActions.updateBadgeCount(unreadCount);
+                    }
+                } catch (error) {
+                    // Error handling
+                }
+            });
+        }
+    });
+
+    const markAllAsReadBtn = document.getElementById('markAllAsRead');
+    if (markAllAsReadBtn) {
+        markAllAsReadBtn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            try {
+                await NotificationActions.markAllRead();
+                // Update badge count
+                NotificationActions.updateBadgeCount(0);
             } catch (error) {
-                console.error('Failed to dismiss notification:', error);
+                // Error handling
             }
         });
-    });
+    }
 }
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    logoContainer = document.getElementById('logoContainer');
+    if (!logoContainer) {
+        return;
+    }
+
+    // Cleanup any existing popover and interval
+    if (notificationsPopover) {
+        notificationsPopover.dispose();
+    }
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+
+    // Initialize popover with empty content first
+    notificationsPopover = new bootstrap.Popover(logoContainer, {
+        html: true,
+        content: createPopoverContent([]),
+        placement: 'bottom',
+        trigger: 'focus',
+        container: 'body',
+        customClass: 'notifications-popover',
+        animation: false,
+        sanitize: false
+    });
+
+    // Add ARIA attributes to logo container
+    logoContainer.setAttribute('aria-haspopup', 'true');
+    logoContainer.setAttribute('aria-expanded', 'false');
+    logoContainer.setAttribute('tabindex', '0');
+
+    // Add event listeners for popover events
+    logoContainer.addEventListener('show.bs.popover', () => {
+        logoContainer.setAttribute('aria-expanded', 'true');
+        // Force update when showing
+        updateNotifications(true);
+    });
+
+    logoContainer.addEventListener('shown.bs.popover', () => {
+        const popoverElement = document.querySelector('.popover.notifications-popover');
+        if (popoverElement) {
+            popoverElement.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        }
+    });
+
+    logoContainer.addEventListener('hidden.bs.popover', () => {
+        logoContainer.setAttribute('aria-expanded', 'false');
+        const popoverElement = document.querySelector('.popover.notifications-popover');
+        if (popoverElement) {
+            popoverElement.remove();
+        }
+    });
+
+    // Initial fetch
+    updateNotifications();
+
+    // Set up periodic refresh only when popover is not visible
+    updateInterval = setInterval(() => {
+        const popoverElement = document.querySelector('.popover.notifications-popover.show');
+        if (!popoverElement) {
+            updateNotifications();
+        }
+    }, 30000);
+});
+
+// Clean up on page unload
+window.addEventListener('unload', () => {
+    if (notificationsPopover) {
+        notificationsPopover.dispose();
+    }
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+    if (abortController) {
+        abortController.abort();
+    }
+});
 
 // Export NotificationActions for use in other files
 window.NotificationActions = NotificationActions;
@@ -401,41 +434,23 @@ window.NotificationActions = NotificationActions;
 // Listen for token expiration events
 window.addEventListener('tokenExpired', function(event) {
     const message = event.detail.message;
-
-    // Create or update the expiration notice
     let notice = document.getElementById('token-expiration-notice');
     if (!notice) {
         notice = document.createElement('div');
         notice.id = 'token-expiration-notice';
-        notice.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            z-index: 9999;
-            max-width: 400px;
-        `;
         document.body.appendChild(notice);
     }
 
     notice.innerHTML = `
-        <div style="margin-bottom: 10px;">${message}</div>
-        <button onclick="resetSession()" style="
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            cursor: pointer;
-        ">Return to Login</button>
+        <div class="token-expiration-message">${message}</div>
+        <button onclick="resetSession()" class="token-expiration-button">Return to Login</button>
     `;
+});
 
-    // Clear any existing notification fetch intervals
-    if (fetchInterval) {
-        clearInterval(fetchInterval);
+// Add event listener for the view all link
+document.addEventListener('click', function(event) {
+    if (event.target.matches('.view-all-link') || event.target.closest('.view-all-link')) {
+        event.stopPropagation();
+        window.location.href = '/notifications';
     }
 });

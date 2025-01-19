@@ -67,6 +67,7 @@ def create_app(config=None):
             "https://accounts.google.com/.well-known/",
             "https://oauth2.googleapis.com/",
             "https://o4507884621791232.ingest.de.sentry.io/api/",
+            "https://apis.google.com/",
         ]
 
         worker_src = [

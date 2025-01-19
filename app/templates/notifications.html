@@ -4,20 +4,6 @@
     <!-- DataTables CSS -->
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
-    <style>
-        .notification-checkbox {
-            margin: 0;
-        }
-        .btn-group {
-            gap: 0.25rem;
-        }
-        .dataTables_wrapper {
-            padding: 1rem;
-            background: white;
-            border-radius: 0.375rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-    </style>
 {% endblock %}
 
 {% block content %}
@@ -25,7 +11,7 @@
     <h1>Notifications</h1>
 
     <!-- Filters -->
-    <div class="card mb-4">
+    <div class="card mb-4 notification-filters">
         <div class="card-header">
             <h5 class="mb-0">Filters</h5>
         </div>
@@ -34,20 +20,27 @@
                 <div class="col-md-3">
                     <label for="notificationStatusFilter" class="form-label">Status</label>
                     <select name="status" id="notificationStatusFilter" class="form-select" aria-label="Filter notifications by status">
-                        <option value="">All</option>
+                        <option value="">All Active</option>
                         <option value="unread">Unread</option>
                         <option value="read">Read</option>
-                        <option value="dismissed">Dismissed</option>
                     </select>
                 </div>
                 <div class="col-md-3">
                     <label for="notificationTypeFilter" class="form-label">Type</label>
                     <select name="type" id="notificationTypeFilter" class="form-select" aria-label="Filter notifications by type">
-                        <option value="">All Types</option>
+                        <option value="all">All Types</option>
                         {% for type in notification_types %}
                             <option value="{{ type }}">{{ type }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" id="showDismissedCheckbox" aria-label="Show dismissed notifications">
+                        <label class="form-check-label" for="showDismissedCheckbox">
+                            Show Dismissed
+                        </label>
+                    </div>
                 </div>
                 <div class="col-md-3">
                     <label for="notificationQuickDateFilter" class="form-label">Quick Date Filter</label>
@@ -75,39 +68,37 @@
 
     <!-- Bulk Actions -->
     <div class="card mb-4">
-        <div class="card-body">
-            <div class="d-flex align-items-center">
-                <div class="d-flex gap-2">
-                    <button id="markSelectedRead" class="btn btn-primary" disabled
-                            aria-label="Mark selected notifications as read">
-                        Mark Selected as Read
-                    </button>
-                    <button id="dismissSelected" class="btn btn-warning" disabled
-                            aria-label="Dismiss selected notifications">
-                        Dismiss Selected
-                    </button>
-                </div>
-                <div class="ms-auto d-flex gap-2">
-                    <button id="selectAll" class="btn btn-outline-secondary"
-                            aria-label="Select all notifications">
-                        Select All
-                    </button>
-                    <button id="deselectAll" class="btn btn-outline-secondary"
-                            aria-label="Deselect all notifications">
-                        Deselect All
-                    </button>
-                </div>
+        <div class="card-body bulk-actions">
+            <div class="bulk-actions-group">
+                <button id="markSelectedRead" class="btn btn-primary" disabled
+                        aria-label="Mark selected notifications as read">
+                    Mark Selected as Read
+                </button>
+                <button id="dismissSelected" class="btn btn-warning" disabled
+                        aria-label="Dismiss selected notifications">
+                    Dismiss Selected
+                </button>
+            </div>
+            <div class="bulk-actions-group">
+                <button id="selectAll" class="btn btn-outline-secondary"
+                        aria-label="Select all notifications">
+                    Select All
+                </button>
+                <button id="deselectAll" class="btn btn-outline-secondary"
+                        aria-label="Deselect all notifications">
+                    Deselect All
+                </button>
             </div>
         </div>
     </div>
 
     <!-- Notifications Table -->
-    <div class="table-responsive">
+    <div class="table-responsive notifications-table-container">
         <table id="notificationsTable" class="display" aria-label="Notifications list">
             <thead>
                 <tr>
                     <th>
-                        <input type="checkbox" id="selectAllCheckbox" class="form-check-input"
+                        <input type="checkbox" id="selectAllCheckbox" class="form-check-input notification-checkbox"
                                aria-label="Select all notifications">
                     </th>
                     <th>Created At</th>
@@ -130,10 +121,10 @@
                         <td {% if not notification.read %}class="fw-bold"{% endif %}>{{ notification.title }}</td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
-                                <div class="text-truncate" style="max-width: 300px;" {% if not notification.read %}class="fw-bold"{% endif %}>
+                                <div class="notification-message-truncate {% if not notification.read %}fw-bold{% endif %}">
                                     {{ notification.message }}
                                 </div>
-                                <button class="btn btn-sm btn-link p-0 view-notification"
+                                <button class="notification-expand-button view-notification"
                                         data-notification-id="{{ notification.id }}"
                                         aria-label="Show full message for {{ notification.title }}"
                                         title="Show full message">
@@ -143,15 +134,15 @@
                         </td>
                         <td>
                             {% if notification.dismissed %}
-                                <span class="badge bg-secondary" role="status">Dismissed</span>
+                                <span class="notification-status notification-status-dismissed" role="status">Dismissed</span>
                             {% elif notification.read %}
-                                <span class="badge bg-success" role="status">Read</span>
+                                <span class="notification-status notification-status-read" role="status">Read</span>
                             {% else %}
-                                <span class="badge bg-primary" role="status">Unread</span>
+                                <span class="notification-status notification-status-unread" role="status">Unread</span>
                             {% endif %}
                         </td>
                         <td>
-                            <div class="d-flex gap-2">
+                            <div class="notification-actions">
                                 {% if not notification.read %}
                                     <button class="btn btn-sm btn-success mark-read"
                                             data-notification-id="{{ notification.id }}"
@@ -189,11 +180,11 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-success mark-read-modal" style="display: none;"
+                    <button type="button" class="btn btn-success mark-read-modal notification-modal-button"
                             aria-label="Mark notification as read">
                         Mark as Read
                     </button>
-                    <button type="button" class="btn btn-warning dismiss-notification-modal" style="display: none;"
+                    <button type="button" class="btn btn-warning dismiss-notification-modal notification-modal-button"
                             aria-label="Dismiss notification">
                         Dismiss
                     </button>
@@ -203,120 +194,8 @@
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize DataTable
-    const notificationsTable = initializeDataTable('#notificationsTable', {
-        order: [[1, 'desc']], // Sort by created_at by default
-        columnDefs: [
-            {
-                targets: 0,
-                orderable: false,
-                className: 'no-sort'
-            }
-        ]
-    });
+{% endblock %}
 
-    // Setup bulk selection functionality
-    setupSelectAllFunctionality();
-
-    // Quick date filter helper
-    function setQuickDateFilter(value) {
-        const now = new Date();
-        let start = null;
-        let end = null;
-
-        switch(value) {
-            case 'today':
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-                break;
-            case 'yesterday':
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
-                break;
-            case 'last7days':
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-                break;
-            case 'last30days':
-                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-                end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-                break;
-            case 'thisMonth':
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-                break;
-            case 'lastMonth':
-                start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-                break;
-        }
-
-        if (start && end) {
-            $('#notificationStartDate').val(start.toISOString().split('T')[0]);
-            $('#notificationEndDate').val(end.toISOString().split('T')[0]);
-        } else {
-            $('#notificationStartDate').val('');
-            $('#notificationEndDate').val('');
-        }
-    }
-
-    // Handle quick date filter changes
-    $('#notificationQuickDateFilter').on('change', function() {
-        setQuickDateFilter($(this).val());
-        applyFilters();
-    });
-
-    // Apply filters
-    function applyFilters() {
-        applyDataTableFilters(notificationsTable, {
-            columns: {
-                2: $('#notificationTypeFilter').val(),    // Type column
-                5: $('#notificationStatusFilter').val()    // Status column
-            },
-            dateRange: {
-                startDate: $('#notificationStartDate').val(),
-                endDate: $('#notificationEndDate').val()
-            },
-            dateColumn: 1  // Created At column
-        });
-    }
-
-    // Bind filter events
-    $('#notificationStatusFilter, #notificationTypeFilter, #notificationStartDate, #notificationEndDate').on('change', applyFilters);
-
-    // Handle mark as read
-    $(document).on('click', '.mark-read', async function(e) {
-        e.preventDefault();
-        const $button = $(this);
-        const notificationId = $button.data('notification-id');
-        const $row = $button.closest('tr');
-
-        try {
-            await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/read`, 'POST');
-            animateTableRow($row, 'read', notificationsTable);
-        } catch (error) {
-            console.error('Failed to mark notification as read:', error);
-            alert('Failed to mark notification as read');
-        }
-    });
-
-    // Handle dismiss
-    $(document).on('click', '.dismiss-notification', async function(e) {
-        e.preventDefault();
-        const $button = $(this);
-        const notificationId = $button.data('notification-id');
-        const $row = $button.closest('tr');
-
-        try {
-            await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/dismiss`, 'POST');
-            animateTableRow($row, 'dismiss', notificationsTable);
-        } catch (error) {
-            console.error('Failed to dismiss notification:', error);
-            alert('Failed to dismiss notification');
-        }
-    });
-});
-</script>
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/notifications-page.js') }}"></script>
 {% endblock %}

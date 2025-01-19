@@ -43,7 +43,6 @@ async function maybeEnableButtons() {
     if (pickerInited && gisInited) {
         document.getElementById('authorize_button').disabled = false;
         // Check if we have an access token in the page data
-        console.log('Google Drive access token:', window.accessToken);
         const hasGoogleDriveAccess = window.accessToken &&
             window.accessToken !== 'null' &&
             window.accessToken !== 'None' &&
