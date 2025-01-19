@@ -4,7 +4,7 @@ import logging
 import os
 from flask import Flask, jsonify
 from flask_cors import CORS
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_restx import Api
 from flask_jwt_extended import JWTManager
@@ -178,6 +178,11 @@ def create_app(config=None):
         """Load user by ID."""
         return User.query.get(int(user_id))
 
+    # Add template context processor
+    @app.context_processor
+    def inject_is_admin():
+        """Inject is_admin variable into all templates."""
+        return {"is_admin": current_user.is_admin() if current_user.is_authenticated else False}
     # Register blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)

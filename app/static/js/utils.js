@@ -22,8 +22,17 @@ async function refreshToken() {
     if (!tokenRefreshPromise) {
         tokenRefreshPromise = (async () => {
             try {
+                const csrf_token = getCookie('csrf_refresh_token');
+                const headers = {
+                    'Content-Type': 'application/json',
+                };
+                if (csrf_token) {
+                    headers['X-CSRF-TOKEN'] = csrf_token;
+                }
+
                 const refreshResponse = await fetch('/api/v1/token/refresh', {
                     method: 'POST',
+                    headers: headers,
                     credentials: 'include', // Important: needed to include cookies
                 });
 
@@ -42,6 +51,7 @@ async function refreshToken() {
             } catch (error) {
                 console.error('[Token Refresh] Error:', error);
                 tokenRefreshPromise = null;
+                resetSession(); // Redirect to login if refresh fails
                 return false;
             }
         })();
@@ -115,16 +125,32 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
                 // Retry the original request
                 response = await fetch(url, options);
                 if (!response.ok) {
-                    throw new Error(`Request failed after token refresh: ${response.status}`);
+                    const errorData = await response.text();
+                    let errorMessage;
+                    try {
+                        const jsonError = JSON.parse(errorData);
+                        errorMessage = jsonError.message || jsonError.error || 'Unknown error';
+                    } catch (e) {
+                        errorMessage = errorData || `Request failed after token refresh: ${response.status}`;
+                    }
+                    throw new Error(errorMessage);
                 }
                 return response;
             }
             // If refresh failed, throw error with status
-            throw new Error('401');
+            throw new Error('Authentication failed');
         }
 
         if (!response.ok) {
-            throw new Error(`${response.status}`);
+            const errorData = await response.text();
+            let errorMessage;
+            try {
+                const jsonError = JSON.parse(errorData);
+                errorMessage = jsonError.message || jsonError.error || `Server error (${response.status})`;
+            } catch (e) {
+                errorMessage = errorData || `Request failed with status: ${response.status}`;
+            }
+            throw new Error(errorMessage);
         }
 
         return response;
@@ -153,4 +179,143 @@ async function checkAndRefreshToken() {
         console.error('Error checking token:', error);
         return false;
     }
+}
+
+/**
+ * Initialize a DataTable with common settings
+ * @param {string} selector - The table selector
+ * @param {Object} options - Additional DataTable options
+ * @returns {DataTable} The initialized DataTable instance
+ */
+function initializeDataTable(selector, options = {}) {
+    const defaultOptions = {
+        order: [[0, 'desc']],
+        pageLength: 25,
+        columnDefs: [
+            {
+                targets: 'no-sort',
+                orderable: false
+            }
+        ]
+    };
+
+    return $(selector).DataTable({
+        ...defaultOptions,
+        ...options
+    });
+}
+
+/**
+ * Animate a table row update
+ * @param {jQuery} $row - The jQuery row element
+ * @param {string} action - The action type ('read', 'dismiss', etc.)
+ * @param {DataTable} table - The DataTable instance
+ */
+function animateTableRow($row, action, table) {
+    if (!$row || !$row.length) {
+        console.warn('No row element provided for animation');
+        return;
+    }
+
+    if (action === 'dismiss') {
+        // First update the status badge if it exists
+        const $badge = $row.find('.badge');
+        if ($badge.length) {
+            $badge.removeClass('bg-primary bg-success').addClass('bg-secondary').text('Dismissed');
+        }
+
+        // Then fade out the row and remove it from the DataTable
+        $row.animate({ opacity: 0 }, 400, function() {
+            try {
+                if (table && typeof table.row === 'function') {
+                    const rowData = table.row($row);
+                    if (rowData) {
+                        rowData.remove().draw(false);
+                    }
+                }
+            } catch (error) {
+                console.warn('Error removing row from DataTable:', error);
+                $row.remove(); // Fallback to simple DOM removal
+            }
+        });
+    } else if (action === 'read') {
+        // Safely animate the transition from unread to read
+        $row.find('.fw-bold').removeClass('fw-bold');
+        
+        const $badge = $row.find('.badge.bg-primary');
+        if ($badge.length) {
+            $badge.fadeOut(200, function() {
+                $(this).removeClass('bg-primary').addClass('bg-success')
+                    .text('Read').fadeIn(200);
+            });
+        }
+        
+        // Safely remove the "Mark Read" button with animation
+        const $markReadBtn = $row.find('.mark-read');
+        if ($markReadBtn.length) {
+            $markReadBtn.fadeOut(400, function() {
+                $(this).remove();
+            });
+        }
+    }
+}
+
+/**
+ * Update bulk action buttons state based on selection
+ * @param {string} checkboxSelector - Selector for checkboxes
+ * @param {string} buttonSelector - Selector for bulk action buttons
+ */
+function updateBulkActionButtons(checkboxSelector = '.notification-checkbox', buttonSelector = '[id$="Selected"]') {
+    const selectedCount = $(checkboxSelector + ':checked').length;
+    $(buttonSelector).prop('disabled', selectedCount === 0);
+}
+
+/**
+ * Handle select/deselect all functionality
+ * @param {string} mainCheckboxSelector - Selector for the "select all" checkbox
+ * @param {string} itemCheckboxSelector - Selector for individual item checkboxes
+ */
+function setupSelectAllFunctionality(mainCheckboxSelector = '#selectAllCheckbox', itemCheckboxSelector = '.notification-checkbox') {
+    $(mainCheckboxSelector).on('change', function() {
+        const isChecked = $(this).prop('checked');
+        $(itemCheckboxSelector + ':visible').prop('checked', isChecked);
+        updateBulkActionButtons(itemCheckboxSelector);
+    });
+
+    $(document).on('change', itemCheckboxSelector, function() {
+        updateBulkActionButtons(itemCheckboxSelector);
+    });
+}
+
+/**
+ * Apply filters to a DataTable
+ * @param {DataTable} table - The DataTable instance
+ * @param {Object} filters - Object containing filter configurations
+ */
+function applyDataTableFilters(table, filters) {
+    // Clear existing search functions
+    $.fn.dataTable.ext.search.pop();
+    
+    // Apply column filters
+    Object.entries(filters.columns || {}).forEach(([column, value]) => {
+        if (value) {
+            table.column(column).search(value);
+        }
+    });
+
+    // Apply date range filter if present
+    const { startDate, endDate } = filters.dateRange || {};
+    if (startDate || endDate) {
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+            const date = new Date(data[filters.dateColumn || 1]); // Default to second column for dates
+            const start = startDate ? new Date(startDate) : null;
+            const end = endDate ? new Date(endDate + 'T23:59:59') : null;
+            
+            if (start && date < start) return false;
+            if (end && date > end) return false;
+            return true;
+        });
+    }
+
+    table.draw();
 }

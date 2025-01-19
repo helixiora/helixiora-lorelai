@@ -9,11 +9,17 @@ import mysql
 from pydantic import ValidationError
 
 from app.database import db
-from app.models.user import User
+from app.models.user import User, VALID_ROLES
 from app.models.organisation import Organisation
 from app.models.user_auth import UserAuth
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
-from app.helpers.users import create_user
+from app.helpers.users import (
+    create_user,
+    get_user_roles,
+    add_user_role,
+    remove_user_role,
+    role_required,
+)
 
 from redis import Redis
 from rq import Queue
@@ -42,6 +48,20 @@ job_status_model = admin_ns.model(
         "state": fields.String(description="Job state"),
         "metadata": fields.Raw(description="Job metadata"),
         "result": fields.Raw(description="Job result", required=False),
+    },
+)
+
+# Models for API documentation
+role_model = admin_ns.model(
+    "Role", {"role": fields.String(required=True, description="Role name", enum=VALID_ROLES)}
+)
+
+roles_model = admin_ns.model(
+    "UserRoles",
+    {
+        "roles": fields.List(
+            fields.String(enum=list(VALID_ROLES)), required=True, description="List of role names"
+        )
     },
 )
 
@@ -206,3 +226,76 @@ class TestConnection(Resource):
             if e.errno == 1049:
                 return {"error": f"{e.msg} (error {str(e.errno)})"}, 500
             raise
+
+
+@admin_ns.route("/users/<int:user_id>/roles")
+class UserRoles(Resource):
+    """Resource for managing user roles."""
+
+    @admin_ns.doc("get_user_roles", security="Bearer Auth")
+    @admin_ns.response(200, "Success", roles_model)
+    @admin_ns.response(403, "Unauthorized")
+    @admin_ns.response(404, "User not found")
+    @jwt_required(locations=["headers", "cookies"])
+    @role_required(["super_admin", "org_admin"])
+    def get(self, user_id):
+        """Get roles for a specific user."""
+        User.query.get_or_404(user_id)
+        roles = get_user_roles(user_id)
+        return {"roles": roles}
+
+    @admin_ns.doc("update_user_roles", security="Bearer Auth")
+    @admin_ns.expect(roles_model)
+    @admin_ns.response(200, "Success")
+    @admin_ns.response(400, "Invalid roles")
+    @admin_ns.response(403, "Unauthorized")
+    @admin_ns.response(404, "User not found")
+    @jwt_required(locations=["headers", "cookies"])
+    @role_required(["super_admin", "org_admin"])
+    def put(self, user_id):
+        """Update roles for a specific user."""
+        User.query.get_or_404(user_id)
+        data = admin_ns.payload
+        new_roles = data.get("roles", [])
+
+        # Validate roles
+        if not all(role in VALID_ROLES for role in new_roles):
+            return {"error": "Invalid roles provided"}, 400
+
+        # Get current roles
+        current_roles = get_user_roles(user_id)
+
+        # Add new roles
+        for role in new_roles:
+            if role not in current_roles:
+                add_user_role(user_id, role)
+
+        # Remove roles that are not in the new list
+        for role in current_roles:
+            if role not in new_roles:
+                remove_user_role(user_id, role)
+
+        return {"message": "User roles updated successfully"}
+
+
+@admin_ns.route("/users/<int:user_id>")
+class UserManagement(Resource):
+    """Resource for managing users."""
+
+    @admin_ns.doc("delete_user", security="Bearer Auth")
+    @admin_ns.response(200, "Success")
+    @admin_ns.response(403, "Unauthorized")
+    @admin_ns.response(404, "User not found")
+    @jwt_required(locations=["headers", "cookies"])
+    @role_required(["super_admin"])
+    def delete(self, user_id):
+        """Delete a specific user."""
+        user = User.query.get_or_404(user_id)
+
+        try:
+            db.session.delete(user)
+            db.session.commit()
+            return {"message": "User deleted successfully"}
+        except Exception as e:
+            db.session.rollback()
+            return {"error": str(e)}, 500

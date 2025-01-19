@@ -20,7 +20,6 @@ from flask import (
 from flask_login import login_required, current_user
 from app.models.user import User, VALID_ROLES
 from app.models.role import Role
-from app.schemas import UserSchema
 from app.models.indexing import IndexingRun
 from app.models.datasource import Datasource
 from app.models.organisation import Organisation
@@ -40,36 +39,41 @@ admin_bp = Blueprint("admin", __name__)
 
 
 @admin_bp.route("/admin", methods=["GET"])
+@role_required(["super_admin", "org_admin"])
 @login_required
 def admin_dashboard():
-    """Return the admin page.
-
-    This page is only accessible to users who are admins.
-    """
-    UserSchema.model_validate(current_user)  # it does modify the current_user object in place
-    if not current_user.is_admin():
-        return redirect(url_for("unauthorized"))
-
+    """Return the admin dashboard."""
     try:
+        # Get all users
         if current_user.is_super_admin():
             users = User.query.all()
-        elif current_user.is_org_admin():
-            users = User.query.filter_by(org_id=current_user.org_id).all()
         else:
-            users = []
+            users = User.query.filter_by(org_id=current_user.org_id).all()
 
-        users_schema = [
+        # Format users for template
+        users_data = [
             {
-                **UserSchema.model_validate(user).model_dump(),
-                "org_name": user.organisation.name,
-                "user_id": user.id,
+                "id": user.id,
+                "user_id": user.id,  # Include both for compatibility
+                "email": user.email,
+                "org_name": user.organisation.name if user.organisation else None,
+                "roles": user.roles,
             }
             for user in users
         ]
-        return render_template("admin.html", is_admin=current_user.is_admin(), users=users_schema)
-    except SQLAlchemyError:
-        flash("Failed to retrieve users.", "error")
-        return render_template("admin.html", is_admin=current_user.is_admin(), users=[])
+
+        # Get all roles
+        all_roles = Role.query.all()
+
+        return render_template(
+            "admin.html",
+            users=users_data,
+            all_roles=all_roles,
+        )
+    except SQLAlchemyError as e:
+        logging.error(f"Database error: {e}")
+        flash("Failed to load admin dashboard.", "error")
+        return render_template("admin.html", users=[])
 
 
 @admin_bp.route("/admin/pinecone")
