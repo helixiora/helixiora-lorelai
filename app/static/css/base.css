@@ -8,11 +8,18 @@ body {
     position: absolute;
     top: -5px;
     right: -5px;
-    padding: 3px 6px;
-    border-radius: 50%;
-    background-color: red;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background-color: #dc3545;
     color: white;
-    font-size: 0.7rem;
+    border-radius: 1rem;
+    z-index: 1000;
 }
 .notification-popover {
     display: none;
@@ -31,6 +38,11 @@ body {
 .logo-container {
     position: relative;
     cursor: pointer;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.logo-container:hover {
+    opacity: 0.8;
 }
 
 #sidebar {
@@ -152,4 +164,186 @@ body {
 
 .view-all-link:hover {
     text-decoration: underline;
+}
+
+/* Notifications Carousel */
+.notifications-cards {
+    position: relative;
+    height: 100%;
+    min-height: 200px;
+    max-height: 400px;
+    overflow: hidden;
+}
+
+.notification-card {
+    position: absolute;
+    width: 100%;
+    height: auto;
+    min-height: 100px;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease-in-out;
+    transform: translateX(100%);
+    background: white;
+    padding: 1rem 3rem;
+    border-radius: 0.375rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.notification-card.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+    z-index: 2;
+}
+
+.notification-card.prev {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-100%);
+    z-index: 1;
+}
+
+.notification-card.next {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(100%);
+    z-index: 1;
+}
+
+/* Navigation buttons */
+.nav-prev,
+.nav-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.nav-prev {
+    left: 0.5rem;
+}
+
+.nav-next {
+    right: 0.5rem;
+}
+
+.nav-prev:hover,
+.nav-next:hover {
+    background: rgba(255, 255, 255, 1) !important;
+}
+
+.nav-prev:disabled,
+.nav-next:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Notifications Dropdown */
+#notificationsDropdown {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    color: inherit;
+    transition: color 0.2s ease-in-out;
+}
+
+#notificationsDropdown:hover {
+    color: var(--bs-primary);
+}
+
+#notificationsDropdown .badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(25%, -25%);
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dropdown-menu {
+    margin-top: 0.5rem;
+    padding: 0;
+    min-width: 320px;
+    max-width: 400px;
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+}
+
+/* Notification Cards */
+.notification-card {
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.notification-card:last-child {
+    border-bottom: none;
+}
+
+.notification-data {
+    background-color: var(--bs-light);
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    margin: 0.5rem 0;
+}
+
+/* Notification Actions */
+.btn-group .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.btn-group .btn i {
+    font-size: 1rem;
+}
+
+/* View All Link */
+.notification-summary {
+    background-color: var(--bs-light);
+    border-top: 1px solid var(--bs-border-color);
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.view-all-link {
+    color: var(--bs-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.view-all-link:hover {
+    text-decoration: underline;
+}
+
+@keyframes badge-pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.badge-pulse {
+    animation: badge-pulse 0.5s ease-in-out;
 }

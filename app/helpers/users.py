@@ -17,57 +17,6 @@ from app.models.plan import UserPlan, Plan
 from sqlalchemy.exc import SQLAlchemyError
 
 
-def is_org_admin(user_id: int) -> bool:
-    """Check if the user is an organisation admin.
-
-    Parameters
-    ----------
-    user_id : int
-        The user ID of the user.
-
-    Returns
-    -------
-    bool
-        True if the user is an organisation admin, False otherwise.
-    """
-    user = User.query.get(user_id)
-    return user.has_role("org_admin") if user else False
-
-
-def is_super_admin(user_id: int) -> bool:
-    """Check if the user is a super admin.
-
-    Parameters
-    ----------
-    user_id : int
-        The user ID of the user.
-
-    Returns
-    -------
-    bool
-        True if the user is a super admin, False otherwise.
-    """
-    user = User.query.get(user_id)
-    return user.has_role("super_admin") if user else False
-
-
-def is_admin(user_id: int) -> bool:
-    """Check if the user is an admin.
-
-    Parameters
-    ----------
-    user_id : int
-        The user ID of the user.
-
-    Returns
-    -------
-    bool
-        True if the user is an admin (both super and org), False otherwise.
-    """
-    user = User.query.get(user_id)
-    return user.has_role("org_admin") or user.has_role("super_admin") if user else False
-
-
 def role_required(role_name_list):
     """Check if the user has the required role."""
 
@@ -77,9 +26,7 @@ def role_required(role_name_list):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             # Check if "role" is in session and is a list
-            if "user.user_roles" not in session or not isinstance(
-                session["user.user_roles"], list
-            ):
+            if "user.user_roles" not in session or not isinstance(session["user.user_roles"], list):
                 return redirect(url_for("unauthorized"))
 
             # Check if any role in session['user.user_roles'] is in role_name_list
@@ -485,13 +432,13 @@ def update_user_profile(
         raise e
 
 
-def get_user_roles(user_id):
+def get_user_roles(user_id: int) -> list[str]:
     """Get a user's roles."""
     user = User.query.get(user_id)
     return [role.name for role in user.roles] if user else []
 
 
-def add_user_role(user_id, role_name):
+def add_user_role(user_id: int, role_name: str) -> bool:
     """Add a role to a user."""
     user = User.query.get(user_id)
     role = Role.query.filter_by(name=role_name).first()
@@ -502,7 +449,7 @@ def add_user_role(user_id, role_name):
     return False
 
 
-def remove_user_role(user_id, role_name):
+def remove_user_role(user_id: int, role_name: str) -> bool:
     """Remove a role from a user."""
     user = User.query.get(user_id)
     role = Role.query.filter_by(name=role_name).first()

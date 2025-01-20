@@ -55,7 +55,7 @@ from app.models.user_auth import UserAuth
 
 from app.helpers.slack import SlackHelper
 from app.helpers.datasources import DATASOURCE_SLACK
-from app.helpers.users import is_admin, validate_form, register_user_to_org, update_user_profile
+from app.helpers.users import validate_form, register_user_to_org, update_user_profile
 from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
 
 
@@ -126,7 +126,6 @@ def profile():
     """
     # only proceed if the user is logged in
     if current_user.is_authenticated:
-        is_admin_status = is_admin(current_user.id)
         user = {
             "user_id": current_user.id,
             "email": current_user.email,
@@ -225,7 +224,7 @@ def profile():
         return render_template(
             "profile.html",
             user=user,
-            is_admin=is_admin_status,
+            is_admin=current_user.is_admin(),
             google_docs_to_index=google_docs_to_index,
             google_drive_access_token=google_drive_access_token,
             slack_channels=slack_channels,

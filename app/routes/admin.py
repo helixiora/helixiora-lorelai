@@ -3,6 +3,7 @@
 import logging
 
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import distinct
 import mysql
 
 from flask import (
@@ -19,9 +20,11 @@ from flask import (
 from flask_login import login_required, current_user
 from app.models.user import User, VALID_ROLES
 from app.models.role import Role
-from app.schemas import UserSchema
+from app.models.indexing import IndexingRun
+from app.models.datasource import Datasource
+from app.models.organisation import Organisation
+from app.database import db
 from app.helpers.users import (
-    is_admin,
     role_required,
     create_invited_user_in_db,
     get_user_roles,
@@ -36,36 +39,41 @@ admin_bp = Blueprint("admin", __name__)
 
 
 @admin_bp.route("/admin", methods=["GET"])
+@role_required(["super_admin", "org_admin"])
 @login_required
 def admin_dashboard():
-    """Return the admin page.
-
-    This page is only accessible to users who are admins.
-    """
-    UserSchema.model_validate(current_user)  # it does modify the current_user object in place
-    if not current_user.is_admin:
-        return redirect(url_for("index"))
-
+    """Return the admin dashboard."""
     try:
-        if current_user.has_role("super_admin"):
+        # Get all users
+        if current_user.is_super_admin():
             users = User.query.all()
-        elif current_user.has_role("org_admin"):
-            users = User.query.filter_by(org_id=current_user.org_id).all()
         else:
-            users = []
+            users = User.query.filter_by(org_id=current_user.org_id).all()
 
-        users_schema = [
+        # Format users for template
+        users_data = [
             {
-                **UserSchema.model_validate(user).model_dump(),
-                "org_name": user.organisation.name,
-                "user_id": user.id,
+                "id": user.id,
+                "user_id": user.id,  # Include both for compatibility
+                "email": user.email,
+                "org_name": user.organisation.name if user.organisation else None,
+                "roles": user.roles,
             }
             for user in users
         ]
-        return render_template("admin.html", is_admin=True, users=users_schema)
-    except SQLAlchemyError:
-        flash("Failed to retrieve users.", "error")
-        return render_template("admin.html", is_admin=True, users=[])
+
+        # Get all roles
+        all_roles = Role.query.all()
+
+        return render_template(
+            "admin.html",
+            users=users_data,
+            all_roles=all_roles,
+        )
+    except SQLAlchemyError as e:
+        logging.error(f"Database error: {e}")
+        flash("Failed to load admin dashboard.", "error")
+        return render_template("admin.html", users=[])
 
 
 @admin_bp.route("/admin/pinecone")
@@ -82,7 +90,7 @@ def list_indexes() -> str:
     pinecone_helper = PineconeHelper()
     indexes = pinecone_helper.list_indexes()
 
-    return render_template("admin/pinecone.html", indexes=indexes, is_admin=session["user.id"])
+    return render_template("admin/pinecone.html", indexes=indexes, is_admin=current_user.is_admin())
 
 
 @admin_bp.route("/admin/pinecone/<host_name>")
@@ -98,7 +106,7 @@ def index_details(host_name: str) -> str:
         "admin/index_details.html",
         index_host=host_name,
         metadata=index_metadata,
-        is_admin=is_admin(session["user.id"]),
+        is_admin=current_user.is_admin(),
     )
 
 
@@ -288,3 +296,44 @@ def manage_user_roles(user_id):
         all_roles=all_roles,
         user_roles=user_roles,
     )
+
+
+@admin_bp.route("/admin/indexing-runs")
+@role_required(["super_admin"])
+@login_required
+def indexing_runs():
+    """Return the indexing runs page.
+
+    This page is only accessible to super admin users.
+    """
+    try:
+        # Get all indexing runs with eager loading of relationships
+        indexing_runs = (
+            IndexingRun.query.options(
+                db.joinedload(IndexingRun.user),
+                db.joinedload(IndexingRun.organisation),
+                db.joinedload(IndexingRun.datasource),
+            )
+            .order_by(IndexingRun.created_at.desc())
+            .all()
+        )
+
+        # Get unique values for filters
+        users = User.query.all()
+        organizations = Organisation.query.all()
+        datasources = Datasource.query.all()
+        statuses = db.session.query(distinct(IndexingRun.status)).all()
+        statuses = [status[0] for status in statuses]  # Flatten the result
+
+        return render_template(
+            "admin/indexing_runs.html",
+            indexing_runs=indexing_runs,
+            users=users,
+            organizations=organizations,
+            datasources=datasources,
+            statuses=statuses,
+        )
+    except SQLAlchemyError as e:
+        logging.error(f"Database error: {e}")
+        flash("Failed to retrieve indexing runs.", "error")
+        return render_template("admin/indexing_runs.html", indexing_runs=[])

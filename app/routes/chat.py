@@ -12,7 +12,8 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app.helpers.chat import get_chat_template_requirements
+from app.helpers.chat import get_recent_conversations
+
 import uuid
 
 chat_bp = blueprints.Blueprint("chat", __name__)
@@ -28,13 +29,12 @@ def conversation(conversation_id):
         string: the conversation page
     """
     session["conversation_id"] = conversation_id
-    chat_template_requirements = get_chat_template_requirements(conversation_id, session["user.id"])
     return render_template(
         "index_logged_in.html",
         username=session["user.user_name"],
         user_email=session["user.email"],
-        recent_conversations=chat_template_requirements["recent_conversations"],
-        is_admin=chat_template_requirements["is_admin_status"],
+        recent_conversations=get_recent_conversations(user_id=current_user.id),
+        is_admin=current_user.is_admin(),
         support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],
         support_email=current_app.config["LORELAI_SUPPORT_EMAIL"],
     )
@@ -62,16 +62,13 @@ def index():
         # render the index_logged_in page
         conversation_id = str(uuid.uuid4())
         session["conversation_id"] = conversation_id
-        chat_template_requirements = get_chat_template_requirements(
-            conversation_id, current_user.id
-        )
 
         return render_template(
             "index_logged_in.html",
             user_email=current_user.email,
             username=current_user.user_name,
-            recent_conversations=chat_template_requirements["recent_conversations"],
-            is_admin=chat_template_requirements["is_admin_status"],
+            recent_conversations=get_recent_conversations(user_id=current_user.id),
+            is_admin=current_user.is_admin(),
             support_portal=current_app.config["LORELAI_SUPPORT_PORTAL"],
             support_email=current_app.config["LORELAI_SUPPORT_EMAIL"],
         )

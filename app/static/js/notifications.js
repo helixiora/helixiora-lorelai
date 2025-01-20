@@ -1,300 +1,456 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const logoContainer = document.getElementById('logoContainer');
-    const notificationBadge = document.getElementById('notificationBadge');
-    const notificationPopover = document.getElementById('notificationPopover');
-    const notificationList = document.getElementById('notificationList');
+// Initialize variables
+let lastNotificationCount = 0;
+let notificationsPopover = null;
+let logoContainer = null;
+let fetchPromise = null;
+let updateInterval = null;
+let abortController = null;
+let isUpdating = false;
+let lastUpdateTime = 0;
+const UPDATE_THROTTLE = 1000; // Minimum time between updates in milliseconds
 
-    let lastFetchTime = 0;
-    let fetchInterval;
-    let isRefreshing = false;
-
-    // Function to fetch notifications
-    async function fetchNotifications() {
-        // Prevent multiple simultaneous fetches
-        if (isRefreshing) {
-            console.log('Already fetching notifications, skipping...');
-            return;
-        }
-
-        // Rate limit fetches
-        const now = Date.now();
-        if (now - lastFetchTime < 5000) {
-            console.log('Fetching too frequently, skipping...');
-            return;
-        }
-
-        isRefreshing = true;
-        lastFetchTime = now;
-
+const NotificationActions = {
+    markAsRead: async function(notificationId) {
         try {
-            const params = new URLSearchParams({
-                show_read: 'false',
-                show_unread: 'true',
-                show_dismissed: 'false'
-            });
+            const response = await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/read`, 'POST');
+            if (response.ok) {
+                await response.json();
+                // Don't trigger a new fetch, just update the UI
+                const notificationElement = document.getElementById(`notification-${notificationId}`);
+                if (notificationElement) {
+                    const title = notificationElement.querySelector('.notification-title');
+                    const message = notificationElement.querySelector('.notification-message');
+                    const markReadBtn = notificationElement.querySelector('.mark-read-btn');
 
-            const url = `/api/v1/notifications/?${params.toString()}`;
-            console.log('Fetching notifications from:', url);
-
-            const response = await makeAuthenticatedRequest(url, 'GET');
-            console.log('Notifications response status:', response.status);
-
-            if (!response.ok) {
-                // Clone the response before reading it
-                const errorResponse = response.clone();
-                try {
-                    const errorData = await errorResponse.json();
-                    console.error('Error response data:', errorData);
-                    throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
-                } catch (e) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP error! status: ${response.status} ${errorText}`);
+                    if (title) title.classList.remove('fw-bold');
+                    if (message) message.classList.add('text-muted');
+                    if (markReadBtn) markReadBtn.remove();
                 }
+                return true;
             }
-
-            const data = await response.json();
-            console.log('Notifications data received:', data);
-
-            if (!data.counts || !data.notifications) {
-                console.error('Unexpected response format:', data);
-                throw new Error('Invalid response format from server');
-            }
-
-            updateNotificationBadge(data.counts.unread);
-            updateNotificationList(data.notifications);
-            updateNotificationCounts(data.counts);
+            throw new Error('Failed to mark notification as read');
         } catch (error) {
-            console.error('Error fetching notifications:', error);
-            handleFetchError();
-        } finally {
-            isRefreshing = false;
+            throw error;
         }
-    }
+    },
 
-    // Function to update notification badge
-    function updateNotificationBadge(count) {
-        if (count === 0) {
-            notificationBadge.className = 'notification-badge empty';
-            notificationBadge.textContent = '0';
-        } else {
-            notificationBadge.className = 'notification-badge has-notifications';
-            notificationBadge.textContent = count > 9 ? '9+' : count.toString();
-        }
-    }
+    markAllRead: async function() {
+        try {
+            const notificationIds = Array.from(document.querySelectorAll('.notification-item'))
+                .filter(item => item.querySelector('.mark-read-btn'))
+                .map(item => item.dataset.notificationId)
+                .filter(id => id);
 
-    // Function to update notification list
-    function updateNotificationList(notifications) {
-        notificationList.innerHTML = '';
-        if (notifications.length === 0) {
-            const li = document.createElement('li');
-            li.textContent = 'No notifications';
-            li.className = 'notification-item';
-            notificationList.appendChild(li);
-        } else {
-            notifications.forEach(notification => {
-                // Skip dismissed notifications
-                if (notification.dismissed_at) return;
+            if (notificationIds.length === 0) {
+                return;
+            }
 
-                const li = document.createElement('li');
-                li.className = `notification-item ${notification.type}`;
-                li.dataset.id = notification.id;
-
-                // Add 'read' class if the notification is read
-                if (notification.read_at) {
-                    li.classList.add('read');
-                } else {
-                    li.style.fontWeight = 'bold'; // Make unread notifications bold
-                }
-
-                const title = document.createElement('strong');
-                title.textContent = notification.title;
-                li.appendChild(title);
-
-                const message = document.createElement('p');
-                message.textContent = notification.message;
-                li.appendChild(message);
-
-                const date = document.createElement('small');
-                date.textContent = new Date(notification.created_at).toLocaleString();
-                li.appendChild(date);
-
-                if (notification.url) {
-                    const link = document.createElement('a');
-                    link.href = notification.url;
-                    link.textContent = 'View';
-                    li.appendChild(link);
-                }
-
-                const actionDiv = document.createElement('div');
-                actionDiv.className = 'notification-actions';
-
-                // Only show "Mark as Read" button if the notification is unread
-                if (!notification.read_at) {
-                    const readBtn = document.createElement('button');
-                    readBtn.textContent = 'Mark as Read';
-                    readBtn.classList.add('btn', 'btn-primary', 'btn-sm');
-                    readBtn.onclick = () => markAsRead(notification.id);
-                    actionDiv.appendChild(readBtn);
-                }
-
-                const dismissBtn = document.createElement('button');
-                dismissBtn.textContent = 'Dismiss';
-                dismissBtn.classList.add('btn', 'btn-primary', 'btn-sm');
-                dismissBtn.onclick = () => dismissNotification(notification.id);
-                actionDiv.appendChild(dismissBtn);
-
-                li.appendChild(actionDiv);
-
-                notificationList.appendChild(li);
+            const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
+                notification_ids: notificationIds
             });
+
+            if (response.ok) {
+                await response.json();
+                // Update UI directly instead of fetching
+                notificationIds.forEach(id => {
+                    const notificationElement = document.getElementById(`notification-${id}`);
+                    if (notificationElement) {
+                        const title = notificationElement.querySelector('.notification-title');
+                        const message = notificationElement.querySelector('.notification-message');
+                        const markReadBtn = notificationElement.querySelector('.mark-read-btn');
+
+                        if (title) title.classList.remove('fw-bold');
+                        if (message) message.classList.add('text-muted');
+                        if (markReadBtn) markReadBtn.remove();
+                    }
+                });
+                return true;
+            }
+            throw new Error('Failed to mark all notifications as read');
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    dismiss: async function(notificationId) {
+        try {
+            const response = await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/dismiss`, 'POST');
+            if (response.ok) {
+                await response.json();
+                // Remove the notification from UI instead of fetching
+                const notificationElement = document.getElementById(`notification-${notificationId}`);
+                if (notificationElement) {
+                    notificationElement.remove();
+                }
+                return true;
+            }
+            throw new Error('Failed to dismiss notification');
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    updateBadgeCount: function(count) {
+        const logoContainer = document.getElementById('logoContainer');
+        if (!logoContainer) {
+            return;
         }
 
-        // Add summary section at the bottom
-        const summaryDiv = document.createElement('div');
-        summaryDiv.className = 'notification-summary';
-        summaryDiv.innerHTML = `
-            <div class="notification-counts">
-                <span>Read: <span id="readCount">-</span></span>
-                <span>Unread: <span id="unreadCount">-</span></span>
-                <span>Dismissed: <span id="dismissedCount">-</span></span>
+        let badge = logoContainer.querySelector('.notification-badge');
+        const shouldPulse = count > lastNotificationCount;
+
+        if (count <= 0) {
+            if (badge) {
+                badge.remove();
+            }
+            lastNotificationCount = 0;
+            return;
+        }
+
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'notification-badge';
+            logoContainer.appendChild(badge);
+        }
+
+        badge.textContent = count;
+        badge.setAttribute('aria-label', `${count} unread notifications`);
+
+        if (shouldPulse) {
+            badge.classList.add('badge-pulse');
+            setTimeout(() => badge.classList.remove('badge-pulse'), 1000);
+        }
+
+        lastNotificationCount = count;
+    }
+};
+
+// Function to format timestamp
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) {
+        return 'Just now';
+    } else if (diffMins < 60) {
+        return `${diffMins}m ago`;
+    } else if (diffHours < 24) {
+        return `${diffHours}h ago`;
+    } else if (diffDays < 7) {
+        return `${diffDays}d ago`;
+    } else {
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${date.toLocaleDateString()} ${hours}:${minutes}`;
+    }
+}
+
+// Function to create popover content
+function createPopoverContent(notifications) {
+    const content = document.createElement('div');
+    content.className = 'notifications-content';
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    header.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Notifications</h6>
+            <div class="btn-group">
+                <button type="button" class="btn" id="markAllAsRead">Mark all as read</button>
+                <button type="button" class="btn" onclick="window.location.href='/notifications'">View all</button>
             </div>
-            <a href="/notifications" class="view-all-link">View All Notifications</a>
+        </div>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const list = document.createElement('div');
+    list.className = 'list-group list-group-flush';
+    list.id = 'notificationsList';
+
+    if (!notifications || notifications.length === 0) {
+        list.innerHTML = `
+            <div class="list-group-item text-center text-muted">
+                <p class="mb-0">No notifications</p>
+            </div>
         `;
-        notificationList.appendChild(summaryDiv);
+    } else {
+        list.innerHTML = notifications.map(notification => `
+            <div class="list-group-item" id="notification-${notification.id}" data-notification-id="${notification.id}">
+                <div class="d-flex flex-column">
+                    <div class="notification-title ${notification.read ? '' : 'fw-bold'}">${notification.title}</div>
+                    <div class="notification-message ${notification.read ? 'text-muted' : ''}">${notification.message}</div>
+                    <div class="notification-time">${formatTimestamp(notification.created_at)}</div>
+                    <div class="notification-actions">
+                        ${!notification.read ? `
+                            <button type="button" class="btn mark-read-btn" id="markRead-${notification.id}">
+                                Mark as read
+                            </button>
+                        ` : ''}
+                        <button type="button" class="btn dismiss-btn" id="dismiss-${notification.id}">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
     }
 
-    // Function to handle fetch errors
-    function handleFetchError() {
-        updateNotificationBadge(0);
-        notificationList.innerHTML = '<li class="text-danger">Unable to load notifications. Please try again later.</li>';
+    body.appendChild(list);5
+    content.appendChild(header);
+    content.appendChild(body);
+
+    return content;
+}
+
+// Function to update notifications
+async function updateNotifications(force = false) {
+    const now = Date.now();
+    // Prevent updates too close together unless forced
+    if (!force && now - lastUpdateTime < UPDATE_THROTTLE) {
+        return;
     }
 
-    // Function to mark a notification as read
-    async function markAsRead(notificationId) {
-        try {
-            const response = await makeAuthenticatedRequest(
-                `/api/v1/notifications/${notificationId}/read`,
-                'POST'
-            );
+    if (isUpdating && !force) {
+        return;
+    }
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    // Fetch fresh notifications instead of manually updating the UI
-                    fetchNotifications();
-                } else {
-                    console.error('Failed to mark notification as read:', data.error);
-                }
-            } else {
-                console.error('Failed to mark notification as read:', response.statusText);
+    isUpdating = true;
+    lastUpdateTime = now;
+
+    try {
+        // If there's an ongoing fetch and it's not forced, return the existing promise
+        if (fetchPromise && !force) {
+            return fetchPromise;
+        }
+
+        // Cancel any ongoing fetch
+        if (abortController) {
+            abortController.abort();
+        }
+
+        // Create new abort controller
+        abortController = new AbortController();
+
+        fetchPromise = makeAuthenticatedRequest('/api/v1/notifications?include_counts=true', 'GET', null, {
+            signal: abortController.signal
+        });
+
+        const response = await fetchPromise;
+        const data = await response.json();
+
+        if (!data || !data.notifications) {
+            return;
+        }
+
+        const unreadActiveCount = data.notifications.filter(n => !n.read && !n.dismissed).length;
+        const activeNotifications = data.notifications
+            .filter(n => !n.dismissed)
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        NotificationActions.updateBadgeCount(unreadActiveCount);
+
+        // Only update content if popover exists and is visible
+        const popoverElement = document.querySelector('.popover.notifications-popover.show');
+        if (notificationsPopover && popoverElement) {
+            const content = createPopoverContent(activeNotifications);
+            // Prevent unnecessary content updates if content hasn't changed
+            const currentContent = popoverElement.querySelector('.notifications-content');
+            if (!currentContent || currentContent.innerHTML !== content.innerHTML) {
+                notificationsPopover.setContent({ '.popover-body': content });
+                attachNotificationListeners(activeNotifications);
             }
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
         }
-    }
-
-    // Function to dismiss a notification
-    async function dismissNotification(notificationId) {
-        try {
-            const response = await makeAuthenticatedRequest(
-                `/api/v1/notifications/${notificationId}/dismiss`,
-                'POST'
-            );
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    // Fetch fresh notifications instead of manually updating the UI
-                    fetchNotifications();
-                } else {
-                    console.error('Failed to dismiss notification:', data.error);
-                }
-            } else {
-                console.error('Failed to dismiss notification:', response.statusText);
-            }
-        } catch (error) {
-            console.error('Error dismissing notification:', error);
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            return; // Ignore aborted requests
         }
-    }
 
-    // Function to update notification counts
-    function updateNotificationCounts(counts) {
-        const readCount = document.getElementById('readCount');
-        const unreadCount = document.getElementById('unreadCount');
-        const dismissedCount = document.getElementById('dismissedCount');
-
-        if (readCount) readCount.textContent = counts.read;
-        if (unreadCount) unreadCount.textContent = counts.unread;
-        if (dismissedCount) dismissedCount.textContent = counts.dismissed;
-    }
-
-    // Show/hide popover on hover
-    logoContainer.addEventListener('mouseenter', () => {
-        notificationPopover.style.display = 'block';
-        // Only fetch if we haven't fetched recently
-        if (Date.now() - lastFetchTime > 5000) {
-            fetchNotifications();
-        }
-    });
-
-    logoContainer.addEventListener('mouseleave', () => {
-        notificationPopover.style.display = 'none';
-    });
-
-    // Initial fetch of notifications with a small delay to ensure tokens are ready
-    setTimeout(fetchNotifications, 1000);
-
-    // Clear any existing interval
-    if (fetchInterval) {
-        clearInterval(fetchInterval);
-    }
-
-    // Set up periodic fetching (every 30 seconds)
-    fetchInterval = setInterval(fetchNotifications, 30000);
-
-    // Add smooth scrolling to notification list if it exceeds the popover height
-    notificationPopover.style.maxHeight = '300px';
-    notificationPopover.style.overflowY = 'auto';
-
-    // Listen for token expiration events
-    window.addEventListener('tokenExpired', function(event) {
-        const message = event.detail.message;
-
-        // Create or update the expiration notice
-        let notice = document.getElementById('token-expiration-notice');
-        if (!notice) {
-            notice = document.createElement('div');
-            notice.id = 'token-expiration-notice';
-            notice.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #f8d7da;
-                color: #721c24;
-                padding: 15px;
-                border-radius: 4px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                z-index: 9999;
-                max-width: 400px;
+        const popoverElement = document.querySelector('.popover.notifications-popover.show');
+        if (notificationsPopover && popoverElement) {
+            const errorContent = document.createElement('div');
+            errorContent.className = 'text-center text-danger';
+            errorContent.innerHTML = `
+                <i class="fas fa-exclamation-circle"></i>
+                <p class="mb-0">Failed to load notifications</p>
             `;
-            document.body.appendChild(notice);
+            notificationsPopover.setContent({ '.popover-body': errorContent });
+        }
+    } finally {
+        fetchPromise = null;
+        abortController = null;
+        isUpdating = false;
+    }
+}
+
+// Function to attach notification listeners (modified to prevent duplicates)
+function attachNotificationListeners(notifications) {
+    // Remove existing listeners first
+    const existingButtons = document.querySelectorAll('.mark-read-btn, .dismiss-btn, #markAllAsRead');
+    existingButtons.forEach(button => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+    });
+
+    // Attach new listeners
+    notifications.forEach(notification => {
+        const markReadBtn = document.getElementById(`markRead-${notification.id}`);
+        if (markReadBtn) {
+            markReadBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                try {
+                    await NotificationActions.markAsRead(notification.id);
+                    // Update badge count
+                    const unreadCount = document.querySelectorAll('.notification-title.fw-bold').length - 1;
+                    NotificationActions.updateBadgeCount(unreadCount);
+                } catch (error) {
+                    // Error handling
+                }
+            });
         }
 
-        notice.innerHTML = `
-            <div style="margin-bottom: 10px;">${message}</div>
-            <button onclick="resetSession()" style="
-                background: #dc3545;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 3px;
-                cursor: pointer;
-            ">Return to Login</button>
-        `;
-
-        // Clear any existing notification fetch intervals
-        if (fetchInterval) {
-            clearInterval(fetchInterval);
+        const dismissBtn = document.getElementById(`dismiss-${notification.id}`);
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                try {
+                    await NotificationActions.dismiss(notification.id);
+                    // Update badge count if needed
+                    if (!notification.read) {
+                        const unreadCount = document.querySelectorAll('.notification-title.fw-bold').length - 1;
+                        NotificationActions.updateBadgeCount(unreadCount);
+                    }
+                } catch (error) {
+                    // Error handling
+                }
+            });
         }
     });
+
+    const markAllAsReadBtn = document.getElementById('markAllAsRead');
+    if (markAllAsReadBtn) {
+        markAllAsReadBtn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            try {
+                await NotificationActions.markAllRead();
+                // Update badge count
+                NotificationActions.updateBadgeCount(0);
+            } catch (error) {
+                // Error handling
+            }
+        });
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    logoContainer = document.getElementById('logoContainer');
+    if (!logoContainer) {
+        return;
+    }
+
+    // Cleanup any existing popover and interval
+    if (notificationsPopover) {
+        notificationsPopover.dispose();
+    }
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+
+    // Initialize popover with empty content first
+    notificationsPopover = new bootstrap.Popover(logoContainer, {
+        html: true,
+        content: createPopoverContent([]),
+        placement: 'bottom',
+        trigger: 'focus',
+        container: 'body',
+        customClass: 'notifications-popover',
+        animation: false,
+        sanitize: false
+    });
+
+    // Add ARIA attributes to logo container
+    logoContainer.setAttribute('aria-haspopup', 'true');
+    logoContainer.setAttribute('aria-expanded', 'false');
+    logoContainer.setAttribute('tabindex', '0');
+
+    // Add event listeners for popover events
+    logoContainer.addEventListener('show.bs.popover', () => {
+        logoContainer.setAttribute('aria-expanded', 'true');
+        // Force update when showing
+        updateNotifications(true);
+    });
+
+    logoContainer.addEventListener('shown.bs.popover', () => {
+        const popoverElement = document.querySelector('.popover.notifications-popover');
+        if (popoverElement) {
+            popoverElement.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        }
+    });
+
+    logoContainer.addEventListener('hidden.bs.popover', () => {
+        logoContainer.setAttribute('aria-expanded', 'false');
+        const popoverElement = document.querySelector('.popover.notifications-popover');
+        if (popoverElement) {
+            popoverElement.remove();
+        }
+    });
+
+    // Initial fetch
+    updateNotifications();
+
+    // Set up periodic refresh only when popover is not visible
+    updateInterval = setInterval(() => {
+        const popoverElement = document.querySelector('.popover.notifications-popover.show');
+        if (!popoverElement) {
+            updateNotifications();
+        }
+    }, 30000);
+});
+
+// Clean up on page unload
+window.addEventListener('unload', () => {
+    if (notificationsPopover) {
+        notificationsPopover.dispose();
+    }
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+    if (abortController) {
+        abortController.abort();
+    }
+});
+
+// Export NotificationActions for use in other files
+window.NotificationActions = NotificationActions;
+
+// Listen for token expiration events
+window.addEventListener('tokenExpired', function(event) {
+    const message = event.detail.message;
+    let notice = document.getElementById('token-expiration-notice');
+    if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'token-expiration-notice';
+        document.body.appendChild(notice);
+    }
+
+    notice.innerHTML = `
+        <div class="token-expiration-message">${message}</div>
+        <button onclick="resetSession()" class="token-expiration-button">Return to Login</button>
+    `;
+});
+
+// Add event listener for the view all link
+document.addEventListener('click', function(event) {
+    if (event.target.matches('.view-all-link') || event.target.closest('.view-all-link')) {
+        event.stopPropagation();
+        window.location.href = '/notifications';
+    }
 });

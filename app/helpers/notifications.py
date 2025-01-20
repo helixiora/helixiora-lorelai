@@ -46,18 +46,89 @@ def add_notification(
         return False
 
 
-def get_notifications(user_id: int) -> list[NotificationSchema]:
-    """Get the notifications for a user."""
+def get_notifications(
+    user_id: int,
+    show_read: bool | None = None,
+    show_dismissed: bool | None = None,
+    limit: int | None = None,
+) -> list[NotificationSchema]:
+    """Get the notifications for a user.
+
+    Parameters
+    ----------
+    user_id : int
+        The ID of the user to get notifications for
+    show_read : Optional[bool]
+        If True, include read notifications. If False, exclude them.
+        If None, include both read and unread notifications.
+    show_dismissed : Optional[bool]
+        If True, include dismissed notifications. If False, exclude them.
+        If None, include both dismissed and undismissed notifications.
+    limit : Optional[int]
+        Maximum number of notifications to return
+
+    Returns
+    -------
+    List[NotificationSchema]
+        List of notifications matching the criteria
+    """
     try:
-        notifications = (
-            Notification.query.filter_by(user_id=user_id)
-            .order_by(Notification.created_at.desc())
-            .all()
+        # Base query for all notifications for this user
+        base_query = Notification.query.filter_by(user_id=user_id)
+
+        # Get total counts for different states
+        counts = (
+            db.session.query(
+                db.func.count().label("total"),
+                db.func.sum(
+                    db.case((~Notification.dismissed & ~Notification.read, 1), else_=0)
+                ).label("unread_active"),
+                db.func.sum(
+                    db.case((~Notification.dismissed & Notification.read, 1), else_=0)
+                ).label("read_active"),
+                db.func.sum(db.case((Notification.dismissed, 1), else_=0)).label("dismissed"),
+            )
+            .filter(Notification.user_id == user_id)
+            .first()
         )
-        return [NotificationSchema.from_orm(notification) for notification in notifications]
+
+        # Apply read/unread filter if specified
+        if show_read is not None:
+            base_query = base_query.filter(Notification.read == show_read)
+
+        # Apply dismissed/undismissed filter if specified
+        if show_dismissed is not None:
+            base_query = base_query.filter(Notification.dismissed == show_dismissed)
+
+        # Always sort by creation date, newest first
+        base_query = base_query.order_by(Notification.created_at.desc())
+
+        # Apply limit if specified
+        if limit is not None:
+            base_query = base_query.limit(limit)
+
+        notifications = base_query.all()
+        notification_schemas = [
+            NotificationSchema.from_orm(notification) for notification in notifications
+        ]
+
+        # Return both notifications and counts
+        return {
+            "notifications": notification_schemas,
+            "counts": {
+                "total": int(counts.total or 0),
+                "unread_active": int(counts.unread_active or 0),
+                "read_active": int(counts.read_active or 0),
+                "dismissed": int(counts.dismissed or 0),
+            },
+        }
+
     except SQLAlchemyError as e:
         logging.error(f"Failed to get notifications: {e}")
-        return []
+        return {
+            "notifications": [],
+            "counts": {"total": 0, "unread_active": 0, "read_active": 0, "dismissed": 0},
+        }
 
 
 def get_unread_notifications(user_id: int) -> list[NotificationSchema]:
@@ -103,10 +174,10 @@ def mark_notification_as_read(notification_id: int, user_id: int) -> dict:
 
         return {
             "success": True,
-            "remaining_unread": counts.remaining_unread or 0,
-            "read": counts.read or 0,
-            "dismissed": counts.dismissed or 0,
-            "undismissed": counts.undismissed or 0,
+            "remaining_unread": int(counts.remaining_unread or 0),
+            "read": int(counts.read or 0),
+            "dismissed": int(counts.dismissed or 0),
+            "undismissed": int(counts.undismissed or 0),
         }
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -153,10 +224,10 @@ def mark_notification_as_dismissed(notification_id: int, user_id: int) -> dict:
 
         return {
             "success": success,
-            "remaining_unread": counts.remaining_unread or 0,
-            "read": counts.read or 0,
-            "dismissed": counts.dismissed or 0,
-            "undismissed": counts.undismissed or 0,
+            "remaining_unread": int(counts.remaining_unread or 0),
+            "read": int(counts.read or 0),
+            "dismissed": int(counts.dismissed or 0),
+            "undismissed": int(counts.undismissed or 0),
         }
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -243,3 +314,28 @@ def sanitize_notification(notification: dict[str, Any]) -> dict[str, Any]:
         if notification.get("url")
         else None,
     }
+
+
+def get_notification(notification_id: int, user_id: int) -> NotificationSchema | None:
+    """Get a specific notification by ID.
+
+    Parameters
+    ----------
+    notification_id : int
+        The ID of the notification to retrieve
+    user_id : int
+        The ID of the user who owns the notification
+
+    Returns
+    -------
+    Optional[NotificationSchema]
+        The notification if found, None otherwise
+    """
+    try:
+        notification = Notification.query.filter_by(id=notification_id, user_id=user_id).first()
+        if notification:
+            return NotificationSchema.from_orm(notification)
+        return None
+    except SQLAlchemyError as e:
+        logging.error(f"Failed to get notification {notification_id}: {e}")
+        return None

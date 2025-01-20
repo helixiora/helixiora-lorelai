@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block head %}
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Notifications</h1>
+
+    <!-- Filters -->
+    <div class="card mb-4 notification-filters">
+        <div class="card-header">
+            <h5 class="mb-0">Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="notificationStatusFilter" class="form-label">Status</label>
+                    <select name="status" id="notificationStatusFilter" class="form-select" aria-label="Filter notifications by status">
+                        <option value="">All Active</option>
+                        <option value="unread">Unread</option>
+                        <option value="read">Read</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="notificationTypeFilter" class="form-label">Type</label>
+                    <select name="type" id="notificationTypeFilter" class="form-select" aria-label="Filter notifications by type">
+                        <option value="all">All Types</option>
+                        {% for type in notification_types %}
+                            <option value="{{ type }}">{{ type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" id="showDismissedCheckbox" aria-label="Show dismissed notifications">
+                        <label class="form-check-label" for="showDismissedCheckbox">
+                            Show Dismissed
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label for="notificationQuickDateFilter" class="form-label">Quick Date Filter</label>
+                    <select name="quickDate" id="notificationQuickDateFilter" class="form-select" aria-label="Filter notifications by predefined date ranges">
+                        <option value="">Custom Range</option>
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="last7days">Last 7 Days</option>
+                        <option value="last30days">Last 30 Days</option>
+                        <option value="thisMonth">This Month</option>
+                        <option value="lastMonth">Last Month</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="notificationDateRange" class="form-label">Custom Date Range</label>
+                    <div class="input-group" id="notificationDateRange">
+                        <input type="date" name="startDate" id="notificationStartDate" class="form-control" aria-label="Start date">
+                        <span class="input-group-text">to</span>
+                        <input type="date" name="endDate" id="notificationEndDate" class="form-control" aria-label="End date">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Actions -->
+    <div class="card mb-4">
+        <div class="card-body bulk-actions">
+            <div class="bulk-actions-group">
+                <button id="markSelectedRead" class="btn btn-primary" disabled
+                        aria-label="Mark selected notifications as read">
+                    Mark Selected as Read
+                </button>
+                <button id="dismissSelected" class="btn btn-warning" disabled
+                        aria-label="Dismiss selected notifications">
+                    Dismiss Selected
+                </button>
+            </div>
+            <div class="bulk-actions-group">
+                <button id="selectAll" class="btn btn-outline-secondary"
+                        aria-label="Select all notifications">
+                    Select All
+                </button>
+                <button id="deselectAll" class="btn btn-outline-secondary"
+                        aria-label="Deselect all notifications">
+                    Deselect All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Table -->
+    <div class="table-responsive notifications-table-container">
+        <table id="notificationsTable" class="display" aria-label="Notifications list">
+            <thead>
+                <tr>
+                    <th>
+                        <input type="checkbox" id="selectAllCheckbox" class="form-check-input notification-checkbox"
+                               aria-label="Select all notifications">
+                    </th>
+                    <th>Created At</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Message</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for notification in notifications %}
+                    <tr data-notification-id="{{ notification.id }}">
+                        <td>
+                            <input type="checkbox" class="form-check-input notification-checkbox"
+                                   aria-label="Select notification {{ notification.title }}">
+                        </td>
+                        <td>{{ notification.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>{{ notification.type }}</td>
+                        <td {% if not notification.read %}class="fw-bold"{% endif %}>{{ notification.title }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="notification-message-truncate {% if not notification.read %}fw-bold{% endif %}">
+                                    {{ notification.message }}
+                                </div>
+                                <button class="notification-expand-button view-notification"
+                                        data-notification-id="{{ notification.id }}"
+                                        aria-label="Show full message for {{ notification.title }}"
+                                        title="Show full message">
+                                    <i class="bi bi-arrows-angle-expand" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            {% if notification.dismissed %}
+                                <span class="notification-status notification-status-dismissed" role="status">Dismissed</span>
+                            {% elif notification.read %}
+                                <span class="notification-status notification-status-read" role="status">Read</span>
+                            {% else %}
+                                <span class="notification-status notification-status-unread" role="status">Unread</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="notification-actions">
+                                {% if not notification.read %}
+                                    <button class="btn btn-sm btn-success mark-read"
+                                            data-notification-id="{{ notification.id }}"
+                                            aria-label="Mark {{ notification.title }} as read">
+                                        Mark Read
+                                    </button>
+                                {% endif %}
+                                {% if not notification.dismissed %}
+                                    <button class="btn btn-sm btn-warning dismiss-notification"
+                                            data-notification-id="{{ notification.id }}"
+                                            aria-label="Dismiss {{ notification.title }}">
+                                        Dismiss
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Notification Details Modal -->
+    <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="notificationModalLabel"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="notification-message"></p>
+                    <div class="notification-data"></div>
+                    <small class="text-muted notification-date"></small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success mark-read-modal notification-modal-button"
+                            aria-label="Mark notification as read">
+                        Mark as Read
+                    </button>
+                    <button type="button" class="btn btn-warning dismiss-notification-modal notification-modal-button"
+                            aria-label="Dismiss notification">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/notifications-page.js') }}"></script>
+{% endblock %}

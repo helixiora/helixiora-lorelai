@@ -1,68 +1,252 @@
-        <!-- Org User Admin Section -->
-        {% if ('super_admin' in session.get('user.user_roles', [])) or ('org_admin' in session.get('user.user_roles', [])) %}
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="h2">User Administration</h2>
-                </div>
-                <div class="card-body">
-                    <p>Here's an overview of every user in your current organisation and their access level</p>
-                    <table id="OrgTable">
-                        <thead>
-                            <tr>
-                                <th>Userid</th>
-                                <th>Email</th>
-                                <th>Organisation</th>
-                                <th>Role</th>
-                                <th>Actions</th>
+<!-- Org User Admin Section -->
+{% if ('super_admin' in session.get('user.user_roles', [])) or ('org_admin' in session.get('user.user_roles', [])) %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="h4 mb-0">User Administration</h2>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table id="usersTable" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Organization</th>
+                            <th>Roles</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                            <tr data-user-id="{{ user.id }}">
+                                <td>{{ user.email }}</td>
+                                <td>{{ user.org_name }}</td>
+                                <td>
+                                    <div class="d-flex gap-1 flex-wrap roles-container">
+                                        {% for role in user.roles %}
+                                            <span class="badge bg-primary">{{ role.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-primary edit-roles" 
+                                                data-user-id="{{ user.id }}"
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#editRolesModal">
+                                            Edit Roles
+                                        </button>
+                                        {% if current_user.is_super_admin() %}
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-user" 
+                                                    data-user-id="{{ user.id }}"
+                                                    data-user-email="{{ user.email }}">
+                                                Delete
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {% for user in users %}
-                                <tr>
-                                    <td>{{ user.user_id }}</td>
-                                    <td>{{ user.email }}</td>
-                                    <td>{{ user.org_name }}</td>
-                                    <td>{% if user.roles %}
-                                    <ul>
-                                    {% for role in user.roles %}
-                                        <li>{{ role.name }}</li>
-                                    {% endfor %}
-                                    </ul>
-                                    {% else %}
-                                        No roles assigned
-                                    {% endif %}</td>
-                                    <td>
-                                    {% if user.user_name is none %}
-                                        Invited
-                                    {% else %}
-                                        No actions implemented yet.
-                                    {% endif %}
-                                    </td>
-                                </tr>
-                            {% else %}
-                                <tr><td colspan="3">No users found.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Invite User Section -->
-                <div class="card-body">
-                    <button class="btn btn-primary" type="button" onclick="toggleCollapse()">
-                        Invite New User
-                    </button>
-                    <div class="collapse mt-4" id="inviteUserSection">
-                        <h2 class="h4">Invite New User</h2>
-                        <form method="POST" action="/admin/invite_user">
-                            <div class="form-group">
-                                <label for="email">Email address</label>
-                                <input type="email" class="form-control" id="email" name="email" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Invite User</button>
-                        </form>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Invite User Section -->
+        <div class="card-body">
+            <button class="btn btn-primary" type="button" onclick="toggleCollapse()">
+                Invite New User
+            </button>
+            <div class="collapse mt-4" id="inviteUserSection">
+                <h2 class="h4">Invite New User</h2>
+                <form method="POST" action="/admin/invite_user">
+                    <div class="form-group">
+                        <label for="email">Email address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
                     </div>
+                    <button type="submit" class="btn btn-primary">Invite User</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Roles Modal -->
+    <div class="modal fade" id="editRolesModal" tabindex="-1" aria-labelledby="editRolesModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editRolesModalLabel">Edit User Roles</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="rolesLoadingSpinner" class="text-center d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading roles...</span>
+                        </div>
+                    </div>
+                    <div id="rolesError" class="alert alert-danger d-none" role="alert"></div>
+                    <form id="editRolesForm">
+                        <div class="mb-3">
+                            {% for role in all_roles %}
+                                <div class="form-check">
+                                    <input class="form-check-input role-checkbox" type="checkbox" 
+                                           value="{{ role.name }}" id="role_{{ role.name }}">
+                                    <label class="form-check-label" for="role_{{ role.name }}">
+                                        {{ role.name }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveRoles">Save Changes</button>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Remove the inline script and add a reference to an external JS file -->
-            <script src="{{ url_for('static', filename='js/useradmin.js') }}"></script>
-        {% endif %}
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteUserModalLabel">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete user <strong id="deleteUserEmail"></strong>?</p>
+                    <p class="text-danger">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let currentUserId = null;
+        const editRolesModal = new bootstrap.Modal(document.getElementById('editRolesModal'));
+        const deleteUserModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
+
+        // Handle Edit Roles button click
+        $('.edit-roles').on('click', async function() {
+            currentUserId = $(this).data('user-id');
+            const loadingSpinner = $('#rolesLoadingSpinner');
+            const errorAlert = $('#rolesError');
+            
+            try {
+                loadingSpinner.removeClass('d-none');
+                errorAlert.addClass('d-none');
+                
+                // Reset checkboxes
+                $('.role-checkbox').prop('checked', false);
+                
+                // Get current roles
+                const response = await makeAuthenticatedRequest(`/api/v1/admin/users/${currentUserId}/roles`);
+                if (!response.ok) {
+                    throw new Error(await response.text() || 'Failed to fetch roles');
+                }
+                
+                const data = await response.json();
+                
+                // Set checkboxes based on current roles
+                data.roles.forEach(role => {
+                    $(`#role_${role}`).prop('checked', true);
+                });
+                
+            } catch (error) {
+                console.error('Error fetching roles:', error);
+                errorAlert.text(error.message).removeClass('d-none');
+            } finally {
+                loadingSpinner.addClass('d-none');
+            }
+        });
+
+        // Handle Save Roles button click
+        $('#saveRoles').on('click', async function() {
+            if (!currentUserId) return;
+            
+            const loadingSpinner = $('#rolesLoadingSpinner');
+            const errorAlert = $('#rolesError');
+            
+            try {
+                loadingSpinner.removeClass('d-none');
+                errorAlert.addClass('d-none');
+                
+                // Get selected roles
+                const selectedRoles = $('.role-checkbox:checked').map(function() {
+                    return this.value;
+                }).get();
+                
+                // Update roles
+                const response = await makeAuthenticatedRequest(
+                    `/api/v1/admin/users/${currentUserId}/roles`,
+                    'PUT',
+                    { roles: selectedRoles }
+                );
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to update roles');
+                }
+                
+                // Update UI
+                const rolesContainer = $(`tr[data-user-id="${currentUserId}"] .roles-container`);
+                rolesContainer.empty();
+                selectedRoles.forEach(role => {
+                    rolesContainer.append(`<span class="badge bg-primary">${role}</span>`);
+                });
+                
+                // Close modal
+                editRolesModal.hide();
+                
+            } catch (error) {
+                console.error('Error updating roles:', error);
+                errorAlert.text(error.message).removeClass('d-none');
+            } finally {
+                loadingSpinner.addClass('d-none');
+            }
+        });
+
+        // Handle Delete User button click
+        $('.delete-user').on('click', function() {
+            currentUserId = $(this).data('user-id');
+            const userEmail = $(this).data('user-email');
+            $('#deleteUserEmail').text(userEmail);
+            deleteUserModal.show();
+        });
+
+        // Handle Confirm Delete button click
+        $('#confirmDelete').on('click', async function() {
+            if (!currentUserId) return;
+            
+            try {
+                const response = await makeAuthenticatedRequest(
+                    `/api/v1/admin/users/${currentUserId}`,
+                    'DELETE'
+                );
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to delete user');
+                }
+                
+                // Remove user row from table
+                $(`tr[data-user-id="${currentUserId}"]`).remove();
+                
+                // Close modal
+                deleteUserModal.hide();
+                
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Error deleting user: ' + error.message);
+            }
+        });
+    });
+    </script>
+{% endif %}

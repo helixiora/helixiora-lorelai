@@ -1,7 +1,11 @@
+<!-- API Keys Section -->
 <div id="card-api-keys" class="card mb-2 mt-2">
-    <h5 class="h5 card-header">API Keys</h5>
+    <h5 class="card-header h5">API Keys</h5>
     <div class="card-body">
-        <p>API keys are used to authenticate requests to the LorelAI API.</p>
+        <p class="mb-3">
+            API keys are used to authenticate requests to the Lorelai API.
+            View the <a href="/swagger" target="_blank">API Documentation</a> to learn more.
+        </p>
         <table id="apiKeysTable" class="table table-hover table-bordered">
             <thead class="table-light">
                 <tr>
@@ -28,18 +32,19 @@
                 {% endif %}
             </tbody>
         </table>
-    </div>
-    <div class="card mb-2 mt-2 mx-3" id="card-create-api-key">
-        <h5 class="h5 card-header">Create API Key</h5>
-        <div class="card-body">
-            <form method="POST" action="/api-keys/create">
-                <div class="form-group">
-                    <label for="expires_at">Expires At</label>
-                    <input type="date" class="form-control" id="expires_at" name="expires_at">
-                    <small class="form-text text-muted">If no expiry date is provided, the API key will never expire.</small>
-                </div>
-                <button type="submit" class="btn btn-primary">Create API Key</button>
-            </form>
+
+        <div class="card mb-2 mt-2" id="card-create-api-key">
+            <h5 class="h5 card-header">Create API Key</h5>
+            <div class="card-body">
+                <form method="POST" action="/api-keys/create">
+                    <div class="form-group">
+                        <label for="expires_at">Expires At</label>
+                        <input type="date" class="form-control" id="expires_at" name="expires_at">
+                        <small class="form-text text-muted">If no expiry date is provided, the API key will never expire.</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create API Key</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>

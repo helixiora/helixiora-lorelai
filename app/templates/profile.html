@@ -8,6 +8,15 @@
             <p>You are not authorized to access this page. Please <a href="/" class="alert-link">login</a> to access this page.</p>
         </div>
     {% else %}
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h1">Profile Settings</h1>
+            <div>
+                <a href="/" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Chat
+                </a>
+            </div>
+        </div>
+
         <!-- User Information Section -->
         <div id="card-welcome" class="card mb-2 mt-2">
             <h5 class="card-header h5">Welcome, {{ user.full_name }}!</h5>
