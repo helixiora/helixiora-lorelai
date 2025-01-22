@@ -89,7 +89,8 @@ def get_answer_from_rag(
                 message_time_taken = time.time() - message_start_time
                 set_tag("message_insertion_time", message_time_taken)
                 logging.info(f"Message insertion took {message_time_taken:.2f} seconds.")
-
+                # Create the classifier instance here - HRISTO 
+                
                 # Measure time for LLM creation and getting answer
                 llm = Llm.create(
                     model_type=model_type, user_email=user_email, org_name=organisation_name

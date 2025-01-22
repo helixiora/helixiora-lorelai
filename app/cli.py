@@ -31,26 +31,16 @@ def seed_db_command():
 
     click.echo("Creating datasources...")
     # Add your seed data here, for example:
-    datasource = Datasource(datasource_name="Slack", datasource_type="oauth")
-    db.session.add(datasource)
-    datasource = Datasource(datasource_name="Google Drive", datasource_type="oauth")
-    db.session.add(datasource)
+    slack_datasource = Datasource(datasource_name="Slack", datasource_type="oauth2")
+    google_drive_datasource = Datasource(datasource_name="Google Drive", datasource_type="oauth2")
+
+    db.session.add(slack_datasource)
+    db.session.add(google_drive_datasource)
     db.session.commit()
 
-    click.echo("Creating plans...")
-    plan = Plan(plan_name="Free", price=0, duration_months=30, message_limit_daily=1000)
-    db.session.add(plan)
-    plan = Plan(plan_name="Pro", price=10, duration_months=30, message_limit_daily=10000)
-    db.session.add(plan)
-    db.session.commit()
-
-    click.echo("Creating roles...")
-    role = Role(role_name="org_admin")
-    db.session.add(role)
-    role = Role(role_name="super_admin")
-    db.session.add(role)
-    role = Role(role_name="user")
-    db.session.add(role)
-    db.session.commit()
-
+    # db.session.add(user)
+    # db.session.commit()
     click.echo("Seeded the database.")
+
+
+

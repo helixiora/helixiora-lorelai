@@ -69,7 +69,7 @@ class Llm:
             except ValueError as e:
                 logging.error(f"Failed to create {retriever_type}: {e}")
 
-    def get_answer(self, question: str) -> str:
+    def  get_answer(self, question: str) -> str:
         """Retrieve an answer to a given question based on provided context.
 
         This method is in the baseclass as it doesn't need to know which LLM is being used.
