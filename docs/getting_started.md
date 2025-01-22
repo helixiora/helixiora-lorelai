@@ -290,3 +290,28 @@ When you pull new code that includes database changes, you'll need to apply the 
    # Finally, upgrade again
    flask db upgrade
    ```
+
+### PDF Processing Setup
+
+For enhanced PDF processing, we use LLM Sherpa. You'll need to:
+
+1. Install LLM Sherpa:
+
+   ```bash
+   pip install llmsherpa
+   ```
+
+1. Run the LLM Sherpa server:
+
+   ```bash
+   docker run -p 5010:5010 nlmatics/llmsherpa:latest
+   ```
+
+1. Update your `.env` file with the LLM Sherpa URL:
+
+   ```bash
+   LLMSHERPA_API_URL=http://localhost:5001/api/parseDocument?renderFormat=all
+   ```
+
+Note: LLM Sherpa provides better PDF parsing with layout preservation, OCR support, and table
+extraction capabilities.

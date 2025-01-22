@@ -566,18 +566,70 @@ class GoogleDriveIndexer(Indexer):
         credentials_object: credentials.Credentials,
         indexing_run: IndexingRunSchema,
     ) -> list[Document]:
-        """Load a Google Drive PDF from a PDF ID.
+        """Load a Google Drive PDF from a PDF ID using LLM Sherpa.
 
         :param doc_google_drive_id: the Google Drive PDF ID
         :param credentials_object: the credentials object to use for Google Drive API
+        :param indexing_run: the indexing run schema
 
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive PDF ID: {doc_google_drive_id}")
-        loader = GoogleDriveLoader(file_ids=[doc_google_drive_id], credentials=credentials_object)
-        docs_loaded = loader.load()
-        logging.info(f"Loaded {len(docs_loaded)} pages from PDF: {doc_google_drive_id}")
-        return docs_loaded
+
+        try:
+            # First download the PDF content using Google Drive API
+            service = build("drive", "v3", credentials=credentials_object)
+            file = service.files().get_media(fileId=doc_google_drive_id).execute()
+
+            # Get the file metadata for title
+            file_metadata = service.files().get(fileId=doc_google_drive_id, fields="name").execute()
+            file_name = file_metadata.get("name", "Untitled")
+
+            # Save to temporary file
+            temp_file_path = f"/tmp/{doc_google_drive_id}.pdf"
+            with open(temp_file_path, "wb") as f:
+                f.write(file)
+
+            # Initialize LLM Sherpa loader
+            from langchain_community.document_loaders.llmsherpa import LLMSherpaFileLoader
+
+            loader = LLMSherpaFileLoader(
+                file_path=temp_file_path,
+                new_indent_parser=True,
+                apply_ocr=True,
+                strategy="text",  # Use sections strategy for better structure
+                llmsherpa_api_url=current_app.config.get(
+                    "LLMSHERPA_API_URL",
+                    "http://192.168.11.3:5001/api/parseDocument?renderFormat=all",
+                ),
+            )
+
+            # Load and process the document
+            docs = loader.load()
+
+            # Add metadata to each document
+            for doc in docs:
+                doc.metadata.update(
+                    {
+                        "source": f"google-drive://{doc_google_drive_id}",
+                        "title": file_name,
+                        "file_type": "pdf",
+                        "google_drive_id": doc_google_drive_id,
+                    }
+                )
+
+            logging.info(f"Successfully loaded {len(docs)} sections from PDF: {file_name}")
+
+            # Clean up temp file
+            import os
+
+            os.remove(temp_file_path)
+
+            return docs
+
+        except Exception as e:
+            logging.error(f"Error loading PDF {doc_google_drive_id}: {str(e)}")
+            return []
 
     def load_google_doc_from_text_id(
         self,
