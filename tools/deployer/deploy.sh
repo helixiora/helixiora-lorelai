@@ -68,6 +68,11 @@ DRY_RUN=true
 WEB_SHA=""
 WORKER_SHA=""
 
+# Check for required GITHUB_TOKEN
+if [ -z "$GITHUB_TOKEN" ]; then
+    log_error "GITHUB_TOKEN environment variable is required but not set"
+fi
+
 print_usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
@@ -76,6 +81,9 @@ print_usage() {
     echo "  -c, --cluster <name>   ECS cluster name (auto-detected if only one exists)"
     echo "  -d, --deploy           Disable dry-run mode and actually deploy (default: dry-run enabled)"
     echo "  -h, --help            Show this help message"
+    echo ""
+    echo "Environment variables:"
+    echo "  GITHUB_TOKEN          Required: GitHub token for accessing container registry"
 }
 
 # Parse command line arguments
@@ -135,82 +143,120 @@ if [ -z "$CLUSTER_NAME" ]; then
     fi
 fi
 
-# Extract the slug from cluster name (everything after 'helixiora-' and before '-ecs-cluster')
-CLUSTER_SLUG=$(echo "$CLUSTER_NAME" | sed 's/helixiora-\(.*\)-ecs-cluster/\1/')
+# Extract the slug from cluster name (everything before '-ecs-cluster')
+CLUSTER_SLUG=$(echo "$CLUSTER_NAME" | sed 's/-ecs-cluster//')
 log_info "Using slug: $CLUSTER_SLUG for service names"
 
 # Function to check GitHub Container Registry
 check_github_container() {
     local image_to_use="$1"
     local image_tag="$2"
-    local package_name=$(basename "$image_to_use")
+    local full_package_name=$(echo "$image_to_use" | sed 's|ghcr.io/helixiora/helixiora-lorelai/||')
 
     # Check if we already looked up this image
-    if [ "$package_name" = "web" ] && [ -n "$WEB_SHA" ]; then
-        log_info "Using cached GitHub Container Registry information for '$package_name:$image_tag'"
+    if [ "$full_package_name" = "web" ] && [ -n "$WEB_SHA" ]; then
         echo "$WEB_SHA"
         return 0
-    elif [ "$package_name" = "worker" ] && [ -n "$WORKER_SHA" ]; then
-        log_info "Using cached GitHub Container Registry information for '$package_name:$image_tag'"
+    elif [ "$full_package_name" = "worker" ] && [ -n "$WORKER_SHA" ]; then
         echo "$WORKER_SHA"
         return 0
     fi
 
-    log_info "Querying GitHub Container Registry for package: '$package_name' tag: '$image_tag'"
     if [ -n "$GITHUB_TOKEN" ]; then
+        # First get the list of versions
         GITHUB_RESPONSE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/user/packages/container/helixiora%2Fhelixiora-lorelai%2F${package_name}/versions")
+            "https://api.github.com/orgs/helixiora/packages/container/helixiora-lorelai%2F${full_package_name}/versions")
 
         if [ "$(echo "$GITHUB_RESPONSE" | jq -r 'type')" = "array" ]; then
-            CURRENT_SHA=$(echo "$GITHUB_RESPONSE" | jq -r --arg TAG "$image_tag" \
-                '[.[] | select(.metadata.container.tags | contains([$TAG]))] | first | .id // "unknown"')
+            # Get the version ID for the matching tag
+            VERSION_ID=$(echo "$GITHUB_RESPONSE" | jq -r --arg TAG "$image_tag" \
+                '[.[] | select(.metadata.container.tags | contains([$TAG]))] | first | .id // empty')
 
-            if [ "$CURRENT_SHA" = "unknown" ] || [ -z "$CURRENT_SHA" ] || [ "$CURRENT_SHA" = "null" ]; then
-                if echo "$GITHUB_RESPONSE" | jq -e '.[].metadata.container.tags' >/dev/null; then
-                    log_warning "Available tags for $package_name:"
-                    echo "$GITHUB_RESPONSE" | jq -r '.[].metadata.container.tags[]' | sort -u | sed 's/^/  - /'
+            if [ -n "$VERSION_ID" ]; then
+                # Get the specific version details which includes the manifest
+                VERSION_DETAILS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/orgs/helixiora/packages/container/helixiora-lorelai%2F${full_package_name}/versions/${VERSION_ID}")
+
+                # Extract the SHA from the name field (which contains the SHA256 digest)
+                CURRENT_SHA=$(echo "$VERSION_DETAILS" | jq -r '.name // empty' | sed 's/^sha256://')
+
+                if [ -n "$CURRENT_SHA" ]; then
+                    # Cache the result
+                    if [ "$full_package_name" = "web" ]; then
+                        WEB_SHA="$CURRENT_SHA"
+                    else
+                        WORKER_SHA="$CURRENT_SHA"
+                    fi
+                    echo "$CURRENT_SHA"
+                    return 0
                 fi
-                # Cache the unknown result
-                if [ "$package_name" = "web" ]; then
-                    WEB_SHA="unknown"
-                else
-                    WORKER_SHA="unknown"
-                fi
-                echo "unknown"
-            else
-                log_success "Found matching image in GitHub Container Registry:"
-                log_info "  Package: $package_name"
-                log_info "  Tag: $image_tag"
-                log_info "  SHA: $CURRENT_SHA"
-                # Cache the result
-                if [ "$package_name" = "web" ]; then
-                    WEB_SHA="$CURRENT_SHA"
-                else
-                    WORKER_SHA="$CURRENT_SHA"
-                fi
-                echo "$CURRENT_SHA"
+            fi
+
+            # If we get here, we couldn't find the SHA
+            if echo "$GITHUB_RESPONSE" | jq -e '.[].metadata.container.tags' >/dev/null; then
+                log_warning "Available tags for $full_package_name:"
+                echo "$GITHUB_RESPONSE" | jq -r '.[].metadata.container.tags[]' | sort -u | sed 's/^/  - /'
             fi
         else
-            log_warning "Could not find image $package_name:$image_tag in GitHub Container Registry"
+            log_warning "Could not find image $full_package_name:$image_tag in GitHub Container Registry"
             log_warning "GitHub API Response:"
             echo "$GITHUB_RESPONSE" | jq -r '.message // "No error message"'
-            # Cache the unknown result
-            if [ "$package_name" = "web" ]; then
-                WEB_SHA="unknown"
-            else
-                WORKER_SHA="unknown"
-            fi
-            echo "unknown"
         fi
     else
         log_warning "GITHUB_TOKEN not set, cannot verify image in GitHub Container Registry"
-        echo "unknown"
     fi
+
+    # Cache the unknown result
+    if [ "$full_package_name" = "web" ]; then
+        WEB_SHA="unknown"
+    else
+        WORKER_SHA="unknown"
+    fi
+    echo "unknown"
 }
 
 # Add a variable to track if any changes were made or would be made
 CHANGES_DETECTED=false
+
+# Function to extract SHA from image tag
+extract_sha_from_image() {
+    local service_name="$1"
+    local cluster_name="$2"
+
+    # Get the running task ARN for this service
+    local task_arn=$(aws ecs list-tasks \
+        --cluster "$cluster_name" \
+        --service-name "$service_name" \
+        --desired-status RUNNING \
+        --query 'taskArns[0]' \
+        --output text \
+        --no-cli-pager)
+
+    if [ "$task_arn" = "None" ] || [ -z "$task_arn" ]; then
+        log_warning "No running tasks found for service $service_name"
+        echo "unknown"
+        return
+    fi
+
+    # Get the task details including container image digest
+    local task_details=$(aws ecs describe-tasks \
+        --cluster "$cluster_name" \
+        --tasks "$task_arn" \
+        --query 'tasks[0].containers[0].imageDigest' \
+        --output text \
+        --no-cli-pager)
+
+    if [ "$task_details" = "None" ] || [ -z "$task_details" ]; then
+        log_warning "Could not get image digest for task $task_arn"
+        echo "unknown"
+        return
+    fi
+
+    # Extract just the SHA part from the digest
+    echo "$task_details" | sed 's/^sha256://'
+}
 
 # Function to update ECS service
 update_service() {
@@ -231,27 +277,34 @@ update_service() {
     log_info "Using image: $image_to_use:$IMAGE_TAG"
 
     # Get current task definition
-    log_info "Fetching current task definition..."
     TASK_DEF=$(aws ecs describe-task-definition --task-definition "$task_family" --query 'taskDefinition' --output json --no-cli-pager)
 
-    # Get current image from task definition
+    # Get current image from task definition and SHA from running container
     CURRENT_IMAGE=$(echo "$TASK_DEF" | jq -r '.containerDefinitions[0].image')
-    log_info "Current image in ECS: $CURRENT_IMAGE"
+    CURRENT_SHA=$(extract_sha_from_image "$service_name" "$CLUSTER_NAME")
+    log_info "Current ECS image: $CURRENT_IMAGE"
+    log_info "Current ECS SHA:   $CURRENT_SHA"
 
     # If we're deploying the same image:tag, check if it's actually different
     if [ "$CURRENT_IMAGE" = "$image_to_use:$IMAGE_TAG" ]; then
-        log_warning "Same image:tag detected in ECS, checking GitHub Container Registry for changes..."
+        log_warning "Same image:tag detected, checking for updates..."
 
-        CURRENT_SHA=$(check_github_container "$image_to_use" "$IMAGE_TAG")
-        if [ "$CURRENT_SHA" != "unknown" ]; then
-            log_success "ECS service $service_name is up to date with GitHub Container Registry"
-            return 0
+        GITHUB_SHA=$(check_github_container "$image_to_use" "$IMAGE_TAG")
+        log_info "GitHub SHA:        $GITHUB_SHA"
+
+        if [ "$GITHUB_SHA" != "unknown" ]; then
+            if [ "$CURRENT_SHA" != "unknown" ] && [ "$CURRENT_SHA" = "$GITHUB_SHA" ]; then
+                log_success "Service $service_name is up to date"
+                return 0
+            fi
+            changes_needed=true
         fi
-        changes_needed=true
     else
-        log_info "Different image:tag detected:"
-        log_info "  Running in ECS: $CURRENT_IMAGE"
-        log_info "  Available in GitHub: $image_to_use:$IMAGE_TAG"
+        log_info "Different image detected:"
+        log_info "  Current: $CURRENT_IMAGE"
+        log_info "  New:     $image_to_use:$IMAGE_TAG"
+        GITHUB_SHA=$(check_github_container "$image_to_use" "$IMAGE_TAG")
+        log_info "GitHub SHA:        $GITHUB_SHA"
         changes_needed=true
     fi
 
@@ -295,10 +348,8 @@ update_service() {
                 --output text \
                 --no-cli-pager > /dev/null
 
-            log_success "Service $service_name updated with new task definition: $NEW_TASK_DEF_ARN"
+            log_success "Service $service_name updated successfully"
         fi
-    else
-        log_success "No changes needed for service $service_name"
     fi
 }
 
@@ -333,10 +384,10 @@ fi
 
 # Check for required services
 required_services=(
-    "helixiora-${CLUSTER_SLUG}-ecs-service-frontend"
-    "helixiora-${CLUSTER_SLUG}-ecs-service-worker-question"
-    "helixiora-${CLUSTER_SLUG}-ecs-service-worker-default"
-    "helixiora-${CLUSTER_SLUG}-ecs-service-worker-indexer"
+    "${CLUSTER_SLUG}-ecs-service-frontend"
+    "${CLUSTER_SLUG}-ecs-service-worker-question"
+    "${CLUSTER_SLUG}-ecs-service-worker-default"
+    "${CLUSTER_SLUG}-ecs-service-worker-indexer"
 )
 
 log_info "Validating required services..."
@@ -350,12 +401,12 @@ done
 log_success "All required services found"
 
 # Update frontend service
-update_service "helixiora-${CLUSTER_SLUG}-ecs-service-frontend" "helixiora-${CLUSTER_SLUG}-task-frontend" false
+update_service "${CLUSTER_SLUG}-ecs-service-frontend" "${CLUSTER_SLUG}-task-frontend" false
 
 # Update worker services
-update_service "helixiora-${CLUSTER_SLUG}-ecs-service-worker-question" "helixiora-${CLUSTER_SLUG}-task-worker-question" true
-update_service "helixiora-${CLUSTER_SLUG}-ecs-service-worker-default" "helixiora-${CLUSTER_SLUG}-task-worker-default" true
-update_service "helixiora-${CLUSTER_SLUG}-ecs-service-worker-indexer" "helixiora-${CLUSTER_SLUG}-task-worker-indexer" true
+update_service "${CLUSTER_SLUG}-ecs-service-worker-question" "${CLUSTER_SLUG}-task-worker-question" true
+update_service "${CLUSTER_SLUG}-ecs-service-worker-default" "${CLUSTER_SLUG}-task-worker-default" true
+update_service "${CLUSTER_SLUG}-ecs-service-worker-indexer" "${CLUSTER_SLUG}-task-worker-indexer" true
 
 # Final status message
 if [ "$DRY_RUN" = true ]; then
