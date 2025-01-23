@@ -600,7 +600,7 @@ class GoogleDriveIndexer(Indexer):
                 strategy="text",  # Use sections strategy for better structure
                 llmsherpa_api_url=current_app.config.get(
                     "LLMSHERPA_API_URL",
-                    "http://192.168.11.3:5001/api/parseDocument?renderFormat=all",
+                    "http://192.168.11.3:5001/api/parseDocument?renderFormat=all&applyOcr=yes",
                 ),
             )
 
@@ -628,7 +628,7 @@ class GoogleDriveIndexer(Indexer):
             return docs
 
         except Exception as e:
-            logging.error(f"Error loading PDF {doc_google_drive_id}: {str(e)}")
+            logging.error(f"Error loading PDF {doc_google_drive_id}: {str(e)}", exc_info=True)
             return []
 
     def load_google_doc_from_text_id(
