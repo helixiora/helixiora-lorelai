@@ -36,7 +36,7 @@
         <div class="card mb-2 mt-2" id="card-create-api-key">
             <h5 class="h5 card-header">Create API Key</h5>
             <div class="card-body">
-                <form method="POST" action="/api-keys/create">
+                <form id="createApiKeyForm" onsubmit="createAPIKey(event)">
                     <div class="form-group">
                         <label for="expires_at">Expires At</label>
                         <input type="date" class="form-control" id="expires_at" name="expires_at">
@@ -48,5 +48,33 @@
         </div>
     </div>
 </div>
+
+<script>
+async function createAPIKey(event) {
+    event.preventDefault();
+    const expiresAt = document.getElementById('expires_at').value;
+
+    try {
+        // Only include expires_at if it has a value
+        const payload = {};
+        if (expiresAt) {
+            payload.expires_at = expiresAt;
+        }
+
+        const response = await makeAuthenticatedRequest('/api/v1/api_keys', 'POST', payload);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to create API key');
+        }
+
+        showMessage('API key created successfully', 'success');
+        location.reload();
+    } catch (error) {
+        console.error('Error creating API key:', error);
+        showMessage('Failed to create API key: ' + error.message, 'danger');
+    }
+}
+</script>
 
 <script src="{{ url_for('static', filename='js/api-keys.js') }}"></script>

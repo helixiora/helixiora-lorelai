@@ -2,7 +2,7 @@
 
 from flask import session, request
 from flask_restx import Namespace, Resource, fields
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 import logging
 
 from app.helpers.notifications import (
@@ -72,6 +72,16 @@ class GetNotificationsResource(Resource):
     def get(self):
         """Get notifications for the current user."""
         try:
+            # Get user ID from JWT token instead of session
+            user_id = get_jwt_identity()
+            if not user_id:
+                logging.error("No user ID found in JWT token")
+                return {
+                    "error": "Unauthorized",
+                    "notifications": [],
+                    "counts": {"total": 0, "unread_active": 0, "read_active": 0, "dismissed": 0},
+                }, 401
+
             # Get query parameters
             show_read = parse_boolean_param(request.args.get("show_read", None))
             show_unread = parse_boolean_param(request.args.get("show_unread", None))
@@ -110,24 +120,33 @@ class GetNotificationsResource(Resource):
 
             # Get notifications with filters
             result = get_notifications(
-                user_id=session["user.id"],
+                user_id=user_id,
                 show_read=show_read,
                 show_dismissed=show_dismissed,
                 limit=limit,
             )
 
+            if not result:
+                return {
+                    "notifications": [],
+                    "counts": {"total": 0, "unread_active": 0, "read_active": 0, "dismissed": 0},
+                }, 200
+
             # Convert Pydantic models to dictionaries and format datetime fields
             filtered_notifications = []
             for n in result["notifications"]:
-                notification_dict = n.model_dump()
-                # Convert datetime objects to ISO format strings
-                for field in ["created_at", "read_at", "dismissed_at", "updated_at"]:
-                    if field in notification_dict and notification_dict[field] is not None:
-                        notification_dict[field] = notification_dict[field].isoformat()
-                filtered_notifications.append(sanitize_notification(notification_dict))
+                try:
+                    notification_dict = n.model_dump()
+                    # Convert datetime objects to ISO format strings
+                    for field in ["created_at", "read_at", "dismissed_at", "updated_at"]:
+                        if field in notification_dict and notification_dict[field] is not None:
+                            notification_dict[field] = notification_dict[field].isoformat()
+                    filtered_notifications.append(sanitize_notification(notification_dict))
+                except Exception as e:
+                    logging.error(f"Error processing notification: {str(e)}")
+                    continue
 
             response_data = {"notifications": filtered_notifications, "counts": result["counts"]}
-
             return response_data, 200
 
         except Exception as e:
