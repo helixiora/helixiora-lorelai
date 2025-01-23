@@ -13,8 +13,13 @@ function showMessage(message, type = 'info') {
     if (!flashContainer) {
         flashContainer = document.createElement('div');
         flashContainer.id = 'flash-messages';
-        flashContainer.className = 'container mt-3';
-        document.body.insertBefore(flashContainer, document.body.firstChild);
+        flashContainer.className = 'mb-3';
+
+        // Insert at the top of the main content area
+        const mainContent = document.querySelector('.card-body');
+        if (mainContent) {
+            mainContent.insertBefore(flashContainer, mainContent.firstChild);
+        }
     }
 
     flashContainer.appendChild(alertDiv);
@@ -22,25 +27,30 @@ function showMessage(message, type = 'info') {
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
         alertDiv.remove();
+        // Remove the container if it's empty
+        if (flashContainer && !flashContainer.hasChildNodes()) {
+            flashContainer.remove();
+        }
     }, 5000);
 }
 
-function deleteAPIKey(api_key_id) {
+async function deleteAPIKey(api_key_id) {
     if (!confirm('Are you sure you want to delete this API key?')) {
         return;
     }
 
-    makeAuthenticatedRequest(`/api/v1/api_keys/${api_key_id}`, 'DELETE')
-        .then(async response => {
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to delete API key');
-            }
-            showMessage('API key deleted successfully', 'success');
-            location.reload();
-        })
-        .catch(error => {
-            console.error('Error deleting API key:', error);
-            showMessage('Failed to delete API key: ' + error.message, 'danger');
-        });
+    try {
+        const response = await makeAuthenticatedRequest(`/api/v1/api_keys/${api_key_id}`, 'DELETE');
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to delete API key');
+        }
+
+        showMessage('API key deleted successfully', 'success');
+        location.reload();
+    } catch (error) {
+        console.error('Error deleting API key:', error);
+        showMessage('Failed to delete API key: ' + error.message, 'danger');
+    }
 }
