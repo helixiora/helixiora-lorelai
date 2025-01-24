@@ -9,6 +9,7 @@ Classes:
 
 import io
 import logging
+import os
 
 from flask import current_app
 from google.auth.credentials import TokenState
@@ -16,6 +17,7 @@ from google.oauth2 import credentials
 from googleapiclient.discovery import build
 from langchain_core.documents import Document
 from langchain_googledrive.document_loaders import GoogleDriveLoader
+from langchain_community.document_loaders.llmsherpa import LLMSherpaFileLoader
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
@@ -577,51 +579,54 @@ class GoogleDriveIndexer(Indexer):
         logging.info(f"Loading Google Drive PDF ID: {doc_google_drive_id}")
 
         try:
-            # First download the PDF content using Google Drive API
+            # First get complete file metadata using Google Drive API
             service = build("drive", "v3", credentials=credentials_object)
-            file = service.files().get_media(fileId=doc_google_drive_id).execute()
+            file_metadata = (
+                service.files()
+                .get(fileId=doc_google_drive_id, fields="id, name, mimeType, modifiedTime, owners")
+                .execute()
+            )
 
-            # Get the file metadata for title
-            file_metadata = service.files().get(fileId=doc_google_drive_id, fields="name").execute()
-            file_name = file_metadata.get("name", "Untitled")
+            # Download the PDF content
+            file = service.files().get_media(fileId=doc_google_drive_id).execute()
 
             # Save to temporary file
             temp_file_path = f"/tmp/{doc_google_drive_id}.pdf"
             with open(temp_file_path, "wb") as f:
                 f.write(file)
 
-            # Initialize LLM Sherpa loader
-            from langchain_community.document_loaders.llmsherpa import LLMSherpaFileLoader
-
             loader = LLMSherpaFileLoader(
                 file_path=temp_file_path,
                 new_indent_parser=True,
                 apply_ocr=True,
-                strategy="text",  # Use sections strategy for better structure
-                llmsherpa_api_url=current_app.config.get(
-                    "LLMSHERPA_API_URL",
-                    "http://192.168.11.3:5001/api/parseDocument?renderFormat=all&applyOcr=yes",
-                ),
+                strategy="text",  # Changed to chunks for better consistency
+                llmsherpa_api_url=current_app.config.get("LLMSHERPA_API_URL"),
             )
 
             # Load and process the document
             docs = loader.load()
 
+            # Construct consistent metadata
+            base_metadata = {
+                "gdriveId": file_metadata["id"],
+                "id": file_metadata["id"],
+                "mimeType": file_metadata["mimeType"],
+                "name": file_metadata["name"],
+                "title": file_metadata["name"],
+                "source": f"https://drive.google.com/file/d/{file_metadata['id']}/view",
+                "modifiedTime": file_metadata["modifiedTime"],
+                "author": file_metadata["owners"][0]["displayName"]
+                if file_metadata.get("owners")
+                else None,
+            }
+
             # Add metadata to each document
             for doc in docs:
-                doc.metadata.update(
-                    {
-                        "source": f"google-drive://{doc_google_drive_id}",
-                        "title": file_name,
-                        "file_type": "pdf",
-                        "google_drive_id": doc_google_drive_id,
-                    }
-                )
+                doc.metadata = {**base_metadata}  # Create a new dict for each doc
 
-            logging.info(f"Successfully loaded {len(docs)} sections from PDF: {file_name}")
-
-            # Clean up temp file
-            import os
+            logging.info(
+                f"Successfully loaded {len(docs)} sections from PDF: {file_metadata['name']}"
+            )
 
             os.remove(temp_file_path)
 
