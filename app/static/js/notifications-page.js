@@ -397,7 +397,7 @@ async function fetchNotifications() {
         const filters = getFilterValues();
         const params = new URLSearchParams(filters);
 
-        const response = await makeAuthenticatedRequest(`/api/v1/notifications/?${params.toString()}`, 'GET');
+        const response = await makeAuthenticatedRequest(`/api/v1/notifications?${params.toString()}`, 'GET');
         if (!response.ok) {
             throw new Error('Failed to fetch notifications');
         }
