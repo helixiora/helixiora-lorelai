@@ -43,39 +43,37 @@
     <!-- Metadata Table -->
     <div class="table-responsive">
         <table id="metadataTable" class="display table table-striped" style="width:100%">
-            <thead>
-                <tr>
-                    {% for item in metadata[:1] %}
-                        {# Define the order of important columns first #}
-                        {% set important_columns = ['id', 'name', 'type', 'status', 'created_at', 'updated_at', 'url', 'source'] %}
-                        {# Get all columns #}
-                        {% set all_columns = item.keys()|list %}
-                        {# Sort columns: important ones first, then rest alphabetically #}
-                        {% set ordered_columns = (important_columns|select('in', all_columns)|list) +
-                                               (all_columns|reject('in', important_columns)|sort|list) %}
+            {% if metadata %}
+                {% set first_item = metadata[0] %}
+                {% set ordered_columns = first_item.keys()|sort %}
+                <thead>
+                    <tr>
                         {% for key in ordered_columns %}
                             <th class="text-nowrap">{{ key|title }}</th>
                         {% endfor %}
-                    {% else %}
-                        <th>No data available</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in metadata %}
-                    <tr>
-                        {% for item in metadata[:1] %}
-                            {% set important_columns = ['id', 'name', 'type', 'status', 'created_at', 'updated_at', 'url', 'source'] %}
-                            {% set all_columns = item.keys()|list %}
-                            {% set ordered_columns = (important_columns|select('in', all_columns)|list) +
-                                                   (all_columns|reject('in', important_columns)|sort|list) %}
-                        {% endfor %}
-                        {% for key in ordered_columns %}
-                            <td>{{ item[key] }}</td>
-                        {% endfor %}
                     </tr>
-                {% endfor %}
-            </tbody>
+                </thead>
+                <tbody>
+                    {% for item in metadata %}
+                        <tr>
+                            {% for key in ordered_columns %}
+                                <td>{{ item[key]|default('') }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            {% else %}
+                <thead>
+                    <tr>
+                        <th>No data available</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>No data available</td>
+                    </tr>
+                </tbody>
+            {% endif %}
         </table>
     </div>
 </div>
@@ -84,39 +82,26 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize DataTable
     const metadataTable = $('#metadataTable').DataTable({
-        order: [[0, 'asc']],
         pageLength: 25,
         autoWidth: true,
         responsive: true,
         scrollX: true,
+        processing: true,
         columnDefs: [
             {
                 targets: '_all',
-                className: 'align-middle',
-                render: function(data, type, row) {
+                className: 'text-nowrap',
+                render: function(data, type, row, meta) {
                     if (type === 'display' && data && data.length > 100) {
-                        return '<span title="' + data + '">' + data.substr(0, 100) + '...</span>';
+                        return `<span title="${data}">${data.substr(0, 100)}...</span>`;
                     }
-                    return data;
+                    return data || '';
                 }
-            },
-            {
-                targets: [0, 1, 2, 3], // ID, Name, Type, Status columns
-                className: 'text-nowrap font-weight-bold'
-            },
-            {
-                targets: [4, 5], // Created At, Updated At columns
-                className: 'text-nowrap'
             }
         ],
         dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
              '<"row"<"col-sm-12"tr>>' +
              '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
-    });
-
-    // Adjust columns on window resize
-    $(window).on('resize', function() {
-        metadataTable.columns.adjust();
     });
 
     // Apply filters
@@ -129,16 +114,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add combined filter function
         $.fn.dataTable.ext.search.push(function(settings, data) {
-            const typeIndex = Array.from(document.querySelectorAll('#metadataTable th')).findIndex(th => th.textContent.toLowerCase() === 'type');
-            const statusIndex = Array.from(document.querySelectorAll('#metadataTable th')).findIndex(th => th.textContent.toLowerCase() === 'status');
+            const typeCol = Array.from(document.querySelectorAll('#metadataTable th')).findIndex(
+                th => th.textContent.toLowerCase() === 'type'
+            );
+            const statusCol = Array.from(document.querySelectorAll('#metadataTable th')).findIndex(
+                th => th.textContent.toLowerCase() === 'status'
+            );
 
-            const type = data[typeIndex];
-            const status = data[statusIndex];
+            // If columns don't exist, don't filter
+            if (typeCol === -1 || statusCol === -1) return true;
 
-            if (typeFilter && type !== typeFilter) return false;
-            if (statusFilter && status !== statusFilter) return false;
+            const type = data[typeCol];
+            const status = data[statusCol];
 
-            return true;
+            return (!typeFilter || type === typeFilter) && (!statusFilter || status === statusFilter);
         });
 
         metadataTable.draw();
