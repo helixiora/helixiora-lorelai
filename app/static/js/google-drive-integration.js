@@ -113,8 +113,8 @@ async function createPicker() {
         }
     } catch (error) {
         console.error('Error refreshing Google Drive token:', error);
-        // If token refresh fails, redirect to reauthorize
-        window.location.href = '/google/drive/auth';
+        // If token refresh fails, request a new authorization code
+        codeClient.requestCode();
         return;
     }
 
