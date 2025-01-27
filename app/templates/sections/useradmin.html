@@ -29,14 +29,14 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-sm btn-outline-primary edit-roles" 
+                                        <button type="button" class="btn btn-sm btn-outline-primary edit-roles"
                                                 data-user-id="{{ user.id }}"
-                                                data-bs-toggle="modal" 
+                                                data-bs-toggle="modal"
                                                 data-bs-target="#editRolesModal">
                                             Edit Roles
                                         </button>
                                         {% if current_user.is_super_admin() %}
-                                            <button type="button" class="btn btn-sm btn-outline-danger delete-user" 
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-user"
                                                     data-user-id="{{ user.id }}"
                                                     data-user-email="{{ user.email }}">
                                                 Delete
@@ -69,7 +69,8 @@
     </div>
 
     <!-- Edit Roles Modal -->
-    <div class="modal fade" id="editRolesModal" tabindex="-1" aria-labelledby="editRolesModalLabel" aria-hidden="true">
+    <div class="modal fade" id="editRolesModal" tabindex="-1" aria-labelledby="editRolesModalLabel" aria-hidden="true"
+         data-is-super-admin="{{ current_user.is_super_admin()|tojson }}">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -87,10 +88,14 @@
                         <div class="mb-3">
                             {% for role in all_roles %}
                                 <div class="form-check">
-                                    <input class="form-check-input role-checkbox" type="checkbox" 
-                                           value="{{ role.name }}" id="role_{{ role.name }}">
+                                    <input class="form-check-input role-checkbox" type="checkbox"
+                                           value="{{ role.name }}" id="role_{{ role.name }}"
+                                           {% if role.name == 'super_admin' and not current_user.is_super_admin() %}disabled{% endif %}>
                                     <label class="form-check-label" for="role_{{ role.name }}">
                                         {{ role.name }}
+                                        {% if role.name == 'super_admin' and not current_user.is_super_admin() %}
+                                            <small class="text-muted">(Only super admins can modify this role)</small>
+                                        {% endif %}
                                     </label>
                                 </div>
                             {% endfor %}
@@ -130,33 +135,41 @@
         let currentUserId = null;
         const editRolesModal = new bootstrap.Modal(document.getElementById('editRolesModal'));
         const deleteUserModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
+        const isSuperAdmin = document.getElementById('editRolesModal').dataset.isSuperAdmin === 'true';
 
         // Handle Edit Roles button click
         $('.edit-roles').on('click', async function() {
             currentUserId = $(this).data('user-id');
             const loadingSpinner = $('#rolesLoadingSpinner');
             const errorAlert = $('#rolesError');
-            
+
             try {
                 loadingSpinner.removeClass('d-none');
                 errorAlert.addClass('d-none');
-                
+
                 // Reset checkboxes
                 $('.role-checkbox').prop('checked', false);
-                
+
                 // Get current roles
                 const response = await makeAuthenticatedRequest(`/api/v1/admin/users/${currentUserId}/roles`);
                 if (!response.ok) {
                     throw new Error(await response.text() || 'Failed to fetch roles');
                 }
-                
+
                 const data = await response.json();
-                
+
                 // Set checkboxes based on current roles
                 data.roles.forEach(role => {
-                    $(`#role_${role}`).prop('checked', true);
+                    const checkbox = $(`#role_${role}`);
+                    checkbox.prop('checked', true);
+
+                    // If user has super_admin role and current user is not super_admin,
+                    // disable the checkbox to prevent modification
+                    if (role === 'super_admin' && !isSuperAdmin) {
+                        checkbox.prop('disabled', true);
+                    }
                 });
-                
+
             } catch (error) {
                 console.error('Error fetching roles:', error);
                 errorAlert.text(error.message).removeClass('d-none');
@@ -168,45 +181,45 @@
         // Handle Save Roles button click
         $('#saveRoles').on('click', async function() {
             if (!currentUserId) return;
-            
+
             const loadingSpinner = $('#rolesLoadingSpinner');
             const errorAlert = $('#rolesError');
-            
+
             try {
                 loadingSpinner.removeClass('d-none');
                 errorAlert.addClass('d-none');
-                
+
                 // Get selected roles
                 const selectedRoles = $('.role-checkbox:checked').map(function() {
                     return this.value;
                 }).get();
-                
+
                 // Update roles
                 const response = await makeAuthenticatedRequest(
                     `/api/v1/admin/users/${currentUserId}/roles`,
                     'PUT',
                     { roles: selectedRoles }
                 );
-                
-                const data = await response.json();
-                
+
                 if (!response.ok) {
+                    const data = await response.json();
                     throw new Error(data.error || 'Failed to update roles');
                 }
-                
+
                 // Update UI
                 const rolesContainer = $(`tr[data-user-id="${currentUserId}"] .roles-container`);
                 rolesContainer.empty();
                 selectedRoles.forEach(role => {
                     rolesContainer.append(`<span class="badge bg-primary">${role}</span>`);
                 });
-                
+
                 // Close modal
                 editRolesModal.hide();
-                
+
             } catch (error) {
                 console.error('Error updating roles:', error);
                 errorAlert.text(error.message).removeClass('d-none');
+                return; // Don't close modal on error
             } finally {
                 loadingSpinner.addClass('d-none');
             }
@@ -223,25 +236,24 @@
         // Handle Confirm Delete button click
         $('#confirmDelete').on('click', async function() {
             if (!currentUserId) return;
-            
+
             try {
                 const response = await makeAuthenticatedRequest(
                     `/api/v1/admin/users/${currentUserId}`,
                     'DELETE'
                 );
-                
-                const data = await response.json();
-                
+
                 if (!response.ok) {
+                    const data = await response.json();
                     throw new Error(data.error || 'Failed to delete user');
                 }
-                
+
                 // Remove user row from table
                 $(`tr[data-user-id="${currentUserId}"]`).remove();
-                
+
                 // Close modal
                 deleteUserModal.hide();
-                
+
             } catch (error) {
                 console.error('Error deleting user:', error);
                 alert('Error deleting user: ' + error.message);
