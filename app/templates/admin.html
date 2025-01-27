@@ -22,13 +22,40 @@
             {% endif %}
         {% endwith %}
 
+        <!-- Super Admin Only Section -->
+        {% if current_user.is_super_admin() %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h4 mb-0">Super Admin Tools</h2>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h5 class="mb-3">Prompt Management</h5>
+                            <a href="{{ url_for('admin.list_prompts') }}" class="btn btn-primary mb-2 w-100">
+                                <i class="bi bi-chat-text"></i> Manage Prompt Templates
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <h5 class="mb-3">Indexing Administration</h5>
+                            <a href="{{ url_for('admin.indexing_runs') }}" class="btn btn-primary mb-2 w-100">
+                                <i class="bi bi-list-check"></i> View All Indexing Runs
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <h5 class="mb-3">Vector Database</h5>
+                            <a href="/admin/pinecone" class="btn btn-primary mb-2 w-100">
+                                <i class="bi bi-database"></i> Pinecone Administration
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
         <!-- Indexer -->
         {% include 'sections/indexer.html' %}
 
         {% include 'sections/useradmin.html' %}
-
-        {% include 'sections/pinecone.html' %}
     </div>
-
-
 {% endblock %}

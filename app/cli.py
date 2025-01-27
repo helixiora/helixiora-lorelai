@@ -78,7 +78,7 @@ def seed_db_command():
 
     click.echo("Creating roles...")
     # Add roles if they don't exist
-    roles = ["org_admin", "super_admin", "user"]
+    roles = ["super_admin", "org_admin", "user"]
     for role_name in roles:
         if not Role.query.filter_by(name=role_name).first():
             role = Role(name=role_name)
@@ -88,4 +88,4 @@ def seed_db_command():
             click.echo(f"Skipped existing role: {role_name}")
     db.session.commit()
 
-    click.echo("Seeded the database.")
+    click.echo("Seeded the database with initial data.")
