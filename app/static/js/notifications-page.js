@@ -82,15 +82,32 @@ function initializeNotificationsTable() {
         order: [[1, 'desc']], // Sort by created_at by default
         columnDefs: [
             {
-                targets: [
-                    { name: 'checkbox', index: 0 },
-                    { name: 'created_at', index: 1 },
-                    { name: 'type', index: 2 },
-                    { name: 'title', index: 3 },
-                    { name: 'message', index: 4 },
-                    { name: 'status', index: 5 },
-                    { name: 'actions', index: 6 }
-                ],
+                targets: 0,  // checkbox column
+                orderable: false,
+                className: 'no-sort'
+            },
+            {
+                targets: 1,  // created_at column
+                name: 'created_at'
+            },
+            {
+                targets: 2,  // type column
+                name: 'type'
+            },
+            {
+                targets: 3,  // title column
+                name: 'title'
+            },
+            {
+                targets: 4,  // message column
+                name: 'message'
+            },
+            {
+                targets: 5,  // status column
+                name: 'status'
+            },
+            {
+                targets: 6,  // actions column
                 orderable: false,
                 className: 'no-sort'
             }
@@ -263,7 +280,7 @@ function setupBulkActions() {
 
         try {
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
-                notification_ids: selectedIds
+                ids: selectedIds
             });
 
             if (!response.ok) {
@@ -305,7 +322,7 @@ function setupBulkActions() {
 
         try {
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/dismiss', 'POST', {
-                notification_ids: selectedIds
+                ids: selectedIds
             });
 
             if (!response.ok) {

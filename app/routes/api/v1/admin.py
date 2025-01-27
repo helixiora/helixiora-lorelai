@@ -254,7 +254,6 @@ class UserRoles(Resource):
     @role_required(["super_admin", "org_admin"])
     def put(self, user_id):
         """Update roles for a specific user."""
-        User.query.get_or_404(user_id)
         data = admin_ns.payload
         new_roles = data.get("roles", [])
 
@@ -264,6 +263,14 @@ class UserRoles(Resource):
 
         # Get current roles
         current_roles = get_user_roles(user_id)
+
+        # Check if org_admin is trying to assign super_admin role
+        if not current_user.is_super_admin():
+            if "super_admin" in new_roles:
+                return {"error": "Organization admins cannot assign super admin role"}, 403
+            # Also prevent org_admins from removing super_admin role
+            if "super_admin" in current_roles:
+                return {"error": "Organization admins cannot modify super admin role"}, 403
 
         # Add new roles
         for role in new_roles:
