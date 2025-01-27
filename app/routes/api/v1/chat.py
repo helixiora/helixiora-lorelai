@@ -48,7 +48,7 @@ result_response = chat_ns.model(
 
 
 # a post route for chat messages
-@chat_ns.route("/")
+@chat_ns.route("")
 class ChatResource(Resource):
     """Resource for chat operations."""
 
