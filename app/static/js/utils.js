@@ -113,8 +113,10 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
 
         // If we get a 401, try to refresh the token once
         if (response.status === 401) {
+            console.log('Token expired, attempting refresh...');
             const refreshSuccess = await refreshToken();
             if (refreshSuccess) {
+                console.log('Token refresh successful, retrying request...');
                 // Get new CSRF token after refresh for non-GET requests
                 if (method !== 'GET') {
                     const csrf_token = getCookie('csrf_access_token');
@@ -124,21 +126,11 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
                 }
                 // Retry the original request
                 response = await fetch(url, options);
-                if (!response.ok) {
-                    const errorData = await response.text();
-                    let errorMessage;
-                    try {
-                        const jsonError = JSON.parse(errorData);
-                        errorMessage = jsonError.message || jsonError.error || 'Unknown error';
-                    } catch (e) {
-                        errorMessage = errorData || `Request failed after token refresh: ${response.status}`;
-                    }
-                    throw new Error(errorMessage);
-                }
-                return response;
+            } else {
+                console.log('Token refresh failed, redirecting to login...');
+                resetSession();
+                throw new Error('Authentication failed - please log in again');
             }
-            // If refresh failed, throw error with status
-            throw new Error('Authentication failed');
         }
 
         if (!response.ok) {
@@ -150,6 +142,13 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
             } catch (e) {
                 errorMessage = errorData || `Request failed with status: ${response.status}`;
             }
+
+            // If we get a 500 error after token refresh, it might be due to invalid session
+            if (response.status === 500) {
+                console.log('Server error after token refresh, redirecting to login...');
+                resetSession();
+            }
+
             throw new Error(errorMessage);
         }
 
@@ -241,7 +240,7 @@ function animateTableRow($row, action, table) {
     } else if (action === 'read') {
         // Safely animate the transition from unread to read
         $row.find('.fw-bold').removeClass('fw-bold');
-        
+
         const $badge = $row.find('.badge.bg-primary');
         if ($badge.length) {
             $badge.fadeOut(200, function() {
@@ -249,7 +248,7 @@ function animateTableRow($row, action, table) {
                     .text('Read').fadeIn(200);
             });
         }
-        
+
         // Safely remove the "Mark Read" button with animation
         const $markReadBtn = $row.find('.mark-read');
         if ($markReadBtn.length) {
@@ -295,7 +294,7 @@ function setupSelectAllFunctionality(mainCheckboxSelector = '#selectAllCheckbox'
 function applyDataTableFilters(table, filters) {
     // Clear existing search functions
     $.fn.dataTable.ext.search.pop();
-    
+
     // Apply column filters
     Object.entries(filters.columns || {}).forEach(([column, value]) => {
         if (value) {
@@ -310,7 +309,7 @@ function applyDataTableFilters(table, filters) {
             const date = new Date(data[filters.dateColumn || 1]); // Default to second column for dates
             const start = startDate ? new Date(startDate) : null;
             const end = endDate ? new Date(endDate + 'T23:59:59') : null;
-            
+
             if (start && date < start) return false;
             if (end && date > end) return false;
             return true;

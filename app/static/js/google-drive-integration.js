@@ -101,6 +101,23 @@ async function createPicker() {
         return;
     }
 
+    try {
+        // Try to refresh the token before showing the picker
+        const response = await makeAuthenticatedRequest('/api/v1/googledrive/refresh', 'POST');
+        if (!response.ok) {
+            throw new Error('Failed to refresh Google Drive token');
+        }
+        const data = await response.json();
+        if (data.status === 'success' && data.access_token) {
+            window.accessToken = data.access_token;
+        }
+    } catch (error) {
+        console.error('Error refreshing Google Drive token:', error);
+        // If token refresh fails, redirect to reauthorize
+        window.location.href = '/google/drive/auth';
+        return;
+    }
+
     const shareddrivesview = new google.picker.DocsView(google.picker.ViewId.DOCS)
         .setEnableDrives(true)
         .setSelectFolderEnabled(true)
@@ -124,7 +141,7 @@ async function createPicker() {
         .disableFeature(google.picker.Feature.MINE_ONLY)
         .setDeveloperKey(API_KEY)
         .setAppId(APP_ID)
-        .setOAuthToken(window.accessToken)  // Use Google Drive access token for picker
+        .setOAuthToken(window.accessToken)  // Use the refreshed token
         .addView(shareddrivesview)
         .addView(sharedwithmeview)
         .addView(mydriveview)

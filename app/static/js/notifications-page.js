@@ -280,7 +280,7 @@ function setupBulkActions() {
 
         try {
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
-                notification_ids: selectedIds
+                ids: selectedIds
             });
 
             if (!response.ok) {
@@ -322,7 +322,7 @@ function setupBulkActions() {
 
         try {
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/dismiss', 'POST', {
-                notification_ids: selectedIds
+                ids: selectedIds
             });
 
             if (!response.ok) {
