@@ -13,6 +13,8 @@ from app.models.user import User
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
 from flask_jwt_extended import jwt_required
 from lorelai.pinecone import delete_user_datasource_vectors
+from flask_login import current_user
+from app.helpers.googledrive import refresh_google_token_if_needed, get_token_details
 
 googledrive_ns = Namespace("googledrive", description="Google Drive operations")
 
@@ -149,3 +151,29 @@ class RemoveFile(Resource):
             return {
                 "error": f"Error deleting google doc id: {google_drive_id}, Error: {str(e)}"
             }, 500
+
+
+@googledrive_ns.route("/refresh")
+class GoogleDriveTokenRefresh(Resource):
+    """Resource for refreshing Google Drive token."""
+
+    @jwt_required()
+    def post(self):
+        """Refresh the Google Drive access token."""
+        try:
+            # Get current token details
+            token_details = get_token_details(current_user.id)
+            # Try to refresh the token
+            new_access_token = refresh_google_token_if_needed(token_details.access_token)
+
+            if not new_access_token:
+                return {"status": "error", "message": "Failed to refresh token"}, 401
+
+            return {
+                "status": "success",
+                "message": "Token refreshed successfully",
+                "access_token": new_access_token,
+            }, 200
+
+        except Exception as e:
+            return {"status": "error", "message": str(e)}, 500

@@ -854,7 +854,7 @@ class GoogleDriveIndexer(Indexer):
                     indexing_run_item = IndexingRunItem.query.get(indexing_run_item_id)
                     if indexing_run_item:
                         indexing_run_item.item_status = "failed"
-                        indexing_run_item.item_error = "[invalid type]: Document not skipped"
+                        indexing_run_item.item_error = "[invalid type]: Document skipped"
                         db.session.commit()
 
             except Exception as e:

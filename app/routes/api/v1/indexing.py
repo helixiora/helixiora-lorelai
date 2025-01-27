@@ -7,6 +7,7 @@ import logging
 
 from app.models.indexing import IndexingRunItem
 from app.helpers.users import role_required
+from flask_login import current_user
 
 indexing_ns = Namespace(
     name="indexing",
@@ -181,11 +182,18 @@ class IndexingRunItemDetails(Resource):
     @indexing_ns.response(404, "Item not found", error_model)
     @indexing_ns.response(500, "Internal server error", error_model)
     @jwt_required(locations=["headers", "cookies"])
-    @role_required(["super_admin"])
     def get(self, item_id):
         """Return the details for a specific indexing run item."""
         try:
             item = IndexingRunItem.query.get_or_404(item_id)
+
+            # Check if the user has access to this item
+            if not current_user.is_super_admin():
+                # Get the indexing run associated with this item
+                indexing_run = item.indexing_run
+                if not indexing_run or indexing_run.user_id != current_user.id:
+                    return {"error": "You do not have permission to access this item"}, 403
+
             return {
                 "item_extractedtext": item.item_extractedtext,
                 "item_log": item.item_log,

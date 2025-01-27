@@ -55,6 +55,12 @@ def create_app(config=None):
     db.init_app(app)
     Migrate(app, db)
 
+    # Register CLI commands
+    from app.cli import init_db_command, seed_db_command
+
+    app.cli.add_command(init_db_command)
+    app.cli.add_command(seed_db_command)
+
     # Security headers
     @app.after_request
     def add_security_headers(response):
@@ -298,16 +304,16 @@ def create_app(config=None):
     )
 
     # Add namespaces
-    api.add_namespace(auth_ns)
-    api.add_namespace(chat_ns)
-    api.add_namespace(token_ns)
-    api.add_namespace(notifications_ns)
     api.add_namespace(admin_ns)
     api.add_namespace(api_keys_ns)
-    api.add_namespace(slack_ns)
-    api.add_namespace(googledrive_ns)
+    api.add_namespace(auth_ns)
+    api.add_namespace(chat_ns)
     api.add_namespace(conversation_ns)
+    api.add_namespace(googledrive_ns)
     api.add_namespace(indexing_ns)
+    api.add_namespace(notifications_ns)
+    api.add_namespace(slack_ns)
+    api.add_namespace(token_ns)
 
     # Error handlers
     @app.errorhandler(401)
