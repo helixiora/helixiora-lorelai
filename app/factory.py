@@ -74,6 +74,8 @@ def create_app(config=None):
             "https://oauth2.googleapis.com/",
             "https://o4507884621791232.ingest.de.sentry.io/api/",
             "https://apis.google.com/",
+            "https://www.google.com/",
+            "https://docs.google.com/",
         ]
 
         worker_src = [
@@ -88,6 +90,7 @@ def create_app(config=None):
             "https://accounts.google.com/",
             "https://content.googleapis.com/",
             "https://docs.google.com/",
+            "https://docs.google.com/picker/",
         ]
 
         img_src = [
@@ -99,6 +102,7 @@ def create_app(config=None):
             "https://cdn.datatables.net/",
             "https://platform.slack-edge.com/",
             "https://drive-thirdparty.googleusercontent.com/",
+            "https://www.google.com/",
         ]
 
         script_src_elem = [
