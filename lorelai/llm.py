@@ -1,11 +1,14 @@
 """Module to handle interaction with different language model APIs."""
 
-from flask import current_app
-from lorelai.context_retriever import ContextRetriever, LorelaiContextRetrievalResponse
 import importlib
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from flask import current_app
+
+from app.models import Datasource, User, UserAuth
+from lorelai.context_retriever import ContextRetriever, LorelaiContextRetrievalResponse
 
 
 class Llm:
@@ -52,22 +55,51 @@ class Llm:
 
         self.datasources = []
 
-        # the following code goes to every context retriever and creates an instance of it,
-        # and appends it to the datasources list
-        retriever_types = ["GoogleDriveContextRetriever", "SlackContextRetriever"]
-        for retriever_type in retriever_types:
-            try:
-                retriever = ContextRetriever.create(
-                    retriever_type,
-                    user_email=user_email,
-                    org_name=organisation,
-                    environment=current_app.config["LORELAI_ENVIRONMENT"],
-                    environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
-                    reranker=current_app.config["LORELAI_RERANKER"],
-                )
-                self.datasources.append(retriever)
-            except ValueError as e:
-                logging.error(f"Failed to create {retriever_type}: {e}")
+        # Get user's authenticated datasources from the database
+        user = User.query.filter_by(email=user_email).first()
+        if not user:
+            logging.error(f"User not found: {user_email}")
+            return
+
+        # Get user's authenticated datasources
+        user_auths = (
+            UserAuth.query.join(Datasource, UserAuth.datasource_id == Datasource.datasource_id)
+            .filter(UserAuth.user_id == user.id)
+            .with_entities(Datasource.datasource_name)
+            .all()
+        )
+
+        # Get authenticated datasource names
+        authenticated_datasources = {auth[0] for auth in user_auths}
+        for datasource_name in authenticated_datasources:
+            logging.info(f"Found authenticated datasource: {datasource_name}")
+
+        # Map datasource names to retriever types
+        datasource_to_retriever = {
+            "Google Drive": "GoogleDriveContextRetriever",
+            "Slack": "SlackContextRetriever",
+        }
+
+        # Only create retrievers for authenticated datasources
+        for datasource_name, retriever_type in datasource_to_retriever.items():
+            if datasource_name in authenticated_datasources:
+                try:
+                    retriever = ContextRetriever.create(
+                        retriever_type,
+                        user_email=user_email,
+                        org_name=organisation,
+                        environment=current_app.config["LORELAI_ENVIRONMENT"],
+                        environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+                        reranker=current_app.config["LORELAI_RERANKER"],
+                    )
+                    self.datasources.append(retriever)
+                    logging.info(
+                        f"Created {retriever_type} for authenticated datasource: {datasource_name}"
+                    )
+                except ValueError as e:
+                    logging.error(f"Failed to create {retriever_type} for {datasource_name}: {e}")
+            else:
+                logging.info(f"Skipping {datasource_name} as user is not authenticated")
 
     def get_answer(self, question: str) -> str:
         """Retrieve an answer to a given question based on provided context.
