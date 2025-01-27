@@ -55,6 +55,12 @@ def create_app(config=None):
     db.init_app(app)
     Migrate(app, db)
 
+    # Register CLI commands
+    from app.cli import init_db_command, seed_db_command
+
+    app.cli.add_command(init_db_command)
+    app.cli.add_command(seed_db_command)
+
     # Security headers
     @app.after_request
     def add_security_headers(response):
