@@ -2,14 +2,14 @@
 
 from flask import current_app
 from lorelai.context_retriever import ContextRetriever, LorelaiContextRetrievalResponse
-import importlib
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from abc import ABC, abstractmethod
 
 
-class Llm:
-    """Base class to handle interaction with different language model APIs."""
+class Llm(ABC):
+    """Base class for LLM interactions."""
 
     datasources: list[LorelaiContextRetrievalResponse] = []
     _prompt_template = """
@@ -25,56 +25,62 @@ class Llm:
         Question: {question}
         """
 
-    @staticmethod
-    def create(model_type: str, user_email: str, org_name: str):
-        """Create instances of derived classes based on the class name."""
-        try:
-            module = importlib.import_module(f"lorelai.llms.{model_type.lower()}")
-            class_ = getattr(module, model_type)
-            if not issubclass(class_, Llm):
-                raise ValueError(f"Unsupported model type: {model_type}")
-            logging.debug(f"Creating {model_type} instance")
-            # Set _allowed to True for the specific class being instantiated
-            instance = class_(user_email=user_email, organisation=org_name)
-            return instance
-        except (ImportError, AttributeError) as exc:
-            raise ValueError(f"2: Unsupported model type: {model_type}") from exc
+    @classmethod
+    def create(cls, model_type: str, user_email: str, org_name: str) -> "Llm":
+        """Create an instance of the specified LLM type."""
+        from lorelai.llms.openaillm import OpenAILlm
+        from lorelai.llms.ollamallama3 import OllamaLlama3
 
-    def __init__(self, user_email: str, organisation: str):
-        # if not self._allowed:
-        #    raise Exception("This class should be instantiated through a create() factory method.")
-        # self._allowed = False  # Reset the flag after successful instantiation
+        llm_classes = {"OpenAILlm": OpenAILlm, "OllamaLlama3": OllamaLlama3}
 
-        self.prompt_template = current_app.config.get("prompt_template", self._prompt_template)
+        if model_type not in llm_classes:
+            raise ValueError(f"Unknown model type: {model_type}")
 
+        return llm_classes[model_type](user_email=user_email, organisation=org_name)
+
+    def __init__(self, user_email: str, organisation: str) -> None:
+        """Initialize the LLM with user and organization context."""
         self.user_email = user_email
         self.organisation = organisation
-
         self.datasources = []
+        self.prompt_template = None
+        self._initialize_datasources()
 
-        # the following code goes to every context retriever and creates an instance of it,
-        # and appends it to the datasources list
-        retriever_types = ["GoogleDriveContextRetriever", "SlackContextRetriever"]
-        for retriever_type in retriever_types:
-            try:
-                retriever = ContextRetriever.create(
-                    retriever_type,
-                    user_email=user_email,
-                    org_name=organisation,
+    def _initialize_datasources(self) -> None:
+        """Initialize the datasources for this LLM instance."""
+        if int(current_app.config["FEATURE_SLACK"]) == 1:
+            self.datasources.append(
+                ContextRetriever.create(
+                    "SlackContextRetriever",
+                    org_name=self.organisation,
+                    user_email=self.user_email,
                     environment=current_app.config["LORELAI_ENVIRONMENT"],
                     environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
                     reranker=current_app.config["LORELAI_RERANKER"],
                 )
-                self.datasources.append(retriever)
-            except ValueError as e:
-                logging.error(f"Failed to create {retriever_type}: {e}")
+            )
+        if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
+            self.datasources.append(
+                ContextRetriever.create(
+                    "GoogleDriveContextRetriever",
+                    org_name=self.organisation,
+                    user_email=self.user_email,
+                    environment=current_app.config["LORELAI_ENVIRONMENT"],
+                    environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+                    reranker=current_app.config["LORELAI_RERANKER"],
+                )
+            )
 
-    def get_answer(self, question: str) -> str:
+    def get_answer(self, question: str, conversation_history: str | None = None) -> str:
         """Retrieve an answer to a given question based on provided context.
 
         This method is in the baseclass as it doesn't need to know which LLM is being used.
         Its purpose is to retrieve context from all the datasources and pass the context to the
         _ask_llm method, which is implemented in the derived classes.
+
+        Args:
+            question: The question to answer
+            conversation_history: Optional string containing the conversation history
         """
         context_list = []
         retrieve_context_time = time.time()
@@ -104,12 +110,20 @@ class Llm:
         logging.info(f"retrieve_context took: {time.time() - retrieve_context_time}")
         # Ask the LLM for an answer to the question
         ask_llm_time = time.time()
-        answer = self._ask_llm(question=question, context_list=context_list)
+        answer = self._ask_llm(
+            question=question, context_list=context_list, conversation_history=conversation_history
+        )
         end_time = time.time()
         logging.info(f"ASK LLM took: {end_time - ask_llm_time}")
         return answer
 
-    def _ask_llm(self, question: str, context_list: list[LorelaiContextRetrievalResponse]) -> str:
+    @abstractmethod
+    def _ask_llm(
+        self,
+        question: str,
+        context_list: list[LorelaiContextRetrievalResponse],
+        conversation_history: str | None = None,
+    ) -> str:
         """Ask the language model for an answer to a given question.
 
         This method is implemented in the derived classes.
