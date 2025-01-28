@@ -17,6 +17,9 @@ from lorelai.indexers.googledriveindexer import GoogleDriveIndexer
 from lorelai.indexers.slackindexer import SlackIndexer
 from lorelai.llm import Llm
 
+# import the classifier
+from lorelai.llms.bert.utils import predict_prompt_type
+
 logging_format = os.getenv(
     "LOG_FORMAT",
     "%(levelname)s - %(asctime)s: %(message)s : (Line: %(lineno)d [%(module)s - %(pathname)s])",
@@ -90,7 +93,9 @@ def get_answer_from_rag(
                 set_tag("message_insertion_time", message_time_taken)
                 logging.info(f"Message insertion took {message_time_taken:.2f} seconds.")
                 # Create the classifier instance here - HRISTO 
-                
+                prompt_type = predict_prompt_type(chat_message)
+                logging.info(f"Prompt type: {prompt_type}")
+
                 # Measure time for LLM creation and getting answer
                 llm = Llm.create(
                     model_type=model_type, user_email=user_email, org_name=organisation_name
