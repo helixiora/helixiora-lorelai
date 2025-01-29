@@ -7,10 +7,10 @@ let updateInterval = null;
 let abortController = null;
 let isUpdating = false;
 let lastUpdateTime = 0;
-const UPDATE_THROTTLE = 1000; // Minimum time between updates in milliseconds
+const UPDATE_THROTTLE = 5000; // 5 seconds
 
 const NotificationActions = {
-    markAsRead: async function(notificationId) {
+    async markAsRead(notificationId) {
         try {
             const response = await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/read`, 'POST');
             if (response.ok) {
@@ -46,7 +46,7 @@ const NotificationActions = {
             }
 
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
-                notification_ids: notificationIds
+                ids: notificationIds
             });
 
             if (response.ok) {
@@ -72,7 +72,7 @@ const NotificationActions = {
         }
     },
 
-    dismiss: async function(notificationId) {
+    async dismiss(notificationId) {
         try {
             const response = await makeAuthenticatedRequest(`/api/v1/notifications/${notificationId}/dismiss`, 'POST');
             if (response.ok) {
@@ -90,7 +90,7 @@ const NotificationActions = {
         }
     },
 
-    updateBadgeCount: function(count) {
+    async updateBadgeCount(count) {
         const logoContainer = document.getElementById('logoContainer');
         if (!logoContainer) {
             return;
@@ -201,7 +201,7 @@ function createPopoverContent(notifications) {
         `).join('');
     }
 
-    body.appendChild(list);5
+    body.appendChild(list);
     content.appendChild(header);
     content.appendChild(body);
 
@@ -237,14 +237,12 @@ async function updateNotifications(force = false) {
         // Create new abort controller
         abortController = new AbortController();
 
-        fetchPromise = makeAuthenticatedRequest('/api/v1/notifications?include_counts=true', 'GET', null, {
-            signal: abortController.signal
-        });
-
+        fetchPromise = makeAuthenticatedRequest('/api/v1/notifications?include_counts=true');
         const response = await fetchPromise;
         const data = await response.json();
 
         if (!data || !data.notifications) {
+            console.warn('No notifications data received');
             return;
         }
 
@@ -267,8 +265,15 @@ async function updateNotifications(force = false) {
             }
         }
     } catch (error) {
+        console.error('Error updating notifications:', error);
+
         if (error.name === 'AbortError') {
             return; // Ignore aborted requests
+        }
+
+        // If the error message indicates authentication failure, let makeAuthenticatedRequest handle the redirect
+        if (error.message.includes('Authentication failed') || error.message.includes('Token expired')) {
+            return;
         }
 
         const popoverElement = document.querySelector('.popover.notifications-popover.show');
@@ -278,6 +283,7 @@ async function updateNotifications(force = false) {
             errorContent.innerHTML = `
                 <i class="fas fa-exclamation-circle"></i>
                 <p class="mb-0">Failed to load notifications</p>
+                <small class="text-muted">${error.message}</small>
             `;
             notificationsPopover.setContent({ '.popover-body': errorContent });
         }

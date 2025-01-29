@@ -51,6 +51,7 @@
                                                                 <th>Type</th>
                                                                 <th>Status</th>
                                                                 <th class="text-center" style="width: 50px;">Info</th>
+                                                                <th class="text-center" style="width: 100px;">Actions</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -84,6 +85,9 @@
                                                                             </span>
                                                                         {% endif %}
                                                                     </td>
+                                                                    <td class="text-center">
+                                                                        <button class="btn btn-sm btn-info view-details" data-item-id="{{ item.id }}" aria-label="View details for {{ item.item_name }}">Details</button>
+                                                                    </td>
                                                                 </tr>
                                                             {% endfor %}
                                                         </tbody>
@@ -106,6 +110,60 @@
     </div>
 </div>
 
+<!-- Item Details Modal -->
+<div class="modal fade" id="itemDetailsModal" tabindex="-1" aria-labelledby="itemDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="itemDetailsModalLabel">Item Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="detailsLoadingSpinner" class="text-center d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading details...</span>
+                    </div>
+                </div>
+                <div id="detailsError" class="alert alert-danger d-none" role="alert"></div>
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="extracted-tab" data-bs-toggle="tab" data-bs-target="#extracted"
+                                type="button" role="tab" aria-controls="extracted" aria-selected="true">
+                            Extracted Text
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="log-tab" data-bs-toggle="tab" data-bs-target="#log"
+                                type="button" role="tab" aria-controls="log" aria-selected="false">
+                            Processing Log
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="error-tab" data-bs-toggle="tab" data-bs-target="#error"
+                                type="button" role="tab" aria-controls="error" aria-selected="false">
+                            Errors
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content mt-3">
+                    <div class="tab-pane fade show active" id="extracted" role="tabpanel" aria-labelledby="extracted-tab">
+                        <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"></pre>
+                    </div>
+                    <div class="tab-pane fade" id="log" role="tabpanel" aria-labelledby="log-tab">
+                        <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"></pre>
+                    </div>
+                    <div class="tab-pane fade" id="error" role="tabpanel" aria-labelledby="error-tab">
+                        <pre class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     'use strict';
@@ -113,6 +171,38 @@
         var tooltipElements = document.querySelectorAll('[data-bs-toggle="tooltip"]');
         tooltipElements.forEach(function(element) {
             new bootstrap.Tooltip(element);
+        });
+
+        // Handle viewing item details
+        $(document).on('click', '.view-details', async function() {
+            const itemId = $(this).data('item-id');
+            const loadingSpinner = $('#detailsLoadingSpinner');
+            const errorAlert = $('#detailsError');
+
+            try {
+                loadingSpinner.removeClass('d-none');
+                errorAlert.addClass('d-none');
+
+                const response = await makeAuthenticatedRequest(`/api/v1/indexing/items/${itemId}/details`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to fetch item details');
+                }
+
+                // Update modal content
+                $('#extracted pre').text(data.item_extractedtext || 'No extracted text available');
+                $('#log pre').text(data.item_log || 'No log available');
+                $('#error pre').text(data.item_error || 'No errors');
+
+                // Show the modal
+                $('#itemDetailsModal').modal('show');
+            } catch (error) {
+                console.error('Error fetching item details:', error);
+                errorAlert.text(error.message).removeClass('d-none');
+            } finally {
+                loadingSpinner.addClass('d-none');
+            }
         });
     });
 })();

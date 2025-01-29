@@ -93,25 +93,39 @@ def user_profile():
 
         # Validate date format
         birth_date = request.form.get("birth_date", "")
-        try:
-            if birth_date:
-                datetime.strptime(birth_date, "%Y-%m-%d")
-        except ValueError:
+        if birth_date:
+            try:
+                # Parse the date and ensure it's in the past
+                parsed_date = datetime.strptime(birth_date, "%Y-%m-%d")
+                if parsed_date > datetime.now():
+                    flash("Birth date cannot be in the future", "danger")
+                    return redirect(url_for("auth.profile"))
+                birth_date = parsed_date.date()
+            except ValueError:
+                flash("Invalid date format. Please use YYYY-MM-DD", "danger")
+                return redirect(url_for("auth.profile"))
+        else:
             birth_date = None
 
         # Validate URL format
         avatar_url = request.form.get("avatar_url", "")
         if avatar_url and not url_validator(avatar_url):
-            avatar_url = None
+            flash("Invalid avatar URL format", "danger")
+            return redirect(url_for("auth.profile"))
 
-        update_user_profile(
-            user_id=current_user.id,
-            bio=bio,
-            location=location,
-            birth_date=birth_date,
-            avatar_url=avatar_url,
-        )
-        flash("Profile updated successfully", "success")
+        try:
+            update_user_profile(
+                user_id=current_user.id,
+                bio=bio,
+                location=location,
+                birth_date=birth_date,
+                avatar_url=avatar_url,
+            )
+            flash("Profile updated successfully", "success")
+        except Exception as e:
+            flash(f"Error updating profile: {str(e)}", "danger")
+            logging.error(f"Error updating profile for user {current_user.id}: {e}")
+
         return redirect(url_for("auth.profile"))
 
 

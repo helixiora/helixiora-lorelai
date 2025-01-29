@@ -14,11 +14,26 @@ from sqlalchemy import text
 @with_appcontext
 def init_db_command():
     """Clear existing data and create new tables."""
-    db.create_all()
+    try:
+        db.create_all()
+        click.echo("Created database tables.")
+    except Exception as e:
+        click.echo(f"Error creating tables: {e}")
 
-    # create the alembic version table
-    db.session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
-    db.session.commit()
+    try:
+        # Check if alembic_version table exists
+        result = db.session.execute(text("SHOW TABLES LIKE 'alembic_version'"))
+        if not result.fetchone():
+            db.session.execute(
+                text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+            )
+            click.echo("Created alembic_version table.")
+        else:
+            click.echo("Alembic version table already exists.")
+        db.session.commit()
+    except Exception as e:
+        click.echo(f"Error handling alembic_version table: {e}")
+        db.session.rollback()
 
     click.echo("Initialized the database.")
 
@@ -30,27 +45,47 @@ def seed_db_command():
     click.echo("Seeding the database...")
 
     click.echo("Creating datasources...")
-    # Add your seed data here, for example:
-    datasource = Datasource(datasource_name="Slack", datasource_type="oauth")
-    db.session.add(datasource)
-    datasource = Datasource(datasource_name="Google Drive", datasource_type="oauth")
-    db.session.add(datasource)
+    # Add datasources if they don't exist
+    datasources = [{"name": "Slack", "type": "oauth"}, {"name": "Google Drive", "type": "oauth"}]
+    for ds in datasources:
+        if not Datasource.query.filter_by(datasource_name=ds["name"]).first():
+            datasource = Datasource(datasource_name=ds["name"], datasource_type=ds["type"])
+            db.session.add(datasource)
+            click.echo(f"Added datasource: {ds['name']}")
+        else:
+            click.echo(f"Skipped existing datasource: {ds['name']}")
     db.session.commit()
 
     click.echo("Creating plans...")
-    plan = Plan(plan_name="Free", price=0, duration_months=30, message_limit_daily=1000)
-    db.session.add(plan)
-    plan = Plan(plan_name="Pro", price=10, duration_months=30, message_limit_daily=10000)
-    db.session.add(plan)
+    # Add plans if they don't exist
+    plans = [
+        {"name": "Free", "price": 0, "duration": 30, "limit": 1000},
+        {"name": "Pro", "price": 10, "duration": 30, "limit": 10000},
+    ]
+    for p in plans:
+        if not Plan.query.filter_by(plan_name=p["name"]).first():
+            plan = Plan(
+                plan_name=p["name"],
+                price=p["price"],
+                duration_months=p["duration"],
+                message_limit_daily=p["limit"],
+            )
+            db.session.add(plan)
+            click.echo(f"Added plan: {p['name']}")
+        else:
+            click.echo(f"Skipped existing plan: {p['name']}")
     db.session.commit()
 
     click.echo("Creating roles...")
-    role = Role(role_name="org_admin")
-    db.session.add(role)
-    role = Role(role_name="super_admin")
-    db.session.add(role)
-    role = Role(role_name="user")
-    db.session.add(role)
+    # Add roles if they don't exist
+    roles = ["super_admin", "org_admin", "user"]
+    for role_name in roles:
+        if not Role.query.filter_by(name=role_name).first():
+            role = Role(name=role_name)
+            db.session.add(role)
+            click.echo(f"Added role: {role_name}")
+        else:
+            click.echo(f"Skipped existing role: {role_name}")
     db.session.commit()
 
-    click.echo("Seeded the database.")
+    click.echo("Seeded the database with initial data.")

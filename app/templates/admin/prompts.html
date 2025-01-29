@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Prompt Templates</h2>
+    <div class="mb-3">
+        <a href="{{ url_for('admin.new_prompt') }}" class="btn btn-primary">Add New Prompt Template</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Key</th>
+                    <th>Description</th>
+                    <th>Last Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for prompt in prompts %}
+                <tr>
+                    <td>{{ prompt.key }}</td>
+                    <td>{{ prompt.description }}</td>
+                    <td>{{ prompt.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.edit_prompt', config_id=prompt.config_id) }}" class="btn btn-sm btn-primary">Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
