@@ -93,7 +93,6 @@ class PineconeHelper:
                 current_app.config["PINECONE_METRIC"],
                 ServerlessSpec(cloud="aws", region=region),
             )
-
         return index, name
 
     def list_indexes(self) -> list[str]:
@@ -264,8 +263,8 @@ class PineconeHelper:
             index, _ = self.get_index(
                 org_name=org_name,
                 datasource=datasource_name,
-                environment=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
-                env_name=current_app.config["LORELAI_ENVIRONMENT"],
+                environment=current_app.config["LORELAI_ENVIRONMENT"],
+                env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
                 version="v1",
             )
 
