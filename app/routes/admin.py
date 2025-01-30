@@ -35,6 +35,8 @@ from app.helpers.users import (
 from lorelai.pinecone import PineconeHelper
 from lorelai.utils import send_invite_email, create_jwt_token_invite_user
 
+from app.models.config import Config
+
 admin_bp = Blueprint("admin", __name__)
 
 
@@ -337,3 +339,73 @@ def indexing_runs():
         logging.error(f"Database error: {e}")
         flash("Failed to retrieve indexing runs.", "error")
         return render_template("admin/indexing_runs.html", indexing_runs=[])
+
+
+@admin_bp.route("/admin/prompts", methods=["GET"])
+@login_required
+def list_prompts():
+    """List all prompt templates."""
+    if not current_user.is_super_admin():
+        flash("Only super admins can manage prompts.", "error")
+        return redirect(url_for("admin.admin_dashboard"))
+
+    prompts = Config.query.filter(Config.key.like("%_prompt_template")).all()
+    return render_template("admin/prompts.html", prompts=prompts)
+
+
+@admin_bp.route("/admin/prompts/edit/<int:config_id>", methods=["GET", "POST"])
+@login_required
+def edit_prompt(config_id):
+    """Edit a prompt template."""
+    if not current_user.is_super_admin():
+        flash("Only super admins can manage prompts.", "error")
+        return redirect(url_for("admin.admin_dashboard"))
+
+    config = Config.query.get_or_404(config_id)
+
+    if request.method == "POST":
+        value = request.form.get("value")
+        description = request.form.get("description")
+
+        if not value:
+            flash("Prompt template cannot be empty.", "danger")
+            return render_template("admin/edit_prompt.html", config=config)
+
+        config.value = value
+        config.description = description
+        db.session.commit()
+
+        flash("Prompt template updated successfully.", "success")
+        return redirect(url_for("admin.prompts"))
+
+    return render_template("admin/edit_prompt.html", config=config)
+
+
+@admin_bp.route("/admin/prompts/new", methods=["GET", "POST"])
+@login_required
+def new_prompt():
+    """Create a new prompt template."""
+    if not current_user.is_super_admin():
+        flash("Only super admins can manage prompts.", "error")
+        return redirect(url_for("admin.admin_dashboard"))
+
+    if request.method == "POST":
+        key = request.form.get("key")
+        value = request.form.get("value")
+        description = request.form.get("description")
+
+        if not key or not value:
+            flash("Key and prompt template are required.", "danger")
+            return render_template("admin/new_prompt.html")
+
+        if not key.endswith("_prompt_template"):
+            key = f"{key}_prompt_template"
+
+        config = Config(key=key, value=value, description=description)
+        db.session.add(config)
+        db.session.commit()
+
+        flash("Prompt template created successfully.", "success")
+        return redirect(url_for("admin.prompts"))
+
+    return render_template("admin/new_prompt.html")
