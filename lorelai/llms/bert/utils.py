@@ -1,6 +1,7 @@
 from lorelai.llms.bert.pipeline import DistilBertPreprocessingPipeline
 from transformers import AutoModelForSequenceClassification, DistilBertTokenizer
 import torch
+import timm
 
 label_dict = {
     0:"Clarification",
@@ -23,10 +24,9 @@ def preprocess_data(texts, labels=None, model_name="distilbert-base-uncased", ma
     pipeline = DistilBertPreprocessingPipeline(model_name=model_name, max_length=max_length)
     return pipeline.preprocess_batch(texts, labels)
 
-MODEL_PATH = "lorelai/llms/bert/checkpoint-24"
-tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
-pipeline = DistilBertPreprocessingPipeline()
+# tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+# model = timm.create_model('hf_hub:Hristo-Karagyozov/distilbert-prompt-classifier', pretrained=True)
+# pipeline = DistilBertPreprocessingPipeline()
 
 # Function to process inputs and return predictions
 def predict_prompt_type(question):

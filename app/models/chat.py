@@ -20,6 +20,7 @@ class ChatMessage(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     sources = db.Column(db.JSON, nullable=True)
     marked_deleted = db.Column(db.Boolean, default=False)
+    classified_prompt = db.Column(db.String(255), nullable=True)
 
     # Relationships
     conversation = db.relationship(
