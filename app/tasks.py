@@ -57,7 +57,6 @@ def get_answer_from_rag(
             try:
                 # Measure time for inserting conversation
                 conversation_start_time = time.time()
-                capture_message("BULBASUR")
                 logging.info("User email: %s, Org name: %s", user_email, organisation_name)
 
                 if user_email is None or organisation_name is None:
@@ -149,7 +148,7 @@ def get_answer_from_rag(
                 # Capture exception with Sentry
                 capture_exception(e)
                 capture_message("err in exp")
-                logging.error(f"Error in get_answer_from_rag: {str(e)}")
+                logging.error(f"Error in get_answer_from_rag: {str(e)}", exc_info=True)
                 return {
                     "answer": "An error occurred while processing your request. Please try again.",
                     "status": "error",

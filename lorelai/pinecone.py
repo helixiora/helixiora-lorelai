@@ -13,7 +13,6 @@ class PineconeHelper:
     def __init__(self):
         """Initialize the PineconeHelper class."""
         os.environ["PINECONE_API_KEY"] = current_app.config["PINECONE_API_KEY"]
-
         self.pinecone_client = pinecone.Pinecone()
 
     @staticmethod
@@ -21,25 +20,26 @@ class PineconeHelper:
         org_name: str,
         datasource: str,
         environment: str = "dev",
-        env_name: str = "lorelai",
+        environment_slug: str = "lorelai",
         version: str = "v1",
     ) -> str:
         """Return the pinecone index name for the org.
 
         Arguments:
         ---------
-            org (str): The name of the organisation.
+            org_name (str): The name of the organisation.
             datasource (str): The name of the datasource.
             environment (str): The environment (e.g. dev, prod).
-            env_name (str): The name of the environment (e.g. lorelai, openai).
+            environment_slug (str): The environment slug (e.g. lorelai, walter).
             version (str): The version of the index (e.g. v1).
 
         Returns
         -------
-            str: The name of the pinecone index.
+            str: The name of the pinecone index in format:
+                {environment}-{environment_slug}-{org_name}-{datasource}-{version}
 
         """
-        parts = [environment, env_name, org_name, datasource, version]
+        parts = [environment, environment_slug, org_name, datasource, version]
         name = "-".join(parts)
         name = name.lower().replace(".", "-").replace(" ", "-")
         return name
@@ -49,19 +49,20 @@ class PineconeHelper:
         org_name: str,
         datasource: str,
         environment: str = "dev",
-        env_name: str = "lorelai",
+        environment_slug: str = "lorelai",
         version: str = "v1",
         create_if_not_exists: bool = True,
     ) -> tuple[pinecone.Index, str]:
-        """Return the pinecone index name for the org.
+        """Return the pinecone index for the org.
 
         Arguments:
         ---------
-            org (str): The name of the organisation.
+            org_name (str): The name of the organisation.
             datasource (str): The name of the datasource.
             environment (str): The environment (e.g. dev, prod).
-            env_name (str): The name of the environment (e.g. lorelai, openai).
+            environment_slug (str): The environment slug (e.g. lorelai, walter).
             version (str): The version of the index (e.g. v1).
+            create_if_not_exists (bool): Whether to create the index if it doesn't exist.
 
         Returns
         -------
@@ -72,7 +73,7 @@ class PineconeHelper:
             org_name=org_name,
             datasource=datasource,
             environment=environment,
-            env_name=env_name,
+            environment_slug=environment_slug,
             version=version,
         )
 
@@ -86,7 +87,6 @@ class PineconeHelper:
             logging.debug(f"Index {name} not found")
 
         if create_if_not_exists and not found:
-            # todo get spec
             index = self.create_index(
                 name,
                 int(current_app.config["PINECONE_DIMENSION"]),
@@ -253,8 +253,7 @@ class PineconeHelper:
 
         Args:
             user_id (int): The ID of the user whose vectors should be deleted/updated
-            datasource_name (str): The name of the datasource whose vectors should be
-            deleted/updated
+            datasource_name (str): Name of the datasource whose vectors should be deleted/updated
             user_email (str): The email address of the user whose vectors should be deleted/updated
             org_name (str): The name of the organization to determine the index name
         """
@@ -263,23 +262,21 @@ class PineconeHelper:
             index, _ = self.get_index(
                 org_name=org_name,
                 datasource=datasource_name,
-                environment=current_app.config["LORELAI_ENVIRONMENT"],
-                env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+                environment=current_app.config["LORELAI_ENVIRONMENT"],  # e.g. 'dev'
+                environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],  # e.g. 'walter'
                 version="v1",
             )
 
             # First, find all vectors where this user's email is in the users list
             vector_query = index.query(
-                vector=[0.0]
-                * int(
-                    current_app.config["PINECONE_DIMENSION"]
-                ),  # dummy vector for metadata filtering
+                vector=[0.0] * int(current_app.config["PINECONE_DIMENSION"]),
                 filter={"users": {"$in": [user_email]}},
-                top_k=10000,  # adjust if needed
+                top_k=10000,
                 include_metadata=True,
             )
 
             vectors_to_delete = []
+            updated_vectors = 0
             for match in vector_query.matches:
                 users = match.metadata.get("users", [])
                 if len(users) == 1 and users[0] == user_email:
@@ -289,25 +286,23 @@ class PineconeHelper:
                     # Remove the user from the users list
                     users.remove(user_email)
                     index.update(id=match.id, set_metadata={"users": users})
+                    updated_vectors += 1
 
             # Delete vectors where this was the only user
             if vectors_to_delete:
                 index.delete(ids=vectors_to_delete)
 
-            # Keep track of updated vectors
-            updated_vectors_count = len(vector_query.matches) - len(vectors_to_delete)
-
             logging.info(
-                f"Successfully processed vectors for user {user_email} (ID: {user_id}) and \
-datasource {datasource_name} in org {org_name}. "
-                f"Deleted {len(vectors_to_delete)} vectors and updated users list in \
-{updated_vectors_count} vectors."
+                f"Successfully processed vectors for user {user_email} (ID: {user_id}) and "
+                f"datasource {datasource_name} in org {org_name}. "
+                f"Deleted {len(vectors_to_delete)} vectors and updated users list in "
+                f"{updated_vectors} vectors."
             )
 
         except Exception as e:
             logging.error(
-                f"Error processing vectors for user {user_email} (ID: {user_id}) and datasource \
-{datasource_name} in org {org_name}: {str(e)}"
+                f"Error processing vectors for user {user_email} (ID: {user_id}) and datasource "
+                f"{datasource_name} in org {org_name}: {str(e)}"
             )
             raise
 
