@@ -67,7 +67,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
                 org_name=self.org_name,
                 datasource=DATASOURCE_GOOGLE_DRIVE,
                 environment=self.environment,
-                env_name=self.environment_slug,
+                environment_slug=self.environment_slug,
                 version="v1",
             )
             logging.info(f"Using Pinecone index for Google Drive: {name}")
@@ -113,7 +113,7 @@ class GoogleDriveContextRetriever(ContextRetriever):
             )
             context_response.append(context_document)
         end_time = time.time()
-        logging.info(f"GoogleDriveContextRetriever took: {end_time-start_time}")
+        logging.info(f"GoogleDriveContextRetriever took: {end_time - start_time}")
         logging.info(f"Found {len(context_response)} context from GoogleDrive")
         return LorelaiContextRetrievalResponse(
             datasource_name="googledrive",

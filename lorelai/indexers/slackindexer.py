@@ -114,7 +114,7 @@ class SlackIndexer(Indexer):
             org_name=indexing_run.organisation.name,
             datasource=DATASOURCE_SLACK,
             environment=current_app.config["LORELAI_ENVIRONMENT"],
-            env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+            environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
             version="v1",
             create_if_not_exists=True,
         )
