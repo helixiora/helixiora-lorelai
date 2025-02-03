@@ -75,7 +75,7 @@ repos:
         # Removes unnecessary trailing whitespace.
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.2
+    rev: v0.9.4
     hooks:
       - id: ruff
         args: [--fix]
@@ -85,16 +85,16 @@ repos:
         # Runs Ruff formatter to enforce a consistent code style in Python files.
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.14.0
+    rev: v0.17.2
     hooks:
       - id: markdownlint-cli2
 
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.3.0
+    rev: v2.4.1
     hooks:
       - id: codespell
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.18 # Use the desired version
+    rev: 0.7.22 # Use the desired version
     hooks:
       - id: mdformat
