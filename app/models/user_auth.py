@@ -1,5 +1,7 @@
 """User auth model."""
 
+from sqlalchemy.orm import relationship
+
 from app.database import db
 
 
@@ -14,3 +16,6 @@ class UserAuth(db.Model):
     auth_key = db.Column(db.String(255), nullable=False)
     auth_value = db.Column(db.String(255), nullable=False)
     auth_type = db.Column(db.String(255), nullable=False)
+
+    # Add the relationship
+    datasource = relationship("Datasource", backref="user_auths")
