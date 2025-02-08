@@ -45,7 +45,6 @@ def seed_db_command():
     click.echo("Seeding the database...")
 
     click.echo("Creating datasources...")
-
     # Add datasources if they don't exist
     datasources = [{"name": "Slack", "type": "oauth"}, {"name": "Google Drive", "type": "oauth"}]
     for ds in datasources:
