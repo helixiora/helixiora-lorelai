@@ -7,7 +7,11 @@ import time
 from rq import get_current_job
 from sentry_sdk import capture_exception, capture_message, set_tag, start_transaction
 
-from app.helpers.chat import insert_conversation_ignore, insert_message
+from app.helpers.chat import (
+    insert_conversation_ignore,
+    insert_message,
+    get_all_conversation_messages,
+)
 from app.helpers.notifications import add_notification
 from app.schemas import OrganisationSchema, UserAuthSchema, UserSchema
 
@@ -56,7 +60,6 @@ def get_answer_from_rag(
             try:
                 # Measure time for inserting conversation
                 conversation_start_time = time.time()
-                capture_message("BULBASUR")
                 logging.info("User email: %s, Org name: %s", user_email, organisation_name)
 
                 if user_email is None or organisation_name is None:
@@ -81,6 +84,21 @@ def get_answer_from_rag(
                 set_tag("conversation_insertion_time", conversation_time_taken)
                 logging.info(f"Conversation insertion took {conversation_time_taken:.2f} seconds.")
 
+                # Get conversation history
+                history_start_time = time.time()
+                conversation_history = get_all_conversation_messages(conversation_id)
+                history_time_taken = time.time() - history_start_time
+                set_tag("history_retrieval_time", history_time_taken)
+                logging.info(f"History retrieval took {history_time_taken:.2f} seconds.")
+
+                # Format conversation history
+                history_context = ""
+                if conversation_history:
+                    history_context = "Previous conversation:\n"
+                    for msg in conversation_history:
+                        role = "User" if msg["sender"] == "user" else "Assistant"
+                        history_context += f"{role}: {msg['message_content']}\n"
+
                 # Measure time for inserting message
                 message_start_time = time.time()
                 insert_message(
@@ -101,7 +119,10 @@ def get_answer_from_rag(
                     model_type=model_type, user_email=user_email, org_name=organisation_name
                 )
                 get_answer_time_start = time.time()
-                response = llm.get_answer(question=chat_message)
+                # Include conversation history in the question
+                response = llm.get_answer(
+                    question=chat_message, conversation_history=history_context
+                )
                 status = "success"
 
                 # Log time taken for getting the answer
@@ -133,7 +154,7 @@ def get_answer_from_rag(
                 # Capture exception with Sentry
                 capture_exception(e)
                 capture_message("err in exp")
-                logging.error(f"Error in get_answer_from_rag: {str(e)}")
+                logging.error(f"Error in get_answer_from_rag: {str(e)}", exc_info=True)
                 return {
                     "answer": "An error occurred while processing your request. Please try again.",
                     "status": "error",

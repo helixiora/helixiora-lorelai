@@ -68,7 +68,7 @@ class SlackContextRetriever(ContextRetriever):
                 org_name=self.org_name,
                 datasource=DATASOURCE_SLACK,
                 environment=self.environment,
-                env_name=self.environment_slug,
+                environment_slug=self.environment_slug,
                 version="v1",
             )
         except Exception as e:
@@ -111,7 +111,7 @@ class SlackContextRetriever(ContextRetriever):
             )
             context_response.append(context_document)
         end_time = time.time()
-        logging.info(f"SlackContextRetriever took: {end_time-start_time}")
+        logging.info(f"SlackContextRetriever took: {end_time - start_time}")
         logging.info(f"Found {len(context_response)} context from Slack")
         return LorelaiContextRetrievalResponse(
             datasource_name=DATASOURCE_SLACK,

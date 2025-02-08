@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>New Prompt Template</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <div class="mb-3">
+            <label for="key" class="form-label">Key</label>
+            <input type="text" class="form-control" id="key" name="key" required>
+            <small class="text-muted">The key should be descriptive (e.g., 'openai' or 'ollama'). '_prompt_template' will be added automatically.</small>
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <input type="text" class="form-control" id="description" name="description">
+            <small class="text-muted">A brief description of what this prompt template is used for</small>
+        </div>
+        <div class="mb-3">
+            <label for="value" class="form-label">Prompt Template</label>
+            <textarea class="form-control" id="value" name="value" rows="10" required></textarea>
+            <small class="text-muted">
+                Available variables: {context_doc_text}, {conversation_history}, {question}<br>
+                Format the template in markdown
+            </small>
+        </div>
+        <div class="mb-3">
+            <button type="submit" class="btn btn-primary">Create Template</button>
+            <a href="{{ url_for('admin.list_prompts') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

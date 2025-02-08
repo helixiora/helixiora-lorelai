@@ -52,7 +52,7 @@ bulk_ids_model = notifications_ns.model(
 )
 
 
-@notifications_ns.route("/")
+@notifications_ns.route("")
 class GetNotificationsResource(Resource):
     """Resource for getting notifications."""
 

@@ -59,7 +59,7 @@ There are two ways LorelAI can be deployed/ran:
 
    - You will be asked to create an organisation if one doesn't exist in the MySQL database.
    - Note that this organisation name will be the index name of the vector database following this
-     structure: $env_name-$slug-$whatever_you_put_in_org_name
+     structure: $environment-$environment_slug-$org_name-$datasource-$version
    - There's a limitation to the length of the index name sot the above string should not exceed 45
      characters.
    - Follow the on-screen instructions to log in and authorize access to Google Drive.

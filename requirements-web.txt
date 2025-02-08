@@ -1,4 +1,4 @@
-authlib==1.4.0
+authlib==1.4.1
 Flask==3.1.0
 gevent==24.11.1
 gunicorn==23.0.0

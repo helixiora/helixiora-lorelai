@@ -280,7 +280,7 @@ function setupBulkActions() {
 
         try {
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/read', 'POST', {
-                notification_ids: selectedIds
+                ids: selectedIds
             });
 
             if (!response.ok) {
@@ -322,7 +322,7 @@ function setupBulkActions() {
 
         try {
             const response = await makeAuthenticatedRequest('/api/v1/notifications/bulk/dismiss', 'POST', {
-                notification_ids: selectedIds
+                ids: selectedIds
             });
 
             if (!response.ok) {
@@ -414,7 +414,7 @@ async function fetchNotifications() {
         const filters = getFilterValues();
         const params = new URLSearchParams(filters);
 
-        const response = await makeAuthenticatedRequest(`/api/v1/notifications/?${params.toString()}`, 'GET');
+        const response = await makeAuthenticatedRequest(`/api/v1/notifications?${params.toString()}`, 'GET');
         if (!response.ok) {
             throw new Error('Failed to fetch notifications');
         }

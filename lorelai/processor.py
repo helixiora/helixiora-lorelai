@@ -147,7 +147,7 @@ tagged by {indexing_run.user.email}, removing from list"
         formatted_documents = []
         logging.info(
             f" Number documents {len(documents)} == Number embeds {len(embeds)} \
-                == {len(embeds)==len(documents)}"
+                == {len(embeds) == len(documents)}"
         )
         if len(documents) != len(embeds):
             raise ValueError("Embeds length and document length mismatch")
@@ -225,8 +225,8 @@ indexing run: {indexing_run.id}"
         for doc in formatted_documents:
             if doc["metadata"]["source"] in db_vector_dict:
                 logging.debug(
-                    f'{doc["metadata"]["source"]} already in pinecone index for user: \
-{indexing_run.user.email} indexing run: {indexing_run.id}'
+                    f"{doc['metadata']['source']} already in pinecone index for user: \
+{indexing_run.user.email} indexing run: {indexing_run.id}"
                 )
                 logging.debug(f"Size before {len(db_vector_dict)}")
                 db_vector_dict.pop(doc["metadata"]["source"])
@@ -235,7 +235,7 @@ indexing run: {indexing_run.id}"
         delete_vector_title_list = []
         for key in db_vector_dict:
             logging.info(
-                f'{indexing_run.user.email} does not have access to {db_vector_dict[key]["title"]}'
+                f"{indexing_run.user.email} does not have access to {db_vector_dict[key]['title']}"
             )
             # if document have 2 users in metadata, then remove only 1 user
             if len(db_vector_dict[key]["users"]) >= 2:
@@ -322,7 +322,7 @@ run: {indexing_run.id}"
             org_name=indexing_run.organisation.name,
             datasource=indexing_run.datasource.datasource_name,
             environment=current_app.config["LORELAI_ENVIRONMENT"],
-            env_name=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
+            environment_slug=current_app.config["LORELAI_ENVIRONMENT_SLUG"],
             version="v1",
             create_if_not_exists=True,
         )
