@@ -7,6 +7,7 @@ model.
 
 from lorelai.llms.bert.pipeline import DistilBertPreprocessingPipeline
 import torch
+from transformers import AutoModelForSequenceClassification
 
 label_dict = {0: "Clarification", 1: "Factual", 2: "Operational", 3: "Summarization"}
 
@@ -34,25 +35,22 @@ def preprocess_data(
     return pipeline.preprocess_batch(texts, labels)
 
 
-# tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-# model = timm.create_model('hf_hub:Hristo-Karagyozov/distilbert-prompt-classifier',
-# pretrained=True)
-# pipeline = DistilBertPreprocessingPipeline()
-
-
 # Function to process inputs and return predictions
-def predict_prompt_type(question: str, model: torch.nn.Module) -> str:
+def predict_prompt_type(question: str) -> str:
     """Predict the prompt type for a given question.
 
     Args
     ----
         question (str): The question to predict the prompt type for.
-        model (torch.nn.Module): The model to use for prediction.
+        # model (torch.nn.Module): The model to use for prediction.
 
     Returns
     -------
         str: The predicted prompt type.
     """
+    model = AutoModelForSequenceClassification.from_pretrained(
+        "helixiora/distilbert-prompt-classifier"
+    )
     preprocessed = preprocess_data(question)
     input_ids = preprocessed["input_ids"]
     attention_mask = preprocessed["attention_mask"]

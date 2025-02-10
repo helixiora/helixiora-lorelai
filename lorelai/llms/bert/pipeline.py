@@ -70,7 +70,7 @@ class DistilBertPreprocessingPipeline:
             dict: Preprocessed data with input IDs, attention mask, and labels.
         """
         tokenized = self.tokenizer(
-            texts=texts,
+            texts,
             max_length=self.max_length,
             padding="max_length",
             truncation=True,
