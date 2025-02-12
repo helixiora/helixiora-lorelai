@@ -10,14 +10,15 @@ Classes:
 import io
 import logging
 import os
+import tempfile
 
 from flask import current_app
 from google.auth.credentials import TokenState
 from google.oauth2 import credentials
 from googleapiclient.discovery import build
+from langchain_community.document_loaders.llmsherpa import LLMSherpaFileLoader
 from langchain_core.documents import Document
 from langchain_googledrive.document_loaders import GoogleDriveLoader
-from langchain_community.document_loaders.llmsherpa import LLMSherpaFileLoader
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.helpers.datasources import DATASOURCE_GOOGLE_DRIVE
@@ -577,6 +578,7 @@ class GoogleDriveIndexer(Indexer):
         :return: the list of documents loaded from Google Drive
         """
         logging.info(f"Loading Google Drive PDF ID: {doc_google_drive_id}")
+        temp_file = None
 
         try:
             # First get complete file metadata using Google Drive API
@@ -590,13 +592,16 @@ class GoogleDriveIndexer(Indexer):
             # Download the PDF content
             file = service.files().get_media(fileId=doc_google_drive_id).execute()
 
-            # Save to temporary file
-            temp_file_path = f"/tmp/{doc_google_drive_id}.pdf"
-            with open(temp_file_path, "wb") as f:
-                f.write(file)
+            # Create a temporary file with .pdf extension
+            temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+            temp_file.write(file)
+            temp_file.close()  # Close the file but don't delete it yet
+            logging.info(
+                f"Created temporary file: {temp_file.name} for PDF ID: {doc_google_drive_id}"
+            )
 
             loader = LLMSherpaFileLoader(
-                file_path=temp_file_path,
+                file_path=temp_file.name,
                 new_indent_parser=True,
                 apply_ocr=True,
                 strategy="text",  # Changed to chunks for better consistency
@@ -628,13 +633,19 @@ class GoogleDriveIndexer(Indexer):
                 f"Successfully loaded {len(docs)} sections from PDF: {file_metadata['name']}"
             )
 
-            os.remove(temp_file_path)
-
             return docs
 
         except Exception as e:
             logging.error(f"Error loading PDF {doc_google_drive_id}: {str(e)}", exc_info=True)
             return []
+
+        finally:
+            # Clean up the temporary file
+            if temp_file and os.path.exists(temp_file.name):
+                try:
+                    os.unlink(temp_file.name)
+                except Exception as e:
+                    logging.warning(f"Error cleaning up temporary file: {str(e)}")
 
     def load_google_doc_from_text_id(
         self,
