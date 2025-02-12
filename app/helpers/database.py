@@ -30,10 +30,17 @@ def check_redis() -> tuple[bool, str]:
     """Check if the Redis server is up and running."""
     try:
         logging.debug(f"Connecting to Redis: {current_app.config['REDIS_URL']}")
-        r = redis.Redis.from_url(current_app.config["REDIS_URL"])
+        r = redis.Redis.from_url(
+            current_app.config["REDIS_URL"],
+            socket_timeout=5,  # 5 seconds timeout for operations
+            socket_connect_timeout=5,  # 5 seconds timeout for connection
+        )
         r.ping()
         return True, "Redis is reachable."
-    except redis.ConnectionError as e:
+    except (redis.ConnectionError, redis.TimeoutError) as e:
+        logging.exception("Redis check failed")
+        return False, str(e)
+    except Exception as e:
         logging.exception("Redis check failed")
         return False, str(e)
 
