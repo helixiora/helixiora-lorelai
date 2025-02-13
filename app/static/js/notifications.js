@@ -253,16 +253,17 @@ async function updateNotifications(force = false) {
 
         NotificationActions.updateBadgeCount(unreadActiveCount);
 
-        // Only update content if popover exists and is visible
-        const popoverElement = document.querySelector('.popover.notifications-popover.show');
-        if (notificationsPopover && popoverElement) {
+        // Update content regardless of popover visibility
+        if (notificationsPopover) {
             const content = createPopoverContent(activeNotifications);
-            // Prevent unnecessary content updates if content hasn't changed
-            const currentContent = popoverElement.querySelector('.notifications-content');
-            if (!currentContent || currentContent.innerHTML !== content.innerHTML) {
-                notificationsPopover.setContent({ '.popover-body': content });
+            notificationsPopover.setContent({ '.popover-body': content });
+
+            // If popover is visible, attach listeners
+            const popoverElement = document.querySelector('.popover.notifications-popover.show');
+            if (popoverElement) {
                 attachNotificationListeners(activeNotifications);
             }
+            return activeNotifications;
         }
     } catch (error) {
         console.error('Error updating notifications:', error);
@@ -276,8 +277,7 @@ async function updateNotifications(force = false) {
             return;
         }
 
-        const popoverElement = document.querySelector('.popover.notifications-popover.show');
-        if (notificationsPopover && popoverElement) {
+        if (notificationsPopover) {
             const errorContent = document.createElement('div');
             errorContent.className = 'text-center text-danger';
             errorContent.innerHTML = `
@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         html: true,
         content: createPopoverContent([]),
         placement: 'bottom',
-        trigger: 'focus',
+        trigger: 'manual',
         container: 'body',
         customClass: 'notifications-popover',
         animation: false,
@@ -385,11 +385,52 @@ document.addEventListener('DOMContentLoaded', () => {
     logoContainer.setAttribute('aria-expanded', 'false');
     logoContainer.setAttribute('tabindex', '0');
 
+    let isPopoverVisible = false;
+
+    // Handle click on logo container to toggle popover
+    logoContainer.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (isPopoverVisible) {
+            notificationsPopover.hide();
+            isPopoverVisible = false;
+        } else {
+            try {
+                // Force update notifications and get the notifications data
+                const notifications = await updateNotifications(true);
+
+                // Show the popover
+                notificationsPopover.show();
+                isPopoverVisible = true;
+
+                // Attach listeners after popover is shown
+                if (notifications) {
+                    attachNotificationListeners(notifications);
+                }
+            } catch (error) {
+                console.error('Error showing notifications:', error);
+            }
+        }
+    });
+
+    // Close popover when clicking outside
+    document.addEventListener('click', (event) => {
+        if (isPopoverVisible) {
+            const popoverElement = document.querySelector('.popover.notifications-popover');
+            const isClickInsidePopover = popoverElement && popoverElement.contains(event.target);
+            const isClickOnLogo = logoContainer.contains(event.target);
+
+            if (!isClickInsidePopover && !isClickOnLogo) {
+                notificationsPopover.hide();
+                isPopoverVisible = false;
+            }
+        }
+    });
+
     // Add event listeners for popover events
     logoContainer.addEventListener('show.bs.popover', () => {
         logoContainer.setAttribute('aria-expanded', 'true');
-        // Force update when showing
-        updateNotifications(true);
     });
 
     logoContainer.addEventListener('shown.bs.popover', () => {
@@ -403,10 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     logoContainer.addEventListener('hidden.bs.popover', () => {
         logoContainer.setAttribute('aria-expanded', 'false');
-        const popoverElement = document.querySelector('.popover.notifications-popover');
-        if (popoverElement) {
-            popoverElement.remove();
-        }
+        isPopoverVisible = false;
     });
 
     // Initial fetch
