@@ -43,10 +43,10 @@ const NotificationActions = {
                 .map(item => parseInt(item.getAttribute('data-notification-id')))  // Convert to integers
                 .filter(id => !isNaN(id));  // Filter out any invalid numbers
 
-            console.log("Notification IDs to mark as read:", notificationIds);
+
 
             if (notificationIds.length === 0) {
-                console.log("No unread notifications found");
+                //console.log("No unread notifications found");
                 return;
             }
 
@@ -159,7 +159,6 @@ function formatTimestamp(timestamp) {
 
 // Function to create popover content
 function createPopoverContent(notifications) {
-    console.log("First notification:", notifications?.[0] || "No notifications");
 
     const content = document.createElement('div');
     content.className = 'notifications-content';
@@ -354,7 +353,6 @@ function attachNotificationListeners(notifications) {
         markAllAsReadBtn.addEventListener('click', async (event) => {
             event.stopPropagation();
             try {
-                console.log("%%%%%%%%%%%%%%%%% running mark all as read");
                 await NotificationActions.markAllRead();
                 // Update badge count
                 NotificationActions.updateBadgeCount(0);
