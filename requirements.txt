@@ -20,7 +20,7 @@ langchain-pinecone==0.2.3
 llmsherpa==0.1.4
 mysql-connector-python==9.2.0
 mysqlclient==2.2.7
-pinecone==6.0.1
+pinecone==5.4.2
 pydantic==2.10.6
 pydantic[email]==2.10.6
 PyJWT==2.10.1
