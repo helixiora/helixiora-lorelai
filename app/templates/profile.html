@@ -28,7 +28,7 @@
                     <li class="list-group-item"><strong>Organisation:</strong> {{ user.organisation }}</li>
                     <li class="list-group-item"><strong>Role:</strong>
                         {% for role in user.roles %}
-                            {{ role.name }}{% if not loop.last %}, {% endif %}
+                            <span class="badge rounded-pill bg-primary me-1">{{ role.name }}</span>
                         {% endfor %}
                     </li>
                 </ul>
