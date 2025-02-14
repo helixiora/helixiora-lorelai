@@ -36,12 +36,17 @@ const NotificationActions = {
 
     markAllRead: async function() {
         try {
-            const notificationIds = Array.from(document.querySelectorAll('.notification-item'))
-                .filter(item => item.querySelector('.mark-read-btn'))
-                .map(item => item.dataset.notificationId)
-                .filter(id => id);
+            // Get all unread notification elements
+            const notificationElements = document.querySelectorAll('.list-group-item[data-notification-id]');
+            const notificationIds = Array.from(notificationElements)
+                .filter(item => item.querySelector('.mark-read-btn'))  // Only get unread notifications
+                .map(item => parseInt(item.getAttribute('data-notification-id')))  // Convert to integers
+                .filter(id => !isNaN(id));  // Filter out any invalid numbers
+
+            console.log("Notification IDs to mark as read:", notificationIds);
 
             if (notificationIds.length === 0) {
+                console.log("No unread notifications found");
                 return;
             }
 
@@ -50,7 +55,9 @@ const NotificationActions = {
             });
 
             if (response.ok) {
-                await response.json();
+                const result = await response.json();
+                console.log("Mark all as read response:", result);
+
                 // Update UI directly instead of fetching
                 notificationIds.forEach(id => {
                     const notificationElement = document.getElementById(`notification-${id}`);
@@ -68,6 +75,7 @@ const NotificationActions = {
             }
             throw new Error('Failed to mark all notifications as read');
         } catch (error) {
+            console.error('Error in markAllRead:', error);
             throw error;
         }
     },
@@ -151,6 +159,8 @@ function formatTimestamp(timestamp) {
 
 // Function to create popover content
 function createPopoverContent(notifications) {
+    console.log("First notification:", notifications?.[0] || "No notifications");
+
     const content = document.createElement('div');
     content.className = 'notifications-content';
 
@@ -237,7 +247,8 @@ async function updateNotifications(force = false) {
         // Create new abort controller
         abortController = new AbortController();
 
-        fetchPromise = makeAuthenticatedRequest('/api/v1/notifications?include_counts=true');
+        //fetchPromise = makeAuthenticatedRequest('/api/v1/notifications?include_counts=true');
+        fetchPromise = makeAuthenticatedRequest('/api/v1/notifications');
         const response = await fetchPromise;
         const data = await response.json();
 
@@ -343,6 +354,7 @@ function attachNotificationListeners(notifications) {
         markAllAsReadBtn.addEventListener('click', async (event) => {
             event.stopPropagation();
             try {
+                console.log("%%%%%%%%%%%%%%%%% running mark all as read");
                 await NotificationActions.markAllRead();
                 // Update badge count
                 NotificationActions.updateBadgeCount(0);

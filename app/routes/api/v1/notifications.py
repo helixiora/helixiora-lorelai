@@ -1,15 +1,16 @@
 """API routes for notifications operations."""
 
-from flask import session, request
-from flask_restx import Namespace, Resource, fields
-from flask_jwt_extended import jwt_required, get_jwt_identity
 import logging
 
+from flask import request, session
+from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_restx import Namespace, Resource, fields
+
 from app.helpers.notifications import (
-    get_notifications,
     get_notification,
-    mark_notification_as_read,
+    get_notifications,
     mark_notification_as_dismissed,
+    mark_notification_as_read,
     parse_boolean_param,
     sanitize_notification,
 )
@@ -117,7 +118,6 @@ class GetNotificationsResource(Resource):
             else:
                 # Neither specified, show all
                 show_read = None
-
             # Get notifications with filters
             result = get_notifications(
                 user_id=user_id,
@@ -137,6 +137,7 @@ class GetNotificationsResource(Resource):
             for n in result["notifications"]:
                 try:
                     notification_dict = n.model_dump()
+
                     # Convert datetime objects to ISO format strings
                     for field in ["created_at", "read_at", "dismissed_at", "updated_at"]:
                         if field in notification_dict and notification_dict[field] is not None:
@@ -145,7 +146,6 @@ class GetNotificationsResource(Resource):
                 except Exception as e:
                     logging.error(f"Error processing notification: {str(e)}")
                     continue
-
             response_data = {"notifications": filtered_notifications, "counts": result["counts"]}
             return response_data, 200
 
@@ -236,21 +236,43 @@ class BulkMarkReadResource(Resource):
     def post(self):
         """Mark multiple notifications as read."""
         try:
-            notification_ids = request.json.get("ids", [])
+            data = request.get_json()
+            if not data or "ids" not in data:
+                return {"error": "Missing notification IDs", "success": False}, 400
+
+            notification_ids = data["ids"]
+            if not isinstance(notification_ids, list):
+                return {"error": "Invalid notification IDs format", "success": False}, 400
+
+            # Ensure all IDs are integers
+            try:
+                notification_ids = [int(id) for id in notification_ids]
+            except (ValueError, TypeError):
+                return {"error": "Invalid notification ID format", "success": False}, 400
+
+            user_id = get_jwt_identity()
             success_count = 0
+
             for notification_id in notification_ids:
-                result = mark_notification_as_read(notification_id, session["user.id"])
-                if result["success"]:
-                    success_count += 1
+                try:
+                    result = mark_notification_as_read(notification_id, user_id)
+                    if result.get("success"):
+                        success_count += 1
+                except Exception as e:
+                    logging.error(f"Error marking notification {notification_id} as read: {str(e)}")
+                    continue
 
             # Get updated counts
-            result = get_notifications(user_id=session["user.id"])
+            result = get_notifications(user_id=user_id)
 
             return {
                 "message": f"{success_count} notifications marked as read",
                 "success": True,
-                "counts": result["counts"],
+                "counts": result["counts"]
+                if result
+                else {"total": 0, "unread_active": 0, "read_active": 0, "dismissed": 0},
             }, 200
+
         except Exception as e:
             logging.error(f"Error marking notifications as read: {str(e)}")
             return {"error": "Unable to mark notifications as read", "success": False}, 500
