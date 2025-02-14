@@ -305,8 +305,10 @@ def sanitize_notification(notification: dict[str, Any]) -> dict[str, Any]:
         "message": bleach.clean(
             notification["message"], tags=["b", "i", "a"], attributes={"a": ["href"]}
         ),
+        "read": notification["read"],
         "created_at": notification["created_at"],
         "read_at": notification["read_at"],
+        "dismissed": notification["dismissed"],
         "dismissed_at": notification["dismissed_at"],
         "type": bleach.clean(notification["type"], tags=[], strip=True),
         "title": bleach.clean(notification.get("title", ""), tags=[], strip=True),
