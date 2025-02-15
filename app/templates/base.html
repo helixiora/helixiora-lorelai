@@ -73,7 +73,9 @@
     <script src="https://cdn.jsdelivr.net/npm/intro.js@8.0.0-beta.1/minified/intro.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    {% if current_user.is_authenticated %}
     <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
     <!-- Token setup needs to happen before any authenticated requests -->
