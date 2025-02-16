@@ -21,17 +21,23 @@ Example:
 
 from io import BytesIO
 import PyPDF2
+from typing import final
 
 from langchain.docstore.document import Document
 
-from .base_processor import BaseProcessor, ProcessorResult, ProcessorStatus
+from .base_processor import BaseProcessor
 from .config import ProcessorConfig
 
 
 class PDFProcessor(BaseProcessor):
     """Processor for PDF files using PyPDF2."""
 
+    def __init__(self) -> None:
+        """Initialize the PDF processor."""
+        super().__init__()
+
     @classmethod
+    @final
     def supported_extensions(cls) -> list[str]:
         """Return the supported file extensions.
 
@@ -43,6 +49,7 @@ class PDFProcessor(BaseProcessor):
         return [".pdf"]
 
     @classmethod
+    @final
     def supported_mimetypes(cls) -> list[str]:
         """Return the supported MIME types.
 
@@ -53,6 +60,7 @@ class PDFProcessor(BaseProcessor):
         """
         return ["application/pdf"]
 
+    @final
     def extract_text(
         self,
         input_data: str | bytes,
@@ -94,8 +102,9 @@ class PDFProcessor(BaseProcessor):
             return [], [f"Error loading PDF: {str(e)}"]
 
         # Get page range from config
-        start_page = config.get("start_page", 1)
-        end_page = config.get("end_page")
+        custom_settings = config.get("custom_settings", {})
+        start_page = custom_settings.get("start_page", 1)
+        end_page = custom_settings.get("end_page")
 
         # Validate and adjust page range
         if end_page and end_page < start_page:
@@ -128,6 +137,14 @@ class PDFProcessor(BaseProcessor):
                 # Clean the extracted text
                 text = self.clean_text(text)
 
+                # Only consider it an error if we couldn't get any text
+                if not text.strip():
+                    error_msg = f"No text could be extracted from page {i + 1}"
+                    extraction_log.append(error_msg)
+                    errors.append(error_msg)
+                    # Return what we have so far
+                    return documents, errors
+
                 extraction_log.append(f"Extracted text from page {i + 1}")
 
                 # Create document with metadata
@@ -137,7 +154,6 @@ class PDFProcessor(BaseProcessor):
                         "page": i + 1,
                         "source_type": "pdf",
                         "total_pages": num_pages,
-                        "pdf_version": pdf_reader.pdf_version,  # Add PDF-specific metadata
                     },
                 )
                 documents.append(doc)
@@ -146,82 +162,7 @@ class PDFProcessor(BaseProcessor):
                 error_msg = f"Error processing page {i + 1}: {str(e)}"
                 extraction_log.append(error_msg)
                 errors.append(error_msg)
-                continue
+                # Return what we have so far
+                return documents, errors
 
         return documents, errors
-
-    def process(
-        self,
-        *,
-        file_path: str | None = None,
-        file_bytes: bytes | None = None,
-        config: ProcessorConfig | None = None,
-    ) -> ProcessorResult:
-        """Process a PDF file and extract its text.
-
-        Parameters
-        ----------
-        file_path : str | None, optional
-            Path to the PDF file, by default None
-        file_bytes : bytes | None, optional
-            Raw bytes of the PDF file, by default None
-        config : ProcessorConfig | None, optional
-            Configuration for processing, by default None
-
-        Returns
-        -------
-        ProcessorResult
-            The result of processing the PDF, including:
-            - status (ok or error)
-            - message
-            - extracted documents (one per page)
-            - combined extracted text
-            - extraction log
-
-        Raises
-        ------
-        ValueError
-            If neither or both file_path and file_bytes are provided
-        """
-        extraction_log = []
-
-        # Input validation
-        if bool(file_path) == bool(file_bytes):  # both True or both False
-            message = "Exactly one of file_path or file_bytes must be provided"
-            extraction_log.append(message)
-            return ProcessorResult(
-                status=ProcessorStatus.ERROR,
-                message=message,
-                extraction_log=extraction_log,
-            )
-
-        # Use default configuration if not provided
-        config = config or ProcessorConfig()
-
-        # Apply pre-processing
-        input_data = self.pre_process(file_path if file_path else file_bytes)
-
-        # Extract text from the PDF
-        documents, errors = self.extract_text(input_data, config, extraction_log)
-
-        # Apply post-processing
-        documents = self.post_process(documents)
-
-        # Determine final status and message
-        if not documents:
-            status = ProcessorStatus.ERROR
-            message = "No text could be extracted from the PDF"
-        elif errors:
-            status = ProcessorStatus.ERROR
-            message = f"Completed with {len(errors)} errors"
-        else:
-            status = ProcessorStatus.OK
-            message = "Successfully extracted text from all pages"
-
-        return ProcessorResult(
-            status=status,
-            message=message,
-            documents=documents,
-            extracted_text="\n\n".join(extraction_log),
-            extraction_log=extraction_log,
-        )

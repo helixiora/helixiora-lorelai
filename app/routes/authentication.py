@@ -322,7 +322,7 @@ def register_post():
     success, message, user = register_user_to_org(email, full_name, organisation, google_id)
 
     if success:
-        login_user_function(
+        login_result = login_user_function(
             user=user,
             user_email=email,
             google_id=google_id,
@@ -330,8 +330,27 @@ def register_post():
             full_name=full_name,
         )
 
-    flash("Registration successful!", "success")
-    return redirect(url_for("auth.profile"))
+        if not login_result.success:
+            flash(
+                login_result.error_message or "Registration failed - could not create session",
+                "error",
+            )
+            return redirect(url_for("chat.index"))
+
+        # Set cookies and redirect
+        response = make_response(redirect(url_for("auth.profile")))
+        set_access_cookies(response, login_result.access_token)
+        set_refresh_cookies(response, login_result.refresh_token)
+        return response
+    else:
+        flash(message, "danger")
+        return render_template(
+            "register.html",
+            email=email,
+            full_name=full_name,
+            organisation=organisation,
+            google_id=google_id,
+        )
 
 
 @auth_bp.route("/login", methods=["POST"])
