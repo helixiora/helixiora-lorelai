@@ -103,15 +103,39 @@ class GoogleDriveContextRetriever(ContextRetriever):
 
         context_response = []
         for result in results:
-            context_document = LorelaiContextDocument(
-                title=result.metadata["title"],
-                content=result.page_content,
-                link=result.metadata["source"],
-                when=result.metadata["modifiedTime"],
-                relevance_score=result.metadata["relevance_score"],
-                raw_langchain_document=result,
-            )
-            context_response.append(context_document)
+            try:
+                # Get metadata with defaults for missing fields
+                metadata = result.metadata
+                title = metadata.get("title", "Untitled Document")
+                google_drive_id = metadata.get("google_drive_id", "")
+                modified_time = metadata.get("modifiedTime", "Unknown date")
+                relevance_score = metadata.get("relevance_score", 0.0)
+                mime_type = metadata.get("mime_type", "")
+
+                # Construct proper Google Drive URL based on mime type
+                if mime_type == "application/vnd.google-apps.document":
+                    source = f"https://docs.google.com/document/d/{google_drive_id}/view"
+                elif mime_type == "application/vnd.google-apps.spreadsheet":
+                    source = f"https://docs.google.com/spreadsheets/d/{google_drive_id}/view"
+                elif mime_type == "application/vnd.google-apps.presentation":
+                    source = f"https://docs.google.com/presentation/d/{google_drive_id}/view"
+                else:
+                    # Default to file viewer for PDFs and other files
+                    source = f"https://drive.google.com/file/d/{google_drive_id}/view"
+
+                context_document = LorelaiContextDocument(
+                    title=title,
+                    content=result.page_content,
+                    link=source,
+                    when=modified_time,
+                    relevance_score=relevance_score,
+                    raw_langchain_document=result,
+                )
+                context_response.append(context_document)
+            except Exception as e:
+                logging.error(f"Error processing result metadata: {str(e)}")
+                logging.debug(f"Problematic result metadata: {result.metadata}")
+                continue  # Skip this result but continue processing others
         end_time = time.time()
         logging.info(f"GoogleDriveContextRetriever took: {end_time - start_time}")
         logging.info(f"Found {len(context_response)} context from GoogleDrive")
