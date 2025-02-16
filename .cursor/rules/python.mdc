@@ -1,0 +1,5 @@
+---
+description: python code standards
+globs: *.py
+---
+1. Our python code should always comply with the following ruff standards: ["B", "D", "E", "F", "N", "UP"]
