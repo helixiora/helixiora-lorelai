@@ -13,10 +13,10 @@ load_dotenv()
 class Config:
     """Base configuration class."""
 
-    FLASK_ENV = os.environ.get("FLASK_ENV", "development")
+    FLASK_ENV = os.environ.get("FLASK_ENV")
 
     # Secret key for signing cookies
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "you-will-never-guess"
+    SECRET_KEY = os.environ.get("SECRET_KEY")
 
     # Session configuration
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)  # Session expires after 1 day
@@ -42,7 +42,7 @@ class Config:
 
     # Logging
     LOG_TO_STDOUT = os.environ.get("LOG_TO_STDOUT", "false").lower() in ["true", "on", "1"]
-    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    LOG_LEVEL = os.environ.get("LOG_LEVEL")
 
     # Sentry settings
     SENTRY_DSN = os.environ.get("SENTRY_DSN")
@@ -62,29 +62,27 @@ class Config:
 
     # OpenAI settings
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-    OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 
     # Redis settings
-    REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+    REDIS_URL = os.environ.get("REDIS_URL")
     REDIS_QUEUE_INDEXER = os.environ.get("REDIS_QUEUE_INDEXER", "indexer_queue")
     REDIS_QUEUE_QUESTION = os.environ.get("REDIS_QUEUE_QUESTION", "question_queue")
     REDIS_QUEUE_DEFAULT = os.environ.get("REDIS_QUEUE_DEFAULT", "default")
 
     # Lorelai settings
-    LORELAI_ENVIRONMENT = os.environ.get("LORELAI_ENVIRONMENT", "dev")
+    LORELAI_ENVIRONMENT = os.environ.get("LORELAI_ENVIRONMENT")
     LORELAI_ENVIRONMENT_SLUG = os.environ.get("LORELAI_ENVIRONMENT_SLUG")
     LORELAI_REDIRECT_URI = os.environ.get("LORELAI_REDIRECT_URI")
-    LORELAI_MODEL_TYPE = os.environ.get("LORELAI_MODEL_TYPE", "OpenAILlm")
-    LORELAI_CHAT_TASK_TIMEOUT = int(os.environ.get("LORELAI_CHAT_TASK_TIMEOUT", 600))
-    LORELAI_SUPPORT_PORTAL = os.environ.get(
-        "LORELAI_SUPPORT_PORTAL", "https://support.helixiora.com/support/solutions/201000092447"
-    )
-    LORELAI_SUPPORT_EMAIL = os.environ.get("LORELAI_SUPPORT_EMAIL", "support@helixiora.com")
-    LORELAI_RERANKER = os.environ.get("LORELAI_RERANKER", "ms-marco-TinyBERT-L-2-v2")
+    LORELAI_MODEL_TYPE = os.environ.get("LORELAI_MODEL_TYPE")
+    LORELAI_CHAT_TASK_TIMEOUT = int(os.environ.get("LORELAI_CHAT_TASK_TIMEOUT"))
+    LORELAI_SUPPORT_PORTAL = os.environ.get("LORELAI_SUPPORT_PORTAL")
+    LORELAI_SUPPORT_EMAIL = os.environ.get("LORELAI_SUPPORT_EMAIL")
+    LORELAI_RERANKER = os.environ.get("LORELAI_RERANKER")
 
     # Embeddings settings
-    EMBEDDINGS_MODEL = os.environ.get("EMBEDDINGS_MODEL", "text-embedding-3-small")
-    EMBEDDINGS_CHUNK_SIZE = int(os.environ.get("EMBEDDINGS_CHUNK_SIZE", 4000))
+    EMBEDDINGS_MODEL = os.environ.get("EMBEDDINGS_MODEL")
+    EMBEDDINGS_CHUNK_SIZE = int(os.environ.get("EMBEDDINGS_CHUNK_SIZE"))
     EMBEDDINGS_DIMENSION = get_embedding_dimension(EMBEDDINGS_MODEL)
 
     # SendGrid settings
@@ -92,11 +90,11 @@ class Config:
     SENDGRID_INVITE_TEMPLATE_ID = os.environ.get("SENDGRID_INVITE_TEMPLATE_ID")
 
     # Database settings
-    DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
+    DB_HOST = os.environ.get("DB_HOST")
     DB_PORT = int(os.environ.get("DB_PORT", 3306))
-    DB_USER = os.environ.get("DB_USER", "root")
-    DB_NAME = os.environ.get("DB_NAME", "lorelai")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD", "root")
+    DB_USER = os.environ.get("DB_USER")
+    DB_NAME = os.environ.get("DB_NAME")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD")
 
     # Feature flags
     FEATURE_SLACK = os.environ.get("FEATURE_SLACK", "1") == "1"
