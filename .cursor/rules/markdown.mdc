@@ -1,0 +1,5 @@
+---
+description: markdown files
+globs: *.md
+---
+We always want to comply with the markdown lint standards
