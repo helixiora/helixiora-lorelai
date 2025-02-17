@@ -6,7 +6,7 @@ from flask_jwt_extended import create_access_token, jwt_required
 import logging
 import secrets
 
-from app.helpers.auth import validate_email, validate_api_key
+from app.helpers.auth import validate_email, validate_api_key, mask_sensitive_data
 from app.models.user import User
 
 
@@ -123,7 +123,12 @@ class LoginResource(Resource):
                     break
 
             if not valid_key:
-                logging.warning(f"Invalid API key attempt for user: {email}")
+                masked_api_key = mask_sensitive_data(api_key)
+                masked_user_keys = [mask_sensitive_data(key.api_key) for key in user.api_keys]
+                logging.warning(
+                    f"Invalid API key attempt for user: {email}; API key: {masked_api_key}"
+                )
+                logging.warning(f"User API keys: {masked_user_keys}")
                 raise PermissionError("Invalid email or API key")
 
             # Create access token
