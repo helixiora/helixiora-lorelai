@@ -36,188 +36,358 @@ vectors into the index or retrieve them for queries.
 
 ## 2. \[Walter - 21-03-2024\] We have signed an AWS marketplace agreement for Pinecone
 
-but it seems like now we are being billed directly. Which is it, and what's the difference?
+A: The AWS marketplace agreement is a way to access Pinecone services through AWS's billing and
+infrastructure. However, you can also be billed directly by Pinecone. The main differences are:
 
-## 3. \[Walter - 21-03-2024\] We will have many users of our chat app
+1. AWS Marketplace:
 
-and each user might have dozens of data sources, with thousands of documents per datasource. Should
-we be running a pinecone index per user, or one index per user per service? or one index overall?
+   - Billing through AWS
+   - Consolidated billing with other AWS services
+   - May have different pricing tiers
+   - Managed through AWS console
 
-Given your emphasis on data isolation, particularly ensuring that users cannot access data from
-other users (or companies), alongside the desire for efficiency in data storage and indexing, a more
-nuanced approach is warranted. Your system needs to balance strict data isolation with the
-efficiency of not redundantly indexing identical documents for users within the same company. Here's
-a strategy that could work well for your requirements:
+1. Direct Billing:
 
-### Multi-Tenant Indexing with Access Control
+   - Billed directly by Pinecone
+   - Separate billing management
+   - May have different feature sets
+   - Managed through Pinecone console
 
-**Concept**: Implement a multi-tenant system where each company has its own index (or set of
-indexes) within Pinecone (or your chosen vector database). Within each company's index, documents
-are indexed once, but access control mechanisms ensure that users can only query and retrieve
-documents they're authorized to see.
+The choice between them depends on your organization's needs for billing consolidation and service
+management preferences.
 
-**How It Works**:
+## 3. \[Walter - 21-03-2024\] How are Pinecone indexes structured?
 
-1. **Company-Level Indexing**:
+A: Pinecone indexes in Lorelai follow a specific naming convention:
 
-   - Create a separate Pinecone index for each company. This index stores all documents accessible
-     to users within that company, avoiding redundant indexing of shared documents.
-   - This approach isolates data at the company level, ensuring no cross-company data access.
+```text
+{environment}-{environment_slug}-{org_name}-{datasource}-{version}
+```
 
-1. **Document Access Control**:
+Where:
 
-   - Implement an access control layer in your application logic that manages which users can access
-     which documents. This could involve tagging each document with user or group permissions upon
-     indexing.
-   - When a user performs a query, the access control layer filters the query to only include
-     documents that user is authorized to access. This filtering can happen before querying Pinecone
-     or as a post-query filtering step, depending on the capabilities of your vector database and
-     the specifics of your implementation.
+- `environment`: The deployment environment (e.g., 'dev', 'prod')
+- `environment_slug`: A user-specific environment identifier (e.g., 'walter', 'lorelai')
+- `org_name`: The organization's name
+- `datasource`: The data source type (e.g., 'slack', 'googledrive')
+- `version`: The version of the index (e.g., 'v1')
 
-1. **Efficient Querying**:
+For example:
 
-   - To support efficient querying within this framework, design your query processor to first
-     validate user access rights based on the document metadata, then execute the query against the
-     company's Pinecone index, and finally filter the results based on the user's permissions.
+```text
+dev-walter-helixiora-slack-v1
+```
 
-**Advantages**:
-
-- **Data Isolation**: Complete isolation of company data is maintained, with no possibility of
-  cross-company data access.
-- **Efficiency**: Documents shared by users within the same company are indexed once, reducing
-  storage and processing overhead.
-- **Scalability**: Each company's index can scale independently, allowing for resource allocation
-  based on company size and usage patterns.
-- **Security**: By integrating document access control at the application layer, you ensure that
-  security policies can be dynamically adjusted without reindexing data.
-
-**Considerations**:
-
-- **Complexity in Access Control Logic**: This approach requires careful implementation of access
-  control logic to ensure accurate and secure data access.
-- **Resource Allocation**: While more efficient than indexing documents per user, company-level
-  indexing still requires careful resource management, especially as the number of companies and
-  documents grows.
-- **Compliance and Auditing**: Implement logging and auditing mechanisms to track access and
-  queries, ensuring compliance with data protection regulations.
-
-### Implementation Steps
-
-1. **Index Setup**: When onboarding a new company, create a dedicated Pinecone index for that
-   company.
-1. **Document Indexing**: As documents are added, index them in the company's Pinecone index with
-   associated access control metadata.
-1. **Query Processing**: Implement a query processing system that checks user permissions, filters
-   queries based on those permissions, and retrieves results from the relevant company index.
-
-By carefully designing your system with these principles in mind, you can achieve the dual goals of
-strict data isolation and efficient data management, ensuring that your chat application remains
-secure, scalable, and cost-effective.
+This structured naming helps maintain clear separation between different environments,
+organizations, and data sources while ensuring scalability and maintainability.
 
 ## 4. \[Walter - 21-03-2024\] We have something called OpenAIEmbeddings
 
 What are these and how do they work? How are they different for other models?
 
-A: (from ChatGPT): The sizes of the embeddings produced by different OpenAI models, particularly
-those designed for generating embeddings, can vary based on the specific model and version you are
-using. As of my last update, OpenAI offers several models that can produce embeddings, such as the
-ones based on the GPT (Generative Pre-trained Transformer) architecture and specialized embedding
-models.
+A: OpenAI's embedding models are specialized neural networks designed to convert text into
+high-dimensional vector representations. These vectors capture semantic meaning, making them ideal
+for similarity search and retrieval tasks.
 
-### GPT-3 Embeddings
+### Language Model Embeddings
 
-For the GPT-3 models, the embeddings size isn't directly specified because GPT-3 is primarily known
-as a generative model. However, when working with embeddings derived from GPT-3 or similar models,
-the dimensionality can be linked to the size of the model's hidden layers. For example, GPT-3 models
-have sizes ranging from 125 million to 175 billion parameters, but the "dimension" of interest for
-embeddings typically corresponds to the model's hidden state size, not the total number of
-parameters. This size can vary but might be around 768 for smaller models up to 4096 for some of the
-larger configurations.
+While language models like GPT-4 can process text, they are primarily designed for text generation
+and understanding. The embedding models, on the other hand, are specifically optimized for creating
+consistent vector representations. The current recommended model is:
+
+- **text-embedding-3-small**: Produces 1536-dimensional embeddings
+- **text-embedding-3-large**: Produces 3072-dimensional embeddings
+
+These are the latest models (as of March 2024) and offer significant improvements over the previous
+ada-002 model in terms of performance and efficiency.
 
 ### Specialized Embedding Models
 
-OpenAI has released models specifically designed for generating embeddings, which might be more
-directly applicable to your question. These models, such as those accessible through the OpenAI API
-for embeddings, provide a more straightforward approach to generating embeddings for various types
-of data, including text.
+OpenAI's dedicated embedding models are designed for specific use cases:
 
-- **text-embedding-ada-002**: Produces 1024-dimensional embeddings.
-- **text-embedding-babbage-001**: Produces 2048-dimensional embeddings.
-- **text-embedding-curie-001**: Produces 4096-dimensional embeddings.
-- **text-embedding-davinci-001**: Produces 12288-dimensional embeddings.
+1. **text-embedding-3-small**:
 
-### Choosing the Right Dimension
+   - Optimized for production use
+   - Best price-performance ratio
+   - Ideal for most applications
+   - 1536 dimensions
 
-When using Pinecone or any vector database with OpenAI's models, you need to set the dimension of
-your index to match the output size of the embeddings you're working with. For instance, if you're
-using the `text-embedding-ada-002` model for generating text embeddings, you would set the dimension
-of your Pinecone Index to 1024 to accommodate the size of the vectors produced by this model.
+1. **text-embedding-3-large**:
+
+   - Highest performance model
+   - Best for complex similarity tasks
+   - Larger dimension (3072) for more detail
+   - Higher cost but better quality
+
+### Choosing the Right Model
+
+When using Pinecone with OpenAI's embeddings, consider:
+
+1. **Performance Requirements**:
+
+   - text-embedding-3-small for most use cases
+   - text-embedding-3-large for highest accuracy needs
+
+1. **Cost Considerations**:
+
+   - Small model is more cost-effective
+   - Large model for when accuracy is critical
+
+1. **Integration Aspects**:
+
+   - Match Pinecone index dimensions to model output
+   - Consider storage and query costs
+   - Balance between accuracy and speed
 
 ### Important Notes
 
-- **Model Updates**: The information about model sizes and capabilities can change as OpenAI
-  releases new models or updates existing ones. Always check the latest documentation for the most
-  accurate and up-to-date information.
-- **Use Case**: Choose the model based on your specific needs, considering factors like the
-  trade-offs between computational cost and the level of semantic richness required for your
-  application.
+- **Model Updates**: OpenAI regularly updates their models. Always check the latest documentation
+  for current best practices and capabilities.
+- **Use Case**: Choose based on your specific needs, considering:
+  - Cost efficiency
+  - Required accuracy
+  - Processing speed
+  - Integration complexity
 
-For the most current information about OpenAI models and their embedding sizes, refer directly to
-the OpenAI API documentation.
+For the most current information about OpenAI models and their embedding sizes, refer to the OpenAI
+API documentation at <https://platform.openai.com/docs/guides/embeddings>.
 
 ## 5. \[Walter - 21-03-2024\] It seems like the vectorizer is a key component
 
-How do these work, what are the best practices?
+A: Yes, the vectorizer is a crucial component in our architecture. Based on the codebase:
+
+1. We use OpenAI's embeddings model (`OpenAIEmbeddings`) as our primary vectorizer
+1. The vectorization process happens in the `Processor` class, specifically in the
+   `pinecone_format_vectors` method
+1. Key aspects of our vectorization:
+   - Documents are chunked using `RecursiveCharacterTextSplitter`
+   - Each chunk is cleaned using `clean_text_for_vector`
+   - Embeddings are generated in batches for efficiency
+   - Metadata is preserved and stored alongside vectors
+   - Each vector gets a unique UUID
+
+Best practices implemented:
+
+- Batch processing for efficiency
+- Error handling and validation
+- Metadata preservation
+- Clean text preprocessing
+- Proper dimension handling
 
 ## 6. \[Walter - 21-03-2024\] If my assumption is correct, data that is vectorized with an algorithm
 
-That is only usable with an algorithm that knows the same format, kind of like encryption. Is this
-true? And if so, how do we handle that coupling?
+A: Yes, this is correct. The coupling between vectorization algorithm and retrieval is important:
 
-A: Pinecone stores metadata with every vector, which can be used for many things. As of this answer,
-the default metadata is: METADATA
+1. Dimension Matching:
 
-```text
-source: "<<google docs link>>"
-text: "<<the original text that is in the vector>>"
-title: "<<the title of the doc>>"
-when: "<<when was this stored>>"
-```
+   - The vector dimension must match between indexing and retrieval
+   - We use OpenAI's text-embedding-3-small model (1536 dimensions)
+   - The Pinecone index dimension is fixed at creation
 
-We are able to add fields to the metadata, so this might help. However, the index has a dimension
-that can't be changed, so changing that might be tricky
+1. Handling the Coupling:
+
+   - We store metadata with each vector including the source text
+   - The metadata includes information about when and how the vector was created
+   - This allows for potential re-vectorization if needed
+   - The architecture supports switching embedding models by reindexing
+
+1. Current Implementation:
+
+   - Uses OpenAI embeddings consistently across indexing and retrieval
+   - Pinecone stores both vectors and metadata
+   - Each vector includes source text, title, timestamp, and other metadata
+   - The coupling is managed through consistent configuration
 
 ## 7. \[Walter - 21-03-2024\] How do we make this thing have chat memory?
 
-Langchain has stuff for this, but is it stateless?
+A: Based on the codebase, we already have chat memory support built into the architecture:
+
+1. LLM Implementation:
+
+   - The base `Llm` class accepts `conversation_history` in the `get_answer` method
+   - Both `OpenAILlm` and `OllamaLlama3` implementations support conversation history
+   - The prompt templates include conversation context
+
+1. Current Architecture:
+
+   - Conversation history is passed as a parameter
+   - The LLM uses both the history and current context for responses
+   - The system is stateless, with history managed by the client
+
+1. Best Practices:
+
+   - Keep the core stateless for scalability
+   - Pass conversation history as needed
+   - Use prompt templates that properly format history
+   - Let clients manage conversation state
 
 ## 8. \[Walter - 21-03-2024\] The GoogleDriveLoader currently has to write it's creds to file
 
-in order to use them, how do we make this multi-user safe?
+A: To make the Google Drive credentials multi-user safe, we should:
+
+1. Current Implementation:
+
+   - Credentials are stored per user in the database
+   - Each user has their own authentication flow
+   - The `UserAuth` table manages datasource credentials
+
+1. Recommended Changes:
+
+   - Store credentials securely in a key management service (KMS)
+   - Use memory-only credential objects
+   - Implement proper credential rotation
+   - Use separate credential caches per user
+   - Consider using environment-specific credential stores
 
 ## 9. \[Walter - 21-03-2024\] Does it make sense to develop a full-fledged client?
 
-or should we do API based development so we can talk to the lorelai API endpoints from any client
-(eg. a Slack bot, a mobile client, a web app, etc)
+A: The current architecture already supports an API-first approach:
 
-A: either way, API based backend development seems prudent so we have flexibility. In addition, we
-should have an organisation be the main signup with billing and such, and as such we have
-`<orgname>.domain.com` as the main thing.
+1. Current Implementation:
+
+   - API-based backend with Flask
+   - Routes organized in blueprints
+   - API versioning (v1)
+   - Support for multiple clients
+
+1. Benefits of API-First:
+
+   - Multiple client support (web, mobile, Slack, etc.)
+   - Clear separation of concerns
+   - Easier testing and maintenance
+   - Better scalability
+   - Independent client/server development
+
+1. Recommendation:
+
+   - Continue API-first development
+   - Implement proper API documentation
+   - Use OpenAPI/Swagger specifications
+   - Maintain strong API versioning
+   - Build clients as needed
 
 ## 10. \[Walter - 21-03-2024\] How do we make this modular with regards to supporting multiple
 
-LLM backends?
+A: The codebase already implements a modular LLM architecture:
+
+1. Current Design:
+
+   - Abstract base `Llm` class
+   - Factory pattern for LLM creation
+   - Support for OpenAI and Ollama
+   - Consistent interface across implementations
+
+1. Key Features:
+
+   - Pluggable LLM implementations
+   - Shared context retrieval
+   - Common prompt templates
+   - Unified response format
+
+1. Adding New LLMs:
+
+   - Create new class inheriting from `Llm`
+   - Implement required methods
+   - Add to factory creation
+   - Configure in settings
 
 ## 11. \[Walter - 21-03-2024\] How do we architect Lorelai so we can add an unlimited amount of
 
-data sources for the RAG?
+A: The architecture supports unlimited data sources through:
+
+1. Current Implementation:
+
+   - Abstract `ContextRetriever` base class
+   - Factory pattern for retrievers
+   - Modular datasource system
+   - Database-driven datasource management
+
+1. Adding New Sources:
+
+   - Create new `ContextRetriever` implementation
+   - Add corresponding `Indexer` class
+   - Update database schema
+   - Configure feature flags
+
+1. Key Components:
+
+   - Datasource registration system
+   - Unified indexing interface
+   - Common vector storage
+   - Consistent metadata format
 
 ## 12. \[Walter - 21-03-2024\] Currently RAG with a vectordatabase is the hot thing, but it's not
 
-certain this will stay. How do we make the context generator as smart and flexible as possible?
+A: To make the context generator flexible and future-proof:
+
+1. Current Architecture:
+
+   - Abstracted context retrieval
+   - Modular indexing system
+   - Separation of concerns
+   - Pluggable components
+
+1. Future-Proofing:
+
+   - Abstract storage interface
+   - Pluggable embedding systems
+   - Flexible metadata schema
+   - Modular retrieval strategies
+
+1. Recommendations:
+
+   - Keep core logic storage-agnostic
+   - Support multiple retrieval methods
+   - Allow for hybrid approaches
+   - Maintain clean interfaces
 
 ## 13. \[Walter - 21-03-2024\] How do we support a flexible number of users, data sources, etc
 
+A: The system is designed for scalability:
+
+1. Database Design:
+
+   - Proper relationships between users and datasources
+   - Scalable authentication system
+   - Flexible organization structure
+
+1. Architecture:
+
+   - Stateless design
+   - Independent datasource processing
+   - Parallel context retrieval
+   - Modular components
+
+1. Scaling Considerations:
+
+   - Database sharding capability
+   - Independent service scaling
+   - Resource isolation
+   - Proper connection pooling
+
 ## 14. \[Walter - 21-03-2024\] Should we invest time/money/effort in deduplicating the indexer?
 
-If 100 people have access to a document, how do we not store that 100x in our vector database?
+A: Yes, deduplication is important. The current system already has some deduplication support:
+
+1. Current Implementation:
+
+   - Vectors include user access metadata
+   - Document source tracking
+   - User filtering in queries
+
+1. Deduplication Strategy:
+
+   - Store document once, with multiple user references
+   - Update user access lists instead of duplicating
+   - Use metadata for access control
+   - Maintain document uniqueness by source
+
+1. Benefits:
+
+   - Reduced storage costs
+   - Better maintenance
+   - Improved consistency
+   - Efficient updates
+
+The code shows this is partially implemented in the `remove_nolonger_accessed_documents` method,
+which handles user access lists instead of duplicating documents.
