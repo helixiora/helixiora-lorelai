@@ -112,11 +112,6 @@ class Config:
         "SLACK_SCOPES", "channels:history,channels:read,groups:read,users:read,users:read.email"
     )
 
-    # LLM Sherpa configuration
-    LLMSHERPA_API_URL = os.getenv(
-        "LLMSHERPA_API_URL", "http://localhost:5010/api/parseDocument?renderFormat=all"
-    )
-
     @classmethod
     def init_app(cls, app):
         """Initialize the configuration for the Flask app."""
