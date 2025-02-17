@@ -6,13 +6,22 @@ import argparse
 import logging
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
+from flask import Flask
 
 from colorama import Fore, Style, init
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
-from lorelai.contextretriever import ContextRetriever
+from lorelai.context_retriever import ContextRetriever
 from lorelai.llm import Llm
-from lorelai.utils import get_db_connection
+from app.models.user import User
+from app.models.organisation import Organisation
+from app.models import db
+
+# Add parent directory to path and load environment variables
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), "../.."))
+env_path = Path(os.path.join(os.path.dirname(__file__), "../..")) / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # logging settings
 logging_format = os.getenv(
@@ -21,6 +30,27 @@ logging_format = os.getenv(
 )
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format=logging_format)
+
+# Initialize Flask app and SQLAlchemy
+app = Flask(__name__)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Add required configuration from .env
+app.config["PINECONE_API_KEY"] = os.getenv("PINECONE_API_KEY")
+app.config["PINECONE_REGION"] = os.getenv("PINECONE_REGION")
+app.config["PINECONE_METRIC"] = os.getenv("PINECONE_METRIC")
+app.config["PINECONE_DIMENSION"] = os.getenv("PINECONE_DIMENSION")
+app.config["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+app.config["OPENAI_MODEL"] = os.getenv("OPENAI_MODEL")
+app.config["LORELAI_ENVIRONMENT"] = os.getenv("LORELAI_ENVIRONMENT", "dev")
+app.config["LORELAI_ENVIRONMENT_SLUG"] = os.getenv("LORELAI_ENVIRONMENT_SLUG", "development")
+app.config["LORELAI_RERANKER"] = os.getenv("LORELAI_RERANKER", "ms-marco-TinyBERT-L-2-v2")
+app.config["FEATURE_SLACK"] = os.getenv("FEATURE_SLACK", "1")
+app.config["FEATURE_GOOGLE_DRIVE"] = os.getenv("FEATURE_GOOGLE_DRIVE", "1")
+
+db.init_app(app)
+app.app_context().push()  # Make the app context available to the script
 
 
 def main() -> None:
@@ -31,23 +61,88 @@ def main() -> None:
 
     question = args.question
     org_id, org_name = get_organisation(args.org_name)
-    user_id = get_user_from_organisation(org_id, args.user_name)
-    enriched_context = ContextRetriever.create("SlackContextRetriever", org_name, user_id)
+    user_id, user_email = get_user_from_organisation(org_id, args.user_name)
 
-    answer, source = enriched_context.retrieve_context(question)
-    print("source", source, "answer", answer)
-    exit()
-    llm = Llm.create(model_type=args.model_type)
-    llm_answer = llm.get_answer(question, answer)
-    display_results(llm_answer, source)
+    # Create context retrievers with required parameters
+    retrievers = []
+    for retriever_type in ["SlackContextRetriever", "GoogleDriveContextRetriever"]:
+        enriched_context = ContextRetriever.create(
+            retriever_type=retriever_type,
+            org_name=org_name,
+            user_email=user_email,
+            environment=os.getenv("LORELAI_ENVIRONMENT", "dev"),
+            environment_slug=os.getenv("LORELAI_ENVIRONMENT_SLUG", "development"),
+            reranker=os.getenv("LORELAI_RERANKER", "ms-marco-TinyBERT-L-2-v2"),
+        )
+        retrievers.append(enriched_context)
+
+    # Get context and format results from all retrievers
+    all_context = []
+    for retriever in retrievers:
+        try:
+            context_response = retriever.retrieve_context(question)
+            all_context.extend(context_response.context)
+            # Debug log to inspect the first document's attributes and content
+            if context_response.context:
+                doc = context_response.context[0]
+                logging.info(f"Document attributes: {dir(doc)}")
+                logging.info(f"Document dict: {doc.model_dump()}")
+                logging.info(f"Document type: {type(doc)}")
+                logging.info(f"Document repr: {repr(doc)}")
+        except Exception as e:
+            logging.warning(f"Error retrieving context from {retriever.__class__.__name__}: {e}")
+
+    # Create LLM instance and get answer
+    llm = Llm.create(model_type=args.model_type, user_email=user_email, org_name=org_name)
+    llm_answer = llm.get_answer(question, all_context)
+
+    # Format sources for display with more defensive approach
+    sources = []
+    for doc in all_context:
+        try:
+            source_dict = {}
+            # Try different possible attribute names for source
+            for source_attr in ["datasource", "source", "source_name", "metadata"]:
+                if hasattr(doc, source_attr):
+                    source_dict["source"] = getattr(doc, source_attr)
+                    break
+            if "source" not in source_dict:
+                source_dict["source"] = "Unknown Source"
+
+            # Try different possible attribute names for title
+            for title_attr in ["title", "name", "page_content"]:
+                if hasattr(doc, title_attr):
+                    source_dict["title"] = getattr(doc, title_attr)
+                    if isinstance(source_dict["title"], str):
+                        source_dict["title"] = (
+                            source_dict["title"][:100] + "..."
+                            if len(source_dict["title"]) > 100
+                            else source_dict["title"]
+                        )
+                    break
+            if "title" not in source_dict:
+                source_dict["title"] = "Untitled"
+
+            # Try different possible attribute names for score
+            for score_attr in ["relevance_score", "score", "similarity"]:
+                if hasattr(doc, score_attr):
+                    score = getattr(doc, score_attr)
+                    if isinstance(score, int | float):
+                        source_dict["score"] = score
+                        break
+            if "score" not in source_dict:
+                source_dict["score"] = 0.0
+
+            sources.append(source_dict)
+        except Exception as e:
+            logging.warning(f"Error formatting source: {e}")
+            sources.append({"source": "Error", "title": "Error formatting source", "score": 0.0})
+
+    display_results(llm_answer, sources)
 
 
 def setup_arg_parser() -> argparse.ArgumentParser:
-    """Set up argument parser for command-line options.
-
-    Params: none
-    Returns: ArgumentParser object
-    """
+    """Set up argument parser for command-line options."""
     parser = argparse.ArgumentParser(description="Query indexed documents with context.")
     parser.add_argument("question", help="Question to query")
     parser.add_argument("--org-name", help="Name of the organisation", default=None)
@@ -57,19 +152,11 @@ def setup_arg_parser() -> argparse.ArgumentParser:
 
 
 def get_organisation(org_name: str or None) -> tuple:
-    """Retrieve or select an organisation.
-
-    Params: org_name: str, name of the organisation
-    Returns: tuple with org ID as the 0 object or select_organisation
-    function
-    """
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        if org_name:
-            cur.execute("SELECT id, name FROM organisations WHERE name = %s", (org_name,))
-            org = cur.fetchone()
+    """Retrieve or select an organisation."""
+    if org_name:
+        org = Organisation.query.filter_by(name=org_name).first()
         if org:
-            return org
+            return org.id, org.name
         print(
             f"{Fore.RED}No organisation found with the name '{org_name}'.",
             " Falling back to selection.",
@@ -79,76 +166,43 @@ def get_organisation(org_name: str or None) -> tuple:
 
 
 def select_organisation() -> tuple:
-    """Interactively select an organisation from a list.
+    """Interactively select an organisation from a list."""
+    organisations = Organisation.query.all()
+    print(f"{Fore.CYAN}Select an organisation:")
+    for index, org in enumerate(organisations, start=1):
+        print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{org.name}")
+    choice = input(f"{Fore.MAGENTA}Organisation ({organisations[0].name}): ") or "1"
 
-    Params: none
-    Returns: tuple with the org ID and name
-    """
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT id, name FROM organisations")
-        organisations = cur.fetchall()
-        print(f"{Fore.CYAN}Select an organisation:")
-        for index, org in enumerate(organisations, start=1):
-            print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{org[1]}")
-        choice = (
-            input(f"{Fore.MAGENTA}Organisation ({organisations[0][1]}): ") or organisations[0][0]
+    selected_org = organisations[int(choice) - 1]
+    return selected_org.id, selected_org.name
+
+
+def get_user_from_organisation(org_id: int, user_name: str or None = None) -> tuple:
+    """Retrieve or select a user from a specific organisation."""
+    if user_name:
+        user = User.query.filter_by(org_id=org_id, user_name=user_name).first()
+        if user:
+            return user.id, user.email
+        print(
+            f"{Fore.RED}No user found with name '{user_name}' in the selected organisation.",
+            "Falling back to selection.",
         )
-
-    return organisations[int(choice) - 1]
-
-
-def get_user_from_organisation(org_id: int, user_name: str or None = None) -> int:
-    """Retrieve or select a user from a specific organisation.
-
-    Params:
-        org_id, int, the organisation ID
-        user_name, str, the user name
-    Returns:
-        user ID int or
-        results from select_user_from_organisation function
-
-    """
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        if user_name:
-            cur.execute(
-                """
-                SELECT user_id, name, email FROM users WHERE org_id =
-                %s AND name = %s
-                """,
-                (org_id, user_name),
-            )
-            user = cur.fetchone()
-            if user:
-                return user[0]
-            print(
-                f"{Fore.RED}No user found with name '{user_name}' in the selected organisation.",
-                "Falling back to selection.",
-            )
 
     return select_user_from_organisation(org_id)
 
 
-def select_user_from_organisation(org_id: int) -> int:
-    """Interactively select a user from a list.
-
-    Params:
-            org_id: int, the ID of the organisation
-    Returns:
-            user id: int
-    """
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT user_id, name, email FROM users WHERE org_id = %s", (org_id,))
-        users = cur.fetchall()
-        print(f"{Fore.CYAN}Select a user:")
-        for index, user in enumerate(users, start=1):
-            print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{user[1]} ({user[2]})")
-        return input(f"{Fore.MAGENTA}User ({users[0][1]}): ") or users[0][0]
+def select_user_from_organisation(org_id: int) -> tuple:
+    """Interactively select a user from a list."""
+    users = User.query.filter_by(org_id=org_id).all()
+    print(f"{Fore.CYAN}Select a user:")
+    for index, user in enumerate(users, start=1):
+        print(f"{Fore.YELLOW}{index}: {Fore.GREEN}{user.user_name} ({user.email})")
+    choice = input(f"{Fore.MAGENTA}User ({users[0].user_name}): ") or "1"
+    selected_user = users[int(choice) - 1]
+    return selected_user.id, selected_user.email
 
 
-def display_results(answer: str, sources: dict) -> None:
+def display_results(answer: str, sources: list) -> None:
     """Display the results in a formatted manner."""
     print(f"{Fore.BLUE}Answer: {Style.BRIGHT}{answer}\nSources:")
 
