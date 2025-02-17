@@ -221,9 +221,9 @@ Make sure to:
                 logging.debug(f"Raw LLM output: {raw_response}")
 
                 # Try to clean and repair common JSON issues
-                if raw_response.strip().endswith(",}"):
-                    # Fix trailing comma
-                    raw_response = raw_response.replace(",}", "}")
+                if ",}" in raw_response or ",\n}" in raw_response:
+                    # Fix trailing comma, handling both inline and newline cases
+                    raw_response = raw_response.replace(",}", "}").replace(",\n}", "\n}")
                     try:
                         # Try parsing again with cleaned JSON
                         structured_response = parser.parse(raw_response)
