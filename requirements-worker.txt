@@ -12,4 +12,4 @@ python-pptx==1.0.2
 setproctitle==1.3.4 # for rq worker process titles
 # for google drive indexing of various mime types
 unstructured==0.16.21
-unstructured-inference==0.8.7
+unstructured-inference==0.8.3
