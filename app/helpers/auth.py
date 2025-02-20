@@ -259,3 +259,22 @@ def validate_api_key(raw_key: str) -> str:
         raise ValueError("Invalid API key format")
 
     return clean_key
+
+
+def mask_sensitive_data(data: str, visible_start: int = 2, visible_end: int = 2) -> str:
+    """Mask sensitive data, showing only the first and last few characters.
+
+    Args:
+        data: The string to mask
+        visible_start: Number of characters to show at start
+        visible_end: Number of characters to show at end
+
+    Returns
+    -------
+        Masked string with only specified characters visible
+    """
+    if not data or len(data) <= (visible_start + visible_end):
+        return "*" * len(data) if data else ""
+
+    return f"{data[:visible_start]}{'*' * (len(data) - visible_start - visible_end)}\
+{data[-visible_end:]}"

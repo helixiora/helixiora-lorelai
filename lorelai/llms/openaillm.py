@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 from flask import current_app
 from pydantic import BaseModel, Field, ValidationError
 from openai import OpenAIError
+import langchain_core.exceptions
 
 from lorelai.llm import Llm, LorelaiContextRetrievalResponse
 from app.models.config import Config
@@ -87,8 +88,14 @@ Provide a clear and concise answer based on the context above. If the question r
 messages in the conversation, use that context to provide a more relevant answer. If you cannot
 find the answer in the context, say so. Do not make up information.
 
-You must respond with a JSON object that matches this schema:
+You must respond with a valid JSON object that matches this schema:
 {format_instructions}
+
+IMPORTANT JSON FORMATTING RULES:
+1. Do not include trailing commas after the last property in objects
+2. Ensure all property names are in double quotes
+3. Make sure all strings are properly escaped
+4. The response must be a single, valid JSON object
 
 Make sure to:
 1. Include all relevant sources in the sources list
@@ -199,13 +206,42 @@ Make sure to:
             model = ChatOpenAI(model=self.model)
             chain = prompt | model | parser
 
-            structured_response = chain.invoke(
-                {
-                    "context_doc_text": context_doc_text,
-                    "question": question,
-                    "conversation_history": conversation_history or "",
-                }
-            )
+            try:
+                structured_response = chain.invoke(
+                    {
+                        "context_doc_text": context_doc_text,
+                        "question": question,
+                        "conversation_history": conversation_history or "",
+                    }
+                )
+            except langchain_core.exceptions.OutputParserException as e:
+                # Extract the raw response for better error handling
+                raw_response = str(e.llm_output)
+                logging.error(f"Failed to parse LLM output as JSON: {str(e)}")
+                logging.debug(f"Raw LLM output: {raw_response}")
+
+                # Try to clean and repair common JSON issues
+                if ",}" in raw_response or ",\n}" in raw_response:
+                    # Fix trailing comma, handling both inline and newline cases
+                    raw_response = raw_response.replace(",}", "}").replace(",\n}", "\n}")
+                    try:
+                        # Try parsing again with cleaned JSON
+                        structured_response = parser.parse(raw_response)
+                        logging.info(
+                            "Successfully recovered from JSON parsing error by cleaning output"
+                        )
+                    except Exception as parse_error:
+                        logging.error(
+                            f"Failed to recover from JSON parsing error: {str(parse_error)}"
+                        )
+                        raise ValueError(
+                            "The language model returned invalid JSON that could not be \
+automatically fixed"
+                        ) from e
+                else:
+                    raise ValueError(
+                        "The language model returned a response in an invalid format"
+                    ) from e
 
             # Format the response as markdown
             # Handle both dictionary and Pydantic model responses

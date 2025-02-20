@@ -32,17 +32,6 @@ services:
       retries: 5
       start_period: 30s
 
-  llmsherpa:
-    image: ghcr.io/nlmatics/nlm-ingestor:latest
-    ports:
-      - "5010:5001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: always
-
   web:
     image: ghcr.io/helixiora/helixiora-lorelai/web:latest
     build:
@@ -59,15 +48,12 @@ services:
       - FLASK_DEBUG=${FLASK_DEBUG:-1}
       - SQLALCHEMY_DATABASE_URI=mysql+mysqlconnector://root:${DB_ROOT_PASSWORD}@db:3306/${DB_NAME}
       - REDIS_URL=redis://redis:6379
-      - LLMSHERPA_API_URL=http://llmsherpa:5001/api/parseDocument?renderFormat=all
     volumes:
       - .:/app
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      llmsherpa:
         condition: service_healthy
     command: gunicorn -w 4 -k gevent --timeout 300 -b 0.0.0.0:5000 --certfile=/app/cert.pem --keyfile=/app/key.pem --reload "run:app"
 
@@ -86,15 +72,12 @@ services:
       - LOG_LEVEL=DEBUG
       - NO_PROXY=*
       - LORELAI_RQ_QUEUES=indexer_queue question_queue default
-      - LLMSHERPA_API_URL=http://llmsherpa:5001/api/parseDocument?renderFormat=all&applyOcr=yes
     volumes:
       - .:/app
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      llmsherpa:
         condition: service_healthy
     command: rq worker-pool -n 4 indexer_queue question_queue default
 
