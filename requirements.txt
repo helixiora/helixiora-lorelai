@@ -34,7 +34,9 @@ rq==2.1.0
 scikit_learn==1.6.1
 sendgrid==6.11.0
 sentry-sdk==2.22.0
+sklearn-preprocessing==0.1.0
 sqlalchemy==2.0.38
 sqlalchemy-utils==0.41.2
+torch==2.5.1
+transformers==4.48.1
 werkzeug==3.1.3
-
