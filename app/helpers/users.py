@@ -1,20 +1,19 @@
 """User related helper functions."""
 
 import logging
-from datetime import datetime, timedelta, date
-
+from datetime import date, datetime
 from functools import wraps
 
+from dateutil.relativedelta import relativedelta
 from flask import redirect, session, url_for
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import db
-from app.models.user import User
 from app.models.organisation import Organisation
+from app.models.plan import Plan, UserPlan
 from app.models.profile import Profile
 from app.models.role import Role, UserRole
-from app.models.plan import UserPlan, Plan
-
-from sqlalchemy.exc import SQLAlchemyError
+from app.models.user import User
 
 
 def role_required(role_name_list):
@@ -321,11 +320,13 @@ def assign_free_plan_if_no_active(user_id: int):
         if not has_active_plan:
             free_plan = Plan.query.filter_by(plan_name="Free").first()
             if free_plan:
+                start_date = datetime.utcnow()
+                end_date = start_date + relativedelta(months=free_plan.duration_months)
                 new_user_plan = UserPlan(
                     user_id=user_id,
                     plan_id=free_plan.plan_id,
-                    start_date=datetime.utcnow(),
-                    end_date=datetime.utcnow() + timedelta(days=30),
+                    start_date=start_date,
+                    end_date=end_date,
                     is_active=True,
                 )
                 db.session.add(new_user_plan)
@@ -458,3 +459,59 @@ def remove_user_role(user_id: int, role_name: str) -> bool:
         db.session.commit()
         return True
     return False
+
+
+def assign_plan_to_user(user_id: int, plan_name: str) -> bool:
+    """
+    Assign a specific plan to a user.
+
+    This function performs the following steps:
+    1. Deactivates any existing active plans for the user
+    2. Finds the requested plan by name
+    3. Creates a new active plan for the user with duration from plan settings
+    4. Commits all changes to the database
+
+    Args:
+        user_id (int): The unique identifier of the user.
+        plan_name (str): The name of the plan to assign.
+
+    Returns
+    -------
+        bool: True if plan was assigned successfully, False if plan not found.
+
+    Raises
+    ------
+        Exception: If there is an error during the database operations.
+    """
+    try:
+        # Deactivate existing active plans
+        UserPlan.query.filter_by(user_id=user_id, is_active=True).update({"is_active": False})
+
+        # Find the requested plan
+        plan = Plan.query.filter_by(plan_name=plan_name).first()
+        if not plan:
+            logging.error(f"Plan not found: {plan_name}")
+            return False
+
+        # assign  new plan for user
+        start_date = datetime.utcnow()
+        end_date = start_date + relativedelta(months=plan.duration_months)
+
+        new_user_plan = UserPlan(
+            user_id=user_id,
+            plan_id=plan.plan_id,
+            start_date=start_date,
+            end_date=end_date,
+            is_active=True,
+        )
+
+        db.session.add(new_user_plan)
+        db.session.commit()
+
+        logging.info(f"Successfully assigned {plan_name} plan to user {user_id}")
+        return True
+
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error assigning plan to user: {e}", exc_info=True)
+        raise e

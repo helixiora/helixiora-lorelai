@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
     <script src="https://accounts.google.com/gsi/client" async></script>
+    <!-- Load Stripe.js -->
+    <script src="https://js.stripe.com/v3/"></script>
     {% block head %}
     {% endblock head%}
 </head>

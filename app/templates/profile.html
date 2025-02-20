@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 
+{% block head %}
+{% endblock %}
+
 {% block content %}
 <div id="profile-container" class="container mt-5">
     {% if user is none %}
@@ -32,6 +35,68 @@
                         {% endfor %}
                     </li>
                 </ul>
+            </div>
+        </div>
+
+        <!-- Current Subscription Section -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title h4">Current Subscription</h2>
+                {% if current_plan %}
+                <div class="alert alert-info">
+                    <p class="mb-1"><strong>Plan:</strong> {{ current_plan.plan.plan_name }}</p>
+                    <p class="mb-1"><strong>Start Date:</strong> {{ current_plan.start_date.strftime('%Y-%m-%d') }}</p>
+                    <p class="mb-1"><strong>End Date:</strong> {{ current_plan.end_date.strftime('%Y-%m-%d') }}</p>
+                    <p class="mb-0"><strong>Status:</strong> {% if current_plan.is_active %}Active{% else %}Inactive{% endif %}</p>
+                </div>
+                {% else %}
+                <p class="text-muted">No active subscription</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Available Plans Section -->
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title h4">Available Plans</h2>
+                <div class="row">
+                    {% for plan in available_plans %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ plan.plan_name }}</h5>
+                                <p class="card-text">{{ plan.description }}</p>
+                                <ul class="list-unstyled">
+                                    <li><strong>Price:</strong> ${{ "%.2f"|format(plan.price) }}/month</li>
+                                    <li><strong>Duration:</strong> {{ plan.duration_months }} month(s)</li>
+                                    {% if plan.message_limit_daily %}
+                                    <li><strong>Daily Message Limit:</strong> {{ plan.message_limit_daily }}</li>
+                                    {% endif %}
+                                </ul>
+                                <button
+                                    class="btn btn-primary w-100"
+                                    onclick="handlePayment({{ plan.plan_id }})"
+                                    {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                    disabled
+                                    title="This is your current plan"
+                                    {% elif plan.price == 0 and current_plan and current_plan.is_active and current_plan.plan.price > 0 %}
+                                    disabled
+                                    title="You cannot downgrade to Free plan while having an active paid plan"
+                                    {% endif %}
+                                >
+                                    {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                    Current Plan
+                                    {% elif plan.price == 0 and current_plan and current_plan.is_active and current_plan.plan.price > 0 %}
+                                    Not Available
+                                    {% else %}
+                                    Subscribe
+                                    {% endif %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
 
@@ -95,6 +160,23 @@
     {% endif %}
 </div>
 
-<script src="{{ url_for('static', filename='js/tour-profile.js') }}"></script>
+<!-- Payment Success/Error Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
 
+{% endblock %}
+
+{% block scripts %}
+<!-- Load our custom Stripe handling -->
+<script src="{{ url_for('static', filename='js/stripe.js') }}"></script>
+<!-- Tour script -->
+<script src="{{ url_for('static', filename='js/tour-profile.js') }}"></script>
 {% endblock %}

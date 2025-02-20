@@ -143,10 +143,28 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
                 errorMessage = errorData || `Request failed with status: ${response.status}`;
             }
 
-            // If we get a 500 error after token refresh, it might be due to invalid session
+            // Handle 500 errors with user-friendly message
             if (response.status === 500) {
-                console.log('Server error after token refresh, redirecting to login...');
-                resetSession();
+                console.error('Server error details:', errorMessage);
+
+                // Show user-friendly error toast/notification
+                showErrorNotification(
+                    'System Error',
+                    'Sorry, something went wrong on our end. Please try again later. If the problem persists, please contact support.'
+                );
+
+                // Optional: Report to error tracking service
+                if (window.Sentry) {
+                    Sentry.captureException(new Error(`500 Error: ${errorMessage}`));
+                }
+
+                // Reset session if it's an authentication-related 500
+                if (errorMessage.toLowerCase().includes('auth') ||
+                    errorMessage.toLowerCase().includes('token') ||
+                    errorMessage.toLowerCase().includes('session')) {
+                    console.log('Authentication-related server error, redirecting to login...');
+                    resetSession();
+                }
             }
 
             throw new Error(errorMessage);
@@ -317,4 +335,25 @@ function applyDataTableFilters(table, filters) {
     }
 
     table.draw();
+}
+
+// Helper function to show error notifications
+function showErrorNotification(title, message) {
+    // If using Toastify
+    if (window.Toastify) {
+        Toastify({
+            text: `${title}\n${message}`,
+            duration: 5000,
+            close: true,
+            gravity: "top",
+            position: "right",
+            style: {
+                background: "var(--bs-danger)",
+            }
+        }).showToast();
+    }
+    // Fallback to alert if no notification library
+    else {
+        alert(`${title}\n\n${message}`);
+    }
 }
