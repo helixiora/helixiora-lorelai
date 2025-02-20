@@ -107,21 +107,11 @@ class GoogleDriveContextRetriever(ContextRetriever):
                 # Get metadata with defaults for missing fields
                 metadata = result.metadata
                 title = metadata.get("title", "Untitled Document")
-                google_drive_id = metadata.get("google_drive_id", "")
                 modified_time = metadata.get("modifiedTime", "Unknown date")
                 relevance_score = metadata.get("relevance_score", 0.0)
-                mime_type = metadata.get("mime_type", "")
 
-                # Construct proper Google Drive URL based on mime type
-                if mime_type == "application/vnd.google-apps.document":
-                    source = f"https://docs.google.com/document/d/{google_drive_id}/view"
-                elif mime_type == "application/vnd.google-apps.spreadsheet":
-                    source = f"https://docs.google.com/spreadsheets/d/{google_drive_id}/view"
-                elif mime_type == "application/vnd.google-apps.presentation":
-                    source = f"https://docs.google.com/presentation/d/{google_drive_id}/view"
-                else:
-                    # Default to file viewer for PDFs and other files
-                    source = f"https://drive.google.com/file/d/{google_drive_id}/view"
+                # Default to file viewer for PDFs and other files
+                source = metadata.get("source", "")
 
                 context_document = LorelaiContextDocument(
                     title=title,
