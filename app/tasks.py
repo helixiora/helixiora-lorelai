@@ -101,18 +101,23 @@ def get_answer_from_rag(
 
                 # Measure time for inserting message
                 message_start_time = time.time()
+                # Create the classifier instance here - HRISTO
+                prompt_type = predict_prompt_type(chat_message)
+                logging.info(f"Prompt type: {prompt_type}")
+
+                # Store message with classification
                 insert_message(
                     conversation_id=str(conversation_id),
                     sender="user",
                     message_content=chat_message,
+                    classified_prompt=prompt_type.get("predicted_label")
+                    if prompt_type.get("success")
+                    else None,
                 )
 
                 message_time_taken = time.time() - message_start_time
                 set_tag("message_insertion_time", message_time_taken)
                 logging.info(f"Message insertion took {message_time_taken:.2f} seconds.")
-                # Create the classifier instance here - HRISTO 
-                prompt_type = predict_prompt_type(chat_message)
-                logging.info(f"Prompt type: {prompt_type}")
 
                 # Measure time for LLM creation and getting answer
                 llm = Llm.create(

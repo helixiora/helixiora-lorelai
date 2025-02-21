@@ -91,7 +91,11 @@ def insert_conversation_ignore(
 
 
 def insert_message(
-    conversation_id: str, sender: str, message_content: str, sources: str = None
+    conversation_id: str,
+    sender: str,
+    message_content: str,
+    sources: str = None,
+    classified_prompt: str = None,
 ) -> bool:
     """
     Insert a new message into the chat_messages table.
@@ -101,6 +105,7 @@ def insert_message(
         sender (str): The sender of the message.
         message_content (str): The content of the message.
         sources (str, optional): Any sources associated with the message. Defaults to None.
+        classified_prompt (str, optional): The classified prompt type. Defaults to None.
 
     Returns
     -------
@@ -116,6 +121,7 @@ def insert_message(
             sender=sender,
             message_content=message_content,
             sources=sources,
+            classified_prompt=classified_prompt,
         )
         db.session.add(message)
         db.session.commit()
