@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """Main application file for the Flask app."""
 
-from app.factory import create_app
 import sys
+import logging
+from app.factory import create_app
 from app.helpers.database import perform_health_checks
 from flask.templating import render_template_string
 from flask import request, url_for
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s - [%(filename)s:%(lineno)d]",
+)
 
 app = create_app()
 

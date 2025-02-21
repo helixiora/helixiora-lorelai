@@ -1,7 +1,7 @@
 """add_config_table.
 
-Revision ID: 00012
-Revises: 00011
+Revision ID: 00013
+Revises: 00012
 Create Date: 2025-01-27 16:48:22.867845
 
 """
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "00012"
-down_revision: str | None = "00011"
+revision: str = "00013"
+down_revision: str | None = "00012"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

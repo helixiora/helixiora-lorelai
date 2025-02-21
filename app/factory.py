@@ -97,6 +97,7 @@ def create_app(config=None):
             "'self'",
             "'unsafe-inline'",
             "data:",
+            "blob:",  # Allow blob URLs for images
             "https://accounts.google.com/gsi/",
             "https://csi.gstatic.com/csi",
             "https://cdn.datatables.net/",
