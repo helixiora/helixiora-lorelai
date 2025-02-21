@@ -86,12 +86,11 @@ class CreateCheckoutSessionResource(Resource):
                 # Save the customer ID to the user model
                 user.stripe_customer_id = customer.id
                 db.session.commit()  # Save changes to the database
-
+            # customer_email=user.email,
             # Create Stripe checkout session
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
                 mode="subscription",
-                customer_email=user.email,
                 customer=user.stripe_customer_id,  # Use existing Stripe customer ID
                 line_items=[
                     {
