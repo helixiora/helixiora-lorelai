@@ -14,6 +14,7 @@ from flask import current_app, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from flask_restx import Namespace, Resource, fields
 
+from app.database import db
 from app.helpers.users import assign_plan_to_user
 from app.models.plan import Plan
 from app.models.user import User
@@ -76,28 +77,31 @@ class CreateCheckoutSessionResource(Resource):
             if not plan:
                 return {"error": "Plan not found"}, 404
 
+            # Check if user has a Stripe customer ID
+            if not user.stripe_customer_id:
+                # Create a new Stripe customer
+                customer = stripe.Customer.create(
+                    email=user.email,
+                )
+                # Save the customer ID to the user model
+                user.stripe_customer_id = customer.id
+                db.session.commit()  # Save changes to the database
+
             # Create Stripe checkout session
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
                 mode="subscription",
                 customer_email=user.email,
+                customer=user.stripe_customer_id,  # Use existing Stripe customer ID
                 line_items=[
                     {
-                        "price_data": {
-                            "currency": "usd",
-                            "unit_amount": int(plan.price * 100),  # Convert to cents
-                            "product_data": {
-                                "name": plan.plan_name,
-                                "description": plan.description or f"{plan.plan_name} Subscription",
-                            },
-                            "recurring": {
-                                "interval": "month",
-                                "interval_count": plan.duration_months,
-                            },
-                        },
+                        "price": plan.stripe_price_id,  # Use Stripe price ID
                         "quantity": 1,
                     }
                 ],
+                subscription_data={
+                    "trial_period_days": 7,  # Add 7-day free trial
+                },
                 success_url=f"{request.host_url}profile?payment=success",
                 cancel_url=f"{request.host_url}profile?payment=cancelled",
                 client_reference_id=str(user_id),
@@ -124,7 +128,6 @@ class StripeWebhookResource(Resource):
         try:
             # Initialize Stripe with the secret key
             stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
-            print("Stripe webhook received")
             event = None
             payload = request.data
             sig_header = request.headers.get("Stripe-Signature")
@@ -143,12 +146,8 @@ class StripeWebhookResource(Resource):
             # Handle the checkout.session.completed event
             if event["type"] == "checkout.session.completed":
                 session = event["data"]["object"]
-
-                # Get user and plan IDs from metadata
                 user_id = int(session["metadata"]["user_id"])
                 plan_name = session["metadata"]["plan_name"]
-
-                # Assign the plan using the helper function
                 success = assign_plan_to_user(user_id=user_id, plan_name=plan_name)
 
                 if not success:
@@ -157,6 +156,20 @@ class StripeWebhookResource(Resource):
 
                 logging.info(f"Successfully processed subscription for user {user_id}")
                 return {"status": "success"}
+
+            # Handle the invoice.payment_succeeded event
+            elif event["type"] == "invoice.payment_succeeded":
+                invoice = event["data"]["object"]
+                user_id = int(invoice["metadata"]["user_id"])
+                logging.info(f"Payment succeeded for user {user_id}")
+                # Update user's subscription status in the database
+
+            # Handle the invoice.payment_failed event
+            elif event["type"] == "invoice.payment_failed":
+                invoice = event["data"]["object"]
+                user_id = int(invoice["metadata"]["user_id"])
+                logging.warning(f"Payment failed for user {user_id}")
+                # Handle payment failure, e.g., notify the user
 
             return {"status": "success"}
 

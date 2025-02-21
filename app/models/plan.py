@@ -1,7 +1,9 @@
 """Plan models."""
 
 from datetime import datetime
+
 from sqlalchemy.dialects.mysql import INTEGER
+
 from app.database import db
 
 
@@ -16,6 +18,7 @@ class Plan(db.Model):
     price = db.Column(db.Numeric(10, 2), nullable=False)
     duration_months = db.Column(INTEGER(unsigned=True), nullable=False)
     message_limit_daily = db.Column(db.Integer, nullable=True)
+    stripe_price_id = db.Column(db.String(255), nullable=True, unique=True)  # Stripe price ID
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
