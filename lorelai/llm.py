@@ -105,6 +105,7 @@ class Llm(ABC):
             except ValueError as e:
                 logging.error(f"Failed to create GoogleDriveContextRetriever: {e}")
 
+
     def get_answer(self, question: str, conversation_history: str | None = None) -> str:
         """Retrieve an answer to a given question based on provided context.
 
