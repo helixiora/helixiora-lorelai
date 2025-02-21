@@ -285,6 +285,7 @@ def get_user_current_plan(user_id: int):
 def assign_free_plan_if_no_active(user_id: int):
     """
     Assign a free one-month plan to a user if no active plan is currently assigned.
+
     Expire any existing plans that have passed their end date.
 
     This function performs the following steps:
