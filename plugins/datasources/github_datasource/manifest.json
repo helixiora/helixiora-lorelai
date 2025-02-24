@@ -19,6 +19,7 @@
     }
   ],
   "description": "A plugin to fetch issues from a GitHub repository.",
-  "name": "GitHub Datasource",
+  "display_name": "GitHub Datasource",
+  "name": "github_datasource",
   "version": "0.0.1"
 }

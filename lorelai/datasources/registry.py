@@ -177,7 +177,7 @@ class DatasourceRegistry:
     @staticmethod
     def validate_manifest(manifest: dict):
         """Validate the manifest file."""
-        required_fields = ["name", "version", "author", "description", "config"]
+        required_fields = ["name", "display_name", "version", "author", "description", "config"]
         missing_fields = [field for field in required_fields if field not in manifest]
         if missing_fields:
             raise KeyError(f"Missing required fields in manifest: {', '.join(missing_fields)}")
@@ -185,6 +185,10 @@ class DatasourceRegistry:
         # Validate logo URL if provided
         if "logo" in manifest and not isinstance(manifest["logo"], str):
             raise ValueError("Logo must be a string URL")
+
+        # Validate that display_name is a non-empty string
+        if not isinstance(manifest["display_name"], str) or not manifest["display_name"].strip():
+            raise ValueError("Display name must be a non-empty string")
 
     @classmethod
     def clear_cache(cls):
@@ -245,6 +249,7 @@ class DatasourceRegistry:
             plugins.append(
                 {
                     "name": plugin["name"],
+                    "display_name": plugin["display_name"],
                     "version": plugin["version"],
                     "author": plugin["author"],
                     "description": plugin["description"],
