@@ -45,3 +45,31 @@ class UserPlan(db.Model):
         db.Index("idx_user_plans_plan_id", "plan_id"),
         db.Index("idx_user_plans_user_id", "user_id"),
     )
+
+    @property
+    def plan_name(self) -> str:
+        """Get the name of the associated plan.
+
+        Returns
+        -------
+            str: The name of the plan.
+        """
+        return self.plan.plan_name if self.plan else None
+
+    @property
+    def plan_details(self) -> dict:
+        """Get details of the associated plan.
+
+        Returns
+        -------
+            dict: Dictionary containing plan details.
+        """
+        if not self.plan:
+            return None
+        return {
+            "plan_name": self.plan.plan_name,
+            "plan_id": self.plan.plan_id,
+            "price": self.plan.price,
+            "duration_months": self.plan.duration_months,
+            "stripe_price_id": self.plan.stripe_price_id,
+        }

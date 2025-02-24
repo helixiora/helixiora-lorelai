@@ -8,6 +8,7 @@ This module handles all Stripe-related operations including:
 """
 
 import logging
+from datetime import datetime
 
 import stripe
 from flask import current_app, request
@@ -17,7 +18,11 @@ from flask_restx import Namespace, Resource, fields
 from app.database import db
 from app.helpers.users import assign_plan_to_user
 from app.models.plan import Plan
+from app.models.stripe_webhook import StripeWebhookEvent
 from app.models.user import User
+
+# Define global variable for trial days
+TRIAL_DAYS = 7
 
 # Initialize Stripe with the secret key from config
 stripe_ns = Namespace("stripe", description="Stripe payment operations")
@@ -86,21 +91,28 @@ class CreateCheckoutSessionResource(Resource):
                 # Save the customer ID to the user model
                 user.stripe_customer_id = customer.id
                 db.session.commit()  # Save changes to the database
-            # customer_email=user.email,
+
+            # Check if user has previously subscribed to the Pro plan
+            has_had_pro_plan = any(
+                user_plan.plan.plan_name == "Pro" for user_plan in user.user_plans
+            )
+            print("&&&&&&&&&&&& has_had_pro_plan", has_had_pro_plan)
             # Create Stripe checkout session
+            subscription_data = {}
+            if not has_had_pro_plan:
+                subscription_data["trial_period_days"] = TRIAL_DAYS
+
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
                 mode="subscription",
-                customer=user.stripe_customer_id,  # Use existing Stripe customer ID
+                customer=user.stripe_customer_id,
                 line_items=[
                     {
-                        "price": plan.stripe_price_id,  # Use Stripe price ID
+                        "price": plan.stripe_price_id,
                         "quantity": 1,
                     }
                 ],
-                subscription_data={
-                    "trial_period_days": 7,  # Add 7-day free trial
-                },
+                subscription_data=subscription_data,
                 success_url=f"{request.host_url}profile?payment=success",
                 cancel_url=f"{request.host_url}profile?payment=cancelled",
                 client_reference_id=str(user_id),
@@ -142,39 +154,134 @@ class StripeWebhookResource(Resource):
                 logging.error(f"Invalid signature: {str(e)}")
                 return {"error": "Invalid signature"}, 400
 
+            # Separate the webhook event into different types so if storing in db fails,
+            # we can still process the event
+
+            # Store the webhook event in db
+            webhook_event = self.store_webhook_event(event)
+
+            # Process the webhook event
+            return self.process_webhook_event(event, webhook_event)
+
+        except Exception as e:
+            logging.error(f"Error processing webhook: {str(e)}")
+            return {"error": str(e)}, 500
+
+    @staticmethod
+    def store_webhook_event(event):
+        """Store the webhook event in the database."""
+        try:
+            webhook_event = StripeWebhookEvent(
+                stripe_event_id=event.id,
+                event_type=event["type"],
+                event_data=event,
+                status="received",
+            )
+            db.session.add(webhook_event)
+            db.session.commit()
+            return webhook_event
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Failed to store webhook event: {str(e)}")
+            return None
+
+    @staticmethod
+    def process_webhook_event(event, webhook_event):
+        """Process the webhook event."""
+        try:
             # Handle the checkout.session.completed event
             if event["type"] == "checkout.session.completed":
                 session = event["data"]["object"]
                 user_id = int(session["metadata"]["user_id"])
                 plan_name = session["metadata"]["plan_name"]
-                success = assign_plan_to_user(user_id=user_id, plan_name=plan_name)
+
+                # Determine trial days
+                trial_days = (
+                    TRIAL_DAYS
+                    if plan_name == "Pro"
+                    and not any(
+                        plan.plan_name == "Pro" for plan in User.query.get(user_id).user_plans
+                    )
+                    else None
+                )
+
+                success = assign_plan_to_user(
+                    user_id=user_id, plan_name=plan_name, trial_days=trial_days
+                )
 
                 if not success:
-                    logging.error(f"Failed to assign plan {plan_name} to user {user_id}")
+                    error_msg = f"Failed to assign plan {plan_name} to user {user_id}"
+                    logging.error(error_msg)
+                    StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
                     return {"error": "Failed to assign plan"}, 400
 
                 logging.info(f"Successfully processed subscription for user {user_id}")
-                return {"status": "success"}
 
             # Handle the invoice.payment_succeeded event
             elif event["type"] == "invoice.payment_succeeded":
                 invoice = event["data"]["object"]
+                subscription = stripe.Subscription.retrieve(invoice.subscription)
                 user_id = int(invoice["metadata"]["user_id"])
-                logging.info(f"Payment succeeded for user {user_id}")
-                # Update user's subscription status in the database
+                plan_name = invoice["metadata"]["plan_name"]
+
+                # Reassign the plan to update the end date
+                success = assign_plan_to_user(user_id=user_id, plan_name=plan_name)
+                if success:
+                    logging.info(
+                        f"Updated subscription:{subscription.id} for user {user_id} \
+                            after successful payment"
+                    )
+                else:
+                    error_msg = (
+                        f"Failed to update subscription:{subscription.id} for user {user_id}"
+                    )
+                    logging.error(error_msg)
+                    StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
 
             # Handle the invoice.payment_failed event
             elif event["type"] == "invoice.payment_failed":
                 invoice = event["data"]["object"]
                 user_id = int(invoice["metadata"]["user_id"])
                 logging.warning(f"Payment failed for user {user_id}")
-                # Handle payment failure, e.g., notify the user
+
+                # Cancel the subscription
+                subscription_id = invoice.get("subscription")
+                if subscription_id:
+                    stripe.Subscription.delete(subscription_id)
+
+                # Switch user to free plan
+                success = assign_plan_to_user(user_id=user_id, plan_name="Free")
+                if success:
+                    logging.info(f"Switched user {user_id} to Free plan due to payment failure")
+                else:
+                    error_msg = f"Failed to switch user {user_id} to Free plan"
+                    logging.error(error_msg)
+                    StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
+
+            # Mark webhook as processed
+            StripeWebhookResource.update_webhook_status(webhook_event, "processed")
 
             return {"status": "success"}
 
         except Exception as e:
-            logging.error(f"Error processing webhook: {str(e)}")
+            error_msg = f"Error processing webhook: {str(e)}"
+            logging.error(error_msg)
+            StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
             return {"error": str(e)}, 500
+
+    @staticmethod
+    def update_webhook_status(webhook_event, status, error_message=None):
+        """Update the status of the webhook event."""
+        if webhook_event:
+            try:
+                webhook_event.status = status
+                webhook_event.processed_at = datetime.utcnow()
+                if error_message:
+                    webhook_event.error_message = error_message
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f"Failed to update webhook event status: {str(e)}")
 
 
 @stripe_ns.route("/health")

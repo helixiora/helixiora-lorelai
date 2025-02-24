@@ -1,7 +1,7 @@
 """User related helper functions."""
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from dateutil.relativedelta import relativedelta
@@ -461,19 +461,20 @@ def remove_user_role(user_id: int, role_name: str) -> bool:
     return False
 
 
-def assign_plan_to_user(user_id: int, plan_name: str) -> bool:
+def assign_plan_to_user(user_id: int, plan_name: str, trial_days: int = None) -> bool:
     """
     Assign a specific plan to a user.
 
     This function performs the following steps:
     1. Deactivates any existing active plans for the user
     2. Finds the requested plan by name
-    3. Creates a new active plan for the user with duration from plan settings
+    3. Creates a new active plan for the user with duration from plan settings or trial_days if provided
     4. Commits all changes to the database
 
     Args:
         user_id (int): The unique identifier of the user.
         plan_name (str): The name of the plan to assign.
+        trial_days (int, optional): Number of trial days to override the plan duration.
 
     Returns
     -------
@@ -482,7 +483,7 @@ def assign_plan_to_user(user_id: int, plan_name: str) -> bool:
     Raises
     ------
         Exception: If there is an error during the database operations.
-    """
+    """  # noqa: E501
     try:
         # Deactivate existing active plans
         UserPlan.query.filter_by(user_id=user_id, is_active=True).update({"is_active": False})
@@ -493,9 +494,12 @@ def assign_plan_to_user(user_id: int, plan_name: str) -> bool:
             logging.error(f"Plan not found: {plan_name}")
             return False
 
-        # assign  new plan for user
+        # Assign new plan for user
         start_date = datetime.utcnow()
-        end_date = start_date + relativedelta(months=plan.duration_months)
+        if trial_days is not None:
+            end_date = start_date + timedelta(days=trial_days)
+        else:
+            end_date = start_date + relativedelta(months=plan.duration_months)
 
         new_user_plan = UserPlan(
             user_id=user_id,
