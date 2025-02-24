@@ -151,6 +151,20 @@ def profile():
 
         profile = Profile.query.filter_by(user_id=current_user.id).first()
 
+        # Get plugin configurations if the feature is enabled
+        plugins = []
+        plugin_errors = {}
+        if current_app.config["FEATURE_PLUGIN_ARCHITECTURE"]:
+            from lorelai.datasources.registry import DatasourceRegistry
+
+            registry = DatasourceRegistry()
+            registry.load_plugins()
+            plugin_data = registry.get_plugin_configs(user_id=current_user.id)
+            plugins = plugin_data["plugins"]
+            plugin_errors = plugin_data["errors"]
+            if plugin_errors:
+                logging.warning("Some plugins failed to load: %s", plugin_errors)
+
         if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
             try:
                 google_drive_tokens = get_token_details(current_user.id)
@@ -245,6 +259,8 @@ def profile():
             slack_auth=slack_auth,
             profile=profile,
             api_keys=current_user.api_keys,
+            plugins=plugins,
+            plugin_errors=plugin_errors,
         )
     return "You are not logged in!", 403
 

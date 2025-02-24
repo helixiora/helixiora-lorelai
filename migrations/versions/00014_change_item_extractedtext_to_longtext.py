@@ -1,7 +1,7 @@
 """Change item_extractedtext to LONGTEXT.
 
 Revision ID: 00014
-Revises: 00012
+Revises: 00013
 Create Date: 2024-02-16 22:17:13.074000
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects.mysql import LONGTEXT
 
 # revision identifiers, used by Alembic.
 revision = "00014"
-down_revision = "00012"
+down_revision = "00013"
 branch_labels = None
 depends_on = None
 

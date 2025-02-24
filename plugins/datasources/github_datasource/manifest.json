@@ -1,0 +1,24 @@
+{
+  "author": "Walter Heck",
+  "config": [
+    {
+      "datatype": "text",
+      "description": "The GitHub repository in the format 'owner/repo' (e.g. 'microsoft/vscode').",
+      "key": "repository",
+      "required": true,
+      "sensitive": false,
+      "title": "Repository"
+    },
+    {
+      "datatype": "sensitive",
+      "description": "Your GitHub personal access token. Required for private repositories, optional for public ones.",
+      "key": "access_token",
+      "required": false,
+      "sensitive": true,
+      "title": "Access Token"
+    }
+  ],
+  "description": "A plugin to fetch issues from a GitHub repository.",
+  "name": "GitHub Datasource",
+  "version": "0.0.1"
+}

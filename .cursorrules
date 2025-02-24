@@ -89,3 +89,11 @@ project_root/
 - When the frontend needs to make a request to the backend, it should use the makeAuthenticatedRequest function in the utils.js file.
 - The makeAuthenticatedRequest function will add the access token to the request headers and include the CSRF token in the request headers if the request is not a GET request.
 - The makeAuthenticatedRequest function will include the cookies in the request if the request is not a GET request.
+
+## 9. Python No Deprecated Features
+
+- Our Python code should avoid using deprecated features and adhere to the latest Python standards.
+
+## 10. Python Type Standards
+
+- Avoid using 'Dict', 'Any', and 'Union'. Use more specific types and Pydantic for type validation.

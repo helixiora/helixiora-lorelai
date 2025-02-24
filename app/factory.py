@@ -21,6 +21,7 @@ from app.routes.api.v1.slack import slack_ns
 from app.routes.api.v1.googledrive import googledrive_ns
 from app.routes.api.v1.conversation import conversation_ns
 from app.routes.api.v1.indexing import indexing_ns
+from app.routes.api.v1.datasources import datasources_ns
 
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
@@ -29,6 +30,7 @@ from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
 from app.routes.admin import admin_bp
 from app.routes.notifications import notifications_bp
+from app.routes.datasources import datasources_bp
 
 # Get git details
 try:
@@ -198,13 +200,14 @@ def create_app(config=None):
         return {"is_admin": current_user.is_admin() if current_user.is_authenticated else False}
 
     # Register blueprints
-    app.register_blueprint(notifications_bp)
-    app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(indexing_bp)
     app.register_blueprint(googledrive_bp)
     app.register_blueprint(slack_bp)
-    app.register_blueprint(indexing_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(notifications_bp)
+    app.register_blueprint(datasources_bp)
 
     # Initialize API
     authorizations = {
@@ -314,6 +317,7 @@ def create_app(config=None):
     api.add_namespace(auth_ns)
     api.add_namespace(chat_ns)
     api.add_namespace(conversation_ns)
+    api.add_namespace(datasources_ns)
     api.add_namespace(googledrive_ns)
     api.add_namespace(indexing_ns)
     api.add_namespace(notifications_ns)

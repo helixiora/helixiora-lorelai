@@ -187,7 +187,9 @@ Out of scope:
 1. **Create GitHub Datasource**:
 
    - Implement core interfaces
+
    - Support key GitHub features:
+
      ```yaml
      # Example github/datasource.yaml
      name: "github"
@@ -400,7 +402,8 @@ This reference implementation will serve as a template for future datasources, d
 ## technical implementation notes
 
 1. Create Base Directory Structure:
-   ```
+
+   ```text
    # Core datasource framework
    lorelai/
    ├── datasources/
@@ -604,7 +607,7 @@ This system ensures that:
 - Clear upgrade paths are available
 - Framework compatibility is maintained
 
-2. Define Core Interfaces:
+1. Define Core Interfaces:
 
    ```python
    # lorelai/datasources/interfaces/base.py

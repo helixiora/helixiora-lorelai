@@ -99,6 +99,7 @@ class Config:
     # Feature flags
     FEATURE_SLACK = os.environ.get("FEATURE_SLACK", "1") == "1"
     FEATURE_GOOGLE_DRIVE = os.environ.get("FEATURE_GOOGLE_DRIVE", "1") == "1"
+    FEATURE_PLUGIN_ARCHITECTURE = os.environ.get("FEATURE_PLUGIN_ARCHITECTURE", "0") == "1"
 
     # Slack settings
     SLACK_CLIENT_ID = os.environ.get("SLACK_CLIENT_ID")
@@ -111,6 +112,9 @@ class Config:
     SLACK_SCOPES = os.environ.get(
         "SLACK_SCOPES", "channels:history,channels:read,groups:read,users:read,users:read.email"
     )
+
+    # Configuration for the directory containing datasource plugins
+    DATASOURCE_PLUGIN_DIR = "plugins/datasources"
 
     @classmethod
     def init_app(cls, app):

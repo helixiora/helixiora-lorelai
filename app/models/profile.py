@@ -1,6 +1,8 @@
 """Profile model."""
 
 from app.database import db
+from lorelai.datasources.registry import DatasourceRegistry
+from flask import current_app
 
 
 class Profile(db.Model):
@@ -26,3 +28,11 @@ class Profile(db.Model):
     def __repr__(self):
         """Return a string representation of the profile."""
         return f"<Profile of {self.user.email}>"
+
+    def get_plugin_configs(self):
+        """Fetch plugin configurations if the plugin architecture is enabled."""
+        if current_app.config["FEATURE_PLUGIN_ARCHITECTURE"]:
+            registry = DatasourceRegistry(current_app.config["DATASOURCE_PLUGIN_DIR"])
+            registry.load_plugins()
+            return registry.get_plugin_configs()
+        return []
