@@ -109,6 +109,7 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
     }
 
     try {
+
         let response = await fetch(url, options);
 
         // If we get a 401, try to refresh the token once
@@ -339,21 +340,6 @@ function applyDataTableFilters(table, filters) {
 
 // Helper function to show error notifications
 function showErrorNotification(title, message) {
-    // If using Toastify
-    if (window.Toastify) {
-        Toastify({
-            text: `${title}\n${message}`,
-            duration: 5000,
-            close: true,
-            gravity: "top",
-            position: "right",
-            style: {
-                background: "var(--bs-danger)",
-            }
-        }).showToast();
-    }
-    // Fallback to alert if no notification library
-    else {
-        alert(`${title}\n\n${message}`);
-    }
+    console.log(`Error: ${title} - ${message}`);
+    alert(`${title}\n\n${message}`);
 }
