@@ -49,6 +49,11 @@
                     <p class="mb-1"><strong>End Date:</strong> {{ current_plan.end_date.strftime('%Y-%m-%d') }}</p>
                     <p class="mb-0"><strong>Status:</strong> {% if current_plan.is_active %}Active{% else %}Inactive{% endif %}</p>
                 </div>
+                {% if current_plan.is_active and current_plan.plan.price > 0 and user.stripe_customer_id %}
+                <button id="manage-billing-btn" class="btn btn-secondary mt-2">
+                    <i class="bi bi-credit-card me-1"></i> Manage Billing
+                </button>
+                {% endif %}
                 {% else %}
                 <p class="text-muted">No active subscription</p>
                 {% endif %}

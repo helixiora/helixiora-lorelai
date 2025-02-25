@@ -79,3 +79,29 @@ async function handlePayment(planId) {
 
 // Initialize Stripe when the window is fully loaded
 window.addEventListener('load', initializeStripe);
+
+// Handle Manage Billing button click
+async function handleManageBilling() {
+    try {
+        const response = await makeAuthenticatedRequest('/api/v1/stripe/create-billing-portal-session', 'POST');
+        const data = await response.json();
+
+        if (data.status === 'success' && data.url) {
+            // Redirect to Stripe billing portal
+            window.location.href = data.url;
+        } else {
+            throw new Error(data.message || 'Could not create billing portal session');
+        }
+    } catch (error) {
+        console.error('Error accessing billing portal:', error);
+        showErrorNotification('Billing Portal Error', 'Could not access the billing portal. Please try again later.');
+    }
+}
+
+// Add event listener to the Manage Billing button if it exists
+document.addEventListener('DOMContentLoaded', function() {
+    const manageBillingBtn = document.getElementById('manage-billing-btn');
+    if (manageBillingBtn) {
+        manageBillingBtn.addEventListener('click', handleManageBilling);
+    }
+});

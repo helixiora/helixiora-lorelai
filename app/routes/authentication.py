@@ -139,15 +139,6 @@ def profile():
     """
     # only proceed if the user is logged in
     if current_user.is_authenticated:
-        user = {
-            "user_id": current_user.id,
-            "email": current_user.email,
-            "username": current_user.user_name,
-            "full_name": current_user.full_name,
-            "organisation": current_user.organisation.name,
-            "roles": current_user.roles,
-        }
-
         profile = Profile.query.filter_by(user_id=current_user.id).first()
 
         # Get current active plan and available plans
@@ -244,10 +235,9 @@ def profile():
             logging.warning("Slack feature is disabled.")
             slack_channels = None
             slack_auth = None
-
         return render_template(
             "profile.html",
-            user=user,
+            user=current_user,
             is_admin=current_user.is_admin(),
             google_docs_to_index=google_docs_to_index,
             google_drive_access_token=google_drive_access_token,

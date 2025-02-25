@@ -275,6 +275,45 @@ class StripeWebhookResource(Resource):
                     logging.error(error_msg)
                     StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
 
+            # Handle the customer.subscription.updated event (subscription cancellation)
+            elif event["type"] == "customer.subscription.updated":
+                subscription = event["data"]["object"]
+                customer_id = subscription.get("customer")
+                status = subscription.get("status")
+
+                # If subscription is canceled, update the user's plan
+                if status == "canceled":
+                    user = User.query.filter_by(stripe_customer_id=customer_id).first()
+
+                    if not user:
+                        error_msg = f"User with Stripe customer ID {customer_id} not found"
+                        logging.error(error_msg)
+                        StripeWebhookResource.update_webhook_status(
+                            webhook_event, "failed", error_msg
+                        )
+                        return {"error": error_msg}, 404
+
+                    # Assign Free plan to the user
+                    success = assign_plan_to_user(user_id=user.id, plan_name="Free")
+
+                    if success:
+                        logging.info(
+                            f"Switched user {user.id} to Free plan due to subscription cancellation"
+                        )
+                    else:
+                        error_msg = (
+                            f"Failed to switch user {user.id} to Free plan after cancellation"
+                        )
+                        logging.error(error_msg)
+                        StripeWebhookResource.update_webhook_status(
+                            webhook_event, "failed", error_msg
+                        )
+                        return {"error": error_msg}, 500
+                else:
+                    logging.info(
+                        f"Received subscription update with status: {status}, no action needed"
+                    )
+
             # Mark webhook as processed
             StripeWebhookResource.update_webhook_status(webhook_event, "processed")
 
@@ -360,3 +399,39 @@ class StripeHealthResource(Resource):
                 "message": "Failed to check Stripe health",
                 "details": str(e),
             }, 500
+
+
+@stripe_ns.route("/create-billing-portal-session")
+class CreateBillingPortalSessionResource(Resource):
+    """Resource to create a Stripe billing portal session."""
+
+    @stripe_ns.doc(security="Bearer Auth")
+    @jwt_required()
+    def post(self):
+        """Create a Stripe billing portal session for the authenticated user."""
+        try:
+            # Get the current user from the JWT token
+            user_id = get_jwt_identity()
+            user = User.query.get(user_id)
+
+            if not user:
+                return {"status": "error", "message": "User not found"}, 404
+
+            if not user.stripe_customer_id:
+                return {"status": "error", "message": "No Stripe customer found for this user"}, 400
+
+            # Initialize Stripe with the secret key
+            stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
+
+            # Create a billing portal session
+            session = stripe.billing_portal.Session.create(
+                customer=user.stripe_customer_id,
+                return_url=f"{request.host_url}profile",
+            )
+
+            # Return the URL to redirect the customer to
+            return {"status": "success", "url": session.url}, 200
+
+        except Exception as e:
+            logging.error(f"Failed to create billing portal session: {str(e)}")
+            return {"status": "error", "message": "Failed to create billing portal session"}, 500

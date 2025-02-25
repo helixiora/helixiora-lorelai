@@ -71,6 +71,12 @@ for webhook testing.
    - `checkout.session.async_payment_succeeded`
    - `checkout.session.async_payment_failed`
 
+   Also subscribe to the following subscription events:
+
+   - `customer.subscription.updated` (for handling subscription cancellations)
+   - `invoice.payment_succeeded`
+   - `invoice.payment_failed`
+
 1. **Get Webhook Secret**
 
    - After creating the webhook, you'll see a "Signing secret" key
@@ -109,6 +115,24 @@ for webhook testing.
 
      - Success: `4242 4242 4242 4242`
      - Failure: `4000 0000 0000 0002`
+
+1. **Test Billing Portal and Cancellation**
+
+   - After subscribing to a paid plan, a "Manage Billing" button will appear on your profile page
+
+   - Click this button to be redirected to the Stripe Customer Portal
+
+   - In the portal, you can:
+
+     - Cancel your subscription
+     - Update payment methods
+     - View invoices
+
+   - Test canceling your subscription and confirm that:
+
+     - Your subscription status updates in Stripe
+     - The webhook is received (check logs and ngrok interface)
+     - Your application correctly downgrades you to the Free plan
 
 1. **Monitor Webhook Events**
 
