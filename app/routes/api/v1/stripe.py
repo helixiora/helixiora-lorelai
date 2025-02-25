@@ -21,9 +21,6 @@ from app.models.plan import Plan
 from app.models.stripe_webhook import StripeWebhookEvent
 from app.models.user import User
 
-# Define global variable for trial days
-TRIAL_DAYS = 7
-
 # Initialize Stripe with the secret key from config
 stripe_ns = Namespace("stripe", description="Stripe payment operations")
 
@@ -66,8 +63,17 @@ class CreateCheckoutSessionResource(Resource):
     def post(self):
         """Create a Stripe checkout session."""
         try:
+            # Get Stripe secret key from config
+            stripe_secret_key = current_app.config.get("STRIPE_SECRET_KEY")
+
+            # Check if key exists
+            if not stripe_secret_key:
+                error_msg = "STRIPE_SECRET_KEY not found in application configuration"
+                logging.error(error_msg)
+                raise ValueError(error_msg)
+
             # Initialize Stripe with the secret key
-            stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
+            stripe.api_key = stripe_secret_key
 
             data = request.get_json()
             user_id = get_jwt_identity()
@@ -96,11 +102,12 @@ class CreateCheckoutSessionResource(Resource):
             has_had_pro_plan = any(
                 user_plan.plan.plan_name == "Pro" for user_plan in user.user_plans
             )
-            print("&&&&&&&&&&&& has_had_pro_plan", has_had_pro_plan)
             # Create Stripe checkout session
             subscription_data = {}
             if not has_had_pro_plan:
-                subscription_data["trial_period_days"] = TRIAL_DAYS
+                subscription_data["trial_period_days"] = current_app.config.get(
+                    "STRIPE_TRIAL_DAYS", 7
+                )
 
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
@@ -137,8 +144,17 @@ class StripeWebhookResource(Resource):
     def post(self):
         """Handle Stripe webhook events."""
         try:
+            # Get Stripe secret key from config
+            stripe_secret_key = current_app.config.get("STRIPE_SECRET_KEY")
+
+            # Check if key exists
+            if not stripe_secret_key:
+                error_msg = "STRIPE_SECRET_KEY not found in application configuration"
+                logging.error(error_msg)
+                raise ValueError(error_msg)
+
             # Initialize Stripe with the secret key
-            stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
+            stripe.api_key = stripe_secret_key
             event = None
             payload = request.data
             sig_header = request.headers.get("Stripe-Signature")
@@ -196,8 +212,9 @@ class StripeWebhookResource(Resource):
                 plan_name = session["metadata"]["plan_name"]
 
                 # Determine trial days
+                trial_days_allowed = current_app.config.get("STRIPE_TRIAL_DAYS", 7)
                 trial_days = (
-                    TRIAL_DAYS
+                    trial_days_allowed
                     if plan_name == "Pro"
                     and not any(
                         plan.plan_name == "Pro" for plan in User.query.get(user_id).user_plans
@@ -292,6 +309,11 @@ class StripeHealthResource(Resource):
     # @jwt_required()
     def get(self):
         """Check if Stripe is properly configured and accessible."""
+        # decided to disable this endpoint for now as it's not needed. for future debugging,
+        # Check if health endpoint is enabled
+        if not current_app.config.get("ENABLE_STRIPE_HEALTH_ENDPOINT", False):
+            return {"status": "disabled", "message": "Stripe health endpoint is disabled"}, 403
+
         try:
             # Check if keys are configured
             publishable_key = current_app.config["STRIPE_PUBLISHABLE_KEY"]

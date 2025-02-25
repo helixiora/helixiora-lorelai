@@ -60,6 +60,8 @@ class Config:
     STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    STRIPE_TRIAL_DAYS = int(os.environ.get("STRIPE_TRIAL_DAYS"))  # Default to 7 days
+    ENABLE_STRIPE_HEALTH_ENDPOINT = os.environ.get("ENABLE_STRIPE_HEALTH_ENDPOINT", False)
 
     # Pinecone settings
     PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
