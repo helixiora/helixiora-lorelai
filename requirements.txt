@@ -2,7 +2,7 @@ bleach==6.2.0
 colorlog==6.9.0
 FlashRank==0.2.10
 Flask==3.1.0
-Flask-Cors==5.0.0
+Flask-Cors==5.0.1
 flask-jwt-extended==4.7.1
 flask-login==0.6.3
 Flask-Migrate==4.1.0
@@ -14,9 +14,9 @@ google-auth==2.38.0
 google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.1
 langchain==0.3.19
-langchain-community==0.3.17
+langchain-community==0.3.18
 langchain-googledrive==0.3.35
-langchain-openai==0.3.6
+langchain-openai==0.3.7
 langchain-pinecone==0.2.3
 mysql-connector-python==9.2.0
 mysqlclient==2.2.7
@@ -28,10 +28,14 @@ PyJWT==2.10.1
 PyPDF2==3.0.1
 python-ulid==3.0.0
 redis==5.2.1
-rerankers[flashrank]==0.7.1
+Requests==2.32.3
+rerankers==0.8.0
+rerankers[flashrank]==0.8.0
 rq==2.1.0
 sendgrid==6.11.0
 sentry-sdk==2.22.0
 sqlalchemy==2.0.38
 sqlalchemy-utils==0.41.2
+torch==2.6.0
+transformers==4.49.0
 werkzeug==3.1.3
