@@ -215,19 +215,23 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await makeAuthenticatedRequest('/api/v1/chat', 'POST', { message: message });
 
+            // Check for 429 response - makeAuthenticatedRequest now returns the response for 429 errors
+            if (response.status === 429) {
+                console.warn('Quota exceeded (429).');
+                hideLoadingIndicator();
+                addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
+                return;
+            }
+
+            // For other non-OK responses that might have been returned
             if (!response.ok) {
                 hideLoadingIndicator();
+                console.log('Response not OK:', response);
 
-                if (response.status === 429) {
-                    // Handle 429 Quota Exceeded
-                    console.warn('Quota exceeded.');
-                    hideLoadingIndicator();
-                    addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
-                } else if (response.status === 401) {
+                if (response.status === 401) {
                     addMessage('Your session has expired. Please log in again.', false, false);
                 } else {
                     addMessage('Error: Unable to send the message. Please try again later.', false, false);
-                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return;
             }
@@ -247,15 +251,16 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Fetch error:', error);
             hideLoadingIndicator();
 
-            if (error.message === 'Unauthorized') {
+            // Check if the error message contains status code information
+            if (error.message.includes('401:') || error.message === 'Unauthorized') {
                 addMessage('Your session has expired. Please log in again.', false, false);
-            } else if (error.message.includes('429')) {
+            } else if (error.message.includes('429:')) {
+                // This is a fallback in case the 429 response wasn't caught earlier
+                console.warn('Quota exceeded from error handler.');
                 addMessage('Quota exceeded. Please contact Lorelai support if you need to increase your quota.', false, false);
             } else {
                 addMessage('Error: Unable to send the message. Please try again later.', false, false);
             }
-            console.error('Send message error:', error);
-            hideLoadingIndicator();
         }
     }
 

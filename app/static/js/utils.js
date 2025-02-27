@@ -109,7 +109,6 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
     }
 
     try {
-
         let response = await fetch(url, options);
 
         // If we get a 401, try to refresh the token once
@@ -132,6 +131,12 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
                 resetSession();
                 throw new Error('Authentication failed - please log in again');
             }
+        }
+
+        // For 429 errors, return the response directly so the calling function can handle it
+        if (response.status === 429) {
+            console.warn('Rate limit exceeded (429)');
+            return response;
         }
 
         if (!response.ok) {
@@ -168,7 +173,8 @@ async function makeAuthenticatedRequest(url, method = 'GET', body = null) {
                 }
             }
 
-            throw new Error(errorMessage);
+            // Include status code in the error message for better handling
+            throw new Error(`${response.status}: ${errorMessage}`);
         }
 
         return response;
