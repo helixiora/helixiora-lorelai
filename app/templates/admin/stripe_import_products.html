@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .api-key-input {
+        font-family: monospace;
+    }
+    .info-card {
+        background-color: #f8f9fa;
+        border-left: 4px solid #0d6efd;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .warning-card {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .danger-card {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    #result-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .price-mapping {
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">Import Stripe Products from Live</h1>
+        <a href="{{ url_for('admin.manage_stripe_plans') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Stripe Plans
+        </a>
+    </div>
+
+    <!-- Introduction -->
+    <div class="info-card mb-4">
+        <h3 class="h5"><i class="bi bi-info-circle-fill text-primary me-2"></i>About This Tool</h3>
+        <p>This utility helps you import all products and prices from your Stripe live environment to your current test environment. This ensures consistency between environments and makes testing easier.</p>
+        <p><strong>What this tool does:</strong></p>
+        <ul>
+            <li>Fetches all active products from your live Stripe account</li>
+            <li>Creates equivalent products in this test environment</li>
+            <li>Creates all associated prices for each product</li>
+            <li>Provides a mapping between live and test price IDs</li>
+        </ul>
+    </div>
+
+    <!-- Warning -->
+    <div class="warning-card mb-4">
+        <h3 class="h5"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Important Notes</h3>
+        <ul>
+            <li>You'll need your <strong>live</strong> Stripe API key (starts with sk_live_).</li>
+            <li>This process will <strong>not</strong> delete any existing products in your test environment.</li>
+            <li>After importing, you'll need to manually update your database plans to use the new test price IDs.</li>
+            <li>API keys are not stored anywhere and are only used for this operation.</li>
+        </ul>
+    </div>
+
+    <!-- Environment Check -->
+    <div class="info-card mb-4">
+        <h3 class="h5"><i class="bi bi-check-circle-fill text-success me-2"></i>Environment Check</h3>
+        <p>You are currently in a <strong>TEST</strong> environment. This is the correct environment for importing products from live.</p>
+    </div>
+
+    <!-- Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="h4 mb-0">Import Products and Prices</h2>
+        </div>
+        <div class="card-body">
+            <form id="import-form">
+                <div class="mb-3">
+                    <label for="live-api-key" class="form-label">Stripe Live Secret Key</label>
+                    <input type="password" class="form-control api-key-input" id="live-api-key" name="live_api_key" placeholder="sk_live_..." required>
+                    <div class="form-text">Your live environment secret key (starts with sk_live_)</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="import-button">
+                    <i class="bi bi-cloud-download"></i> Import Products and Prices
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="result-container" class="d-none">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="h4 mb-0">Results</h3>
+            </div>
+            <div class="card-body">
+                <div id="result-message" class="alert"></div>
+
+                <div id="price-mapping-container" class="d-none">
+                    <h4 class="h5 mt-3">Price ID Mapping (Live → Test)</h4>
+                    <p class="text-muted">Use these test price IDs to update your database plans for testing.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Live Price ID</th>
+                                    <th>Test Price ID</th>
+                                </tr>
+                            </thead>
+                            <tbody id="price-mapping-table">
+                                <!-- Will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <a href="{{ url_for('admin.manage_stripe_plans') }}" class="btn btn-primary">
+                        <i class="bi bi-gear-fill"></i> Go to Stripe Plans Management
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const importForm = document.getElementById('import-form');
+        const importButton = document.getElementById('import-button');
+        const resultContainer = document.getElementById('result-container');
+        const resultMessage = document.getElementById('result-message');
+        const priceMappingContainer = document.getElementById('price-mapping-container');
+        const priceMappingTable = document.getElementById('price-mapping-table');
+
+        importForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // Validate live API key format
+            const liveApiKey = document.getElementById('live-api-key').value;
+            if (!liveApiKey.startsWith('sk_live_')) {
+                alert('Please enter a valid live API key (starts with sk_live_)');
+                return;
+            }
+
+            // Disable button and show loading state
+            importButton.disabled = true;
+            importButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+
+            // Get form data
+            const formData = new FormData(importForm);
+
+            // Send request
+            fetch('{{ url_for("admin.import_stripe_products_from_live") }}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Show result container
+                resultContainer.classList.remove('d-none');
+
+                if (data.success) {
+                    // Success
+                    resultMessage.className = 'alert alert-success';
+                    resultMessage.textContent = data.message;
+
+                    // Show price mapping
+                    if (data.price_id_map && Object.keys(data.price_id_map).length > 0) {
+                        priceMappingContainer.classList.remove('d-none');
+                        priceMappingTable.innerHTML = '';
+
+                        // Add rows for each price mapping
+                        Object.entries(data.price_id_map).forEach(([liveId, testId]) => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td class="price-mapping">${liveId}</td>
+                                <td class="price-mapping">${testId}</td>
+                            `;
+                            priceMappingTable.appendChild(row);
+                        });
+                    }
+                } else {
+                    // Error
+                    resultMessage.className = 'alert alert-danger';
+                    resultMessage.textContent = data.message;
+                    priceMappingContainer.classList.add('d-none');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultContainer.classList.remove('d-none');
+                resultMessage.className = 'alert alert-danger';
+                resultMessage.textContent = 'An error occurred while processing your request.';
+                priceMappingContainer.classList.add('d-none');
+            })
+            .finally(() => {
+                // Reset button state
+                importButton.disabled = false;
+                importButton.innerHTML = '<i class="bi bi-cloud-download"></i> Import Products and Prices';
+            });
+        });
+    });
+</script>
+{% endblock %}

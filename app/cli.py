@@ -59,8 +59,8 @@ def seed_db_command():
     click.echo("Creating plans...")
     # Add plans if they don't exist
     plans = [
-        {"name": "Free", "price": 0, "duration": 30, "limit": 1000},
-        {"name": "Pro", "price": 10, "duration": 30, "limit": 10000},
+        {"name": "Free", "price": 0, "duration": 1, "limit": 1000},
+        {"name": "Pro", "price": 20, "duration": 1, "limit": 10000},
     ]
     for p in plans:
         if not Plan.query.filter_by(plan_name=p["name"]).first():

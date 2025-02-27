@@ -9,8 +9,9 @@ Usage:
 """
 
 import logging
-import colorlog
 import os
+import sys
+from logging.config import dictConfig
 
 
 def get_log_level() -> int:
@@ -29,68 +30,66 @@ def get_log_level() -> int:
         return logging.INFO
 
 
-def configure_logging(level=None):
-    """Configure logging with consistent formatting and colors.
-
-    This function sets up logging with the following features:
-    - Colored output based on log level
-    - Timestamp in HH:MM:SS format
-    - Module name in yellow
-    - Log level with appropriate color
-    - Message with the actual log content
+def configure_logging(app=None, log_level=None):
+    """Configure logging for the application.
 
     Parameters
     ----------
-    level : int, optional
-        The logging level to use. If None, uses LOG_LEVEL env var (defaults to INFO)
+    app : Flask
+        The Flask application instance.
+    log_level : str
+        The log level to use.
     """
-    # Use provided level or get from environment
-    level = level if level is not None else get_log_level()
+    if app:
+        log_level = log_level or app.config.get("LOG_LEVEL", "INFO")
+    else:
+        log_level = log_level or "INFO"
 
-    root_logger = logging.getLogger()
-
-    # Remove any existing handlers to avoid duplicate logs
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # Create console handler with color formatting
-    handler = colorlog.StreamHandler()
-    handler.setFormatter(
-        colorlog.ColoredFormatter(
-            "%(log_color)s%(levelname)-8s%(reset)s %(blue)s%(asctime)s%(reset)s \
-%(yellow)s%(name)s%(reset)s - %(message)s",
-            log_colors={
-                "DEBUG": "cyan",
-                "INFO": "green",
-                "WARNING": "yellow",
-                "ERROR": "red",
-                "CRITICAL": "red,bg_white",
+    # Define the logging configuration
+    logging_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                # Update the formatter to include file name and line number
+                "format": (
+                    "%(levelname)-8s %(asctime)s %(name)s [%(filename)s:%(lineno)d] - %(message)s"
+                ),
+                "datefmt": "%H:%M:%S",
             },
-            secondary_log_colors={},
-            style="%",
-            datefmt="%H:%M:%S",
-        )
-    )
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": log_level,
+                "formatter": "standard",
+                "stream": sys.stdout,
+            },
+        },
+        "loggers": {
+            "": {  # Root logger
+                "handlers": ["console"],
+                "level": log_level,
+                "propagate": True,
+            },
+            # Add specific loggers as needed
+            "werkzeug": {
+                "handlers": ["console"],
+                "level": "WARNING",
+                "propagate": False,
+            },
+            "stripe": {
+                "handlers": ["console"],
+                "level": log_level,
+                "propagate": False,
+            },
+        },
+    }
 
-    # Add handler to root logger and set level
-    root_logger.addHandler(handler)
-    root_logger.setLevel(level)
+    # Apply the configuration
+    dictConfig(logging_config)
 
-    # Also configure Flask's logger
-    flask_logger = logging.getLogger("flask")
-    flask_logger.setLevel(level)
+    # Log the configuration
+    logging.info(f"Logging configured with level: {log_level}")
 
-    # Configure RQ logger
-    rq_logger = logging.getLogger("rq")
-    rq_logger.setLevel(level)
-
-    # Configure SQLAlchemy logger
-    sqlalchemy_logger = logging.getLogger("sqlalchemy")
-    sqlalchemy_logger.setLevel(logging.WARNING)  # Keep SQLAlchemy at WARNING to reduce noise
-
-    # Configure Werkzeug logger
-    werkzeug_logger = logging.getLogger("werkzeug")
-    werkzeug_logger.setLevel(level)
-
-    # Log the level we're using
-    root_logger.debug("Logging configured with level: %s", logging.getLevelName(level))
+    return logging_config

@@ -21,43 +21,43 @@ References
 """
 
 import logging
+from datetime import datetime
+from typing import Literal
+
 import bleach
 from flask import (
     Blueprint,
+    current_app,
     flash,
+    make_response,
     redirect,
     render_template,
     request,
     session,
     url_for,
-    make_response,
 )
-from datetime import datetime
+from flask_jwt_extended import set_access_cookies, set_refresh_cookies, unset_jwt_cookies
+from flask_login import current_user, login_required, logout_user
 from google.auth import exceptions
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from flask_login import login_required, logout_user, current_user
-from flask_jwt_extended import set_access_cookies, set_refresh_cookies, unset_jwt_cookies
 from pydantic import BaseModel, ValidationError
-from typing import Literal
 
 from app.helpers import email_validator, url_validator
 from app.helpers.auth import login_user_function, validate_id_token
-from app.helpers.googledrive import get_token_details
-from flask import current_app
-
-from app.models.user import User
-from app.models.organisation import Organisation
-from app.models.profile import Profile
-from app.models.google_drive import GoogleDriveItem
-from app.models.datasource import Datasource
-from app.models.user_auth import UserAuth
-
-from app.helpers.slack import SlackHelper
 from app.helpers.datasources import DATASOURCE_SLACK
-from app.helpers.users import validate_form, register_user_to_org, update_user_profile
-from app.schemas import UserSchema, OrganisationSchema, UserAuthSchema
-
+from app.helpers.googledrive import get_token_details
+from app.helpers.slack import SlackHelper
+from app.helpers.users import register_user_to_org, update_user_profile, validate_form
+from app.models.datasource import Datasource
+from app.models.google_drive import GoogleDriveItem
+from app.models.organisation import Organisation
+from app.models.plan import Plan, UserPlan
+from app.models.profile import Profile
+from app.models.user import User
+from app.models.user_auth import UserAuth
+from app.schemas import OrganisationSchema, UserAuthSchema, UserSchema
+from app.helpers.stripe_helpers import get_plan_description, get_stripe_prices
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -140,16 +140,97 @@ def profile():
     """
     # only proceed if the user is logged in
     if current_user.is_authenticated:
-        user = {
-            "user_id": current_user.id,
-            "email": current_user.email,
-            "username": current_user.user_name,
-            "full_name": current_user.full_name,
-            "organisation": current_user.organisation.name,
-            "roles": current_user.roles,
-        }
-
         profile = Profile.query.filter_by(user_id=current_user.id).first()
+
+        # Get current active plan and available plans
+        current_plan = UserPlan.query.filter_by(user_id=current_user.id, is_active=True).first()
+        available_plans = Plan.query.all()
+
+        # Get current plan price and currency from Stripe if available
+        current_plan_price = 0.0
+        current_plan_currency = "USD"  # Default currency
+        if current_plan and current_plan.plan.stripe_product_id:
+            # Get all prices for this product
+            prices = get_stripe_prices(current_plan.plan.stripe_product_id)
+            if prices:
+                # Find the price that matches the current billing interval
+                matching_prices = (
+                    [
+                        p
+                        for p in prices
+                        if p.get("recurring")
+                        and p["recurring"]["interval"] == current_plan.billing_interval
+                    ]
+                    if current_plan.billing_interval
+                    else []
+                )
+
+                if matching_prices:
+                    current_plan_price = matching_prices[0]["unit_amount"]
+                    current_plan_currency = matching_prices[0]["currency"].upper()
+                else:
+                    # If no matching price, use the first monthly price
+                    monthly_prices = [
+                        p
+                        for p in prices
+                        if p.get("recurring") and p["recurring"]["interval"] == "month"
+                    ]
+                    if monthly_prices:
+                        current_plan_price = monthly_prices[0]["unit_amount"]
+                        current_plan_currency = monthly_prices[0]["currency"].upper()
+                    elif prices:
+                        # If no monthly price, use the first price
+                        current_plan_price = prices[0]["unit_amount"]
+                        current_plan_currency = prices[0]["currency"].upper()
+
+        # Enhance plans with Stripe data
+        enhanced_plans = []
+        for plan in available_plans:
+            plan_data = {
+                "plan_id": plan.plan_id,
+                "plan_name": plan.plan_name,
+                "message_limit_daily": plan.message_limit_daily,
+                "stripe_product_id": plan.stripe_product_id,
+                "price": 0.0,  # Default price
+                "currency": "USD",  # Default currency
+                "description": "",  # Default description
+                "prices": [],  # List of all available prices
+            }
+
+            # Fetch price and description from Stripe if product ID exists
+            if plan.stripe_product_id:
+                # Get all prices for this product
+                prices = get_stripe_prices(plan.stripe_product_id)
+                if prices:
+                    # Set the default price (first monthly price) for backward compatibility
+                    monthly_prices = [
+                        p
+                        for p in prices
+                        if p.get("recurring") and p["recurring"]["interval"] == "month"
+                    ]
+                    if monthly_prices:
+                        plan_data["price"] = monthly_prices[0]["unit_amount"]
+                        plan_data["currency"] = monthly_prices[0]["currency"].upper()
+                    else:
+                        # If no monthly price, use the first price
+                        plan_data["price"] = prices[0]["unit_amount"]
+                        plan_data["currency"] = prices[0]["currency"].upper()
+
+                    # Add all prices to the plan data
+                    plan_data["prices"] = prices
+
+                description = get_plan_description(plan.stripe_product_id)
+                if description:
+                    plan_data["description"] = description
+
+            enhanced_plans.append(plan_data)
+
+        # Handle payment status from Stripe redirect
+        payment_status = request.args.get("payment")
+        if payment_status == "success":
+            flash("Payment successful! Your subscription has been updated.", "success")
+        elif payment_status == "cancelled":
+            flash("Payment cancelled. Please try again if you wish to subscribe.", "warning")
 
         if int(current_app.config["FEATURE_GOOGLE_DRIVE"]) == 1:
             try:
@@ -234,10 +315,9 @@ def profile():
             logging.warning("Slack feature is disabled.")
             slack_channels = None
             slack_auth = None
-
         return render_template(
             "profile.html",
-            user=user,
+            user=current_user,
             is_admin=current_user.is_admin(),
             google_docs_to_index=google_docs_to_index,
             google_drive_access_token=google_drive_access_token,
@@ -245,6 +325,11 @@ def profile():
             slack_auth=slack_auth,
             profile=profile,
             api_keys=current_user.api_keys,
+            current_plan=current_plan,
+            current_plan_price=current_plan_price,
+            current_plan_currency=current_plan_currency,
+            available_plans=available_plans,
+            enhanced_plans=enhanced_plans,
         )
     return "You are not logged in!", 403
 

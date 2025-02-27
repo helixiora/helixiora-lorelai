@@ -1,5 +1,37 @@
 {% extends "base.html" %}
 
+{% block head %}
+<style>
+    .price-option {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+    }
+    .price-option:last-child {
+        border-bottom: none;
+    }
+    .price-details {
+        flex-grow: 1;
+    }
+    .price-action {
+        flex-shrink: 0;
+        margin-left: 10px;
+    }
+    .current-plan-card {
+        border: 2px solid #198754;
+        box-shadow: 0 0 10px rgba(25, 135, 84, 0.3);
+    }
+    .current-plan-badge {
+        position: absolute;
+        top: -10px;
+        right: 10px;
+        z-index: 1;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div id="profile-container" class="container mt-5">
     {% if user is none %}
@@ -32,6 +64,131 @@
                         {% endfor %}
                     </li>
                 </ul>
+            </div>
+        </div>
+
+        <!-- Current Subscription Section -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title h4">Current Subscription</h2>
+                {% if current_plan %}
+                <div class="alert alert-info">
+                    <p class="mb-1"><strong>Plan:</strong> {{ current_plan.plan.plan_name }}</p>
+                    <p class="mb-1"><strong>Start Date:</strong> {{ current_plan.start_date.strftime('%Y-%m-%d') if current_plan.start_date else 'N/A' }}</p>
+                    <p class="mb-1"><strong>End Date:</strong> {{ current_plan.end_date.strftime('%Y-%m-%d') if current_plan.end_date else 'N/A' }}</p>
+                    <p class="mb-1"><strong>Status:</strong> {% if current_plan.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-danger">Inactive</span>{% endif %}</p>
+                    {% if current_plan_price > 0 %}
+                    <p class="mb-1"><strong>Current Price:</strong> {{ current_plan_currency }} {{ "%.2f"|format(current_plan_price) }}/{{ current_plan.billing_interval or 'month' }}</p>
+                    {% endif %}
+                    {% if current_plan.billing_interval %}
+                    <p class="mb-0"><strong>Billing Interval:</strong> {{ current_plan.billing_interval|capitalize }}</p>
+                    {% endif %}
+                </div>
+                {% if current_plan.is_active and current_plan_price > 0 and user.stripe_customer_id %}
+                <button id="manage-billing-btn" class="btn btn-secondary mt-2">
+                    <i class="bi bi-credit-card me-1"></i> Manage Billing
+                </button>
+                {% endif %}
+                {% else %}
+                <p class="text-muted">No active subscription</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Available Plans Section -->
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title h4">Available Plans</h2>
+                <div class="row">
+                    {% for plan in enhanced_plans %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100 position-relative {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}current-plan-card{% endif %}">
+                            {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                            <div class="current-plan-badge">
+                                <span class="badge bg-success">Current Plan</span>
+                            </div>
+                            {% endif %}
+                            <div class="card-body">
+                                <h5 class="card-title">{{ plan.plan_name }}</h5>
+                                <p class="card-text">{{ plan.description }}</p>
+                                <ul class="list-unstyled">
+                                    {% if plan.prices %}
+                                        <li><strong>Pricing Options:</strong></li>
+                                        {% for price in plan.prices %}
+                                            <li class="price-option">
+                                                <div class="price-details">
+                                                    {% if price.recurring %}
+                                                        {{ price.currency|upper }} {{ "%.2f"|format(price.unit_amount) }}/{{ price.recurring.interval }}
+                                                        {% if price.recurring.interval_count > 1 %}
+                                                            ({{ price.recurring.interval_count }} {{ price.recurring.interval }}s)
+                                                        {% endif %}
+                                                        {% if price.nickname %}
+                                                            - {{ price.nickname }}
+                                                        {% endif %}
+                                                        {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                                            <span class="badge bg-success ms-2">Current Plan</span>
+                                                        {% endif %}
+                                                    {% else %}
+                                                        {{ price.currency|upper }} {{ "%.2f"|format(price.unit_amount) }} (one-time)
+                                                        {% if price.nickname %}
+                                                            - {{ price.nickname }}
+                                                        {% endif %}
+                                                        {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                                            <span class="badge bg-success ms-2">Current Plan</span>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                </div>
+                                                <div class="price-action">
+                                                    <button
+                                                        class="btn btn-sm btn-outline-primary"
+                                                        onclick="handlePayment({{ plan.plan_id }}, '{{ price.id }}')"
+                                                        {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                                        disabled
+                                                        title="This is your current plan"
+                                                        {% endif %}
+                                                    >
+                                                        {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                                        Current
+                                                        {% else %}
+                                                        Select
+                                                        {% endif %}
+                                                    </button>
+                                                </div>
+                                            </li>
+                                        {% endfor %}
+                                    {% else %}
+                                        <li><strong>Price:</strong> {{ plan.currency|default('USD') }} {{ "%.2f"|format(plan.price) }}/month</li>
+                                    {% endif %}
+                                    {% if plan.message_limit_daily %}
+                                    <li><strong>Daily Message Limit:</strong> {{ plan.message_limit_daily }}</li>
+                                    {% endif %}
+                                </ul>
+                                {% if not plan.prices %}
+                                <button
+                                    class="btn btn-primary w-100"
+                                    onclick="handlePayment({{ plan.plan_id }})"
+                                    {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                    disabled
+                                    title="This is your current plan"
+                                    {% elif plan.price == 0 and current_plan and current_plan.is_active %}
+                                    disabled
+                                    title="You cannot downgrade to Free plan while having an active paid plan"
+                                    {% endif %}
+                                >
+                                    {% if current_plan and current_plan.is_active and current_plan.plan_id == plan.plan_id %}
+                                    Current Plan
+                                    {% elif plan.price == 0 and current_plan and current_plan.is_active %}
+                                    Not Available
+                                    {% else %}
+                                    Subscribe
+                                    {% endif %}
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
 
@@ -95,6 +252,23 @@
     {% endif %}
 </div>
 
-<script src="{{ url_for('static', filename='js/tour-profile.js') }}"></script>
+<!-- Payment Success/Error Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
 
+{% endblock %}
+
+{% block scripts %}
+<!-- Load our custom Stripe handling -->
+<script src="{{ url_for('static', filename='js/stripe.js') }}"></script>
+<!-- Tour script -->
+<script src="{{ url_for('static', filename='js/tour-profile.js') }}"></script>
 {% endblock %}

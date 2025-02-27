@@ -50,9 +50,18 @@ class Config:
     # Google settings
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID")
-    GOOGLE_APP_ID = GOOGLE_CLIENT_ID.split("-")[0]  # app id is everything before the first dash
+    GOOGLE_APP_ID = (
+        GOOGLE_CLIENT_ID.split("-")[0] if GOOGLE_CLIENT_ID else None
+    )  # app id is everything before the first dash
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+
+    # Stripe settings
+    STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    STRIPE_TRIAL_DAYS = int(os.environ.get("STRIPE_TRIAL_DAYS"))  # Default to 7 days
+    ENABLE_STRIPE_HEALTH_ENDPOINT = os.environ.get("ENABLE_STRIPE_HEALTH_ENDPOINT", False)
 
     # Pinecone settings
     PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")

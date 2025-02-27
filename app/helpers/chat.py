@@ -301,34 +301,52 @@ def get_daily_message_limit(user_id: int) -> int:
         int : The daily message limit if an active plan is found, otherwise 0.
     """
     try:
-        """active_plan = (
-            db.session.query(Plan.message_limit_daily)
-            .join(UserPlan)
-            .filter(
-                UserPlan.user_id == user_id,
-                UserPlan.is_active,
-                UserPlan.start_date <= func.curdate(),
-                UserPlan.end_date >= func.curdate(),
-            )
-            .first()
-        )"""
+        # First, log that we're checking the message limit for this user
+        logging.info(f"Checking daily message limit for user_id: {user_id}")
 
-        user_plan = (
-            db.session.query(Plan.message_limit_daily)
-            .join(UserPlan, UserPlan.plan_id == Plan.plan_id)
+        # Query to find all active user plans
+        user_plans = (
+            db.session.query(UserPlan, Plan.message_limit_daily)
+            .join(Plan, UserPlan.plan_id == Plan.plan_id)
             .filter(
                 UserPlan.user_id == user_id,
-                UserPlan.is_active,
-                UserPlan.start_date <= func.curdate(),
-                UserPlan.end_date >= func.curdate(),
+                UserPlan.is_active == True,  # noqa: E712 Explicit comparison for clarity
             )
-            .first()
+            .all()
         )
 
-        return user_plan.message_limit_daily if user_plan else 0
+        # Log the number of plans found
+        logging.info(f"Found {len(user_plans)} active plans for user_id: {user_id}")
+
+        if not user_plans:
+            logging.warning(f"No active plans found for user_id: {user_id}")
+            return 0
+
+        # If multiple plans exist, use the one with the highest message limit
+        if len(user_plans) > 1:
+            logging.warning(
+                f"Multiple active plans found for user_id: {user_id}, using highest limit"
+            )
+
+        # Find the plan with the highest message limit using max()
+        # This avoids direct indexing and is more Pythonic
+        selected_plan = max(user_plans, key=lambda x: x[1] or 0)
+        user_plan, message_limit = selected_plan
+
+        # Use safe access with or 0 to handle None values
+        message_limit = message_limit or 0
+
+        logging.info(
+            f"Using plan_id: {user_plan.plan_id} with message_limit: {message_limit} for user_id:\
+{user_id}"
+        )
+
+        return message_limit
     except Exception as e:
-        logging.error(f"Error getting daily msg limit for userid {user_id}: {e}")
-        raise e
+        logging.error(
+            f"Error getting daily message limit for user_id {user_id}: {e}", exc_info=True
+        )
+        return 0  # Return 0 instead of raising to prevent application errors
 
 
 def deduct_extra_message_if_available(user_id: int):

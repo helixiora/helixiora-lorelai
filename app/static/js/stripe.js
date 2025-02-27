@@ -1,0 +1,114 @@
+// Initialize Stripe
+let stripe;
+
+async function waitForStripe(maxAttempts = 10, interval = 100) {
+    for (let i = 0; i < maxAttempts; i++) {
+        if (typeof window.Stripe !== 'undefined') {
+            return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
+    }
+    return false;
+}
+
+async function initializeStripe() {
+    try {
+        // Wait for Stripe to be available
+        const stripeLoaded = await waitForStripe();
+        if (!stripeLoaded) {
+            throw new Error('Stripe.js not loaded');
+        }
+
+        const response = await makeAuthenticatedRequest('/api/v1/stripe/config', 'GET');
+        const data = await response.json();
+
+        if (!data.publishableKey) {
+            throw new Error('No publishable key received from server');
+        }
+
+        stripe = window.Stripe(data.publishableKey);
+        console.log('Stripe initialized successfully');
+    } catch (error) {
+        console.error('Error initializing Stripe:', error);
+        // Show error to user
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger';
+        errorDiv.textContent = 'Failed to initialize payment system. Please try again later.';
+        document.getElementById('profile-container').prepend(errorDiv);
+    }
+}
+
+async function handlePayment(planId, priceId = null) {
+    try {
+        if (!stripe) {
+            // Try to initialize if not already initialized
+            await initializeStripe();
+            if (!stripe) {
+                throw new Error('Stripe not initialized');
+            }
+        }
+
+        // Create checkout session
+        const payload = {
+            plan_id: planId
+        };
+
+        // If a specific price ID is provided, include it in the request
+        if (priceId) {
+            payload.price_id = priceId;
+        }
+
+        const response = await makeAuthenticatedRequest('/api/v1/stripe/create-checkout-session', 'POST', payload);
+
+        const session = await response.json();
+
+        if (session.error) {
+            throw new Error(session.error);
+        }
+
+        // Redirect to Stripe checkout
+        const result = await stripe.redirectToCheckout({
+            sessionId: session.sessionId,
+        });
+
+        if (result.error) {
+            throw new Error(result.error.message);
+        }
+    } catch (error) {
+        console.error('Error handling payment:', error);
+        // Show error to user
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger';
+        errorDiv.textContent = 'An error occurred while processing your payment. Please try again.';
+        document.getElementById('profile-container').prepend(errorDiv);
+    }
+}
+
+// Initialize Stripe when the window is fully loaded
+window.addEventListener('load', initializeStripe);
+
+// Handle Manage Billing button click
+async function handleManageBilling() {
+    try {
+        const response = await makeAuthenticatedRequest('/api/v1/stripe/create-billing-portal-session', 'POST');
+        const data = await response.json();
+
+        if (data.status === 'success' && data.url) {
+            // Redirect to Stripe billing portal
+            window.location.href = data.url;
+        } else {
+            throw new Error(data.message || 'Could not create billing portal session');
+        }
+    } catch (error) {
+        console.error('Error accessing billing portal:', error);
+        showErrorNotification('Billing Portal Error', 'Could not access the billing portal. Please try again later.');
+    }
+}
+
+// Add event listener to the Manage Billing button if it exists
+document.addEventListener('DOMContentLoaded', function() {
+    const manageBillingBtn = document.getElementById('manage-billing-btn');
+    if (manageBillingBtn) {
+        manageBillingBtn.addEventListener('click', handleManageBilling);
+    }
+});

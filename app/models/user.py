@@ -1,7 +1,9 @@
 """User model."""
 
 from datetime import datetime
+
 from flask_login import UserMixin
+
 from app.database import db
 
 VALID_ROLES = {"super_admin", "org_admin", "user"}
@@ -20,6 +22,7 @@ class User(UserMixin, db.Model):
     google_id = db.Column(db.String(255), unique=True, nullable=True)
     org_id = db.Column(db.Integer, db.ForeignKey("organisation.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    stripe_customer_id = db.Column(db.String(255), unique=True, nullable=True)  # Stripe customer ID
 
     # Relationships
     profile = db.relationship(
