@@ -1,7 +1,7 @@
 """add password_hash column to user.
 
-Revision ID: b2fbd2224f49
-Revises: 2ba475b5b68b
+Revision ID: 00003
+Revises: 00002
 Create Date: 2024-11-21 02:58:45.411182
 
 """

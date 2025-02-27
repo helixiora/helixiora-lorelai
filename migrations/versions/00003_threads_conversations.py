@@ -1,7 +1,7 @@
 """Move from threads to conversations.
 
-Revision ID: 2ba475b5b68b
-Revises: d0ddd680748b
+Revision ID: 00004
+Revises: 00003
 Create Date: 2024-11-10 15:57:49.745425
 
 """

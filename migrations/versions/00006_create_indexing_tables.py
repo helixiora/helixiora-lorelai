@@ -1,7 +1,7 @@
 """empty message.
 
-Revision ID: a5ecd3e952ac
-Revises: 0026ea6684cd
+Revision ID: 00006
+Revises: 00005
 Create Date: 2024-12-30 06:44:03.606655
 
 """

@@ -1,6 +1,6 @@
 """Initial migration.
 
-Revision ID: 1978391f226f
+Revision ID: 00001
 Revises:
 Create Date: 2024-11-06 08:39:03.049699
 

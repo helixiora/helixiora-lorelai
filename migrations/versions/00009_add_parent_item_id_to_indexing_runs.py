@@ -1,7 +1,7 @@
 """Add parent_item_id to indexing_run_items table.
 
 Revision ID: 00009
-Revises: f1dff16d1a4a
+Revises: 00008
 Create Date: 2024-01-02 12:00:00.000000
 
 """
