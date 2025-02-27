@@ -80,18 +80,52 @@
         <div id="card-integrations" class="card mb-2 mt-2">
             <h5 class="h5 card-header">Integrations</h5>
             <div class="card-body">
-            {% if config.FEATURE_GOOGLE_DRIVE %}
-                {% include 'integrations/profile-google.html' %}
-            {% else %}
-                <p>Google Drive is not available in this environment.</p>
-            {% endif %}
+                {% if config.FEATURE_GOOGLE_DRIVE %}
+                    {% include 'integrations/profile-google.html' %}
+                {% else %}
+                    <p>Google Drive is not available in this environment.</p>
+                {% endif %}
 
-            {% if config.FEATURE_SLACK %}
-                {% include 'integrations/profile-slack.html' %}
-            {% else %}
-                <p>Slack is not available in this environment.</p>
-            {% endif %}
+                {% if config.FEATURE_SLACK %}
+                    {% include 'integrations/profile-slack.html' %}
+                {% else %}
+                    <p>Slack is not available in this environment.</p>
+                {% endif %}
+            </div>
         </div>
+
+        <!-- Plugin Configuration Section -->
+        {% if config.FEATURE_PLUGIN_ARCHITECTURE %}
+            <div id="card-plugins" class="card mb-2 mt-2">
+                <h5 class="h5 card-header">Datasource Plugins</h5>
+                <div class="card-body">
+                    {% if plugin_errors %}
+                        <div class="alert alert-warning mb-4">
+                            <h6 class="alert-heading mb-2">Some plugins failed to load:</h6>
+                            <ul class="mb-0 list-unstyled">
+                                {% for plugin, error in plugin_errors.items() %}
+                                    <li class="mb-2">
+                                        <strong>{{ plugin }}:</strong><br>
+                                        <small class="text-muted">{{ error }}</small>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    {% if plugins %}
+                        {% from 'sections/plugin-config-form.html' import render_plugin_config %}
+                        {% for plugin in plugins %}
+                            {{ render_plugin_config(plugin) }}
+                        {% endfor %}
+                    {% else %}
+                        {% if not plugin_errors %}
+                            <p class="text-muted mb-0">No plugins are currently available.</p>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
     {% endif %}
 </div>
 

@@ -18,3 +18,10 @@ class ProfileSchema(BaseModel):
         """Config for the profile schema."""
 
         from_attributes = True
+
+
+class PluginConfigSchema(BaseModel):
+    """Schema for a plugin's configuration."""
+
+    name: str
+    config: list[dict]
