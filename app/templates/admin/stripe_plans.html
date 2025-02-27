@@ -1,0 +1,725 @@
+{% extends "base.html" %}
+
+{% block title %}Stripe Plans Management{% endblock %}
+
+{% block head %}
+<style>
+    .card-header {
+        background-color: #f8f9fa;
+    }
+    .price-badge {
+        font-size: 0.9rem;
+        margin-right: 5px;
+    }
+    .plan-card {
+        margin-bottom: 20px;
+    }
+    .stripe-section {
+        margin-top: 30px;
+    }
+    .product-card {
+        margin-bottom: 15px;
+    }
+    .price-item {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+    }
+    .price-item:last-child {
+        border-bottom: none;
+    }
+    .alert-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+    }
+    .info-card {
+        background-color: #f8f9fa;
+        border-left: 4px solid #0d6efd;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .warning-card {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .section-explanation {
+        margin-bottom: 20px;
+    }
+    .danger-card {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .card-header .btn-outline-secondary,
+    .card-header .btn-outline-primary {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .price-item .btn-outline-secondary {
+        padding: 0.125rem 0.25rem;
+        font-size: 0.75rem;
+    }
+    .info-card, .danger-card {
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+    }
+    .info-card {
+        background-color: #f8f9fa;
+        border-left: 4px solid #0d6efd;
+    }
+    .danger-card {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+    }
+    .section-explanation {
+        margin-bottom: 1rem;
+    }
+    .price-badge {
+        margin-right: 0.25rem;
+    }
+    .price-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .price-item:last-child {
+        border-bottom: none;
+    }
+    .price-list {
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    .existing-prices {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">Stripe Plans Management</h1>
+        <div>
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Admin
+            </a>
+        </div>
+    </div>
+
+    <!-- Introduction -->
+    <div class="info-card mb-4">
+        <h3 class="h5"><i class="bi bi-info-circle-fill text-primary me-2"></i>About This Tool</h3>
+        <p>This tool manages the connection between your application's subscription plans and Stripe's payment system. Each database plan can be linked to a Stripe product.</p>
+        <p><strong>Key Features:</strong></p>
+        <ul>
+            <li><strong>View Plans:</strong> See all your database plans and Stripe products in one place.</li>
+            <li><strong>Edit Plans:</strong> Modify plan names and message limits in your database.</li>
+            <li><strong>Link to Stripe:</strong> Connect database plans to Stripe products for payment processing.</li>
+            <li><strong>Create Products:</strong> Create new Stripe products directly from your database plans.</li>
+        </ul>
+        <p><strong>Important:</strong> When a plan is linked to Stripe, its price and description are managed in Stripe, not in your database.</p>
+    </div>
+
+    <!-- Add this after the introduction card -->
+    {% if not is_test_environment %}
+    <div class="danger-card mb-4">
+        <h3 class="h5"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Live Environment Warning</h3>
+        <p><strong>You are currently in a LIVE environment.</strong> Any changes you make here will affect real customers and their subscriptions.</p>
+        <p>Please proceed with caution. For testing purposes, we recommend using a test environment instead.</p>
+    </div>
+    {% else %}
+    <div class="info-card mb-4">
+        <h3 class="h5"><i class="bi bi-info-circle-fill text-primary me-2"></i>Test Environment</h3>
+        <p>You are currently in a <strong>TEST</strong> environment. Lorelai is connected to <strong>Stripe's test mode API</strong>. Changes made here will not affect real customers or live payment processing.</p>
+    </div>
+    {% endif %}
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Alert Container for AJAX responses -->
+    <div id="alert-container" class="alert-container"></div>
+
+    <!-- Database Plans Section -->
+    <div class="section-explanation">
+        <h2 class="h4 mb-3">Database Plans</h2>
+        <p>These are the subscription plans defined in your application's database. Each plan should be linked to a Stripe Product for payment processing to work correctly.</p>
+    </div>
+
+    <div class="card mb-5">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h4 mb-0">Database Plans</h2>
+        </div>
+        <div class="card-body">
+            {% if not enhanced_plans %}
+                <div class="alert alert-warning">
+                    No plans found in the database. You need to create plans before you can link them to Stripe.
+                </div>
+            {% else %}
+                <div class="row">
+                    {% for plan in enhanced_plans %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card product-card h-100 shadow-sm">
+                            <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                                <h3 class="h5 mb-0 text-truncate" title="{{ plan.plan_name }}">{{ plan.plan_name }}</h3>
+                                <small class="text-muted">ID: {{ plan.plan_id }}</small>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <small class="text-muted d-block mb-1">Description:</small>
+                                    <p class="mb-2">{{ plan.description or 'No description' }}</p>
+                                    {% if plan.stripe_product_id %}
+                                    <small class="d-block text-muted"><i class="bi bi-info-circle"></i> Managed in Stripe</small>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <small class="text-muted d-block mb-1">Message Limit:</small>
+                                    <p class="mb-0">{{ plan.message_limit_daily or 'Unlimited' }}</p>
+                                </div>
+
+                                <div class="mb-3">
+                                    <small class="text-muted d-block mb-1">Stripe Product:</small>
+                                    {% if plan.stripe_product_id %}
+                                    <span class="badge bg-success" title="{{ plan.stripe_product_id }}">Linked</span>
+                                    {% else %}
+                                    <span class="badge bg-warning">Not Linked</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <small class="text-muted d-block mb-1">Pricing:</small>
+                                    {% if plan.prices %}
+                                        <div class="price-list">
+                                            {% for price in plan.prices %}
+                                                <div class="price-item mb-1">
+                                                    <span class="badge bg-primary">
+                                                        {{ price.currency|upper }} {{ "%.2f"|format(price.unit_amount) }}
+                                                        {% if price.recurring %}
+                                                            / {{ price.recurring.interval }}
+                                                        {% else %}
+                                                            / one-time
+                                                        {% endif %}
+                                                    </span>
+                                                    {% if price.nickname %}
+                                                        <span class="badge bg-info">{{ price.nickname }}</span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                        {% if plan.stripe_product_id %}
+                                        <small class="d-block text-muted"><i class="bi bi-info-circle"></i> Managed in Stripe</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">${{ "%.2f"|format(plan.price) }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white">
+                                <div class="d-flex justify-content-between">
+                                    <button class="btn btn-sm btn-primary edit-plan-btn" data-plan-id="{{ plan.plan_id }}">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </button>
+                                    {% if not plan.stripe_product_id %}
+                                    <button class="btn btn-sm btn-success create-product-btn" data-plan-id="{{ plan.plan_id }}">
+                                        <i class="bi bi-plus-circle"></i> Create Product
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Plan Edit Modals -->
+    {% for plan in enhanced_plans %}
+    <div class="modal fade" id="editPlanModal-{{ plan.plan_id }}" tabindex="-1" aria-labelledby="editPlanModalLabel-{{ plan.plan_id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editPlanModalLabel-{{ plan.plan_id }}">Edit Plan: {{ plan.plan_name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-plan-form-{{ plan.plan_id }}">
+                        <input type="hidden" name="plan_id" value="{{ plan.plan_id }}">
+
+                        <div class="mb-3">
+                            <label for="plan_name-{{ plan.plan_id }}" class="form-label">Plan Name</label>
+                            <input type="text" class="form-control" id="plan_name-{{ plan.plan_id }}" name="plan_name" value="{{ plan.plan_name }}" required>
+                        </div>
+
+                        {% if plan.stripe_product_id %}
+                        <div class="info-card mb-3">
+                            <h6><i class="bi bi-info-circle-fill text-primary me-2"></i>Stripe Integration Active</h6>
+                            <p class="mb-0">This plan is linked to a Stripe product. Price and description are managed in Stripe.</p>
+                        </div>
+                        {% else %}
+                        <div class="mb-3">
+                            <label for="description-{{ plan.plan_id }}" class="form-label">Description</label>
+                            <textarea class="form-control" id="description-{{ plan.plan_id }}" name="description" rows="3">{{ plan.description or '' }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="price-{{ plan.plan_id }}" class="form-label">Price (USD/month)</label>
+                            <input type="number" class="form-control" id="price-{{ plan.plan_id }}" name="price" value="{{ plan.price }}" step="0.01" min="0" required>
+                            <small class="form-text text-muted">This will create new monthly and yearly prices if the plan is linked to Stripe.</small>
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="message_limit_daily-{{ plan.plan_id }}" class="form-label">Daily Message Limit</label>
+                            <input type="number" class="form-control" id="message_limit_daily-{{ plan.plan_id }}" name="message_limit_daily" value="{{ plan.message_limit_daily or '' }}" min="0">
+                            <small class="form-text text-muted">Leave empty for unlimited messages</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="stripe-product-{{ plan.plan_id }}" class="form-label">Stripe Product</label>
+                            <select class="form-select" id="stripe-product-{{ plan.plan_id }}" name="stripe_product_id">
+                                <option value="">Select a Stripe Product</option>
+                                {% for product in stripe_products %}
+                                    <option value="{{ product.id }}" {{ 'selected' if product.id == plan.stripe_product_id else '' }}>
+                                        {{ product.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Link this plan to a Stripe product for payment processing</small>
+                        </div>
+
+                        {% if plan.stripe_product_id %}
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Warning: Changing the Stripe product link will affect which product and prices are used for this plan.
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle-fill"></i> Note: After linking to a Stripe product, price and description will be managed in Stripe.
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary save-plan-btn" data-plan-id="{{ plan.plan_id }}">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- How It Works Section -->
+    <div class="warning-card mb-4">
+        <h3 class="h5"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Quick Start Guide</h3>
+        <p>To set up Stripe integration for your plans:</p>
+        <ol>
+            <li><strong>For existing plans:</strong> Click "Edit" and select a Stripe product from the dropdown.</li>
+            <li><strong>For new Stripe products:</strong> Click "Create Product" on an unlinked plan to create a new product in Stripe.</li>
+            <li><strong>After linking:</strong> Manage prices and descriptions directly in the Stripe Dashboard.</li>
+        </ol>
+        <p><strong>Note:</strong> Once a plan is linked to Stripe, only the plan name and message limits can be edited in this interface.</p>
+    </div>
+
+    <!-- Plan Management Guide -->
+    <div class="info-card mb-4">
+        <h3 class="h5"><i class="bi bi-gear-fill text-primary me-2"></i>Managing Linked Plans</h3>
+        <p>When a plan is linked to Stripe:</p>
+        <ul>
+            <li><strong>Plan Name:</strong> Can be edited here and will update in Stripe.</li>
+            <li><strong>Message Limits:</strong> Can be edited here (this is only stored in your database).</li>
+            <li><strong>Prices & Description:</strong> Must be managed directly in the Stripe Dashboard.</li>
+            <li><strong>Changing Products:</strong> You can link a plan to a different Stripe product, but this will affect all subscribers.</li>
+        </ul>
+        <p><strong>Best Practice:</strong> For major changes to pricing or features, create a new plan rather than modifying existing ones that users may already be subscribed to.</p>
+    </div>
+
+    <!-- Stripe Products Section -->
+    <div class="section-explanation">
+        <h2 class="h4 mb-3">Active Stripe Products and Prices</h2>
+        <p>This section shows all active products and prices currently defined in your Stripe account. You can use these to link to your database plans.</p>
+        <p><i class="bi bi-info-circle text-primary"></i> <strong>Pro Tip:</strong> Click the <i class="bi bi-box-arrow-up-right"></i> icons to open the corresponding item directly in the Stripe Dashboard for more detailed management.</p>
+        {% if is_test_environment %}
+        <p><i class="bi bi-cloud-download text-primary"></i> <strong>Test Environment:</strong> You can import products from your live environment to ensure consistency between environments using the "Import from Live" button.</p>
+        {% endif %}
+    </div>
+
+    <div class="stripe-section">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h4 mb-0">Active Stripe Products and Prices</h2>
+                <div>
+                    {% if is_test_environment %}
+                    <a href="{{ url_for('admin.import_stripe_products_from_live') }}" class="btn btn-sm btn-outline-primary me-2">
+                        <i class="bi bi-cloud-download"></i> Import from Live
+                    </a>
+                    {% endif %}
+                    <a href="https://dashboard.stripe.com/{% if is_test_environment %}test/{% endif %}products" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-box-arrow-up-right"></i> Open Stripe Dashboard
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if not stripe_products %}
+                    <div class="alert alert-info">
+                        No products found in your Stripe account. You can create products in the Stripe Dashboard and then link them to your plans.
+                    </div>
+                {% else %}
+                    <div class="row">
+                        {% for product in stripe_products %}
+                        <div class="col-md-4 mb-4">
+                            <div class="card product-card h-100 shadow-sm">
+                                <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                                    <h3 class="h5 mb-0 text-truncate" title="{{ product.name }}">{{ product.name }}</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block mb-1">Product ID:</small>
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control form-control-sm bg-light" value="{{ product.id }}" readonly>
+                                        </div>
+                                    </div>
+
+                                    {% if product.description %}
+                                    <div class="mb-3">
+                                        <small class="text-muted">Description:</small>
+                                        <p class="mb-0 small">{{ product.description }}</p>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if product.id in formatted_prices %}
+                                    <div class="mt-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h4 class="h6 mb-0">Available Pricing Options</h4>
+                                        </div>
+                                        <div class="list-group">
+                                            {% for price in formatted_prices[product.id] %}
+                                            <div class="price-item p-2 border rounded mb-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <span class="badge bg-primary" title="Price ID: {{ price.id }}">
+                                                            {{ price.currency|upper }} {{ price.amount }}
+                                                            {% if price.interval %}
+                                                                / {{ price.interval }}
+                                                            {% else %}
+                                                                / one-time
+                                                            {% endif %}
+                                                        </span>
+                                                        {% if price.nickname %}
+                                                            <span class="badge bg-info">{{ price.nickname }}</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-warning mt-3 mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>No prices available for this product
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="card-footer bg-white">
+                                    <a href="https://dashboard.stripe.com/{% if is_test_environment %}test/{% endif %}products/{{ product.id }}" target="_blank" class="btn btn-sm btn-outline-primary w-100">
+                                        <i class="bi bi-box-arrow-up-right"></i> Manage in Stripe
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Troubleshooting Section -->
+    <div class="info-card mt-4">
+        <h3 class="h5"><i class="bi bi-tools text-primary me-2"></i>Troubleshooting</h3>
+        <p>Common issues and solutions:</p>
+        <ul>
+            <li><strong>Missing Products:</strong> Only active products from Stripe are displayed. Check your Stripe Dashboard for archived products.</li>
+            <li><strong>Currency Issues:</strong> Ensure your application correctly handles the currencies defined in Stripe.</li>
+            <li><strong>Subscription Problems:</strong> Verify that your webhook endpoints are properly configured to handle Stripe events.</li>
+            <li><strong>Changes Not Appearing:</strong> Refresh the page or restart your application after making changes.</li>
+        </ul>
+        <p>For detailed management of products and prices, use the <a href="https://dashboard.stripe.com/{% if is_test_environment %}test/{% endif %}products" target="_blank">Stripe Dashboard</a>.</p>
+    </div>
+
+    <!-- Create Product Modal -->
+    <div class="modal fade" id="createProductModal" tabindex="-1" aria-labelledby="createProductModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createProductModalLabel">Create Stripe Product</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-product-form">
+                        <input type="hidden" id="create-product-plan-id" name="plan_id" value="">
+
+                        <div class="mb-3">
+                            <label for="create-product-description" class="form-label">Description</label>
+                            <textarea class="form-control" id="create-product-description" name="description" rows="3"></textarea>
+                            <small class="form-text text-muted">This will be used as the product description in Stripe</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="create-product-price" class="form-label">Price (USD/month)</label>
+                            <input type="number" class="form-control" id="create-product-price" name="price" step="0.01" min="0" required>
+                            <small class="form-text text-muted">This will be used to create monthly and yearly prices in Stripe</small>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="create-product-prices" name="create_prices" checked>
+                            <label class="form-check-label" for="create-product-prices">
+                                Create prices automatically (monthly and yearly)
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="create-product-submit">Create Product</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Link Product Modal -->
+    <div class="modal fade" id="linkProductModal" tabindex="-1" aria-labelledby="linkProductModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="linkProductModalLabel">Link Stripe Product to Plan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="link-product-form">
+                        <input type="hidden" id="link-product-product-id" name="product_id" value="">
+
+                        <div class="mb-3">
+                            <label for="link-product-plan-id" class="form-label">Select Plan</label>
+                            <select class="form-select" id="link-product-plan-id" name="plan_id" required>
+                                <option value="">Choose a plan to link...</option>
+                                {% for plan in plans %}
+                                <option value="{{ plan.plan_id }}">
+                                    {{ plan.plan_name }}
+                                    {% if plan.stripe_product_id %}
+                                    (Currently linked to another product)
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Select the plan you want to link to this Stripe product</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="link-product-price-id" class="form-label">Default Price (Optional)</label>
+                            <select class="form-select" id="link-product-price-id" name="price_id">
+                                <option value="">No default price</option>
+                                <!-- Price options will be populated dynamically -->
+                            </select>
+                            <small class="form-text text-muted">Optionally select a default price for this plan</small>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle-fill"></i> Linking a plan to a Stripe product will allow customers to subscribe to this plan. If the plan is already linked to another product, that link will be replaced.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="link-product-submit">Link Product</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Edit Plan Button Click
+        $('.edit-plan-btn').click(function() {
+            const planId = $(this).data('plan-id');
+            $('#editPlanModal-' + planId).modal('show');
+        });
+
+        // Create Product Button Click
+        $('.create-product-btn').click(function() {
+            const planId = $(this).data('plan-id');
+            $('#create-product-plan-id').val(planId);
+            $('#createProductModal').modal('show');
+        });
+
+        // Link Product Button Click from plan row
+        $('.link-product-btn').click(function() {
+            const planId = $(this).data('plan-id');
+            if (planId) {
+                // This is from the plan row
+                $('#link-product-plan-id').val(planId);
+                $('#link-product-plan-id').prop('disabled', true);
+                $('#linkProductModal').modal('show');
+            }
+        });
+
+        // Function to populate price dropdown based on selected product
+        function populatePriceDropdown(productId) {
+            const priceDropdown = $('#link-product-price-id');
+            priceDropdown.empty();
+            priceDropdown.append('<option value="">No default price</option>');
+
+            // Check if we have prices for this product
+            if (productId in window.formattedPrices) {
+                const prices = window.formattedPrices[productId];
+                prices.forEach(function(price) {
+                    let priceLabel = '';
+
+                    // Format currency symbol
+                    if (price.currency === 'usd') {
+                        priceLabel += '$';
+                    } else if (price.currency === 'eur') {
+                        priceLabel += '€';
+                    } else if (price.currency === 'gbp') {
+                        priceLabel += '£';
+                    } else {
+                        priceLabel += price.currency.toUpperCase() + ' ';
+                    }
+
+                    // Add amount
+                    priceLabel += price.amount;
+
+                    // Add interval if it exists
+                    if (price.interval) {
+                        if (price.interval === 'month') {
+                            priceLabel += ' / Monthly';
+                        } else if (price.interval === 'year') {
+                            priceLabel += ' / Yearly';
+                        } else {
+                            priceLabel += ' / ' + price.interval;
+                        }
+                    } else {
+                        priceLabel += ' (One-time)';
+                    }
+
+                    // Add nickname if it exists
+                    if (price.nickname) {
+                        priceLabel += ' - ' + price.nickname;
+                    }
+
+                    priceDropdown.append('<option value="' + price.id + '">' + priceLabel + '</option>');
+                });
+            }
+        }
+
+        // Save Plan Button Click
+        $('.save-plan-btn').click(function() {
+            const planId = $(this).data('plan-id');
+            const form = $('#edit-plan-form-' + planId);
+
+            $.ajax({
+                url: '/admin/stripe-plans/edit-plan',
+                type: 'POST',
+                data: form.serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('success', response.message);
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showAlert('danger', response.message);
+                    }
+                },
+                error: function(xhr) {
+                    showAlert('danger', 'Error: ' + xhr.responseText);
+                }
+            });
+        });
+
+        // Create Product Form Submit
+        $('#create-product-submit').click(function() {
+            const form = $('#create-product-form');
+
+            $.ajax({
+                url: '/admin/stripe-plans/create-product',
+                type: 'POST',
+                data: form.serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('success', response.message);
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showAlert('danger', response.message);
+                    }
+                },
+                error: function(xhr) {
+                    showAlert('danger', 'Error: ' + xhr.responseText);
+                }
+            });
+        });
+
+        // Link Product Form Submit
+        $('#link-product-submit').click(function() {
+            const form = $('#link-product-form');
+
+            $.ajax({
+                url: '/admin/stripe-plans/link-product',
+                type: 'POST',
+                data: form.serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('success', response.message);
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showAlert('danger', response.message);
+                    }
+                },
+                error: function(xhr) {
+                    showAlert('danger', 'Error: ' + xhr.responseText);
+                }
+            });
+        });
+
+        // Helper function to show alerts
+        function showAlert(type, message) {
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            $('#alert-container').html(alertHtml);
+        }
+
+        // Make formatted prices available to JavaScript
+        window.formattedPrices = JSON.parse('{{ formatted_prices|tojson|safe }}');
+    });
+</script>
+{% endblock %}

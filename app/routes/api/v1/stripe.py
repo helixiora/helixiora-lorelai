@@ -17,7 +17,7 @@ from flask_restx import Namespace, Resource, fields
 
 from app.database import db
 from app.helpers.users import assign_plan_to_user
-from app.models.plan import Plan
+from app.models.plan import Plan, UserPlan
 from app.models.stripe_webhook import StripeWebhookEvent
 from app.models.user import User
 
@@ -78,6 +78,9 @@ class CreateCheckoutSessionResource(Resource):
             data = request.get_json()
             user_id = get_jwt_identity()
 
+            # Optional billing interval from request
+            billing_interval = data.get("billing_interval", "month")  # Default to monthly
+
             # Get user details
             user = User.query.get(user_id)
             if not user:
@@ -88,6 +91,36 @@ class CreateCheckoutSessionResource(Resource):
             if not plan:
                 return {"error": "Plan not found"}, 404
 
+            # Check if plan has a product ID
+            if not plan.stripe_product_id:
+                return {"error": "Plan is not linked to a Stripe product"}, 400
+
+            # Determine which price to use
+            price_id = None
+
+            # If a specific price ID is requested, use that
+            if "price_id" in data and data["price_id"]:
+                price_id = data["price_id"]
+            # Otherwise, find a price based on the billing interval
+            else:
+                # Get all prices for this product
+                prices = stripe.Price.list(
+                    product=plan.stripe_product_id,
+                    active=True,
+                )
+
+                # Filter for the desired interval
+                matching_prices = [
+                    p
+                    for p in prices.data
+                    if p.recurring and p.recurring.interval == billing_interval
+                ]
+
+                if matching_prices:
+                    price_id = matching_prices[0].id
+                else:
+                    return {"error": f"No {billing_interval}ly price found for this plan"}, 400
+
             # Check if user has a Stripe customer ID
             if not user.stripe_customer_id:
                 # Create a new Stripe customer
@@ -96,18 +129,17 @@ class CreateCheckoutSessionResource(Resource):
                 )
                 # Save the customer ID to the user model
                 user.stripe_customer_id = customer.id
-                db.session.commit()  # Save changes to the database
+                db.session.commit()
 
             # Check if user has previously subscribed to the Pro plan
             has_had_pro_plan = any(
                 user_plan.plan.plan_name == "Pro" for user_plan in user.user_plans
             )
+
             # Create Stripe checkout session
             subscription_data = {}
             if not has_had_pro_plan:
-                subscription_data["trial_period_days"] = current_app.config.get(
-                    "STRIPE_TRIAL_DAYS", 7
-                )
+                subscription_data["trial_period_days"] = current_app.config.get("STRIPE_TRIAL_DAYS")
 
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
@@ -115,7 +147,7 @@ class CreateCheckoutSessionResource(Resource):
                 customer=user.stripe_customer_id,
                 line_items=[
                     {
-                        "price": plan.stripe_price_id,
+                        "price": price_id,
                         "quantity": 1,
                     }
                 ],
@@ -128,12 +160,13 @@ class CreateCheckoutSessionResource(Resource):
                     "plan_name": plan.plan_name,
                     "user_id": user_id,
                     "user_email": user.email,
+                    "billing_interval": billing_interval,
                 },
             )
 
             return {"sessionId": checkout_session.id}
         except Exception as e:
-            logging.error(f"Error creating checkout session: {str(e)}")
+            logging.error(f"Error creating checkout session: {str(e)}", exc_info=True)
             return {"error": str(e)}, 500
 
 
@@ -187,6 +220,11 @@ class StripeWebhookResource(Resource):
     def store_webhook_event(event):
         """Store the webhook event in the database."""
         try:
+            # Log only essential event information to avoid overwhelming logs
+            logging.info(
+                f"Storing webhook event: id={event.id}, type={event['type']}, "
+                f"created={event.created}, api_version={event.api_version}"
+            )
             webhook_event = StripeWebhookEvent(
                 stripe_event_id=event.id,
                 event_type=event["type"],
@@ -195,6 +233,7 @@ class StripeWebhookResource(Resource):
             )
             db.session.add(webhook_event)
             db.session.commit()
+            logging.info(f"Successfully stored webhook event: id={event.id}")
             return webhook_event
         except Exception as e:
             db.session.rollback()
@@ -210,20 +249,16 @@ class StripeWebhookResource(Resource):
                 session = event["data"]["object"]
                 user_id = int(session["metadata"]["user_id"])
                 plan_name = session["metadata"]["plan_name"]
+                billing_interval = session["metadata"].get("billing_interval", "month")
 
-                # Determine trial days
-                trial_days_allowed = current_app.config.get("STRIPE_TRIAL_DAYS", 7)
-                trial_days = (
-                    trial_days_allowed
-                    if plan_name == "Pro"
-                    and not any(
-                        plan.plan_name == "Pro" for plan in User.query.get(user_id).user_plans
-                    )
-                    else None
-                )
+                # Get the subscription ID from the session
+                subscription_id = session.get("subscription")
 
                 success = assign_plan_to_user(
-                    user_id=user_id, plan_name=plan_name, trial_days=trial_days
+                    user_id=user_id,
+                    plan_name=plan_name,
+                    subscription_id=subscription_id,
+                    billing_interval=billing_interval,
                 )
 
                 if not success:
@@ -280,19 +315,19 @@ class StripeWebhookResource(Resource):
                 subscription = event["data"]["object"]
                 customer_id = subscription.get("customer")
                 status = subscription.get("status")
+                cancel_at_period_end = subscription.get("cancel_at_period_end", False)
+                current_period_end = subscription.get("current_period_end")
 
-                # If subscription is canceled, update the user's plan
+                # Find the user by Stripe customer ID
+                user = User.query.filter_by(stripe_customer_id=customer_id).first()
+                if not user:
+                    error_msg = f"User with Stripe customer ID {customer_id} not found"
+                    logging.error(error_msg)
+                    StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
+                    return {"error": error_msg}, 404
+
+                # If subscription is canceled immediately
                 if status == "canceled":
-                    user = User.query.filter_by(stripe_customer_id=customer_id).first()
-
-                    if not user:
-                        error_msg = f"User with Stripe customer ID {customer_id} not found"
-                        logging.error(error_msg)
-                        StripeWebhookResource.update_webhook_status(
-                            webhook_event, "failed", error_msg
-                        )
-                        return {"error": error_msg}, 404
-
                     # Assign Free plan to the user
                     success = assign_plan_to_user(user_id=user.id, plan_name="Free")
 
@@ -309,10 +344,57 @@ class StripeWebhookResource(Resource):
                             webhook_event, "failed", error_msg
                         )
                         return {"error": error_msg}, 500
+
+                # If subscription is set to cancel at the end of the billing period
+                elif cancel_at_period_end and current_period_end:
+                    # Get the current active plan for the user
+                    current_user_plan = UserPlan.query.filter_by(
+                        user_id=user.id,
+                        is_active=True,
+                        stripe_subscription_id=subscription.get("id"),
+                    ).first()
+
+                    if current_user_plan:
+                        # Set the end date to the end of the current billing period
+                        end_date = datetime.fromtimestamp(current_period_end).date()
+                        current_user_plan.end_date = end_date
+
+                        try:
+                            db.session.commit()
+                            logging.info(
+                                f"Updated end date to {end_date} for user {user.id}'s "
+                                f"subscription due to cancellation at period end"
+                            )
+                            # Mark the webhook event as processed
+                            StripeWebhookResource.update_webhook_status(webhook_event, "processed")
+                            return {
+                                "success": True,
+                                "message": "Subscription end date updated",
+                            }, 200
+                        except Exception as e:
+                            db.session.rollback()
+                            error_msg = (
+                                f"Failed to update end date for user {user.id}'s "
+                                f"subscription: {str(e)}"
+                            )
+                            logging.error(error_msg)
+                            StripeWebhookResource.update_webhook_status(
+                                webhook_event, "failed", error_msg
+                            )
+                            return {"error": error_msg}, 500
+                    else:
+                        error_msg = f"No active subscription found for user {user.id}"
+                        logging.warning(error_msg)
+                        return {"warning": error_msg}, 200
                 else:
                     logging.info(
-                        f"Received subscription update with status: {status}, no action needed"
+                        f"Received subscription update with status: {status}, "
+                        f"cancel_at_period_end: {cancel_at_period_end}, no action needed"
                     )
+                    return {
+                        "success": True,
+                        "message": "No action needed for this subscription update",
+                    }, 200
 
             # Mark webhook as processed
             StripeWebhookResource.update_webhook_status(webhook_event, "processed")

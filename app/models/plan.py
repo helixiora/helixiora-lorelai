@@ -2,7 +2,6 @@
 
 from datetime import datetime
 
-from sqlalchemy.dialects.mysql import INTEGER
 
 from app.database import db
 
@@ -14,11 +13,10 @@ class Plan(db.Model):
 
     plan_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     plan_name = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    price = db.Column(db.Numeric(10, 2), nullable=False)
-    duration_months = db.Column(INTEGER(unsigned=True), nullable=False)
     message_limit_daily = db.Column(db.Integer, nullable=True)
-    stripe_price_id = db.Column(db.String(255), nullable=True, unique=True)  # Stripe price ID
+
+    stripe_product_id = db.Column(db.String(255), nullable=True, unique=True)  # Stripe product ID
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -34,9 +32,22 @@ class UserPlan(db.Model):
     user_plan_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.user_id"), nullable=False)
     plan_id = db.Column(db.Integer, db.ForeignKey("plans.plan_id"), nullable=False)
+
+    # When the subscription started
     start_date = db.Column(db.Date, nullable=False)
-    end_date = db.Column(db.Date, nullable=False)
+
+    # Optional end date (for canceled subscriptions)
+    end_date = db.Column(db.Date, nullable=True)
+
+    # Whether the subscription is currently active
     is_active = db.Column(db.Boolean, default=True)
+
+    # Stripe subscription ID for reference
+    stripe_subscription_id = db.Column(db.String(255), nullable=True)
+
+    # Billing interval (month, year) from Stripe
+    billing_interval = db.Column(db.String(50), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -69,7 +80,5 @@ class UserPlan(db.Model):
         return {
             "plan_name": self.plan.plan_name,
             "plan_id": self.plan.plan_id,
-            "price": self.plan.price,
-            "duration_months": self.plan.duration_months,
-            "stripe_price_id": self.plan.stripe_price_id,
+            "stripe_product_id": self.plan.stripe_product_id,
         }

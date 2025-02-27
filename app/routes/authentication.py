@@ -57,6 +57,7 @@ from app.models.profile import Profile
 from app.models.user import User
 from app.models.user_auth import UserAuth
 from app.schemas import OrganisationSchema, UserAuthSchema, UserSchema
+from app.helpers.stripe_helpers import get_plan_description, get_stripe_prices
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -144,6 +145,85 @@ def profile():
         # Get current active plan and available plans
         current_plan = UserPlan.query.filter_by(user_id=current_user.id, is_active=True).first()
         available_plans = Plan.query.all()
+
+        # Get current plan price and currency from Stripe if available
+        current_plan_price = 0.0
+        current_plan_currency = "USD"  # Default currency
+        if current_plan and current_plan.plan.stripe_product_id:
+            # Get all prices for this product
+            prices = get_stripe_prices(current_plan.plan.stripe_product_id)
+            if prices:
+                # Find the price that matches the current billing interval
+                matching_prices = (
+                    [
+                        p
+                        for p in prices
+                        if p.get("recurring")
+                        and p["recurring"]["interval"] == current_plan.billing_interval
+                    ]
+                    if current_plan.billing_interval
+                    else []
+                )
+
+                if matching_prices:
+                    current_plan_price = matching_prices[0]["unit_amount"]
+                    current_plan_currency = matching_prices[0]["currency"].upper()
+                else:
+                    # If no matching price, use the first monthly price
+                    monthly_prices = [
+                        p
+                        for p in prices
+                        if p.get("recurring") and p["recurring"]["interval"] == "month"
+                    ]
+                    if monthly_prices:
+                        current_plan_price = monthly_prices[0]["unit_amount"]
+                        current_plan_currency = monthly_prices[0]["currency"].upper()
+                    elif prices:
+                        # If no monthly price, use the first price
+                        current_plan_price = prices[0]["unit_amount"]
+                        current_plan_currency = prices[0]["currency"].upper()
+
+        # Enhance plans with Stripe data
+        enhanced_plans = []
+        for plan in available_plans:
+            plan_data = {
+                "plan_id": plan.plan_id,
+                "plan_name": plan.plan_name,
+                "message_limit_daily": plan.message_limit_daily,
+                "stripe_product_id": plan.stripe_product_id,
+                "price": 0.0,  # Default price
+                "currency": "USD",  # Default currency
+                "description": "",  # Default description
+                "prices": [],  # List of all available prices
+            }
+
+            # Fetch price and description from Stripe if product ID exists
+            if plan.stripe_product_id:
+                # Get all prices for this product
+                prices = get_stripe_prices(plan.stripe_product_id)
+                if prices:
+                    # Set the default price (first monthly price) for backward compatibility
+                    monthly_prices = [
+                        p
+                        for p in prices
+                        if p.get("recurring") and p["recurring"]["interval"] == "month"
+                    ]
+                    if monthly_prices:
+                        plan_data["price"] = monthly_prices[0]["unit_amount"]
+                        plan_data["currency"] = monthly_prices[0]["currency"].upper()
+                    else:
+                        # If no monthly price, use the first price
+                        plan_data["price"] = prices[0]["unit_amount"]
+                        plan_data["currency"] = prices[0]["currency"].upper()
+
+                    # Add all prices to the plan data
+                    plan_data["prices"] = prices
+
+                description = get_plan_description(plan.stripe_product_id)
+                if description:
+                    plan_data["description"] = description
+
+            enhanced_plans.append(plan_data)
 
         # Handle payment status from Stripe redirect
         payment_status = request.args.get("payment")
@@ -246,7 +326,10 @@ def profile():
             profile=profile,
             api_keys=current_user.api_keys,
             current_plan=current_plan,
+            current_plan_price=current_plan_price,
+            current_plan_currency=current_plan_currency,
             available_plans=available_plans,
+            enhanced_plans=enhanced_plans,
         )
     return "You are not logged in!", 403
 

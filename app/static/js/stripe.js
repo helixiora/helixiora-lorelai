@@ -38,7 +38,7 @@ async function initializeStripe() {
     }
 }
 
-async function handlePayment(planId) {
+async function handlePayment(planId, priceId = null) {
     try {
         if (!stripe) {
             // Try to initialize if not already initialized
@@ -49,9 +49,16 @@ async function handlePayment(planId) {
         }
 
         // Create checkout session
-        const response = await makeAuthenticatedRequest('/api/v1/stripe/create-checkout-session', 'POST', {
+        const payload = {
             plan_id: planId
-        });
+        };
+
+        // If a specific price ID is provided, include it in the request
+        if (priceId) {
+            payload.price_id = priceId;
+        }
+
+        const response = await makeAuthenticatedRequest('/api/v1/stripe/create-checkout-session', 'POST', payload);
 
         const session = await response.json();
 

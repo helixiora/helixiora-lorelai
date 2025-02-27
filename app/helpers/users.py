@@ -1,7 +1,7 @@
 """User related helper functions."""
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from functools import wraps
 
 from dateutil.relativedelta import relativedelta
@@ -462,61 +462,65 @@ def remove_user_role(user_id: int, role_name: str) -> bool:
     return False
 
 
-def assign_plan_to_user(user_id: int, plan_name: str, trial_days: int = None) -> bool:
-    """
-    Assign a specific plan to a user.
+def assign_plan_to_user(
+    user_id, plan_name, subscription_id=None, billing_interval=None, trial_days=None
+):
+    """Assign a plan to a user.
 
-    This function performs the following steps:
-    1. Deactivates any existing active plans for the user
-    2. Finds the requested plan by name
-    3. Creates a new active plan for the user with duration from plan settings or trial_days if provided
-    4. Commits all changes to the database
-
-    Args:
-        user_id (int): The unique identifier of the user.
-        plan_name (str): The name of the plan to assign.
-        trial_days (int, optional): Number of trial days to override the plan duration.
+    Parameters
+    ----------
+    user_id : int
+        The ID of the user to assign the plan to.
+    plan_name : str
+        The name of the plan to assign.
+    subscription_id : str, optional
+        The Stripe subscription ID.
+    billing_interval : str, optional
+        The billing interval (month, year).
+    trial_days : int, optional
+        The number of trial days to add.
 
     Returns
     -------
-        bool: True if plan was assigned successfully, False if plan not found.
-
-    Raises
-    ------
-        Exception: If there is an error during the database operations.
-    """  # noqa: E501
+    bool
+        True if the plan was assigned successfully, False otherwise.
+    """
     try:
-        # Deactivate existing active plans
-        UserPlan.query.filter_by(user_id=user_id, is_active=True).update({"is_active": False})
-
-        # Find the requested plan
-        plan = Plan.query.filter_by(plan_name=plan_name).first()
-        if not plan:
-            logging.error(f"Plan not found: {plan_name}")
+        user = User.query.get(user_id)
+        if not user:
+            logging.error(f"User with ID {user_id} not found")
             return False
 
-        # Assign new plan for user
-        start_date = datetime.utcnow()
-        if trial_days is not None:
-            end_date = start_date + timedelta(days=trial_days)
-        else:
-            end_date = start_date + relativedelta(months=plan.duration_months)
+        plan = Plan.query.filter_by(plan_name=plan_name).first()
+        if not plan:
+            logging.error(f"Plan with name {plan_name} not found")
+            return False
 
+        # Deactivate any existing active plans
+        for user_plan in user.user_plans:
+            if user_plan.is_active:
+                user_plan.is_active = False
+                user_plan.end_date = datetime.now().date()
+
+        # Calculate start and end dates
+        start_date = datetime.now().date()
+
+        # Create a new user plan
         new_user_plan = UserPlan(
             user_id=user_id,
             plan_id=plan.plan_id,
             start_date=start_date,
-            end_date=end_date,
+            end_date=None,  # End date is null for active subscriptions
             is_active=True,
+            stripe_subscription_id=subscription_id,
+            billing_interval=billing_interval,
         )
 
         db.session.add(new_user_plan)
         db.session.commit()
 
-        logging.info(f"Successfully assigned {plan_name} plan to user {user_id}")
         return True
-
     except Exception as e:
         db.session.rollback()
-        logging.error(f"Error assigning plan to user: {e}", exc_info=True)
-        raise e
+        logging.error(f"Error assigning plan to user: {str(e)}")
+        return False
