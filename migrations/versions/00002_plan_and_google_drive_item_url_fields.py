@@ -1,7 +1,7 @@
 """Plan and google_drive_item url fields added.
 
-Revision ID: d0ddd680748b
-Revises: 1978391f226f
+Revision ID: 00002
+Revises: 00001
 Create Date: 2024-11-07 15:54:29.392133
 
 """

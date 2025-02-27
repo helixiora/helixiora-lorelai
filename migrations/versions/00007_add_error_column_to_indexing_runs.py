@@ -1,7 +1,7 @@
 """add error column to indexing_runs.
 
-Revision ID: 66809f0b9c17
-Revises: a5ecd3e952ac
+Revision ID: 00007
+Revises: 00006
 Create Date: 2025-01-01 15:59:40.981912
 
 """

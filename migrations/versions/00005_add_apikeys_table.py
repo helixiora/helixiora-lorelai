@@ -1,7 +1,7 @@
 """add APIKeys table.
 
-Revision ID: 0026ea6684cd
-Revises: b2fbd2224f49
+Revision ID: 00005
+Revises: 00004
 Create Date: 2024-11-21 13:19:54.030903
 
 """

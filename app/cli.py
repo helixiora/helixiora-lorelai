@@ -1,19 +1,35 @@
 """Define the CLI commands for the app."""
 
+import os
+import re
+
 import click
 from flask.cli import with_appcontext
+from sqlalchemy import text
+
+from app.database import db
 from app.models.datasource import Datasource
 from app.models.plan import Plan
 from app.models.role import Role
-from app.database import db
-
-from sqlalchemy import text
 
 
 @click.command("init-db")
 @with_appcontext
 def init_db_command():
     """Clear existing data and create new tables."""
+    # Check if database already exists by checking if alembic_version table exists and has data
+    try:
+        result = db.session.execute(text("SHOW TABLES LIKE 'alembic_version'"))
+        if result.fetchone():
+            # Check if version is set
+            version_result = db.session.execute(text("SELECT version_num FROM alembic_version"))
+            if version_result.fetchone():
+                click.echo("Database already initialized. Skipping initialization.")
+                return
+    except Exception:
+        # If there's an error checking the table, continue with initialization
+        pass
+
     try:
         db.create_all()
         click.echo("Created database tables.")
@@ -30,6 +46,32 @@ def init_db_command():
             click.echo("Created alembic_version table.")
         else:
             click.echo("Alembic version table already exists.")
+
+        # Find the latest migration version from the migrations directory
+        versions_dir = os.path.join("migrations", "versions")
+        latest_version = "00000"  # Default version if no files found
+
+        if os.path.exists(versions_dir):
+            for filename in os.listdir(versions_dir):
+                match = re.match(r"^(\d+).*\.py$", filename)
+                if match:
+                    version = match.group(1)
+                    if version > latest_version:
+                        latest_version = version
+
+        # Check if a version is already set
+        version_result = db.session.execute(text("SELECT version_num FROM alembic_version"))
+        existing_version = version_result.fetchone()
+
+        if not existing_version:
+            # Insert the latest version number
+            db.session.execute(
+                text(f"INSERT INTO alembic_version (version_num) VALUES ('{latest_version}')")
+            )
+            click.echo(f"Set alembic_version to '{latest_version}'")
+        else:
+            click.echo(f"Alembic version already set to '{existing_version[0]}'")
+
         db.session.commit()
     except Exception as e:
         click.echo(f"Error handling alembic_version table: {e}")

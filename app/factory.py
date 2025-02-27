@@ -2,32 +2,32 @@
 
 import logging
 import os
+from datetime import timedelta
+
 from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_restx import Api, fields
-from flask_jwt_extended import JWTManager
-from datetime import timedelta
 
 from app.models import User, db
-from app.routes.api.v1.auth import auth_ns
-from app.routes.api.v1.chat import chat_ns
-from app.routes.api.v1.token import token_ns
-from app.routes.api.v1.notifications import notifications_ns
+from app.routes.admin import admin_bp
 from app.routes.api.v1.admin import admin_ns
 from app.routes.api.v1.api_keys import api_keys_ns
-from app.routes.api.v1.slack import slack_ns
-from app.routes.api.v1.googledrive import googledrive_ns
+from app.routes.api.v1.auth import auth_ns
+from app.routes.api.v1.chat import chat_ns
 from app.routes.api.v1.conversation import conversation_ns
+from app.routes.api.v1.googledrive import googledrive_ns
 from app.routes.api.v1.indexing import indexing_ns
-
+from app.routes.api.v1.notifications import notifications_ns
+from app.routes.api.v1.slack import slack_ns
+from app.routes.api.v1.token import token_ns
 from app.routes.authentication import auth_bp
 from app.routes.chat import chat_bp
 from app.routes.indexing import bp as indexing_bp
 from app.routes.integrations.googledrive import googledrive_bp
 from app.routes.integrations.slack import slack_bp
-from app.routes.admin import admin_bp
 from app.routes.notifications import notifications_bp
 
 # Get git details

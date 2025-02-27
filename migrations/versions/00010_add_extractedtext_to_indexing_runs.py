@@ -1,7 +1,7 @@
 """Add extracted text to indexing runs.
 
 Revision ID: 00009
-Revises: 76119662618d
+Revises: 00009
 Create Date: 2025-01-15 12:00:00.000000
 
 """
