@@ -241,6 +241,32 @@ class StripeWebhookResource(Resource):
             return None
 
     @staticmethod
+    def update_subscription_metadata(subscription_id, metadata):
+        """Update the metadata of a Stripe subscription.
+
+        This ensures that future invoices will have the correct metadata.
+
+        Parameters
+        ----------
+        subscription_id : str
+            The Stripe subscription ID.
+        metadata : dict
+            The metadata to set on the subscription.
+
+        Returns
+        -------
+        bool
+            True if successful, False otherwise.
+        """
+        try:
+            stripe.api_key = current_app.config.get("STRIPE_SECRET_KEY")
+            stripe.Subscription.modify(subscription_id, metadata=metadata)
+            return True
+        except Exception as e:
+            logging.error(f"Error updating subscription metadata: {str(e)}")
+            return False
+
+    @staticmethod
     def process_webhook_event(event, webhook_event):
         """Process the webhook event."""
         try:
@@ -253,6 +279,17 @@ class StripeWebhookResource(Resource):
 
                 # Get the subscription ID from the session
                 subscription_id = session.get("subscription")
+
+                # Update subscription metadata to ensure it's available for future invoices
+                if subscription_id:
+                    StripeWebhookResource.update_subscription_metadata(
+                        subscription_id,
+                        {
+                            "user_id": str(user_id),
+                            "plan_name": plan_name,
+                            "billing_interval": billing_interval,
+                        },
+                    )
 
                 success = assign_plan_to_user(
                     user_id=user_id,
@@ -272,20 +309,72 @@ class StripeWebhookResource(Resource):
             # Handle the invoice.payment_succeeded event
             elif event["type"] == "invoice.payment_succeeded":
                 invoice = event["data"]["object"]
-                subscription = stripe.Subscription.retrieve(invoice.subscription)
-                user_id = int(invoice["metadata"]["user_id"])
-                plan_name = invoice["metadata"]["plan_name"]
+                subscription_id = invoice.get("subscription")
+
+                # First try to get user_id from invoice metadata
+                if invoice.get("metadata") and "user_id" in invoice["metadata"]:
+                    user_id = int(invoice["metadata"]["user_id"])
+                    plan_name = invoice["metadata"]["plan_name"]
+                else:
+                    # If not in invoice metadata, retrieve from subscription
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+
+                    # Try to find user by stripe_customer_id
+                    user = User.query.filter_by(stripe_customer_id=subscription.customer).first()
+                    if not user:
+                        error_msg = (
+                            f"User with Stripe customer ID {subscription.customer} not found"
+                        )
+                        logging.error(error_msg)
+                        StripeWebhookResource.update_webhook_status(
+                            webhook_event, "failed", error_msg
+                        )
+                        return {"error": error_msg}, 404
+
+                    user_id = user.id
+
+                    # Get plan name from subscription metadata or items
+                    if subscription.get("metadata") and "plan_name" in subscription.metadata:
+                        plan_name = subscription.metadata["plan_name"]
+                    else:
+                        # Try to get plan from subscription items
+                        subscription_item = (
+                            subscription.items.data[0] if subscription.items.data else None
+                        )
+                        if (
+                            subscription_item
+                            and subscription_item.price
+                            and subscription_item.price.metadata
+                        ):
+                            plan_name = subscription_item.price.metadata.get("plan_name")
+                        else:
+                            # Default to current plan if we can't determine
+                            current_user_plan = UserPlan.query.filter_by(
+                                user_id=user_id,
+                                is_active=True,
+                                stripe_subscription_id=subscription_id,
+                            ).first()
+                            if current_user_plan and current_user_plan.plan:
+                                plan_name = current_user_plan.plan.plan_name
+                            else:
+                                error_msg = f"Could not determine plan name for subscription \
+{subscription_id}"
+                                logging.error(error_msg)
+                                StripeWebhookResource.update_webhook_status(
+                                    webhook_event, "failed", error_msg
+                                )
+                                return {"error": error_msg}, 400
 
                 # Reassign the plan to update the end date
                 success = assign_plan_to_user(user_id=user_id, plan_name=plan_name)
                 if success:
                     logging.info(
-                        f"Updated subscription:{subscription.id} for user {user_id} \
+                        f"Updated subscription:{subscription_id} for user {user_id} \
                             after successful payment"
                     )
                 else:
                     error_msg = (
-                        f"Failed to update subscription:{subscription.id} for user {user_id}"
+                        f"Failed to update subscription:{subscription_id} for user {user_id}"
                     )
                     logging.error(error_msg)
                     StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
@@ -293,11 +382,42 @@ class StripeWebhookResource(Resource):
             # Handle the invoice.payment_failed event
             elif event["type"] == "invoice.payment_failed":
                 invoice = event["data"]["object"]
-                user_id = int(invoice["metadata"]["user_id"])
+                subscription_id = invoice.get("subscription")
+
+                # First try to get user_id from invoice metadata
+                if invoice.get("metadata") and "user_id" in invoice["metadata"]:
+                    user_id = int(invoice["metadata"]["user_id"])
+                else:
+                    # If not in invoice metadata, retrieve from subscription
+                    if subscription_id:
+                        subscription = stripe.Subscription.retrieve(subscription_id)
+
+                        # Try to find user by stripe_customer_id
+                        user = User.query.filter_by(
+                            stripe_customer_id=subscription.customer
+                        ).first()
+                        if not user:
+                            error_msg = (
+                                f"User with Stripe customer ID {subscription.customer} not found"
+                            )
+                            logging.error(error_msg)
+                            StripeWebhookResource.update_webhook_status(
+                                webhook_event, "failed", error_msg
+                            )
+                            return {"error": error_msg}, 404
+
+                        user_id = user.id
+                    else:
+                        error_msg = "No subscription ID found in invoice and no user_id in metadata"
+                        logging.error(error_msg)
+                        StripeWebhookResource.update_webhook_status(
+                            webhook_event, "failed", error_msg
+                        )
+                        return {"error": error_msg}, 400
+
                 logging.warning(f"Payment failed for user {user_id}")
 
                 # Cancel the subscription
-                subscription_id = invoice.get("subscription")
                 if subscription_id:
                     stripe.Subscription.delete(subscription_id)
 
@@ -403,7 +523,7 @@ class StripeWebhookResource(Resource):
 
         except Exception as e:
             error_msg = f"Error processing webhook: {str(e)}"
-            logging.error(error_msg)
+            logging.error(error_msg, exc_info=True)
             StripeWebhookResource.update_webhook_status(webhook_event, "failed", error_msg)
             return {"error": str(e)}, 500
 
